@@ -146,6 +146,11 @@ export function buildTextElement({
 		opacity: t.opacity ?? DEFAULT_TEXT_ELEMENT.opacity,
 		stroke: t.stroke,
 		shadow: t.shadow,
+		boxWidth: t.boxWidth,
+		backgroundBorderRadius: t.backgroundBorderRadius,
+		backgroundOpacity: t.backgroundOpacity,
+		backgroundPaddingX: t.backgroundPaddingX,
+		backgroundPaddingY: t.backgroundPaddingY,
 	};
 }
 

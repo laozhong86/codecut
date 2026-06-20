@@ -129,11 +129,21 @@ Codex sends exactly one editing plan format to Codecut:
     startTime: number,
     duration: number
   }>,
+  captionStyle?: {
+    preset: "short-form-bold" | "black-bar",
+    position: "lower-safe" | "center"
+  },
   rationale: string
 }
 ```
 
 Codecut validates and executes this plan. If validation fails, Codecut returns a structured error. Codex must generate a corrected plan and retry.
+
+When `captions` contains one or more items, Codex must include
+`captionStyle`. When `captions` is empty or omitted, `captionStyle` must be
+omitted. Caption styling is intentionally limited to local presets:
+`short-form-bold` and `black-bar`. Codecut does not accept arbitrary CSS,
+per-caption style objects, or `keyword-highlight` in this P0 contract.
 
 ## End-to-End Workflow
 

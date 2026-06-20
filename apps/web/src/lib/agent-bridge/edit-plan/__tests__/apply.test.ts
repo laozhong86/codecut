@@ -102,6 +102,10 @@ function validPlan(): EditPlan {
 		],
 		title: { text: "The key insight", startTime: 0, duration: 3 },
 		captions: [{ text: "This is the key insight.", startTime: 0, duration: 2 }],
+		captionStyle: {
+			preset: "short-form-bold",
+			position: "lower-safe",
+		},
 		rationale: "Combines setup and proof into a short clip.",
 	};
 }
@@ -241,6 +245,86 @@ describe("applyEditPlanToEditor", () => {
 				duration: 2,
 			},
 		]);
+	});
+
+	test("applies short-form-bold caption style without affecting title", () => {
+		const editor = fakeEditor();
+
+		applyEditPlanToEditor({
+			plan: validPlan(),
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const textElements = editor.timeline.getTracks().flatMap((track) =>
+			track.type === "text" ? track.elements : [],
+		);
+
+		expect(textElements[0]).toMatchObject({
+			content: "The key insight",
+			fontWeight: "normal",
+			stroke: undefined,
+			shadow: undefined,
+		});
+		expect(textElements[1]).toMatchObject({
+			content: "This is the key insight.",
+			fontFamily: "Inter",
+			fontSize: 6,
+			fontWeight: "bold",
+			color: "#ffffff",
+			stroke: { color: "#000000", width: 3 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
+			backgroundColor: "transparent",
+			boxWidth: 42,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: 300 },
+				rotate: 0,
+			},
+		});
+	});
+
+	test("applies black-bar caption style with safe box styling", () => {
+		const editor = fakeEditor();
+		const plan: EditPlan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "black-bar",
+				position: "center",
+			},
+		};
+
+		applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const textElements = editor.timeline.getTracks().flatMap((track) =>
+			track.type === "text" ? track.elements : [],
+		);
+
+		expect(textElements[1]).toMatchObject({
+			content: "This is the key insight.",
+			fontFamily: "Inter",
+			fontSize: 5,
+			fontWeight: "bold",
+			color: "#ffffff",
+			stroke: undefined,
+			backgroundColor: "#000000",
+			backgroundOpacity: 0.78,
+			backgroundPaddingX: 24,
+			backgroundPaddingY: 12,
+			backgroundBorderRadius: 8,
+			boxWidth: 42,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: 0 },
+				rotate: 0,
+			},
+		});
 	});
 
 	test("does not modify a non-empty timeline unless replaceExisting is true", () => {

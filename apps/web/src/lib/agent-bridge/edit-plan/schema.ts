@@ -2,6 +2,20 @@ import { z } from "zod";
 
 export const EditPlanAspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 
+export const EditPlanCaptionStylePresetSchema = z.enum([
+	"short-form-bold",
+	"black-bar",
+]);
+
+export const EditPlanCaptionPositionSchema = z.enum(["lower-safe", "center"]);
+
+export const EditPlanCaptionStyleSchema = z
+	.object({
+		preset: EditPlanCaptionStylePresetSchema,
+		position: EditPlanCaptionPositionSchema,
+	})
+	.strict();
+
 export const EditPlanClipSchema = z
 	.object({
 		id: z.string().min(1),
@@ -34,6 +48,7 @@ export const EditPlanSchema = z
 		clips: z.array(EditPlanClipSchema).min(1),
 		title: EditPlanTimedTextSchema.optional(),
 		captions: z.array(EditPlanTimedTextSchema).optional(),
+		captionStyle: EditPlanCaptionStyleSchema.optional(),
 		rationale: z.string().min(1),
 	})
 	.strict();
@@ -41,3 +56,4 @@ export const EditPlanSchema = z
 export type EditPlan = z.infer<typeof EditPlanSchema>;
 export type EditPlanClip = z.infer<typeof EditPlanClipSchema>;
 export type EditPlanTimedText = z.infer<typeof EditPlanTimedTextSchema>;
+export type EditPlanCaptionStyle = z.infer<typeof EditPlanCaptionStyleSchema>;

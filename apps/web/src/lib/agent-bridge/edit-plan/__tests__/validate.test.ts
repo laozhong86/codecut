@@ -52,6 +52,10 @@ function validPlan() {
 				duration: 2,
 			},
 		],
+		captionStyle: {
+			preset: "short-form-bold",
+			position: "lower-safe",
+		},
 		rationale: "Combines setup and proof into a short clip.",
 	};
 }
@@ -195,6 +199,101 @@ describe("validateEditPlan", () => {
 			success: false,
 			message: "EditPlan caption exceeds the generated timeline duration.",
 			path: "captions[0]",
+		});
+	});
+
+	test("accepts captions with a required local captionStyle", () => {
+		const result = validateEditPlan({
+			plan: validPlan(),
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			normalizedPlan: {
+				captionStyle: {
+					preset: "short-form-bold",
+					position: "lower-safe",
+				},
+			},
+		});
+	});
+
+	test("rejects captions without captionStyle", () => {
+		const plan = validPlan();
+		delete plan.captionStyle;
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan captions require captionStyle.",
+			path: "captionStyle",
+		});
+	});
+
+	test("rejects captionStyle without captions", () => {
+		const plan = validPlan();
+		delete plan.captions;
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan captionStyle requires captions.",
+			path: "captionStyle",
+		});
+	});
+
+	test("rejects unsupported captionStyle preset", () => {
+		const plan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "keyword-highlight",
+				position: "lower-safe",
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan schema is invalid.",
+		});
+	});
+
+	test("rejects arbitrary caption style fields", () => {
+		const plan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "short-form-bold",
+				position: "lower-safe",
+				css: "color: red",
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan schema is invalid.",
 		});
 	});
 });

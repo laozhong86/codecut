@@ -9,7 +9,7 @@ import {
 	buildVideoElement,
 	buildUploadAudioElement,
 } from "@/lib/timeline/element-utils";
-import type { EditPlan } from "./schema";
+import type { EditPlan, EditPlanCaptionStyle } from "./schema";
 import { validateEditPlan } from "./validate";
 
 type InsertElementPlacement =
@@ -149,20 +149,79 @@ function createTextElement({
 	startTime,
 	duration,
 	name,
+	raw,
 }: {
 	text: string;
 	startTime: number;
 	duration: number;
 	name: string;
+	raw?: Parameters<typeof buildTextElement>[0]["raw"];
 }): CreateTimelineElement {
 	return buildTextElement({
 		raw: {
+			...raw,
 			name,
 			content: text,
 			duration,
 		},
 		startTime,
 	});
+}
+
+function getCaptionBoxWidth({
+	aspectRatio,
+}: {
+	aspectRatio: EditPlan["target"]["aspectRatio"];
+}): number {
+	if (aspectRatio === "9:16") return 42;
+	if (aspectRatio === "1:1") return 72;
+	return 120;
+}
+
+function resolveCaptionPresetStyles({
+	captionStyle,
+	aspectRatio,
+}: {
+	captionStyle: EditPlanCaptionStyle;
+	aspectRatio: EditPlan["target"]["aspectRatio"];
+}): Parameters<typeof buildTextElement>[0]["raw"] {
+	const transform = {
+		scale: 1,
+		position:
+			captionStyle.position === "lower-safe"
+				? { x: 0, y: 300 }
+				: { x: 0, y: 0 },
+		rotate: 0,
+	};
+	const boxWidth = getCaptionBoxWidth({ aspectRatio });
+
+	if (captionStyle.preset === "black-bar") {
+		return {
+			fontFamily: "Inter",
+			fontSize: 5,
+			fontWeight: "bold",
+			color: "#ffffff",
+			backgroundColor: "#000000",
+			backgroundOpacity: 0.78,
+			backgroundPaddingX: 24,
+			backgroundPaddingY: 12,
+			backgroundBorderRadius: 8,
+			boxWidth,
+			transform,
+		};
+	}
+
+	return {
+		fontFamily: "Inter",
+		fontSize: 6,
+		fontWeight: "bold",
+		color: "#ffffff",
+		backgroundColor: "transparent",
+		stroke: { color: "#000000", width: 3 },
+		shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
+		boxWidth,
+		transform,
+	};
 }
 
 export function applyEditPlanToEditor({
@@ -232,6 +291,7 @@ export function applyEditPlanToEditor({
 		startTime: number;
 		duration: number;
 		name: string;
+		raw?: Parameters<typeof buildTextElement>[0]["raw"];
 	}> = [];
 	if (normalizedPlan.title) {
 		textItems.push({
@@ -239,6 +299,12 @@ export function applyEditPlanToEditor({
 			name: "EditPlan Title",
 		});
 	}
+	const captionRaw = normalizedPlan.captionStyle
+		? resolveCaptionPresetStyles({
+				captionStyle: normalizedPlan.captionStyle,
+				aspectRatio: normalizedPlan.target.aspectRatio,
+			})
+		: undefined;
 	for (
 		let index = 0;
 		index < (normalizedPlan.captions ?? []).length;
@@ -249,6 +315,7 @@ export function applyEditPlanToEditor({
 		textItems.push({
 			...caption,
 			name: `Caption ${index + 1}`,
+			raw: captionRaw,
 		});
 	}
 

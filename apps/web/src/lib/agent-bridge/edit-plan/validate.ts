@@ -49,6 +49,20 @@ export function validateEditPlan({
 	}
 
 	const normalizedPlan = parsed.data;
+	const hasCaptions = (normalizedPlan.captions?.length ?? 0) > 0;
+	if (hasCaptions && !normalizedPlan.captionStyle) {
+		return fail({
+			message: "EditPlan captions require captionStyle.",
+			path: "captionStyle",
+		});
+	}
+	if (!hasCaptions && normalizedPlan.captionStyle) {
+		return fail({
+			message: "EditPlan captionStyle requires captions.",
+			path: "captionStyle",
+		});
+	}
+
 	if (normalizedPlan.projectId !== projectId) {
 		return fail({
 			message: "EditPlan projectId does not match the active project.",
