@@ -4,6 +4,7 @@ export const BridgeToolNameSchema = z.enum([
 	"get_project_info",
 	"update_project_settings",
 	"list_media_assets",
+	"import_media_file",
 	"get_timeline_state",
 	"add_video_to_timeline",
 	"add_text_to_timeline",

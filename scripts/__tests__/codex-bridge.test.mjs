@@ -6,6 +6,7 @@ import {
 	buildApplyPlanEnvelope,
 	buildCommandEnvelope,
 	buildExportEnvelope,
+	buildImportMediaEnvelope,
 	buildTranscribeEnvelope,
 	parseBoolean,
 	requireRuntimeConfig,
@@ -93,6 +94,40 @@ describe("codex bridge CLI helpers", () => {
 				modelId: "whisper-base",
 			},
 		});
+	});
+
+	test("builds an import-media command envelope from an absolute local file path", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "cutia-codex-bridge-"));
+		const filePath = join(directory, "source.mp4");
+		await writeFile(filePath, "video-bytes");
+
+		try {
+			const envelope = await buildImportMediaEnvelope({
+				projectId: "project-123",
+				filePath,
+			});
+
+			expect(envelope.commands[0].id).toBe("cmd-1");
+			expect(envelope.commands[0].tool).toBe("import_media_file");
+			expect(envelope.commands[0].args).toMatchObject({
+				fileName: "source.mp4",
+				mimeType: "video/mp4",
+				size: 11,
+				base64: Buffer.from("video-bytes").toString("base64"),
+			});
+			expect(typeof envelope.commands[0].args.lastModified).toBe("number");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("import-media requires an absolute local file path", async () => {
+		await expect(
+			buildImportMediaEnvelope({
+				projectId: "project-123",
+				filePath: "source.mp4",
+			}),
+		).rejects.toThrow("--file-path must be an absolute path");
 	});
 
 	test("builds an apply-plan command envelope from a local JSON file", async () => {

@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { isAbsolute } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { basename, extname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const requiredConfig = [
@@ -16,6 +15,7 @@ function usage() {
 	return [
 		"Usage:",
 		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
 		"  node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>",
 		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --download <true|false>",
@@ -185,6 +185,62 @@ export function buildTranscribeEnvelope({
 	});
 }
 
+const extensionMimeTypes = new Map([
+	[".jpg", "image/jpeg"],
+	[".jpeg", "image/jpeg"],
+	[".png", "image/png"],
+	[".webp", "image/webp"],
+	[".gif", "image/gif"],
+	[".svg", "image/svg+xml"],
+	[".mp4", "video/mp4"],
+	[".m4v", "video/mp4"],
+	[".mov", "video/quicktime"],
+	[".webm", "video/webm"],
+	[".mkv", "video/x-matroska"],
+	[".mp3", "audio/mpeg"],
+	[".wav", "audio/wav"],
+	[".m4a", "audio/mp4"],
+	[".aac", "audio/aac"],
+	[".ogg", "audio/ogg"],
+	[".flac", "audio/flac"],
+]);
+
+function mimeTypeForFilePath({ filePath }) {
+	const extension = extname(filePath).toLowerCase();
+	const mimeType = extensionMimeTypes.get(extension);
+	if (!mimeType) {
+		throw new Error("--file-path must point to a supported media file");
+	}
+	return mimeType;
+}
+
+export async function buildImportMediaEnvelope({ projectId, filePath }) {
+	if (!filePath) {
+		throw new Error("--file-path is required");
+	}
+	if (!isAbsolute(filePath)) {
+		throw new Error("--file-path must be an absolute path");
+	}
+
+	const fileStat = await stat(filePath);
+	if (!fileStat.isFile()) {
+		throw new Error("--file-path must point to a regular file");
+	}
+
+	const content = await readFile(filePath);
+	return buildCommandEnvelope({
+		projectId,
+		tool: "import_media_file",
+		args: {
+			fileName: basename(filePath),
+			mimeType: mimeTypeForFilePath({ filePath }),
+			base64: content.toString("base64"),
+			size: fileStat.size,
+			lastModified: fileStat.mtimeMs,
+		},
+	});
+}
+
 export async function buildApplyPlanEnvelope({
 	projectId,
 	planJsonFile,
@@ -289,6 +345,11 @@ export async function runCli({
 			includeAudio: parseBoolean(flags.includeAudio, "includeAudio"),
 			download: parseBoolean(flags.download, "download"),
 			fileName: flags.fileName,
+		});
+	} else if (command === "import-media") {
+		envelope = await buildImportMediaEnvelope({
+			projectId: flags.projectId,
+			filePath: flags.filePath,
 		});
 	} else if (command === "transcribe") {
 		envelope = buildTranscribeEnvelope({

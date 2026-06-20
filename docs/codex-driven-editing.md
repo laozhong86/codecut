@@ -7,7 +7,7 @@ This workflow keeps all LLM and agent reasoning outside Cutia. Cutia exposes det
 Cutia does:
 
 - Show the editor UI and timeline state.
-- Store imported media assets for the active browser project.
+- Store media assets imported through the UI or the local Codex bridge.
 - Run browser-side transcription for an existing audio or video asset.
 - Validate an explicit EditPlan.
 - Apply a valid EditPlan to the timeline.
@@ -75,7 +75,7 @@ Cutia validates and executes this plan. If validation fails, Cutia returns a str
 ## End-to-End Workflow
 
 1. The user opens the Cutia editor in the browser.
-2. The user imports a long video into the active project.
+2. The user imports a long video into the active project, or Codex imports a local media file with `import-media`.
 3. Codex calls `get_project_info` to confirm the active project.
 4. Codex calls `list_media_assets` to inspect available media.
 5. Codex selects the target media asset for editing.
@@ -87,6 +87,16 @@ Cutia validates and executes this plan. If validation fails, Cutia returns a str
 11. Codex can optionally call `export_project` after the user confirms the timeline.
 
 ## CLI Commands
+
+Import a local media file into the active browser project's media library:
+
+```bash
+node scripts/codex-bridge.mjs import-media \
+  --project-id <id> \
+  --file-path /absolute/path/source.mp4
+```
+
+The local file path stays on the Codex side. The CLI reads the file bytes and sends a base64 payload through the local bridge; very large source videos can hit local request size or timeout limits.
 
 Transcribe an existing imported media asset:
 
@@ -129,6 +139,7 @@ node scripts/codex-bridge.mjs export \
 
 ## Failure Handling
 
+- If `import_media_file` fails, Codex must verify the file path, file type, and active browser project before retrying.
 - If `transcribe_media` cannot find the media asset, Codex must call `list_media_assets` again and select a valid asset.
 - If `apply_edit_plan` fails validation, Codex must correct the EditPlan. Cutia must not auto-fix it.
 - If the timeline is not empty, Codex must pass `replaceExisting=true` only when replacing the current cut is intentional.

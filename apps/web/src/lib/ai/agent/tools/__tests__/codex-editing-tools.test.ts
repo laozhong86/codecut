@@ -4,6 +4,7 @@ import type { TimelineTrack } from "@/types/timeline";
 import { BridgeToolNameSchema } from "@/lib/agent-bridge/schema";
 import { getToolByName } from "../index";
 import { executeApplyEditPlanTool } from "../edit-plan-tools";
+import { executeImportMediaFileTool } from "../media-tools";
 import { executeTranscribeMediaTool } from "../transcription-tools";
 
 function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
@@ -41,11 +42,17 @@ function editorWithMedia({
 
 describe("Codex deterministic editing tools", () => {
 	test("registers bridge tools for transcription and edit plan application", () => {
+		expect(getToolByName({ name: "import_media_file" })?.name).toBe(
+			"import_media_file",
+		);
 		expect(getToolByName({ name: "transcribe_media" })?.name).toBe(
 			"transcribe_media",
 		);
 		expect(getToolByName({ name: "apply_edit_plan" })?.name).toBe(
 			"apply_edit_plan",
+		);
+		expect(BridgeToolNameSchema.safeParse("import_media_file").success).toBe(
+			true,
 		);
 		expect(BridgeToolNameSchema.safeParse("transcribe_media").success).toBe(
 			true,
@@ -97,6 +104,113 @@ describe("Codex deterministic editing tools", () => {
 			data: { path: "projectId" },
 		});
 		expect(updateCount).toBe(0);
+	});
+
+	test("import_media_file decodes a local file payload and adds it to the media library", async () => {
+		const addedAssets: Array<{ projectId: string; asset: Omit<MediaAsset, "id"> }> =
+			[];
+		const editor = {
+			project: {
+				getActive: () => ({ metadata: { id: "project-123" } }),
+			},
+			media: {
+				addMediaAsset: async ({
+					projectId,
+					asset,
+				}: {
+					projectId: string;
+					asset: Omit<MediaAsset, "id">;
+				}) => {
+					addedAssets.push({ projectId, asset });
+					return "media-imported-1";
+				},
+			},
+		};
+
+		const result = await executeImportMediaFileTool({
+			args: {
+				fileName: "intro.mp4",
+				mimeType: "video/mp4",
+				base64: Buffer.from("video-bytes").toString("base64"),
+				size: 11,
+				lastModified: 123,
+			},
+			editor,
+			processFiles: async ({ files }) => {
+				const [file] = Array.from(files);
+				expect(file.name).toBe("intro.mp4");
+				expect(file.type).toBe("video/mp4");
+				expect(file.size).toBe(11);
+				return [
+					{
+						name: file.name,
+						type: "video",
+						file,
+						duration: 42,
+						width: 1920,
+						height: 1080,
+						fps: 30,
+						url: "blob:imported",
+					},
+				];
+			},
+		});
+
+		expect(result).toEqual({
+			success: true,
+			message: "Imported 1 media asset(s)",
+			data: {
+				assets: [
+					{
+						id: "media-imported-1",
+						name: "intro.mp4",
+						type: "video",
+						duration: 42,
+						width: 1920,
+						height: 1080,
+						size: 11,
+					},
+				],
+			},
+		});
+		expect(addedAssets).toHaveLength(1);
+		expect(addedAssets[0].projectId).toBe("project-123");
+		expect(addedAssets[0].asset.name).toBe("intro.mp4");
+	});
+
+	test("import_media_file fails before mutating media when payload size is invalid", async () => {
+		let addCount = 0;
+		const editor = {
+			project: {
+				getActive: () => ({ metadata: { id: "project-123" } }),
+			},
+			media: {
+				addMediaAsset: async () => {
+					addCount += 1;
+					return "media-imported-1";
+				},
+			},
+		};
+
+		const result = await executeImportMediaFileTool({
+			args: {
+				fileName: "intro.mp4",
+				mimeType: "video/mp4",
+				base64: Buffer.from("video-bytes").toString("base64"),
+				size: 999,
+				lastModified: 123,
+			},
+			editor,
+			processFiles: async () => {
+				throw new Error("processFiles should not be called");
+			},
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "Imported file size does not match payload size.",
+		});
+		expect(addCount).toBe(0);
 	});
 
 	test("transcribe_media fails when the media asset does not exist", async () => {
