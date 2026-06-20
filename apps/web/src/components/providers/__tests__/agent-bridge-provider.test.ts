@@ -43,6 +43,13 @@ describe("AgentBridgeProvider polling", () => {
 			const url = String(input);
 			fetchCalls.push({ url, init });
 
+			if (url === "/api/agent-bridge/heartbeat") {
+				return jsonResponse({
+					projectId: "project-123",
+					lastSeenAt: "2026-06-21T00:00:00.000Z",
+				});
+			}
+
 			if (url.startsWith("/api/agent-bridge/commands")) {
 				return jsonResponse({
 					items: [{ id: "item-1", envelope, status: "claimed" }],
@@ -66,22 +73,37 @@ describe("AgentBridgeProvider polling", () => {
 					envelopeProjectId: envelope.projectId,
 					results,
 				} satisfies BridgeEnvelopeResult;
-			},
-		});
+				},
+			});
 
-		expect(fetchCalls[0].url).toBe(
-			"/api/agent-bridge/commands?projectId=project-123",
-		);
-		expect(executedProjectIds).toEqual(["project-123"]);
+			expect(fetchCalls[0].url).toBe("/api/agent-bridge/heartbeat");
+			expect(JSON.parse(String(fetchCalls[0].init?.body))).toEqual({
+				projectId: "project-123",
+			});
+			expect(fetchCalls[1].url).toBe(
+				"/api/agent-bridge/commands?projectId=project-123",
+			);
+			expect(executedProjectIds).toEqual(["project-123"]);
 		expect(postedBodies).toEqual([{ id: "item-1", results }]);
 	});
 
 	test("does not execute commands when claim request fails", async () => {
 		let executeCount = 0;
+		let fetchCount = 0;
 
 		await pollAgentBridgeOnce({
 			projectId: "project-123",
-			fetchImpl: async () => jsonResponse({ error: "Forbidden" }, 403),
+			fetchImpl: async () => {
+				fetchCount += 1;
+				if (fetchCount === 1) {
+					return jsonResponse({
+						projectId: "project-123",
+						lastSeenAt: "2026-06-21T00:00:00.000Z",
+					});
+				}
+
+				return jsonResponse({ error: "Forbidden" }, 403);
+			},
 			executeEnvelope: async ({ envelope }) => {
 				executeCount += 1;
 				return {

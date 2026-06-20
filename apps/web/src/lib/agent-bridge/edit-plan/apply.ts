@@ -1,7 +1,6 @@
 import type { MediaAsset } from "@/types/assets";
 import type {
 	CreateTimelineElement,
-	TimelineElement,
 	TimelineTrack,
 	TrackType,
 } from "@/types/timeline";
@@ -51,7 +50,11 @@ function hasTimelineElements({ tracks }: { tracks: TimelineTrack[] }): boolean {
 	return tracks.some((track) => track.elements.length > 0);
 }
 
-function collectElementIds({ tracks }: { tracks: TimelineTrack[] }): Set<string> {
+function collectElementIds({
+	tracks,
+}: {
+	tracks: TimelineTrack[];
+}): Set<string> {
 	return new Set(
 		tracks.flatMap((track) => track.elements.map((element) => element.id)),
 	);
@@ -199,7 +202,8 @@ export function applyEditPlanToEditor({
 	if (!sourceMedia) {
 		return {
 			success: false,
-			message: "EditPlan sourceMediaId was not found in the project media library.",
+			message:
+				"EditPlan sourceMediaId was not found in the project media library.",
 			path: "sourceMediaId",
 		};
 	}
@@ -235,7 +239,11 @@ export function applyEditPlanToEditor({
 			name: "EditPlan Title",
 		});
 	}
-	for (let index = 0; index < (normalizedPlan.captions ?? []).length; index += 1) {
+	for (
+		let index = 0;
+		index < (normalizedPlan.captions ?? []).length;
+		index += 1
+	) {
 		const caption = normalizedPlan.captions?.[index];
 		if (!caption) continue;
 		textItems.push({

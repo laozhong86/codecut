@@ -9,7 +9,7 @@ import {
 import type { BridgeCommandResult } from "../schema";
 
 type AgentBridgeTestGlobal = typeof globalThis & {
-	__cutiaAgentBridgeQueueItems?: Map<string, unknown>;
+	__codecutAgentBridgeQueueItems?: Map<string, unknown>;
 };
 
 const envelope = {
@@ -110,7 +110,7 @@ describe("agent bridge queue", () => {
 		const item = enqueueBridgeEnvelope({ envelope });
 		const bridgeGlobal = globalThis as AgentBridgeTestGlobal;
 
-		expect(bridgeGlobal.__cutiaAgentBridgeQueueItems?.has(item.id)).toBe(true);
+		expect(bridgeGlobal.__codecutAgentBridgeQueueItems?.has(item.id)).toBe(true);
 	});
 
 	test("rejects completion before an item is claimed", () => {

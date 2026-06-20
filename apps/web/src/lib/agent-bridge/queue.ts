@@ -19,13 +19,13 @@ export interface BridgeQueueItem {
 }
 
 type AgentBridgeGlobal = typeof globalThis & {
-	__cutiaAgentBridgeQueueItems?: Map<string, BridgeQueueItem>;
+	__codecutAgentBridgeQueueItems?: Map<string, BridgeQueueItem>;
 };
 
 const bridgeGlobal = globalThis as AgentBridgeGlobal;
 const queueItems =
-	bridgeGlobal.__cutiaAgentBridgeQueueItems ?? new Map<string, BridgeQueueItem>();
-bridgeGlobal.__cutiaAgentBridgeQueueItems = queueItems;
+	bridgeGlobal.__codecutAgentBridgeQueueItems ?? new Map<string, BridgeQueueItem>();
+bridgeGlobal.__codecutAgentBridgeQueueItems = queueItems;
 const BridgeCommandResultsSchema = BridgeCommandResultSchema.array();
 
 function createId(): string {

@@ -1,16 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
-	completeBridgeQueueItem,
-	getBridgeQueueItem,
-} from "@/lib/agent-bridge/queue";
+	getBridgeHeartbeatStatus,
+	recordBridgeHeartbeat,
+} from "@/lib/agent-bridge/heartbeat";
 import { validateBridgeBrowserOrigin } from "@/lib/agent-bridge/origin";
-import { BridgeCommandResultSchema } from "@/lib/agent-bridge/schema";
 
 const postBodySchema = z
 	.object({
-		id: z.string().min(1),
-		results: z.array(BridgeCommandResultSchema),
+		projectId: z.string().min(1),
 	})
 	.strict();
 
@@ -40,63 +38,36 @@ export async function POST(request: NextRequest) {
 	if (!parsedBody.success) {
 		return NextResponse.json(
 			{
-				error: "Invalid bridge result body.",
+				error: "Invalid bridge heartbeat body.",
 				details: parsedBody.error.flatten().fieldErrors,
 			},
 			{ status: 400 },
 		);
 	}
 
-	try {
-		const item = completeBridgeQueueItem(parsedBody.data);
-		if (!item) {
-			return NextResponse.json(
-				{ error: "Bridge command not found." },
-				{ status: 404 },
-			);
-		}
+	const record = recordBridgeHeartbeat({
+		projectId: parsedBody.data.projectId,
+		origin: request.headers.get("origin"),
+		userAgent: request.headers.get("user-agent"),
+	});
 
-		return NextResponse.json({
-			id: item.id,
-			status: item.status,
-		});
-	} catch (error) {
-		return NextResponse.json(
-			{
-				error:
-					error instanceof Error
-						? error.message
-						: "Bridge result could not be stored.",
-			},
-			{ status: 409 },
-		);
-	}
+	return NextResponse.json({
+		projectId: record.projectId,
+		lastSeenAt: record.lastSeenAt,
+	});
 }
 
 export async function GET(request: NextRequest) {
 	const tokenError = validateBridgeToken(request);
 	if (tokenError) return tokenError;
 
-	const id = request.nextUrl.searchParams.get("id");
-	if (!id) {
+	const projectId = request.nextUrl.searchParams.get("projectId");
+	if (!projectId) {
 		return NextResponse.json(
-			{ error: "id query parameter is required." },
+			{ error: "projectId query parameter is required." },
 			{ status: 400 },
 		);
 	}
 
-	const item = getBridgeQueueItem({ id });
-	if (!item) {
-		return NextResponse.json(
-			{ error: "Bridge command not found." },
-			{ status: 404 },
-		);
-	}
-
-	return NextResponse.json({
-		id: item.id,
-		status: item.status,
-		projectId: item.projectId,
-		results: item.results ?? [],
-	});
+	return NextResponse.json(getBridgeHeartbeatStatus({ projectId }));
 }

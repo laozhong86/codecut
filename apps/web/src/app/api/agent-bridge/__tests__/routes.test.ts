@@ -4,7 +4,12 @@ import {
 	GET as getCommands,
 	POST as postCommands,
 } from "../commands/route";
+import {
+	GET as getHeartbeat,
+	POST as postHeartbeat,
+} from "../heartbeat/route";
 import { GET as getResults, POST as postResults } from "../results/route";
+import { clearBridgeHeartbeatsForTests } from "@/lib/agent-bridge/heartbeat";
 import { clearBridgeQueueForTests } from "@/lib/agent-bridge/queue";
 
 const token = "local-dev-bridge";
@@ -54,7 +59,8 @@ async function enqueueCommand(): Promise<string> {
 describe("agent bridge API routes", () => {
 	beforeEach(() => {
 		clearBridgeQueueForTests();
-		process.env.CUTIA_AGENT_BRIDGE_TOKEN = token;
+		clearBridgeHeartbeatsForTests();
+		process.env.CODECUT_AGENT_BRIDGE_TOKEN = token;
 	});
 
 	test("rejects external command submission without the bearer token", async () => {
@@ -144,5 +150,52 @@ describe("agent bridge API routes", () => {
 		);
 
 		expect(response.status).toBe(403);
+	});
+
+	test("records editor bridge heartbeat and exposes mount status to Codex", async () => {
+		const postResponse = await postHeartbeat(
+			request({
+				url: `${origin}/api/agent-bridge/heartbeat`,
+				method: "POST",
+				headers: { origin, "user-agent": "codecut-test" },
+				body: { projectId: "project-123" },
+			}),
+		);
+
+		const getResponse = await getHeartbeat(
+			request({
+				url: `${origin}/api/agent-bridge/heartbeat?projectId=project-123`,
+				headers: { authorization: `Bearer ${token}` },
+			}),
+		);
+		const payload = await getResponse.json();
+
+		expect(postResponse.status).toBe(200);
+		expect(getResponse.status).toBe(200);
+		expect(payload).toMatchObject({
+			projectId: "project-123",
+			mounted: true,
+			origin,
+			userAgent: "codecut-test",
+		});
+		expect(typeof payload.ageMs).toBe("number");
+		expect(typeof payload.lastSeenAt).toBe("string");
+	});
+
+	test("accepts browser heartbeat when the forwarded host matches the browser origin", async () => {
+		const response = await postHeartbeat(
+			request({
+				url: `${origin}/api/agent-bridge/heartbeat`,
+				method: "POST",
+				headers: {
+					host: "127.0.0.1:4100",
+					origin: "http://127.0.0.1:4100",
+					referer: "http://127.0.0.1:4100/en/editor/project-123",
+				},
+				body: { projectId: "project-123" },
+			}),
+		);
+
+		expect(response.status).toBe(200);
 	});
 });

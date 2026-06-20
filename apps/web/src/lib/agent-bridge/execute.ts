@@ -48,7 +48,7 @@ export async function executeBridgeEnvelope({
 				commandId: command.id,
 				tool: command.tool,
 				success: false,
-				message: `Bridge tool "${command.tool}" is not implemented in Cutia.`,
+				message: `Bridge tool "${command.tool}" is not implemented in Codecut.`,
 			});
 			shouldSkipRemaining = true;
 			continue;
