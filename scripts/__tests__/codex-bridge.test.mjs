@@ -8,6 +8,18 @@ import {
 } from "../codex-bridge.mjs";
 
 describe("codex bridge CLI helpers", () => {
+	test("prints usage when invoked through the executable entrypoint", async () => {
+		const process = Bun.spawn(["node", "scripts/codex-bridge.mjs", "help"], {
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		const output = await new Response(process.stdout).text();
+		const exitCode = await process.exited;
+
+		expect(exitCode).toBe(0);
+		expect(output).toContain("node scripts/codex-bridge.mjs send");
+	});
+
 	test("requires local runtime config instead of using hidden defaults", () => {
 		expect(() =>
 			requireRuntimeConfig({
