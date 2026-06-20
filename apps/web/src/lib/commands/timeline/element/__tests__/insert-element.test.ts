@@ -33,6 +33,7 @@ function projectFixture({ sceneId }: { sceneId: string }): TProject {
 			background: { type: "color", color: "#000000" },
 		},
 		version: 1,
+		derivedAssets: [],
 	};
 }
 

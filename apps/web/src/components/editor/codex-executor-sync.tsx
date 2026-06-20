@@ -104,6 +104,7 @@ export function applyCodexExecutorSnapshot({
 		currentSceneId: sceneId,
 		settings: snapshot.project.settings,
 		version: CURRENT_PROJECT_VERSION,
+		derivedAssets: [],
 	};
 	const mediaAssets: MediaAsset[] = snapshot.mediaAssets.map((asset) => ({
 		id: asset.id,

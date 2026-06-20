@@ -94,6 +94,7 @@ export class ProjectManager {
 				},
 			},
 			version: CURRENT_PROJECT_VERSION,
+			derivedAssets: [],
 		};
 
 		this.active = newProject;
