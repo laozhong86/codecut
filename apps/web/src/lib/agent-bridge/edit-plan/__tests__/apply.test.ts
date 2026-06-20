@@ -452,6 +452,65 @@ describe("applyEditPlanToEditor", () => {
 		});
 	});
 
+	test("applies richSpans from title and captions", () => {
+		const editor = fakeEditor();
+		const plan = {
+			...validPlan(),
+			title: {
+				text: "Rich title",
+				startTime: 0,
+				duration: 3,
+				richSpans: [{ start: 0, end: 4, color: "#ffd84d" }],
+			},
+			captions: [
+				{
+					text: "关键词字幕",
+					startTime: 0,
+					duration: 2,
+					richSpans: [
+						{
+							start: 0,
+							end: 3,
+							color: "#ffd84d",
+							fontScale: 1.2,
+							fontWeight: "bold",
+						},
+					],
+				},
+			],
+		};
+
+		applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const textElements = editor.timeline.getTracks().flatMap((track) =>
+			track.type === "text" ? track.elements : [],
+		);
+
+		expect(textElements).toMatchObject([
+			{
+				content: "Rich title",
+				richSpans: [{ start: 0, end: 4, color: "#ffd84d" }],
+			},
+			{
+				content: "关键词字幕",
+				richSpans: [
+					{
+						start: 0,
+						end: 3,
+						color: "#ffd84d",
+						fontScale: 1.2,
+						fontWeight: "bold",
+					},
+				],
+			},
+		]);
+	});
+
 	test("applies keyword caption style through the top-level captionStyle", () => {
 		const editor = fakeEditor();
 		const plan = {

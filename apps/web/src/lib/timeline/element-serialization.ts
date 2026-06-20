@@ -12,6 +12,7 @@ export function serializeElementVisualProperties(element: TimelineElement) {
 				fontWeight: element.fontWeight,
 				fontStyle: element.fontStyle,
 				textDecoration: element.textDecoration,
+				richSpans: element.richSpans,
 				opacity: element.opacity,
 				transform: element.transform,
 				...(element.hidden !== undefined ? { hidden: element.hidden } : {}),

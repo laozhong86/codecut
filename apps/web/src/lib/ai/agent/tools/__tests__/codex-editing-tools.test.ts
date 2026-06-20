@@ -68,11 +68,12 @@ describe("Codex deterministic editing tools", () => {
 				getTracks: () => [],
 				updateTracks: () => {
 					updateCount += 1;
+					},
+					addTrack: () => "track-1",
+					insertElement: () => undefined,
+					addTransition: () => null,
 				},
-				addTrack: () => "track-1",
-				insertElement: () => undefined,
-			},
-		};
+			};
 
 		const result = executeApplyEditPlanTool({
 			args: {

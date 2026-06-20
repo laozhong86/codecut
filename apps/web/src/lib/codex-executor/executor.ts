@@ -9,6 +9,11 @@ import {
 	transcribeMediaWithNodeRuntime,
 } from "@/lib/codex-executor/transcription";
 import { serializeElementVisualProperties } from "@/lib/timeline/element-serialization";
+import {
+	addTransitionToTrack,
+	areElementsAdjacent,
+	buildTrackTransition,
+} from "@/lib/timeline/transition-utils";
 import { buildEmptyTrack } from "@/lib/timeline/track-utils";
 import { calculateTotalDuration } from "@/lib/timeline";
 import type { MediaAsset } from "@/types/assets";
@@ -17,6 +22,9 @@ import type {
 	TimelineElement,
 	TimelineTrack,
 	TrackType,
+	TrackTransition,
+	TransitionType,
+	VideoTrack,
 } from "@/types/timeline";
 import { generateUUID } from "@/utils/id";
 
@@ -202,7 +210,7 @@ function serializeTrack(track: TimelineTrack) {
 		type: track.type,
 		name: track.name,
 		isMain: "isMain" in track ? track.isMain : false,
-		elements: track.elements.map((element) => ({
+			elements: track.elements.map((element) => ({
 			id: element.id,
 			type: element.type,
 			name: element.name,
@@ -212,10 +220,13 @@ function serializeTrack(track: TimelineTrack) {
 			trimEnd: element.trimEnd,
 			...("content" in element ? { content: element.content } : {}),
 			...("mediaId" in element ? { mediaId: element.mediaId } : {}),
-			...serializeElementVisualProperties(element),
-		})),
-	};
-}
+				...serializeElementVisualProperties(element),
+			})),
+			...(track.type === "video"
+				? { transitions: track.transitions ?? [] }
+				: {}),
+		};
+	}
 
 function insertElement({
 	state,
@@ -258,6 +269,47 @@ function addTrack({
 		state.tracks = [...state.tracks, track];
 	}
 	return id;
+}
+
+function addTransition({
+	state,
+	trackId,
+	fromElementId,
+	toElementId,
+	type,
+	duration,
+}: {
+	state: ExecutorProjectState;
+	trackId: string;
+	fromElementId: string;
+	toElementId: string;
+	type: TransitionType;
+	duration: number;
+}): TrackTransition | null {
+	const track = state.tracks.find((candidate) => candidate.id === trackId);
+	if (track?.type !== "video") return null;
+
+	const fromElement = track.elements.find((element) => element.id === fromElementId);
+	const toElement = track.elements.find((element) => element.id === toElementId);
+	if (!fromElement || !toElement) return null;
+	if (!areElementsAdjacent({ elementA: fromElement, elementB: toElement })) {
+		return null;
+	}
+
+	const transition = buildTrackTransition({
+		type,
+		duration,
+		fromElementId,
+		toElementId,
+	});
+	const updatedTrack = addTransitionToTrack({
+		track: track as VideoTrack,
+		transition,
+	});
+	state.tracks = state.tracks.map((candidate) =>
+		candidate.id === trackId ? updatedTrack : candidate,
+	);
+	return transition;
 }
 
 async function saveProjectState({ state }: { state: ExecutorProjectState }) {
@@ -568,15 +620,30 @@ async function runApplyEditPlan({
 					state.tracks = tracks;
 				},
 				addTrack: ({ type, index }) => addTrack({ state, type, index }),
-				insertElement: ({ element, placement }) => {
-					if (placement.mode !== "explicit") {
-						throw new Error("Executor requires explicit track placement.");
-					}
-					insertElement({ state, element, trackId: placement.trackId });
+					insertElement: ({ element, placement }) => {
+						if (placement.mode !== "explicit") {
+							throw new Error("Executor requires explicit track placement.");
+						}
+						insertElement({ state, element, trackId: placement.trackId });
+					},
+					addTransition: ({
+						trackId,
+						fromElementId,
+						toElementId,
+						type,
+						duration,
+					}) =>
+						addTransition({
+							state,
+							trackId,
+							fromElementId,
+							toElementId,
+							type,
+							duration,
+						}),
 				},
 			},
-		},
-	});
+		});
 	if (result.success) {
 		await saveProjectState({ state });
 	}

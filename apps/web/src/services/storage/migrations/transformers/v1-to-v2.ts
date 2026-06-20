@@ -436,9 +436,10 @@ function transformTextTrack({
 			return {
 				id: getStringValue({ value: element.id, fallback: "" }),
 				name: getStringValue({ value: element.name, fallback: "" }),
-				type: "text",
-				content: getStringValue({ value: textElement.content, fallback: "" }),
-				fontSize: getNumberValue({
+					type: "text",
+					content: getStringValue({ value: textElement.content, fallback: "" }),
+					richSpans: [],
+					fontSize: getNumberValue({
 					value: textElement.fontSize,
 					fallback: 16,
 				}),

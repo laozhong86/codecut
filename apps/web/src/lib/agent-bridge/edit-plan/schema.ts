@@ -33,6 +33,24 @@ export const EditPlanTransitionTypeSchema = z.enum([
 	"zoom-out",
 ]);
 
+export const EditPlanTextRichSpanSchema = z
+	.object({
+		start: z.number().int().min(0),
+		end: z.number().int().min(0),
+		color: z.string().min(1).optional(),
+		fontScale: z.number().positive().optional(),
+		fontWeight: z.enum(["normal", "bold"]).optional(),
+		fontStyle: z.enum(["normal", "italic"]).optional(),
+		stroke: z
+			.object({
+				color: z.string().min(1),
+				width: z.number().positive(),
+			})
+			.strict()
+			.optional(),
+	})
+	.strict();
+
 export const EditPlanCaptionStyleSchema = z
 	.object({
 		preset: EditPlanCaptionStylePresetSchema,
@@ -56,6 +74,7 @@ export const EditPlanTimedTextSchema = z
 		startTime: z.number().min(0),
 		duration: z.number().positive(),
 		stylePreset: EditPlanTextStylePresetSchema.optional(),
+		richSpans: z.array(EditPlanTextRichSpanSchema).optional(),
 	})
 	.strict();
 
@@ -122,3 +141,4 @@ export type EditPlanTextStylePreset = z.infer<
 >;
 export type EditPlanAudio = z.infer<typeof EditPlanAudioSchema>;
 export type EditPlanTransition = z.infer<typeof EditPlanTransitionSchema>;
+export type EditPlanTextRichSpan = z.infer<typeof EditPlanTextRichSpanSchema>;

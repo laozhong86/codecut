@@ -232,8 +232,7 @@ describe("validateEditPlan", () => {
 	});
 
 	test("rejects captions without captionStyle", () => {
-		const plan = validPlan();
-		delete plan.captionStyle;
+		const { captionStyle: _captionStyle, ...plan } = validPlan();
 
 		const result = validateEditPlan({
 			plan,
@@ -249,8 +248,7 @@ describe("validateEditPlan", () => {
 	});
 
 	test("rejects captionStyle without captions", () => {
-		const plan = validPlan();
-		delete plan.captions;
+		const { captions: _captions, ...plan } = validPlan();
 
 		const result = validateEditPlan({
 			plan,
@@ -305,6 +303,33 @@ describe("validateEditPlan", () => {
 		expect(result).toEqual({
 			success: false,
 			message: "EditPlan schema is invalid.",
+		});
+	});
+
+	test("rejects overlapping title richSpans", () => {
+		const plan = {
+			...validPlan(),
+			title: {
+				text: "Rich title",
+				startTime: 0,
+				duration: 3,
+				richSpans: [
+					{ start: 0, end: 4, color: "#ffd84d" },
+					{ start: 3, end: 8, color: "#ffffff" },
+				],
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan title richSpans must be sorted and non-overlapping.",
+			path: "title.richSpans",
 		});
 	});
 

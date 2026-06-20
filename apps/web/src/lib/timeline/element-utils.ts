@@ -127,6 +127,7 @@ export function buildTextElement({
 		type: "text",
 		name: t.name ?? DEFAULT_TEXT_ELEMENT.name,
 		content: t.content ?? DEFAULT_TEXT_ELEMENT.content,
+		richSpans: t.richSpans ?? DEFAULT_TEXT_ELEMENT.richSpans,
 		duration: t.duration ?? TIMELINE_CONSTANTS.DEFAULT_ELEMENT_DURATION,
 		startTime,
 		trimStart: 0,

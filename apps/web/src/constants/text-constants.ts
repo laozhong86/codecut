@@ -14,6 +14,7 @@ export const DEFAULT_TEXT_ELEMENT: Omit<TextElement, "id"> = {
 	type: "text",
 	name: "Text",
 	content: "Default text",
+	richSpans: [],
 	fontSize: 15,
 	fontFamily: "Arial",
 	color: "#ffffff",

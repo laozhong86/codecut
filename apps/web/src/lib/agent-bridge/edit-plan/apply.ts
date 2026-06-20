@@ -10,7 +10,7 @@ import {
 	buildVideoElement,
 	buildUploadAudioElement,
 } from "@/lib/timeline/element-utils";
-import type { EditPlan } from "./schema";
+import type { EditPlan, EditPlanTextRichSpan } from "./schema";
 import {
 	resolveCaptionStylePreset,
 	resolveTitleStylePreset,
@@ -170,12 +170,14 @@ function createTextElement({
 	startTime,
 	duration,
 	name,
+	richSpans,
 	raw,
 }: {
 	text: string;
 	startTime: number;
 	duration: number;
 	name: string;
+	richSpans?: EditPlanTextRichSpan[];
 	raw?: Parameters<typeof buildTextElement>[0]["raw"];
 }): CreateTimelineElement {
 	return buildTextElement({
@@ -183,6 +185,7 @@ function createTextElement({
 			...raw,
 			name,
 			content: text,
+			richSpans,
 			duration,
 		},
 		startTime,
@@ -324,6 +327,7 @@ export function applyEditPlanToEditor({
 		startTime: number;
 		duration: number;
 		name: string;
+		richSpans?: EditPlanTextRichSpan[];
 		raw?: Parameters<typeof buildTextElement>[0]["raw"];
 	}> = [];
 	if (normalizedPlan.title) {

@@ -47,6 +47,7 @@ function textElementFixture(): TextElement {
 		backgroundOpacity: 0.6,
 		backgroundPaddingX: 2,
 		backgroundPaddingY: 1,
+		richSpans: [{ start: 0, end: 7, color: "#ffd84d" }],
 	};
 }
 
@@ -187,6 +188,7 @@ describe("getTimelineStateTool", () => {
 								backgroundOpacity: 0.6,
 								backgroundPaddingX: 2,
 								backgroundPaddingY: 1,
+								richSpans: [{ start: 0, end: 7, color: "#ffd84d" }],
 							},
 						},
 					],

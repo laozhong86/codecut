@@ -1,4 +1,5 @@
 import type { MediaAsset } from "@/types/assets";
+import { validateTextRichSpans } from "@/services/renderer/nodes/text-layout";
 import { EditPlanSchema, type EditPlan } from "./schema";
 
 export type EditPlanValidationResult =
@@ -177,6 +178,20 @@ export function validateEditPlan({
 			path: "title",
 		});
 	}
+	if (normalizedPlan.title?.richSpans) {
+		try {
+			validateTextRichSpans({
+				content: normalizedPlan.title.text,
+				richSpans: normalizedPlan.title.richSpans,
+			});
+		} catch {
+			return fail({
+				message:
+					"EditPlan title richSpans must be sorted and non-overlapping.",
+				path: "title.richSpans",
+			});
+		}
+	}
 
 	for (let index = 0; index < (normalizedPlan.captions ?? []).length; index += 1) {
 		const caption = normalizedPlan.captions?.[index];
@@ -192,6 +207,20 @@ export function validateEditPlan({
 				message: "EditPlan caption exceeds the generated timeline duration.",
 				path: `captions[${index}]`,
 			});
+		}
+		if (caption.richSpans) {
+			try {
+				validateTextRichSpans({
+					content: caption.text,
+					richSpans: caption.richSpans,
+				});
+			} catch {
+				return fail({
+					message:
+						"EditPlan caption richSpans must be sorted and non-overlapping.",
+					path: `captions[${index}].richSpans`,
+				});
+			}
 		}
 	}
 
