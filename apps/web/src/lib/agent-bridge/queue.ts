@@ -18,7 +18,14 @@ export interface BridgeQueueItem {
 	results?: BridgeCommandResult[];
 }
 
-const queueItems = new Map<string, BridgeQueueItem>();
+type AgentBridgeGlobal = typeof globalThis & {
+	__cutiaAgentBridgeQueueItems?: Map<string, BridgeQueueItem>;
+};
+
+const bridgeGlobal = globalThis as AgentBridgeGlobal;
+const queueItems =
+	bridgeGlobal.__cutiaAgentBridgeQueueItems ?? new Map<string, BridgeQueueItem>();
+bridgeGlobal.__cutiaAgentBridgeQueueItems = queueItems;
 const BridgeCommandResultsSchema = BridgeCommandResultSchema.array();
 
 function createId(): string {
