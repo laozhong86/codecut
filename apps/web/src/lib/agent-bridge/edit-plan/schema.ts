@@ -9,6 +9,28 @@ export const EditPlanCaptionStylePresetSchema = z.enum([
 
 export const EditPlanCaptionPositionSchema = z.enum(["lower-safe", "center"]);
 
+export const EditPlanTextStylePresetSchema = z.enum([
+	"hook_title",
+	"lower_title",
+]);
+
+export const EditPlanAudioModeSchema = z.enum(["loop_to_timeline"]);
+
+export const EditPlanTransitionTypeSchema = z.enum([
+	"fade",
+	"dissolve",
+	"wipe-left",
+	"wipe-right",
+	"wipe-up",
+	"wipe-down",
+	"slide-left",
+	"slide-right",
+	"slide-up",
+	"slide-down",
+	"zoom-in",
+	"zoom-out",
+]);
+
 export const EditPlanCaptionStyleSchema = z
 	.object({
 		preset: EditPlanCaptionStylePresetSchema,
@@ -31,6 +53,40 @@ export const EditPlanTimedTextSchema = z
 		text: z.string().min(1),
 		startTime: z.number().min(0),
 		duration: z.number().positive(),
+		stylePreset: EditPlanTextStylePresetSchema.optional(),
+	})
+	.strict();
+
+export const EditPlanAudioSchema = z
+	.object({
+		bgm: z
+			.object({
+				assetId: z.string().min(1),
+				volume: z.number().min(0).max(1),
+				mode: EditPlanAudioModeSchema,
+			})
+			.strict()
+			.optional(),
+		sfx: z
+			.array(
+				z
+					.object({
+						assetId: z.string().min(1),
+						startTime: z.number().min(0),
+						volume: z.number().min(0).max(1),
+					})
+					.strict(),
+			)
+			.optional(),
+	})
+	.strict();
+
+export const EditPlanTransitionSchema = z
+	.object({
+		fromClipId: z.string().min(1),
+		toClipId: z.string().min(1),
+		type: EditPlanTransitionTypeSchema,
+		duration: z.number().positive(),
 	})
 	.strict();
 
@@ -49,6 +105,8 @@ export const EditPlanSchema = z
 		title: EditPlanTimedTextSchema.optional(),
 		captions: z.array(EditPlanTimedTextSchema).optional(),
 		captionStyle: EditPlanCaptionStyleSchema.optional(),
+		audio: EditPlanAudioSchema.optional(),
+		transitions: z.array(EditPlanTransitionSchema).optional(),
 		rationale: z.string().min(1),
 	})
 	.strict();
@@ -57,3 +115,8 @@ export type EditPlan = z.infer<typeof EditPlanSchema>;
 export type EditPlanClip = z.infer<typeof EditPlanClipSchema>;
 export type EditPlanTimedText = z.infer<typeof EditPlanTimedTextSchema>;
 export type EditPlanCaptionStyle = z.infer<typeof EditPlanCaptionStyleSchema>;
+export type EditPlanTextStylePreset = z.infer<
+	typeof EditPlanTextStylePresetSchema
+>;
+export type EditPlanAudio = z.infer<typeof EditPlanAudioSchema>;
+export type EditPlanTransition = z.infer<typeof EditPlanTransitionSchema>;

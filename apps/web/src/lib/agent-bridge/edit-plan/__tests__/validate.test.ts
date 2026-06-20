@@ -60,6 +60,17 @@ function validPlan() {
 	};
 }
 
+function audioAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
+	return mediaAsset({
+		id: "audio-1",
+		name: "Music bed.mp3",
+		type: "audio",
+		duration: 8,
+		file: new File(["audio"], "music-bed.mp3", { type: "audio/mpeg" }),
+		...overrides,
+	});
+}
+
 describe("validateEditPlan", () => {
 	test("accepts a valid Codex edit plan", () => {
 		const result = validateEditPlan({
@@ -294,6 +305,218 @@ describe("validateEditPlan", () => {
 		expect(result).toEqual({
 			success: false,
 			message: "EditPlan schema is invalid.",
+		});
+	});
+
+	test("accepts imported audio assets and adjacent transitions", () => {
+		const plan = {
+			...validPlan(),
+			audio: {
+				bgm: {
+					assetId: "audio-1",
+					volume: 0.35,
+					mode: "loop_to_timeline",
+				},
+				sfx: [{ assetId: "sfx-1", startTime: 0, volume: 0.8 }],
+			},
+			transitions: [
+				{
+					fromClipId: "clip-1",
+					toClipId: "clip-2",
+					type: "fade",
+					duration: 0.5,
+				},
+			],
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [
+				mediaAsset(),
+				audioAsset(),
+				audioAsset({ id: "sfx-1", name: "Hit.wav", duration: 1 }),
+			],
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			normalizedPlan: {
+				audio: {
+					bgm: {
+						assetId: "audio-1",
+						volume: 0.35,
+						mode: "loop_to_timeline",
+					},
+					sfx: [{ assetId: "sfx-1", startTime: 0, volume: 0.8 }],
+				},
+				transitions: [
+					{
+						fromClipId: "clip-1",
+						toClipId: "clip-2",
+						type: "fade",
+						duration: 0.5,
+					},
+				],
+			},
+		});
+	});
+
+	test("rejects missing bgm audio assets", () => {
+		const plan = {
+			...validPlan(),
+			audio: {
+				bgm: {
+					assetId: "missing-audio",
+					volume: 0.35,
+					mode: "loop_to_timeline",
+				},
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan bgm assetId was not found in the project media library.",
+			path: "audio.bgm.assetId",
+		});
+	});
+
+	test("rejects bgm assets that are not audio", () => {
+		const plan = {
+			...validPlan(),
+			audio: {
+				bgm: {
+					assetId: "media-1",
+					volume: 0.35,
+					mode: "loop_to_timeline",
+				},
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan bgm asset must be audio.",
+			path: "audio.bgm.assetId",
+		});
+	});
+
+	test("rejects sfx start times outside the generated timeline", () => {
+		const plan = {
+			...validPlan(),
+			audio: {
+				sfx: [{ assetId: "sfx-1", startTime: 31, volume: 0.8 }],
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset(), audioAsset({ id: "sfx-1" })],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan sfx startTime exceeds the generated timeline duration.",
+			path: "audio.sfx[0].startTime",
+		});
+	});
+
+	test("rejects transitions that reference missing clips", () => {
+		const plan = {
+			...validPlan(),
+			transitions: [
+				{
+					fromClipId: "clip-1",
+					toClipId: "missing-clip",
+					type: "fade",
+					duration: 0.5,
+				},
+			],
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan transition toClipId does not reference a clip.",
+			path: "transitions[0].toClipId",
+		});
+	});
+
+	test("rejects transitions between non-adjacent clips", () => {
+		const plan = validPlan();
+		plan.clips[1] = {
+			...plan.clips[1],
+			timelineStart: 18,
+		};
+		const planWithTransition = {
+			...plan,
+			target: {
+				...plan.target,
+				durationSec: 33,
+			},
+			transitions: [
+				{
+					fromClipId: "clip-1",
+					toClipId: "clip-2",
+					type: "fade",
+					duration: 0.5,
+				},
+			],
+		};
+
+		const result = validateEditPlan({
+			plan: planWithTransition,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan transition clips must be adjacent on the timeline.",
+			path: "transitions[0]",
+		});
+	});
+
+	test("rejects transition durations longer than neighboring clips", () => {
+		const plan = {
+			...validPlan(),
+			transitions: [
+				{
+					fromClipId: "clip-1",
+					toClipId: "clip-2",
+					type: "fade",
+					duration: 16,
+				},
+			],
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan transition duration exceeds neighboring clip duration.",
+			path: "transitions[0].duration",
 		});
 	});
 });
