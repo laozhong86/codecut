@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -10,6 +10,7 @@ import {
 	buildTranscribeEnvelope,
 	parseBoolean,
 	requireRuntimeConfig,
+	runInstallDoctor,
 	runCli,
 	waitForExecutor,
 } from "../codex-bridge.mjs";
@@ -264,6 +265,136 @@ describe("codex bridge CLI helpers", () => {
 			status: "ready",
 			executor: { projectId: "project-123", status: "idle" },
 		});
+	});
+
+	test("install doctor validates source, cache, env, service, and executor project", async () => {
+		const sourceRoot = await mkdtemp(join(tmpdir(), "codecut-source-"));
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
+			recursive: true,
+		});
+		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
+			recursive: true,
+		});
+		await writeFile(
+			join(sourceRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
+			"---\nname: codecut-jianying-editor-framework\n---\n",
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
+			"---\nname: codecut-jianying-editor-framework\n---\n",
+			"utf8",
+		);
+
+		try {
+			const result = await runInstallDoctor({
+				projectId: "project-123",
+				cwd: sourceRoot,
+				homeDir: homeRoot,
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+					CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+					CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+				},
+				fetchImpl: async (url, init) => {
+					if (String(url).endsWith("/en/projects")) {
+						return new Response("ok");
+					}
+					expect(String(url)).toBe(
+						"http://localhost:4100/api/codex-executor/status?projectId=project-123",
+					);
+					expect(init.headers.Authorization).toBe("Bearer local-token");
+					return new Response(
+						JSON.stringify({
+							projectId: "project-123",
+							status: "idle",
+							message: "Executor project is ready.",
+						}),
+					);
+				},
+			});
+
+			expect(result.ok).toBe(true);
+			expect(result.checks.map((check) => [check.id, check.ok])).toEqual([
+				["source_plugin", true],
+				["cache_plugin", true],
+				["environment", true],
+				["web_service", true],
+				["executor_project", true],
+			]);
+		} finally {
+			await Promise.all([
+				rm(sourceRoot, { recursive: true, force: true }),
+				rm(homeRoot, { recursive: true, force: true }),
+			]);
+		}
+	});
+
+	test("install doctor reports missing env and executor project without token output", async () => {
+		const sourceRoot = await mkdtemp(join(tmpdir(), "codecut-source-"));
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
+		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
+		await writeFile(
+			join(sourceRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+
+		try {
+			const result = await runInstallDoctor({
+				projectId: undefined,
+				cwd: sourceRoot,
+				homeDir: homeRoot,
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+					CODECUT_AGENT_BRIDGE_TOKEN: "secret-token",
+					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+				},
+				fetchImpl: async () => {
+					throw new Error("fetch should not run without valid env");
+				},
+			});
+
+			expect(result.ok).toBe(false);
+			expect(result.checks.find((check) => check.id === "environment")).toEqual(
+				expect.objectContaining({
+					ok: false,
+					message: "Missing CODECUT_AGENT_BRIDGE_INTERVAL_MS",
+				}),
+			);
+			expect(
+				result.checks.find((check) => check.id === "executor_project"),
+			).toEqual(
+				expect.objectContaining({
+					ok: false,
+					message: "--project-id is required",
+				}),
+			);
+			expect(JSON.stringify(result)).not.toContain("secret-token");
+		} finally {
+			await Promise.all([
+				rm(sourceRoot, { recursive: true, force: true }),
+				rm(homeRoot, { recursive: true, force: true }),
+			]);
+		}
 	});
 
 	test("executor readiness fails before commands are enqueued", async () => {

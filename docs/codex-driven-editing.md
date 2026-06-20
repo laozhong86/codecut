@@ -86,6 +86,14 @@ If a command remains pending until timeout, stop sending more commands. Do not r
 Before the first business bridge command, run:
 
 ```bash
+node scripts/codex-bridge.mjs doctor-install --project-id <id>
+```
+
+`doctor-install` checks the source plugin, installed Codex plugin cache, `CODECUT_AGENT_BRIDGE_*` environment, the 4100 web service, and the executor project. It verifies that the token exists but never prints the token value.
+
+Then run the executor readiness check:
+
+```bash
 node scripts/codex-bridge.mjs doctor --project-id <id>
 ```
 
@@ -162,6 +170,10 @@ Do not spend the first turn auditing all skill references. Read only the workflo
 ## CLI Commands
 
 Check that the local executor is ready before sending business commands:
+
+```bash
+node scripts/codex-bridge.mjs doctor-install --project-id <id>
+```
 
 ```bash
 node scripts/codex-bridge.mjs doctor --project-id <id>

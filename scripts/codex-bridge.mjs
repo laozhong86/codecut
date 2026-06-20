@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { readFile, stat } from "node:fs/promises";
+import { access, readFile, stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
-import { basename, extname, isAbsolute, resolve } from "node:path";
+import { homedir } from "node:os";
+import { basename, extname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -18,6 +19,7 @@ function usage() {
 	return [
 		"Usage:",
 		"  node scripts/codex-bridge.mjs create-project --project-id <id> --name <name>",
+		"  node scripts/codex-bridge.mjs doctor-install --project-id <id>",
 		"  node scripts/codex-bridge.mjs doctor --project-id <id>",
 		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
@@ -94,10 +96,14 @@ export function requireRuntimeConfig({ env }) {
 	const timeoutMs = Number(timeoutMsRaw);
 	const intervalMs = Number(intervalMsRaw);
 	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-		throw new Error("CODECUT_AGENT_BRIDGE_TIMEOUT_MS must be a positive number");
+		throw new Error(
+			"CODECUT_AGENT_BRIDGE_TIMEOUT_MS must be a positive number",
+		);
 	}
 	if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
-		throw new Error("CODECUT_AGENT_BRIDGE_INTERVAL_MS must be a positive number");
+		throw new Error(
+			"CODECUT_AGENT_BRIDGE_INTERVAL_MS must be a positive number",
+		);
 	}
 
 	return {
@@ -105,6 +111,317 @@ export function requireRuntimeConfig({ env }) {
 		token,
 		timeoutMs,
 		intervalMs,
+	};
+}
+
+async function pathExists(path) {
+	try {
+		await access(path);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function doctorCheck({ id, ok, message, data }) {
+	return {
+		id,
+		ok,
+		message,
+		...(data ? { data } : {}),
+	};
+}
+
+async function readPluginManifest(path) {
+	const content = await readFile(path, "utf8");
+	const manifest = JSON.parse(content);
+	if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+		throw new Error("plugin.json must contain a JSON object");
+	}
+	return manifest;
+}
+
+async function checkSourcePlugin({ cwd }) {
+	const manifestPath = join(cwd, ".codex-plugin/plugin.json");
+	const skillPath = join(
+		cwd,
+		"skills/codecut-jianying-editor-framework/SKILL.md",
+	);
+
+	let manifest;
+	try {
+		manifest = await readPluginManifest(manifestPath);
+	} catch (error) {
+		return {
+			check: doctorCheck({
+				id: "source_plugin",
+				ok: false,
+				message: `Cannot read source plugin manifest: ${error instanceof Error ? error.message : String(error)}`,
+				data: { manifestPath, skillPath },
+			}),
+			manifest: null,
+		};
+	}
+
+	if (manifest.name !== "codecut") {
+		return {
+			check: doctorCheck({
+				id: "source_plugin",
+				ok: false,
+				message: `Source plugin name must be codecut, got ${String(manifest.name)}`,
+				data: { manifestPath, skillPath, version: manifest.version },
+			}),
+			manifest,
+		};
+	}
+	if (!manifest.version || typeof manifest.version !== "string") {
+		return {
+			check: doctorCheck({
+				id: "source_plugin",
+				ok: false,
+				message: "Source plugin version is required",
+				data: { manifestPath, skillPath },
+			}),
+			manifest,
+		};
+	}
+	if (!(await pathExists(skillPath))) {
+		return {
+			check: doctorCheck({
+				id: "source_plugin",
+				ok: false,
+				message: "Source Codecut skill is missing",
+				data: { manifestPath, skillPath, version: manifest.version },
+			}),
+			manifest,
+		};
+	}
+
+	return {
+		check: doctorCheck({
+			id: "source_plugin",
+			ok: true,
+			message: "Source Codecut plugin is valid.",
+			data: { manifestPath, skillPath, version: manifest.version },
+		}),
+		manifest,
+	};
+}
+
+async function checkCachePlugin({ homeDir, sourceManifest }) {
+	if (!sourceManifest?.version) {
+		return doctorCheck({
+			id: "cache_plugin",
+			ok: false,
+			message: "Source plugin version is required before checking cache.",
+		});
+	}
+
+	const cacheRoot = join(
+		homeDir,
+		".codex/plugins/cache/local-opc/codecut",
+		sourceManifest.version,
+	);
+	const manifestPath = join(cacheRoot, ".codex-plugin/plugin.json");
+	const skillPath = join(
+		cacheRoot,
+		"skills/codecut-jianying-editor-framework/SKILL.md",
+	);
+	let manifest;
+	try {
+		manifest = await readPluginManifest(manifestPath);
+	} catch (error) {
+		return doctorCheck({
+			id: "cache_plugin",
+			ok: false,
+			message: `Cannot read installed plugin manifest: ${error instanceof Error ? error.message : String(error)}`,
+			data: { cacheRoot, manifestPath, skillPath },
+		});
+	}
+
+	if (manifest.name !== "codecut") {
+		return doctorCheck({
+			id: "cache_plugin",
+			ok: false,
+			message: `Installed plugin name must be codecut, got ${String(manifest.name)}`,
+			data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
+		});
+	}
+	if (manifest.version !== sourceManifest.version) {
+		return doctorCheck({
+			id: "cache_plugin",
+			ok: false,
+			message: `Installed plugin version must match source ${sourceManifest.version}, got ${String(manifest.version)}`,
+			data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
+		});
+	}
+	if (!(await pathExists(skillPath))) {
+		return doctorCheck({
+			id: "cache_plugin",
+			ok: false,
+			message: "Installed Codecut skill is missing",
+			data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
+		});
+	}
+
+	return doctorCheck({
+		id: "cache_plugin",
+		ok: true,
+		message: "Installed Codecut plugin cache is valid.",
+		data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
+	});
+}
+
+function checkEnvironment({ env }) {
+	const missing = requiredConfig.filter((name) => !env[name]);
+	if (missing.length > 0) {
+		return {
+			check: doctorCheck({
+				id: "environment",
+				ok: false,
+				message: `Missing ${missing.join(", ")}`,
+				data: {
+					required: requiredConfig,
+					present: requiredConfig.filter((name) => Boolean(env[name])),
+				},
+			}),
+			config: null,
+		};
+	}
+
+	try {
+		const config = requireRuntimeConfig({ env });
+		return {
+			check: doctorCheck({
+				id: "environment",
+				ok: true,
+				message: "Required CODECUT_AGENT_BRIDGE_* environment is present.",
+				data: {
+					baseUrl: config.baseUrl,
+					timeoutMs: config.timeoutMs,
+					intervalMs: config.intervalMs,
+					hasToken: true,
+				},
+			}),
+			config,
+		};
+	} catch (error) {
+		return {
+			check: doctorCheck({
+				id: "environment",
+				ok: false,
+				message: error instanceof Error ? error.message : String(error),
+			}),
+			config: null,
+		};
+	}
+}
+
+async function checkWebService({ config, fetchImpl }) {
+	if (!config) {
+		return doctorCheck({
+			id: "web_service",
+			ok: false,
+			message:
+				"CODECUT_AGENT_BRIDGE_* env is required before checking web service.",
+		});
+	}
+
+	const url = `${config.baseUrl}/en/projects`;
+	try {
+		const response = await fetchImpl(url);
+		if (!response.ok) {
+			return doctorCheck({
+				id: "web_service",
+				ok: false,
+				message: `Codecut web service returned ${response.status}`,
+				data: { url },
+			});
+		}
+		return doctorCheck({
+			id: "web_service",
+			ok: true,
+			message: "Codecut web service is reachable.",
+			data: { url },
+		});
+	} catch (error) {
+		return doctorCheck({
+			id: "web_service",
+			ok: false,
+			message: `Codecut web service is not reachable: ${error instanceof Error ? error.message : String(error)}`,
+			data: { url },
+		});
+	}
+}
+
+async function checkExecutorProject({ projectId, config, fetchImpl }) {
+	if (!projectId) {
+		return doctorCheck({
+			id: "executor_project",
+			ok: false,
+			message: "--project-id is required",
+		});
+	}
+	if (!config) {
+		return doctorCheck({
+			id: "executor_project",
+			ok: false,
+			message:
+				"CODECUT_AGENT_BRIDGE_* env is required before checking executor project.",
+			data: { projectId },
+		});
+	}
+
+	try {
+		const executor = await fetchExecutorStatus({
+			config,
+			projectId,
+			fetchImpl,
+		});
+		return doctorCheck({
+			id: "executor_project",
+			ok: true,
+			message: "Executor project is ready.",
+			data: {
+				projectId,
+				status: executor.status,
+				message: executor.message,
+				editorUrl: executor.editorUrl,
+			},
+		});
+	} catch (error) {
+		return doctorCheck({
+			id: "executor_project",
+			ok: false,
+			message: error instanceof Error ? error.message : String(error),
+			data: { projectId },
+		});
+	}
+}
+
+export async function runInstallDoctor({
+	projectId,
+	cwd = process.cwd(),
+	homeDir = homedir(),
+	env = process.env,
+	fetchImpl = fetch,
+}) {
+	const source = await checkSourcePlugin({ cwd });
+	const environment = checkEnvironment({ env });
+	const checks = [
+		source.check,
+		await checkCachePlugin({ homeDir, sourceManifest: source.manifest }),
+		environment.check,
+		await checkWebService({ config: environment.config, fetchImpl }),
+		await checkExecutorProject({
+			projectId,
+			config: environment.config,
+			fetchImpl,
+		}),
+	];
+	return {
+		ok: checks.every((check) => check.ok),
+		checks,
 	};
 }
 
@@ -392,6 +709,8 @@ export async function runCli({
 	env,
 	fetchImpl = fetch,
 	stdout = console.log,
+	cwd = process.cwd(),
+	homeDir = homedir(),
 }) {
 	const [command, ...rest] = argv;
 	if (!command || command === "help" || command === "--help") {
@@ -401,6 +720,19 @@ export async function runCli({
 
 	const flags = parseFlags(rest);
 	assertNoTokenFlags(flags);
+
+	if (command === "doctor-install") {
+		const result = await runInstallDoctor({
+			projectId: flags.projectId,
+			cwd,
+			homeDir,
+			env,
+			fetchImpl,
+		});
+		stdout(JSON.stringify(result, null, 2));
+		return result.ok ? 0 : 1;
+	}
+
 	const config = requireRuntimeConfig({ env, flags });
 	let envelope;
 
@@ -483,9 +815,13 @@ if (
 	process.argv[1] &&
 	resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-	runCli({ argv: process.argv.slice(2), env: process.env }).catch((error) => {
-		console.error(error instanceof Error ? error.message : error);
-		console.error(usage());
-		process.exitCode = 1;
-	});
+	runCli({ argv: process.argv.slice(2), env: process.env })
+		.then((exitCode) => {
+			process.exitCode = exitCode;
+		})
+		.catch((error) => {
+			console.error(error instanceof Error ? error.message : error);
+			console.error(usage());
+			process.exitCode = 1;
+		});
 }
