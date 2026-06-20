@@ -1,4 +1,5 @@
 import {
+	BridgeCommandResultSchema,
 	BridgeEnvelopeSchema,
 	type BridgeCommandResult,
 	type BridgeEnvelope,
@@ -18,6 +19,7 @@ export interface BridgeQueueItem {
 }
 
 const queueItems = new Map<string, BridgeQueueItem>();
+const BridgeCommandResultsSchema = BridgeCommandResultSchema.array();
 
 function createId(): string {
 	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -85,8 +87,17 @@ export function completeBridgeQueueItem({
 		return null;
 	}
 
+	if (item.status === "pending") {
+		throw new Error(`Bridge queue item "${id}" must be claimed before completion.`);
+	}
+
+	if (item.status === "completed") {
+		throw new Error(`Bridge queue item "${id}" has already been completed.`);
+	}
+
+	const parsedResults = BridgeCommandResultsSchema.parse(results);
 	item.status = "completed";
-	item.results = results;
+	item.results = parsedResults;
 	item.completedAt = new Date().toISOString();
 	return item;
 }
