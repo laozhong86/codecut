@@ -57,5 +57,17 @@ export function serializeElementVisualProperties(element: TimelineElement) {
 		};
 	}
 
+	if (element.type === "audio") {
+		return {
+			audio: {
+				sourceType: element.sourceType,
+				...("mediaId" in element ? { mediaId: element.mediaId } : {}),
+				...("sourceUrl" in element ? { sourceUrl: element.sourceUrl } : {}),
+				volume: element.volume,
+				muted: element.muted ?? false,
+			},
+		};
+	}
+
 	return {};
 }

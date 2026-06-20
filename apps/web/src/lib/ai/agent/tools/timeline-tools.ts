@@ -27,6 +27,9 @@ export const getTimelineStateTool: AgentTool = {
 			type: track.type,
 			name: track.name,
 			isMain: "isMain" in track ? track.isMain : false,
+			...(track.type === "video"
+				? { transitions: track.transitions ?? [] }
+				: {}),
 			elements: track.elements.map((element) => ({
 				id: element.id,
 				type: element.type,

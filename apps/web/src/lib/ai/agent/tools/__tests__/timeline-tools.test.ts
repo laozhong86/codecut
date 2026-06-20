@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { EditorCore } from "@/core";
 import { buildDefaultScene } from "@/lib/scenes";
 import type {
+	AudioElement,
 	TextElement,
 	TimelineTrack,
 	VideoElement,
@@ -73,6 +74,22 @@ function videoElementFixture(): VideoElement {
 	};
 }
 
+function audioElementFixture(): AudioElement {
+	return {
+		id: "audio-1",
+		type: "audio",
+		sourceType: "upload",
+		name: "Music bed",
+		mediaId: "audio-media-1",
+		startTime: 0,
+		duration: 3,
+		trimStart: 0,
+		trimEnd: 3,
+		volume: 0.35,
+		muted: false,
+	};
+}
+
 function initializeTimeline({ tracks }: { tracks: TimelineTrack[] }) {
 	const editor = EditorCore.getInstance();
 	const scene = {
@@ -113,6 +130,22 @@ describe("getTimelineStateTool", () => {
 					muted: false,
 					hidden: false,
 					elements: [videoElementFixture()],
+					transitions: [
+						{
+							id: "transition-1",
+							type: "fade",
+							duration: 0.5,
+							fromElementId: "video-1",
+							toElementId: "video-2",
+						},
+					],
+				},
+				{
+					id: "audio-track",
+					type: "audio",
+					name: "Audio track",
+					muted: false,
+					elements: [audioElementFixture()],
 				},
 			],
 		});
@@ -160,6 +193,15 @@ describe("getTimelineStateTool", () => {
 				},
 				{
 					id: "video-track",
+					transitions: [
+						{
+							id: "transition-1",
+							type: "fade",
+							duration: 0.5,
+							fromElementId: "video-1",
+							toElementId: "video-2",
+						},
+					],
 					elements: [
 						{
 							id: "video-1",
@@ -174,6 +216,22 @@ describe("getTimelineStateTool", () => {
 								},
 								playbackRate: 1.2,
 								reversed: false,
+							},
+						},
+					],
+				},
+				{
+					id: "audio-track",
+					elements: [
+						{
+							id: "audio-1",
+							type: "audio",
+							mediaId: "audio-media-1",
+							audio: {
+								sourceType: "upload",
+								mediaId: "audio-media-1",
+								volume: 0.35,
+								muted: false,
 							},
 						},
 					],

@@ -3,6 +3,7 @@ import type {
 	CreateTimelineElement,
 	TimelineTrack,
 	TrackType,
+	TrackTransition,
 } from "@/types/timeline";
 import {
 	buildTextElement,
@@ -35,6 +36,19 @@ export interface EditPlanEditor {
 			element: CreateTimelineElement;
 			placement: InsertElementPlacement;
 		}): void;
+		addTransition({
+			trackId,
+			fromElementId,
+			toElementId,
+			type,
+			duration,
+		}: {
+			trackId: string;
+			fromElementId: string;
+			toElementId: string;
+			type: NonNullable<EditPlan["transitions"]>[number]["type"];
+			duration: number;
+		}): TrackTransition | null;
 	};
 }
 
@@ -45,6 +59,9 @@ export type ApplyEditPlanResult =
 				clipCount: number;
 				totalDuration: number;
 				appliedElementIds: string[];
+				textElementCount: number;
+				audioElementCount: number;
+				transitionCount: number;
 				rationale: string;
 			};
 	  }
@@ -245,19 +262,61 @@ export function applyEditPlanToEditor({
 		type: sourceMedia.type === "audio" ? "audio" : "video",
 	});
 	const appliedElementIds: string[] = [];
+	const planClipElementIds = new Map<string, string>();
+	let textElementCount = 0;
+	let audioElementCount = 0;
+	let transitionCount = 0;
 
 	for (const clip of normalizedPlan.clips) {
-		appliedElementIds.push(
-			...insertElementAndCollectIds({
-				editor,
-				trackId: mainTrackId,
-				element: createClipElement({
-					plan: normalizedPlan,
-					sourceMedia,
-					clip,
-				}),
+		const insertedIds = insertElementAndCollectIds({
+			editor,
+			trackId: mainTrackId,
+			element: createClipElement({
+				plan: normalizedPlan,
+				sourceMedia,
+				clip,
 			}),
-		);
+		});
+		appliedElementIds.push(...insertedIds);
+		if (insertedIds[0]) {
+			planClipElementIds.set(clip.id, insertedIds[0]);
+		}
+		if (sourceMedia.type === "audio") {
+			audioElementCount += insertedIds.length;
+		}
+	}
+
+	for (
+		let index = 0;
+		index < (normalizedPlan.transitions ?? []).length;
+		index += 1
+	) {
+		const transition = normalizedPlan.transitions?.[index];
+		if (!transition) continue;
+		const fromElementId = planClipElementIds.get(transition.fromClipId);
+		const toElementId = planClipElementIds.get(transition.toClipId);
+		if (!fromElementId || !toElementId) {
+			return {
+				success: false,
+				message: "EditPlan transition references a clip that was not inserted.",
+				path: `transitions[${index}]`,
+			};
+		}
+		const createdTransition = editor.timeline.addTransition({
+			trackId: mainTrackId,
+			fromElementId,
+			toElementId,
+			type: transition.type,
+			duration: transition.duration,
+		});
+		if (!createdTransition) {
+			return {
+				success: false,
+				message: "EditPlan transition could not be applied.",
+				path: `transitions[${index}]`,
+			};
+		}
+		transitionCount += 1;
 	}
 
 	const textItems: Array<{
@@ -302,13 +361,13 @@ export function applyEditPlanToEditor({
 	if (textItems.length > 0) {
 		const textTrackId = editor.timeline.addTrack({ type: "text", index: 0 });
 		for (const item of textItems) {
-			appliedElementIds.push(
-				...insertElementAndCollectIds({
-					editor,
-					trackId: textTrackId,
-					element: createTextElement(item),
-				}),
-			);
+			const insertedIds = insertElementAndCollectIds({
+				editor,
+				trackId: textTrackId,
+				element: createTextElement(item),
+			});
+			appliedElementIds.push(...insertedIds);
+			textElementCount += insertedIds.length;
 		}
 	}
 
@@ -353,6 +412,7 @@ export function applyEditPlanToEditor({
 					};
 				}
 				appliedElementIds.push(...insertedIds);
+				audioElementCount += insertedIds.length;
 				startTime += segmentDuration;
 				segmentIndex += 1;
 			}
@@ -400,6 +460,7 @@ export function applyEditPlanToEditor({
 				};
 			}
 			appliedElementIds.push(...insertedIds);
+			audioElementCount += insertedIds.length;
 		}
 	}
 
@@ -409,6 +470,9 @@ export function applyEditPlanToEditor({
 			clipCount: normalizedPlan.clips.length,
 			totalDuration: getTimelineDuration({ plan: normalizedPlan }),
 			appliedElementIds,
+			textElementCount,
+			audioElementCount,
+			transitionCount,
 			rationale: normalizedPlan.rationale,
 		},
 	};

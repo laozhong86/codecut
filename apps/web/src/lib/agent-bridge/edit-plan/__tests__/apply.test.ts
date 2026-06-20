@@ -5,6 +5,8 @@ import type {
 	TimelineElement,
 	TimelineTrack,
 	TrackType,
+	TrackTransition,
+	TransitionType,
 } from "@/types/timeline";
 import { applyEditPlanToEditor } from "../apply";
 import type { EditPlan } from "../schema";
@@ -203,8 +205,46 @@ function fakeEditor({
 								...track,
 								elements: [...track.elements, elementWithId],
 							} as TimelineTrack)
-						: track,
+					: track,
 				);
+			},
+			addTransition: ({
+				trackId,
+				fromElementId,
+				toElementId,
+				type,
+				duration,
+			}: {
+				trackId: string;
+				fromElementId: string;
+				toElementId: string;
+				type: TransitionType;
+				duration: number;
+			}): TrackTransition | null => {
+				const transition: TrackTransition = {
+					id: `transition-${nextElementId}`,
+					fromElementId,
+					toElementId,
+					type,
+					duration,
+				};
+				let created = false;
+				currentTracks = currentTracks.map((track) => {
+					if (track.id !== trackId || track.type !== "video") return track;
+					const fromElement = track.elements.find(
+						(element) => element.id === fromElementId,
+					);
+					const toElement = track.elements.find(
+						(element) => element.id === toElementId,
+					);
+					if (!fromElement || !toElement) return track;
+					created = true;
+					return {
+						...track,
+						transitions: [...(track.transitions ?? []), transition],
+					};
+				});
+				return created ? transition : null;
 			},
 		},
 	};
@@ -556,6 +596,47 @@ describe("applyEditPlanToEditor", () => {
 				trimStart: 0,
 				trimEnd: 1.25,
 				volume: 0.8,
+			},
+		]);
+	});
+
+	test("applies transitions between adjacent video clips", () => {
+		const plan = {
+			...shortVideoPlan(),
+			transitions: [
+				{
+					fromClipId: "clip-1",
+					toClipId: "clip-2",
+					type: "fade",
+					duration: 0.5,
+				},
+			],
+		};
+		const editor = fakeEditor();
+
+		const result = applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const videoTracks = editor.timeline
+			.getTracks()
+			.filter((track): track is VideoTrack => track.type === "video");
+
+		expect(result).toMatchObject({
+			success: true,
+			summary: {
+				transitionCount: 1,
+			},
+		});
+		expect(videoTracks[0].transitions).toMatchObject([
+			{
+				type: "fade",
+				duration: 0.5,
+				fromElementId: "element-1",
+				toElementId: "element-2",
 			},
 		]);
 	});
