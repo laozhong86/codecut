@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AgentBridgeProvider } from "@/components/providers/agent-bridge-provider";
 import { useRouter } from "@/lib/navigation";
 import { Loader2 } from "lucide-react";
 import { useEditor } from "@/hooks/use-editor";
@@ -111,6 +112,7 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 	return (
 		<>
 			<EditorRuntimeBindings />
+			<AgentBridgeProvider projectId={projectId} />
 			{children}
 		</>
 	);

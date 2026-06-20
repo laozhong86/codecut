@@ -1,0 +1,230 @@
+#!/usr/bin/env node
+
+const requiredConfig = [
+	"CUTIA_AGENT_BRIDGE_URL",
+	"CUTIA_AGENT_BRIDGE_TOKEN",
+	"CUTIA_AGENT_BRIDGE_TIMEOUT_MS",
+	"CUTIA_AGENT_BRIDGE_INTERVAL_MS",
+];
+
+function usage() {
+	return [
+		"Usage:",
+		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --download <true|false>",
+		"",
+		"Required local env:",
+		...requiredConfig.map((name) => `  ${name}`),
+	].join("\n");
+}
+
+function parseFlags(argv) {
+	const flags = {};
+	for (let index = 0; index < argv.length; index += 1) {
+		const entry = argv[index];
+		if (!entry.startsWith("--")) {
+			throw new Error(`Unexpected argument: ${entry}`);
+		}
+
+		const key = entry
+			.slice(2)
+			.replace(/-([a-z])/g, (_, character) => character.toUpperCase());
+		const value = argv[index + 1];
+		if (!value || value.startsWith("--")) {
+			throw new Error(`Missing value for --${key}`);
+		}
+
+		flags[key] = value;
+		index += 1;
+	}
+	return flags;
+}
+
+export function requireRuntimeConfig({ env }) {
+	const baseUrl = env.CUTIA_AGENT_BRIDGE_URL;
+	if (!baseUrl) {
+		throw new Error("CUTIA_AGENT_BRIDGE_URL is required");
+	}
+
+	const token = env.CUTIA_AGENT_BRIDGE_TOKEN;
+	if (!token) {
+		throw new Error("CUTIA_AGENT_BRIDGE_TOKEN is required");
+	}
+
+	const timeoutMsRaw = env.CUTIA_AGENT_BRIDGE_TIMEOUT_MS;
+	if (!timeoutMsRaw) {
+		throw new Error("CUTIA_AGENT_BRIDGE_TIMEOUT_MS is required");
+	}
+
+	const intervalMsRaw = env.CUTIA_AGENT_BRIDGE_INTERVAL_MS;
+	if (!intervalMsRaw) {
+		throw new Error("CUTIA_AGENT_BRIDGE_INTERVAL_MS is required");
+	}
+
+	const timeoutMs = Number(timeoutMsRaw);
+	const intervalMs = Number(intervalMsRaw);
+	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+		throw new Error("CUTIA_AGENT_BRIDGE_TIMEOUT_MS must be a positive number");
+	}
+	if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+		throw new Error("CUTIA_AGENT_BRIDGE_INTERVAL_MS must be a positive number");
+	}
+
+	return {
+		baseUrl: baseUrl.replace(/\/$/, ""),
+		token,
+		timeoutMs,
+		intervalMs,
+	};
+}
+
+export function parseBoolean(value, label) {
+	if (value === "true") return true;
+	if (value === "false") return false;
+	throw new Error(`${label} must be true or false`);
+}
+
+export function buildCommandEnvelope({ projectId, tool, args }) {
+	if (!projectId) {
+		throw new Error("--project-id is required");
+	}
+	if (!tool) {
+		throw new Error("--tool is required");
+	}
+	if (!args || typeof args !== "object" || Array.isArray(args)) {
+		throw new Error("--args-json must be a JSON object");
+	}
+
+	return {
+		version: 1,
+		projectId,
+		source: "codex",
+		commands: [{ id: "cmd-1", tool, args }],
+	};
+}
+
+export function buildExportEnvelope({
+	projectId,
+	format,
+	quality,
+	includeAudio,
+	download,
+	fileName,
+}) {
+	if (!format) {
+		throw new Error("--format is required");
+	}
+	if (!quality) {
+		throw new Error("--quality is required");
+	}
+	if (typeof includeAudio !== "boolean") {
+		throw new Error("--include-audio is required");
+	}
+	if (typeof download !== "boolean") {
+		throw new Error("--download is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "export_project",
+		args: {
+			format,
+			quality,
+			includeAudio,
+			download,
+			...(fileName ? { fileName } : {}),
+		},
+	});
+}
+
+async function postEnvelope({ config, envelope, fetchImpl }) {
+	const response = await fetchImpl(`${config.baseUrl}/api/agent-bridge/commands`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${config.token}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({ envelope }),
+	});
+
+	const text = await response.text();
+	if (!response.ok) {
+		throw new Error(`Command enqueue failed: ${response.status} ${text}`);
+	}
+	return JSON.parse(text);
+}
+
+async function pollResult({ config, id, fetchImpl }) {
+	const deadline = Date.now() + config.timeoutMs;
+	while (Date.now() <= deadline) {
+		const response = await fetchImpl(
+			`${config.baseUrl}/api/agent-bridge/results?id=${encodeURIComponent(id)}`,
+			{ headers: { Authorization: `Bearer ${config.token}` } },
+		);
+		const text = await response.text();
+		if (!response.ok) {
+			throw new Error(`Result polling failed: ${response.status} ${text}`);
+		}
+
+		const payload = JSON.parse(text);
+		if (payload.status === "completed") {
+			return payload;
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, config.intervalMs));
+	}
+
+	throw new Error(`Timed out waiting for bridge result ${id}`);
+}
+
+export async function runCli({
+	argv,
+	env,
+	fetchImpl = fetch,
+	stdout = console.log,
+}) {
+	const [command, ...rest] = argv;
+	if (!command || command === "help" || command === "--help") {
+		stdout(usage());
+		return 0;
+	}
+
+	const flags = parseFlags(rest);
+	const config = requireRuntimeConfig({ env, flags });
+	let envelope;
+
+	if (command === "send") {
+		if (!flags.argsJson) {
+			throw new Error("--args-json is required");
+		}
+		envelope = buildCommandEnvelope({
+			projectId: flags.projectId,
+			tool: flags.tool,
+			args: JSON.parse(flags.argsJson),
+		});
+	} else if (command === "export") {
+		envelope = buildExportEnvelope({
+			projectId: flags.projectId,
+			format: flags.format,
+			quality: flags.quality,
+			includeAudio: parseBoolean(flags.includeAudio, "includeAudio"),
+			download: parseBoolean(flags.download, "download"),
+			fileName: flags.fileName,
+		});
+	} else {
+		throw new Error(`Unknown command: ${command}`);
+	}
+
+	const queued = await postEnvelope({ config, envelope, fetchImpl });
+	const result = await pollResult({ config, id: queued.id, fetchImpl });
+	stdout(JSON.stringify(result, null, 2));
+	return 0;
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+	runCli({ argv: process.argv.slice(2), env: process.env }).catch((error) => {
+		console.error(error instanceof Error ? error.message : error);
+		console.error(usage());
+		process.exitCode = 1;
+	});
+}
