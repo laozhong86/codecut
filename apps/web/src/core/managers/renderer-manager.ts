@@ -58,6 +58,7 @@ export class RendererManager {
 			const scene = buildScene({
 				tracks,
 				mediaAssets,
+				derivedAssets: activeProject.derivedAssets,
 				duration,
 				canvasSize,
 				background: activeProject.settings.background,

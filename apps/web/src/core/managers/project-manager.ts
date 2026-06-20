@@ -600,6 +600,7 @@ export class ProjectManager {
 		const scene = buildScene({
 			tracks,
 			mediaAssets,
+			derivedAssets: this.active.derivedAssets,
 			duration,
 			canvasSize,
 			background,

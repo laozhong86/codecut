@@ -111,6 +111,10 @@ interface BaseTimelineElement {
 export interface VideoElement extends BaseTimelineElement {
 	type: "video";
 	mediaId: string;
+	mask?: {
+		type: "person-mask";
+		derivedAssetId: string;
+	};
 	muted?: boolean;
 	hidden?: boolean;
 	transform: Transform;

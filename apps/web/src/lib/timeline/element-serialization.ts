@@ -51,6 +51,9 @@ export function serializeElementVisualProperties(element: TimelineElement) {
 				...(element.type === "video" && element.reversed !== undefined
 					? { reversed: element.reversed }
 					: {}),
+				...(element.type === "video" && element.mask
+					? { mask: element.mask }
+					: {}),
 				...(element.type === "sticker" && element.color !== undefined
 					? { color: element.color }
 					: {}),

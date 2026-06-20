@@ -21,6 +21,7 @@ export const getTimelineStateTool: AgentTool = {
 		const editor = EditorCore.getInstance();
 		const tracks = editor.timeline.getTracks();
 		const duration = editor.timeline.getTotalDuration();
+		const activeProject = editor.project.getActiveOrNull();
 
 		const trackDetails = tracks.map((track) => ({
 			id: track.id,
@@ -47,7 +48,11 @@ export const getTimelineStateTool: AgentTool = {
 		return {
 			success: true,
 			message: `Timeline has ${tracks.length} track(s), total duration: ${duration.toFixed(2)}s`,
-			data: { tracks: trackDetails, totalDuration: duration },
+			data: {
+				tracks: trackDetails,
+				totalDuration: duration,
+				derivedAssets: activeProject?.derivedAssets ?? [],
+			},
 		};
 	},
 };

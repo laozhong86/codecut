@@ -7,6 +7,10 @@ import type {
 import type { MediaAsset } from "@/types/assets";
 import { RootNode } from "./nodes/root-node";
 import { VideoNode } from "./nodes/video-node";
+import {
+	MaskedVideoNode,
+	type MaskedVideoNodeParams,
+} from "./nodes/masked-video-node";
 import { ImageNode } from "./nodes/image-node";
 import { TextNode } from "./nodes/text-node";
 import { StickerNode } from "./nodes/sticker-node";
@@ -14,7 +18,7 @@ import { ColorNode } from "./nodes/color-node";
 import { BlurBackgroundNode } from "./nodes/blur-background-node";
 import { TransitionNode } from "./nodes/transition-node";
 import type { BaseNode } from "./nodes/base-node";
-import type { TBackground, TCanvasSize } from "@/types/project";
+import type { DerivedAsset, TBackground, TCanvasSize } from "@/types/project";
 import { DEFAULT_BLUR_INTENSITY } from "@/constants/project-constants";
 import { isMainTrack } from "@/lib/timeline";
 import { isBottomAlignedSubtitleText } from "@/lib/timeline/text-utils";
@@ -23,6 +27,7 @@ export type BuildSceneParams = {
 	canvasSize: TCanvasSize;
 	tracks: TimelineTrack[];
 	mediaAssets: MediaAsset[];
+	derivedAssets: DerivedAsset[];
 	duration: number;
 	background: TBackground;
 };
@@ -30,9 +35,11 @@ export type BuildSceneParams = {
 function buildVisualElementNode({
 	element,
 	mediaMap,
+	derivedAssetMap,
 }: {
 	element: VideoElement | ImageElement;
 	mediaMap: Map<string, MediaAsset>;
+	derivedAssetMap: Map<string, DerivedAsset>;
 }): BaseNode | null {
 	const mediaAsset = mediaMap.get(element.mediaId);
 	if (!mediaAsset?.file || !mediaAsset?.url) {
@@ -41,6 +48,42 @@ function buildVisualElementNode({
 
 	if (mediaAsset.type === "video") {
 		const videoElement = element as VideoElement;
+		if (videoElement.mask) {
+			const derivedAsset = derivedAssetMap.get(
+				videoElement.mask.derivedAssetId,
+			);
+			if (!derivedAsset) {
+				throw new Error("Masked video derived asset was not found.");
+			}
+			if (derivedAsset.sourceMediaId !== videoElement.mediaId) {
+				throw new Error("Masked video source does not match derived asset.");
+			}
+
+			const alphaMedia = mediaMap.get(derivedAsset.alphaMediaId);
+			if (!alphaMedia?.file || !alphaMedia?.url) {
+				throw new Error("Masked video alpha media asset was not found.");
+			}
+			if (alphaMedia.type !== "video") {
+				throw new Error("Masked video alpha media asset must be video.");
+			}
+
+			const maskedParams: MaskedVideoNodeParams = {
+				mediaId: mediaAsset.id,
+				url: mediaAsset.url,
+				file: mediaAsset.file,
+				alphaMediaId: alphaMedia.id,
+				alphaFile: alphaMedia.file,
+				duration: element.duration,
+				timeOffset: element.startTime,
+				trimStart: element.trimStart,
+				trimEnd: element.trimEnd,
+				transform: element.transform,
+				opacity: element.opacity,
+				playbackRate: videoElement.playbackRate,
+				reversed: videoElement.reversed,
+			};
+			return new MaskedVideoNode(maskedParams);
+		}
 		return new VideoNode({
 			mediaId: mediaAsset.id,
 			url: mediaAsset.url,
@@ -80,10 +123,18 @@ function getElementEndTime({
 }
 
 export function buildScene(params: BuildSceneParams) {
-	const { tracks, mediaAssets, duration, canvasSize, background } = params;
+	const {
+		tracks,
+		mediaAssets,
+		derivedAssets,
+		duration,
+		canvasSize,
+		background,
+	} = params;
 
 	const rootNode = new RootNode({ duration });
 	const mediaMap = new Map(mediaAssets.map((m) => [m.id, m]));
+	const derivedAssetMap = new Map(derivedAssets.map((asset) => [asset.id, asset]));
 
 	const visibleTracks = tracks.filter(
 		(track) => !("hidden" in track && track.hidden),
@@ -133,10 +184,12 @@ export function buildScene(params: BuildSceneParams) {
 						const outgoingNode = buildVisualElementNode({
 							element,
 							mediaMap,
+							derivedAssetMap,
 						});
 						const incomingNode = buildVisualElementNode({
 							element: nextElement,
 							mediaMap,
+							derivedAssetMap,
 						});
 
 						if (outgoingNode && incomingNode) {
@@ -163,7 +216,11 @@ export function buildScene(params: BuildSceneParams) {
 					}
 				}
 
-				const node = buildVisualElementNode({ element, mediaMap });
+				const node = buildVisualElementNode({
+					element,
+					mediaMap,
+					derivedAssetMap,
+				});
 				if (node) {
 					processedIds.add(element.id);
 					contentNodes.push(node);

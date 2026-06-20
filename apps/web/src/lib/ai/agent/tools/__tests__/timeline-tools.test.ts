@@ -70,6 +70,10 @@ function videoElementFixture(): VideoElement {
 			flipX: true,
 		},
 		opacity: 0.8,
+		mask: {
+			type: "person-mask",
+			derivedAssetId: "mask-1",
+		},
 		playbackRate: 1.2,
 		reversed: false,
 	};
@@ -93,6 +97,7 @@ function audioElementFixture(): AudioElement {
 
 function initializeTimeline({ tracks }: { tracks: TimelineTrack[] }) {
 	const editor = EditorCore.getInstance();
+	const now = new Date("2026-06-21T00:00:00.000Z");
 	const scene = {
 		...buildDefaultScene({ name: "Main scene", isMain: true }),
 		tracks,
@@ -101,6 +106,40 @@ function initializeTimeline({ tracks }: { tracks: TimelineTrack[] }) {
 	editor.scenes.initializeScenes({
 		scenes: [scene],
 		currentSceneId: scene.id,
+	});
+	editor.project.setActiveProject({
+		project: {
+			metadata: {
+				id: "project-1",
+				name: "Project",
+				duration: 10,
+				createdAt: now,
+				updatedAt: now,
+			},
+			scenes: [scene],
+			currentSceneId: scene.id,
+			settings: {
+				fps: 30,
+				canvasSize: { width: 1080, height: 1920 },
+				originalCanvasSize: null,
+				background: { type: "color", color: "#000000" },
+			},
+			version: 5,
+			derivedAssets: [
+				{
+					id: "mask-1",
+					type: "person-mask",
+					sourceMediaId: "media-1",
+					alphaMediaId: "alpha-1",
+					duration: 10,
+					width: 1920,
+					height: 1080,
+					fps: 30,
+					confidence: 0.8,
+					createdAt: "2026-06-21T00:00:00.000Z",
+				},
+			],
+		},
 	});
 }
 
@@ -216,6 +255,10 @@ describe("getTimelineStateTool", () => {
 									rotate: 0,
 									flipX: true,
 								},
+								mask: {
+									type: "person-mask",
+									derivedAssetId: "mask-1",
+								},
 								playbackRate: 1.2,
 								reversed: false,
 							},
@@ -237,6 +280,14 @@ describe("getTimelineStateTool", () => {
 							},
 						},
 					],
+				},
+			],
+			derivedAssets: [
+				{
+					id: "mask-1",
+					type: "person-mask",
+					sourceMediaId: "media-1",
+					alphaMediaId: "alpha-1",
 				},
 			],
 		});
