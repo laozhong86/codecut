@@ -23,7 +23,15 @@ function tool({
 describe("executeBridgeEnvelope", () => {
 	test("executes commands sequentially", async () => {
 		const calls: string[] = [];
-		const result = await executeBridgeEnvelope({
+		let resolveFirstCommand:
+			| ((value: { success: boolean; message: string }) => void)
+			| undefined;
+		const firstCommandResult = new Promise<{ success: boolean; message: string }>(
+			(resolve) => {
+				resolveFirstCommand = resolve;
+			},
+		);
+		const executionPromise = executeBridgeEnvelope({
 			envelope: {
 				version: 1,
 				projectId: "project-123",
@@ -38,11 +46,20 @@ describe("executeBridgeEnvelope", () => {
 					name,
 					execute: async () => {
 						calls.push(name);
+						if (name === "get_project_info") {
+							return firstCommandResult;
+						}
 						return { success: true, message: `${name} ok` };
 					},
 				}),
 		});
 
+		expect(calls).toEqual(["get_project_info"]);
+		resolveFirstCommand?.({
+			success: true,
+			message: "get_project_info ok",
+		});
+		const result = await executionPromise;
 		expect(calls).toEqual(["get_project_info", "get_timeline_state"]);
 		expect(result.results.map((entry) => entry.success)).toEqual([true, true]);
 	});
@@ -89,13 +106,16 @@ describe("executeBridgeEnvelope", () => {
 		});
 	});
 
-	test("returns a failure when a registered bridge tool has no implementation", async () => {
+	test("skips later commands after a bridge tool has no implementation", async () => {
 		const result = await executeBridgeEnvelope({
 			envelope: {
 				version: 1,
 				projectId: "project-123",
 				source: "codex",
-				commands: [{ id: "cmd-1", tool: "get_project_info", args: {} }],
+				commands: [
+					{ id: "cmd-1", tool: "get_project_info", args: {} },
+					{ id: "cmd-2", tool: "get_timeline_state", args: {} },
+				],
 			},
 			resolveTool: () => undefined,
 		});
@@ -104,6 +124,12 @@ describe("executeBridgeEnvelope", () => {
 			commandId: "cmd-1",
 			tool: "get_project_info",
 			success: false,
+		});
+		expect(result.results[1]).toMatchObject({
+			commandId: "cmd-2",
+			tool: "get_timeline_state",
+			success: false,
+			skipped: true,
 		});
 	});
 
