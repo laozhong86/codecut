@@ -106,4 +106,41 @@ describe("executeBridgeEnvelope", () => {
 			success: false,
 		});
 	});
+
+	test("stops after the first tool throws an error", async () => {
+		const calls: string[] = [];
+		const result = await executeBridgeEnvelope({
+			envelope: {
+				version: 1,
+				projectId: "project-123",
+				source: "codex",
+				commands: [
+					{ id: "cmd-1", tool: "add_text_to_timeline", args: { content: "A" } },
+					{ id: "cmd-2", tool: "get_timeline_state", args: {} },
+				],
+			},
+			resolveTool: ({ name }) =>
+				tool({
+					name,
+					execute: async () => {
+						calls.push(name);
+						throw new Error(`${name} exploded`);
+					},
+				}),
+		});
+
+		expect(calls).toEqual(["add_text_to_timeline"]);
+		expect(result.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "add_text_to_timeline",
+			success: false,
+			message: "add_text_to_timeline exploded",
+		});
+		expect(result.results[1]).toMatchObject({
+			commandId: "cmd-2",
+			tool: "get_timeline_state",
+			success: false,
+			skipped: true,
+		});
+	});
 });
