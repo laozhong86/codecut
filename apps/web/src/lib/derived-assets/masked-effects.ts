@@ -211,6 +211,7 @@ export function createTextBackgroundEffect({
 		...sourceElement,
 		id: generateId(),
 		name: `${sourceMedia.name} masked foreground`,
+		muted: true,
 		mask: {
 			type: "person-mask",
 			derivedAssetId,

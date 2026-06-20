@@ -63,9 +63,10 @@ describe("createTextBackgroundEffect", () => {
 		const foregroundTrack = result.tracks[0] as VideoTrack;
 		const textTrack = result.tracks[1] as TextTrack;
 		const bottomTrack = result.tracks[2] as VideoTrack;
+		const bottomElement = bottomTrack.elements[0];
 
 		expect(bottomTrack.isMain).toBe(true);
-		expect(bottomTrack.elements[0]).toMatchObject({
+		expect(bottomElement).toMatchObject({
 			type: "video",
 			mediaId: "video-1",
 			startTime: 2,
@@ -86,11 +87,16 @@ describe("createTextBackgroundEffect", () => {
 			duration: 4,
 			trimStart: 2,
 			trimEnd: 6,
+			muted: true,
 			mask: {
 				type: "person-mask",
 				derivedAssetId: "mask-1",
 			},
 		});
+		if (bottomElement.type !== "video") {
+			throw new Error("Expected text background bottom element to be video.");
+		}
+		expect(bottomElement.muted).toBe(false);
 	});
 
 	test("rejects a person mask generated from another source", () => {

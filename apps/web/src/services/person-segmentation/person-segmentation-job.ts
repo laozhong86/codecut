@@ -110,6 +110,11 @@ export async function runPersonSegmentationJob({
 		if (result.alpha.length === 0) {
 			throw new Error("Person segmentation alpha frame is empty.");
 		}
+		if (result.alpha.length !== width * height) {
+			throw new Error(
+				"Person segmentation alpha frame length must match width * height.",
+			);
+		}
 		if (result.confidence < 0 || result.confidence > 1) {
 			throw new Error("Person segmentation confidence must be between 0 and 1.");
 		}

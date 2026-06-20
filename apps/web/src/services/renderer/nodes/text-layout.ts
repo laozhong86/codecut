@@ -67,6 +67,25 @@ export function validateTextRichSpans({
 	}
 }
 
+export function sanitizeTextRichSpansForContent({
+	content,
+	richSpans,
+}: {
+	content: string;
+	richSpans: TextRichSpan[];
+}): TextRichSpan[] {
+	const length = Array.from(content).length;
+
+	return richSpans.flatMap((span) => {
+		const end = Math.min(span.end, length);
+		if (span.start < 0 || span.start >= end) {
+			return [];
+		}
+
+		return [{ ...span, end }];
+	});
+}
+
 function getStyleAt({
 	index,
 	richSpans,
@@ -112,14 +131,12 @@ export function createTextLayout({
 
 	const lines: TextLayoutLine[] = [];
 	let currentRuns: TextLayoutRun[] = [];
-	let currentText = "";
 	let currentWidth = 0;
 	const chars = Array.from(content);
 
 	const pushLine = () => {
 		lines.push({ runs: currentRuns, width: currentWidth });
 		currentRuns = [];
-		currentText = "";
 		currentWidth = 0;
 	};
 
@@ -131,20 +148,19 @@ export function createTextLayout({
 		}
 
 		const style = getStyleAt({ index, richSpans });
-		const nextText = currentText + char;
-		const nextWidth = measureText(nextText, {});
+		const charWidth = measureText(char, style);
+		const nextWidth = currentWidth + charWidth;
 		if (
 			maxWidth !== undefined &&
 			maxWidth > 0 &&
 			nextWidth > maxWidth &&
-			currentText !== ""
+			currentRuns.length > 0
 		) {
 			pushLine();
 		}
 
 		appendChar({ runs: currentRuns, char, style });
-		currentText += char;
-		currentWidth = measureText(currentText, {});
+		currentWidth += charWidth;
 	}
 
 	if (currentRuns.length > 0 || lines.length === 0) {

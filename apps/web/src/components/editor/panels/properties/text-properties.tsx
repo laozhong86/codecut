@@ -35,6 +35,7 @@ import {
 	TEXT_STYLE_PRESETS,
 	type TextStylePreset,
 } from "@/constants/text-style-presets";
+import { sanitizeTextRichSpansForContent } from "@/services/renderer/nodes/text-layout";
 import { cn } from "@/utils/ui";
 
 interface TextElementRef {
@@ -106,6 +107,7 @@ export function TextProperties({
 	const initialBgBorderRadiusRef = useRef<number | null>(null);
 	const initialBgPaddingXRef = useRef<number | null>(null);
 	const initialBgPaddingYRef = useRef<number | null>(null);
+	const initialRichSpansRef = useRef<TextRichSpan[] | null>(null);
 
 	const scalePercent = Math.round(element.transform.scale * 100);
 	const posXDisplay = isEditingPosX.current
@@ -221,6 +223,17 @@ export function TextProperties({
 			richSpans: element.richSpans.filter((_, spanIndex) => spanIndex !== index),
 		});
 	};
+
+	const getContentUpdates = ({
+		content,
+		richSpans,
+	}: {
+		content: string;
+		richSpans: TextRichSpan[];
+	}) => ({
+		content,
+		richSpans: sanitizeTextRichSpansForContent({ content, richSpans }),
+	});
 
 	const handleFontSizeChange = ({ value }: { value: string }) => {
 		fontSizeDraft.current = value;
@@ -359,6 +372,7 @@ export function TextProperties({
 									isEditingContent.current = true;
 									contentDraft.current = element.content;
 									initialContentRef.current = element.content;
+									initialRichSpansRef.current = element.richSpans;
 									forceRender();
 								}}
 								onChange={(event) => {
@@ -366,10 +380,15 @@ export function TextProperties({
 									forceRender();
 									if (initialContentRef.current === null) {
 										initialContentRef.current = element.content;
+										initialRichSpansRef.current = element.richSpans;
 									}
 									editor.timeline.updateElements({
 										updates: buildBatchUpdates({
-											content: event.target.value,
+											...getContentUpdates({
+												content: event.target.value,
+												richSpans:
+													initialRichSpansRef.current ?? element.richSpans,
+											}),
 										}),
 										pushHistory: false,
 									});
@@ -380,16 +399,23 @@ export function TextProperties({
 										editor.timeline.updateElements({
 											updates: buildBatchUpdates({
 												content: initialContentRef.current,
+												richSpans:
+													initialRichSpansRef.current ?? element.richSpans,
 											}),
 											pushHistory: false,
 										});
 										editor.timeline.updateElements({
 											updates: buildBatchUpdates({
-												content: finalContent,
+												...getContentUpdates({
+													content: finalContent,
+													richSpans:
+														initialRichSpansRef.current ?? element.richSpans,
+												}),
 											}),
 											pushHistory: true,
 										});
 										initialContentRef.current = null;
+										initialRichSpansRef.current = null;
 									}
 									isEditingContent.current = false;
 									contentDraft.current = "";

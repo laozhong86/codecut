@@ -3,8 +3,10 @@ import type { MediaAsset } from "@/types/assets";
 import { storageService } from "@/services/storage/service";
 import { generateUUID } from "@/utils/id";
 import { videoCache } from "@/services/video-cache/service";
-import { hasMediaId } from "@/lib/timeline/element-utils";
-import { getDerivedAssetCleanupForMediaRemoval } from "@/lib/derived-assets/cleanup";
+import {
+	getDerivedAssetCleanupForMediaRemoval,
+	getTimelineElementsForMediaAndDerivedAssetRemoval,
+} from "@/lib/derived-assets/cleanup";
 
 export class MediaManager {
 	private assets: MediaAsset[] = [];
@@ -77,15 +79,11 @@ export class MediaManager {
 		}
 
 		const tracks = this.editor.timeline.getTracks();
-		const elementsToRemove: Array<{ trackId: string; elementId: string }> = [];
-
-		for (const track of tracks) {
-			for (const element of track.elements) {
-				if (hasMediaId(element) && mediaIdsToRemove.has(element.mediaId)) {
-					elementsToRemove.push({ trackId: track.id, elementId: element.id });
-				}
-			}
-		}
+		const elementsToRemove = getTimelineElementsForMediaAndDerivedAssetRemoval({
+			tracks,
+			mediaAssetIds: Array.from(mediaIdsToRemove),
+			derivedAssetIds: cleanupPlan.derivedAssetIds,
+		});
 
 		if (elementsToRemove.length > 0) {
 			this.editor.timeline.deleteElements({ elements: elementsToRemove });

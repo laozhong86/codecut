@@ -1,11 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import {
 	createTextLayout,
+	sanitizeTextRichSpansForContent,
 	validateTextRichSpans,
 } from "../text-layout";
 
 function measureText(text: string) {
 	return text.length;
+}
+
+function measureTextWithScale(
+	text: string,
+	style: { fontScale?: number },
+) {
+	return text.length * (style.fontScale ?? 1);
 }
 
 describe("text rich span layout", () => {
@@ -95,5 +103,37 @@ describe("text rich span layout", () => {
 				],
 			}),
 		).toThrow("Text rich spans must be sorted and non-overlapping.");
+	});
+
+	test("wraps lines using rich span fontScale width", () => {
+		const layout = createTextLayout({
+			content: "ab",
+			richSpans: [{ start: 0, end: 1, fontScale: 2 }],
+			maxWidth: 2,
+			measureText: measureTextWithScale,
+		});
+
+		expect(layout.lines).toEqual([
+			{
+				width: 2,
+				runs: [{ text: "a", style: { fontScale: 2 } }],
+			},
+			{
+				width: 1,
+				runs: [{ text: "b", style: {} }],
+			},
+		]);
+	});
+
+	test("sanitizes spans when content becomes shorter", () => {
+		const result = sanitizeTextRichSpansForContent({
+			content: "ab",
+			richSpans: [
+				{ start: 0, end: 1, color: "#ff0000" },
+				{ start: 2, end: 4, color: "#00ff00" },
+			],
+		});
+
+		expect(result).toEqual([{ start: 0, end: 1, color: "#ff0000" }]);
 	});
 });

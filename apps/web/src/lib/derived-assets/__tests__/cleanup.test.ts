@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { DerivedAsset } from "@/types/project";
-import { getDerivedAssetCleanupForMediaRemoval } from "../cleanup";
+import type { TimelineTrack } from "@/types/timeline";
+import {
+	getDerivedAssetCleanupForMediaRemoval,
+	getTimelineElementsForMediaAndDerivedAssetRemoval,
+} from "../cleanup";
 
 function personMask(overrides: Partial<DerivedAsset> = {}): DerivedAsset {
 	return {
@@ -48,5 +52,46 @@ describe("getDerivedAssetCleanupForMediaRemoval", () => {
 			derivedAssetIds: ["mask-1"],
 			mediaAssetIds: ["alpha-1"],
 		});
+	});
+});
+
+describe("getTimelineElementsForMediaAndDerivedAssetRemoval", () => {
+	test("returns masked video elements that reference removed derived assets", () => {
+		const tracks: TimelineTrack[] = [
+			{
+				id: "foreground-track",
+				name: "Foreground",
+				type: "video",
+				isMain: false,
+				muted: false,
+				hidden: false,
+				elements: [
+					{
+						id: "foreground-1",
+						name: "Masked foreground",
+						type: "video",
+						mediaId: "video-1",
+						startTime: 0,
+						duration: 5,
+						trimStart: 0,
+						trimEnd: 5,
+						transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+						opacity: 1,
+						mask: {
+							type: "person-mask",
+							derivedAssetId: "mask-1",
+						},
+					},
+				],
+			},
+		];
+
+		expect(
+			getTimelineElementsForMediaAndDerivedAssetRemoval({
+				tracks,
+				mediaAssetIds: ["alpha-1"],
+				derivedAssetIds: ["mask-1"],
+			}),
+		).toEqual([{ trackId: "foreground-track", elementId: "foreground-1" }]);
 	});
 });

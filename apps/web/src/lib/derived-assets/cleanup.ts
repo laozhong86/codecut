@@ -1,4 +1,6 @@
 import type { DerivedAsset } from "@/types/project";
+import type { TimelineTrack } from "@/types/timeline";
+import { hasMediaId } from "@/lib/timeline/element-utils";
 
 export interface DerivedAssetCleanupPlan {
 	derivedAssetIds: string[];
@@ -33,4 +35,35 @@ export function getDerivedAssetCleanupForMediaRemoval({
 		derivedAssetIds,
 		mediaAssetIds: Array.from(mediaAssetIds),
 	};
+}
+
+export function getTimelineElementsForMediaAndDerivedAssetRemoval({
+	tracks,
+	mediaAssetIds,
+	derivedAssetIds,
+}: {
+	tracks: TimelineTrack[];
+	mediaAssetIds: string[];
+	derivedAssetIds: string[];
+}): Array<{ trackId: string; elementId: string }> {
+	const mediaAssetIdSet = new Set(mediaAssetIds);
+	const derivedAssetIdSet = new Set(derivedAssetIds);
+	const elementsToRemove: Array<{ trackId: string; elementId: string }> = [];
+
+	for (const track of tracks) {
+		for (const element of track.elements) {
+			const referencesRemovedMedia =
+				hasMediaId(element) && mediaAssetIdSet.has(element.mediaId);
+			const referencesRemovedDerivedAsset =
+				element.type === "video" &&
+				element.mask !== undefined &&
+				derivedAssetIdSet.has(element.mask.derivedAssetId);
+
+			if (referencesRemovedMedia || referencesRemovedDerivedAsset) {
+				elementsToRemove.push({ trackId: track.id, elementId: element.id });
+			}
+		}
+	}
+
+	return elementsToRemove;
 }
