@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
+	buildApplyPlanEnvelope,
 	buildCommandEnvelope,
 	buildExportEnvelope,
+	buildTranscribeEnvelope,
 	parseBoolean,
 	requireRuntimeConfig,
 	runCli,
@@ -71,6 +76,66 @@ describe("codex bridge CLI helpers", () => {
 		});
 	});
 
+	test("builds a transcribe command envelope with explicit model options", () => {
+		const envelope = buildTranscribeEnvelope({
+			projectId: "project-123",
+			mediaId: "media-123",
+			language: "auto",
+			modelId: "whisper-base",
+		});
+
+		expect(envelope.commands[0]).toEqual({
+			id: "cmd-1",
+			tool: "transcribe_media",
+			args: {
+				mediaId: "media-123",
+				language: "auto",
+				modelId: "whisper-base",
+			},
+		});
+	});
+
+	test("builds an apply-plan command envelope from a local JSON file", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "cutia-codex-bridge-"));
+		const planPath = join(directory, "edit-plan.json");
+		const plan = {
+			version: 1,
+			projectId: "project-123",
+			sourceMediaId: "media-123",
+			target: { durationSec: 12, aspectRatio: "9:16" },
+			clips: [
+				{
+					id: "clip-1",
+					sourceStart: 0,
+					sourceEnd: 12,
+					timelineStart: 0,
+					reason: "Strong opening",
+				},
+			],
+			rationale: "Short vertical cut",
+		};
+		await writeFile(planPath, JSON.stringify(plan), "utf8");
+
+		try {
+			const envelope = await buildApplyPlanEnvelope({
+				projectId: "project-123",
+				planJsonFile: planPath,
+				replaceExisting: true,
+			});
+
+			expect(envelope.commands[0]).toEqual({
+				id: "cmd-1",
+				tool: "apply_edit_plan",
+				args: {
+					plan,
+					replaceExisting: true,
+				},
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test("parses boolean flags strictly", () => {
 		expect(parseBoolean("true", "includeAudio")).toBe(true);
 		expect(parseBoolean("false", "includeAudio")).toBe(false);
@@ -130,5 +195,32 @@ describe("codex bridge CLI helpers", () => {
 			"http://localhost:4100/api/agent-bridge/results?id=queue-1",
 		);
 		expect(JSON.parse(output[0]).status).toBe("completed");
+	});
+
+	test("rejects token passed through CLI flags", async () => {
+		await expect(
+			runCli({
+				argv: [
+					"send",
+					"--project-id",
+					"project-123",
+					"--tool",
+					"get_project_info",
+					"--args-json",
+					"{}",
+					"--token",
+					"local-token",
+				],
+				env: {
+					CUTIA_AGENT_BRIDGE_URL: "http://localhost:4100",
+					CUTIA_AGENT_BRIDGE_TOKEN: "env-token",
+					CUTIA_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+					CUTIA_AGENT_BRIDGE_INTERVAL_MS: "1",
+				},
+				fetchImpl: async () => {
+					throw new Error("fetch should not be called");
+				},
+			}),
+		).rejects.toThrow("Token must be provided through CUTIA_AGENT_BRIDGE_TOKEN");
 	});
 });

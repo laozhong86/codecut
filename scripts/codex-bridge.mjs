@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const requiredConfig = [
@@ -14,6 +16,8 @@ function usage() {
 	return [
 		"Usage:",
 		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
+		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>",
 		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --download <true|false>",
 		"",
 		"Required local env:",
@@ -41,6 +45,20 @@ function parseFlags(argv) {
 		index += 1;
 	}
 	return flags;
+}
+
+function assertNoTokenFlags(flags) {
+	const tokenFlagKeys = [
+		"token",
+		"bridgeToken",
+		"agentBridgeToken",
+		"cutiaAgentBridgeToken",
+	];
+	for (const key of tokenFlagKeys) {
+		if (Object.hasOwn(flags, key)) {
+			throw new Error("Token must be provided through CUTIA_AGENT_BRIDGE_TOKEN");
+		}
+	}
 }
 
 export function requireRuntimeConfig({ env }) {
@@ -140,6 +158,63 @@ export function buildExportEnvelope({
 	});
 }
 
+export function buildTranscribeEnvelope({
+	projectId,
+	mediaId,
+	language,
+	modelId,
+}) {
+	if (!mediaId) {
+		throw new Error("--media-id is required");
+	}
+	if (!language) {
+		throw new Error("--language is required");
+	}
+	if (!modelId) {
+		throw new Error("--model-id is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "transcribe_media",
+		args: {
+			mediaId,
+			language,
+			modelId,
+		},
+	});
+}
+
+export async function buildApplyPlanEnvelope({
+	projectId,
+	planJsonFile,
+	replaceExisting,
+}) {
+	if (!planJsonFile) {
+		throw new Error("--plan-json-file is required");
+	}
+	if (!isAbsolute(planJsonFile)) {
+		throw new Error("--plan-json-file must be an absolute path");
+	}
+	if (typeof replaceExisting !== "boolean") {
+		throw new Error("--replace-existing is required");
+	}
+
+	const plan = JSON.parse(await readFile(planJsonFile, "utf8"));
+	if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
+		throw new Error("--plan-json-file must contain a JSON object");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "apply_edit_plan",
+		args: {
+			plan,
+			replaceExisting,
+		},
+	});
+}
+
 async function postEnvelope({ config, envelope, fetchImpl }) {
 	const response = await fetchImpl(`${config.baseUrl}/api/agent-bridge/commands`, {
 		method: "POST",
@@ -193,6 +268,7 @@ export async function runCli({
 	}
 
 	const flags = parseFlags(rest);
+	assertNoTokenFlags(flags);
 	const config = requireRuntimeConfig({ env, flags });
 	let envelope;
 
@@ -213,6 +289,19 @@ export async function runCli({
 			includeAudio: parseBoolean(flags.includeAudio, "includeAudio"),
 			download: parseBoolean(flags.download, "download"),
 			fileName: flags.fileName,
+		});
+	} else if (command === "transcribe") {
+		envelope = buildTranscribeEnvelope({
+			projectId: flags.projectId,
+			mediaId: flags.mediaId,
+			language: flags.language,
+			modelId: flags.modelId,
+		});
+	} else if (command === "apply-plan") {
+		envelope = await buildApplyPlanEnvelope({
+			projectId: flags.projectId,
+			planJsonFile: flags.planJsonFile,
+			replaceExisting: parseBoolean(flags.replaceExisting, "replaceExisting"),
 		});
 	} else {
 		throw new Error(`Unknown command: ${command}`);

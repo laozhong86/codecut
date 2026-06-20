@@ -12,6 +12,8 @@ export const BridgeToolNameSchema = z.enum([
 	"delete_element",
 	"move_element",
 	"export_project",
+	"transcribe_media",
+	"apply_edit_plan",
 ]);
 
 export const BridgeCommandSchema = z.object({
