@@ -27,6 +27,17 @@ function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	};
 }
 
+function audioAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
+	return mediaAsset({
+		id: "audio-1",
+		name: "Music bed.mp3",
+		type: "audio",
+		duration: 3,
+		file: new File(["audio"], "music-bed.mp3", { type: "audio/mpeg" }),
+		...overrides,
+	});
+}
+
 type VideoTrack = Extract<TimelineTrack, { type: "video" }>;
 type TextTrack = Extract<TimelineTrack, { type: "text" }>;
 type AudioTrack = Extract<TimelineTrack, { type: "audio" }>;
@@ -107,6 +118,32 @@ function validPlan(): EditPlan {
 			position: "lower-safe",
 		},
 		rationale: "Combines setup and proof into a short clip.",
+	};
+}
+
+function shortVideoPlan(): EditPlan {
+	return {
+		version: 1,
+		projectId: "project-1",
+		sourceMediaId: "media-1",
+		target: { durationSec: 10, aspectRatio: "9:16" },
+		clips: [
+			{
+				id: "clip-1",
+				sourceStart: 0,
+				sourceEnd: 5,
+				timelineStart: 0,
+				reason: "First proof point.",
+			},
+			{
+				id: "clip-2",
+				sourceStart: 20,
+				sourceEnd: 25,
+				timelineStart: 5,
+				reason: "Second proof point.",
+			},
+		],
+		rationale: "Creates a compact proof sequence.",
 	};
 }
 
@@ -411,6 +448,116 @@ describe("applyEditPlanToEditor", () => {
 				rotate: 0,
 			},
 		});
+	});
+
+	test("loops bgm audio to cover the generated timeline", () => {
+		const plan = {
+			...shortVideoPlan(),
+			audio: {
+				bgm: {
+					assetId: "audio-1",
+					volume: 0.35,
+					mode: "loop_to_timeline",
+				},
+			},
+		};
+		const editor = fakeEditor({
+			mediaAssets: [mediaAsset(), audioAsset()],
+		});
+
+		applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const audioTracks = editor.timeline
+			.getTracks()
+			.filter((track): track is AudioTrack => track.type === "audio");
+
+		expect(audioTracks).toHaveLength(1);
+		expect(audioTracks[0].elements).toMatchObject([
+			{
+				type: "audio",
+				sourceType: "upload",
+				mediaId: "audio-1",
+				startTime: 0,
+				duration: 3,
+				trimStart: 0,
+				trimEnd: 3,
+				volume: 0.35,
+			},
+			{
+				type: "audio",
+				sourceType: "upload",
+				mediaId: "audio-1",
+				startTime: 3,
+				duration: 3,
+				trimStart: 0,
+				trimEnd: 3,
+				volume: 0.35,
+			},
+			{
+				type: "audio",
+				sourceType: "upload",
+				mediaId: "audio-1",
+				startTime: 6,
+				duration: 3,
+				trimStart: 0,
+				trimEnd: 3,
+				volume: 0.35,
+			},
+			{
+				type: "audio",
+				sourceType: "upload",
+				mediaId: "audio-1",
+				startTime: 9,
+				duration: 1,
+				trimStart: 0,
+				trimEnd: 1,
+				volume: 0.35,
+			},
+		]);
+	});
+
+	test("inserts sfx audio at the requested timeline position", () => {
+		const plan = {
+			...shortVideoPlan(),
+			audio: {
+				sfx: [{ assetId: "sfx-1", startTime: 0, volume: 0.8 }],
+			},
+		};
+		const editor = fakeEditor({
+			mediaAssets: [
+				mediaAsset(),
+				audioAsset({ id: "sfx-1", name: "Hit.wav", duration: 1.25 }),
+			],
+		});
+
+		applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const audioElements = editor.timeline.getTracks().flatMap((track) =>
+			track.type === "audio" ? track.elements : [],
+		);
+
+		expect(audioElements).toMatchObject([
+			{
+				type: "audio",
+				sourceType: "upload",
+				mediaId: "sfx-1",
+				startTime: 0,
+				duration: 1.25,
+				trimStart: 0,
+				trimEnd: 1.25,
+				volume: 0.8,
+			},
+		]);
 	});
 
 	test("does not modify a non-empty timeline unless replaceExisting is true", () => {

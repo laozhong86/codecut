@@ -172,6 +172,32 @@ function createTextElement({
 	});
 }
 
+function createUploadAudioSegment({
+	asset,
+	startTime,
+	duration,
+	volume,
+	name,
+}: {
+	asset: MediaAsset;
+	startTime: number;
+	duration: number;
+	volume: number;
+	name: string;
+}): CreateTimelineElement {
+	return {
+		...buildUploadAudioElement({
+			mediaId: asset.id,
+			name,
+			duration,
+			startTime,
+		}),
+		volume,
+		trimStart: 0,
+		trimEnd: duration,
+	};
+}
+
 export function applyEditPlanToEditor({
 	plan,
 	projectId,
@@ -283,6 +309,97 @@ export function applyEditPlanToEditor({
 					element: createTextElement(item),
 				}),
 			);
+		}
+	}
+
+	if (normalizedPlan.audio) {
+		const audioTrackId = editor.timeline.addTrack({ type: "audio" });
+		const timelineDuration = getTimelineDuration({ plan: normalizedPlan });
+
+		if (normalizedPlan.audio.bgm) {
+			const bgmAsset = mediaAssets.find(
+				(asset) => asset.id === normalizedPlan.audio?.bgm?.assetId,
+			);
+			if (!bgmAsset || typeof bgmAsset.duration !== "number") {
+				return {
+					success: false,
+					message:
+						"EditPlan bgm assetId was not found in the project media library.",
+					path: "audio.bgm.assetId",
+				};
+			}
+
+			let segmentIndex = 0;
+			let startTime = 0;
+			while (startTime < timelineDuration) {
+				const remainingDuration = timelineDuration - startTime;
+				const segmentDuration = Math.min(bgmAsset.duration, remainingDuration);
+				const insertedIds = insertElementAndCollectIds({
+					editor,
+					trackId: audioTrackId,
+					element: createUploadAudioSegment({
+						asset: bgmAsset,
+						startTime,
+						duration: segmentDuration,
+						volume: normalizedPlan.audio.bgm.volume,
+						name: `${bgmAsset.name} BGM ${segmentIndex + 1}`,
+					}),
+				});
+				if (insertedIds.length === 0) {
+					return {
+						success: false,
+						message: "EditPlan bgm audio insert did not create an element.",
+						path: "audio.bgm",
+					};
+				}
+				appliedElementIds.push(...insertedIds);
+				startTime += segmentDuration;
+				segmentIndex += 1;
+			}
+		}
+
+		for (let index = 0; index < (normalizedPlan.audio.sfx ?? []).length; index += 1) {
+			const sfx = normalizedPlan.audio.sfx?.[index];
+			if (!sfx) continue;
+			const sfxAsset = mediaAssets.find((asset) => asset.id === sfx.assetId);
+			if (!sfxAsset || typeof sfxAsset.duration !== "number") {
+				return {
+					success: false,
+					message:
+						"EditPlan sfx assetId was not found in the project media library.",
+					path: `audio.sfx[${index}].assetId`,
+				};
+			}
+			const duration = Math.min(
+				sfxAsset.duration,
+				timelineDuration - sfx.startTime,
+			);
+			if (duration <= 0) {
+				return {
+					success: false,
+					message: "EditPlan sfx duration must overlap the generated timeline.",
+					path: `audio.sfx[${index}]`,
+				};
+			}
+			const insertedIds = insertElementAndCollectIds({
+				editor,
+				trackId: audioTrackId,
+				element: createUploadAudioSegment({
+					asset: sfxAsset,
+					startTime: sfx.startTime,
+					duration,
+					volume: sfx.volume,
+					name: `${sfxAsset.name} SFX ${index + 1}`,
+				}),
+			});
+			if (insertedIds.length === 0) {
+				return {
+					success: false,
+					message: "EditPlan sfx audio insert did not create an element.",
+					path: `audio.sfx[${index}]`,
+				};
+			}
+			appliedElementIds.push(...insertedIds);
 		}
 	}
 
