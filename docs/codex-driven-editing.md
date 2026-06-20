@@ -122,7 +122,8 @@ Codex sends exactly one editing plan format to Codecut:
   title?: {
     text: string,
     startTime: number,
-    duration: number
+    duration: number,
+    stylePreset?: "hook_title" | "lower_title"
   },
   captions?: Array<{
     text: string,
@@ -130,9 +131,39 @@ Codex sends exactly one editing plan format to Codecut:
     duration: number
   }>,
   captionStyle?: {
-    preset: "short-form-bold" | "black-bar",
+    preset: "short-form-bold" | "black-bar" | "bold_caption" | "keyword_caption",
     position: "lower-safe" | "center"
   },
+  audio?: {
+    bgm?: {
+      assetId: string,
+      volume: number,
+      mode: "loop_to_timeline"
+    },
+    sfx?: Array<{
+      assetId: string,
+      startTime: number,
+      volume: number
+    }>
+  },
+  transitions?: Array<{
+    fromClipId: string,
+    toClipId: string,
+    type:
+      | "fade"
+      | "dissolve"
+      | "wipe-left"
+      | "wipe-right"
+      | "wipe-up"
+      | "wipe-down"
+      | "slide-left"
+      | "slide-right"
+      | "slide-up"
+      | "slide-down"
+      | "zoom-in"
+      | "zoom-out",
+    duration: number
+  }>,
   rationale: string
 }
 ```
@@ -141,9 +172,26 @@ Codecut validates and executes this plan. If validation fails, Codecut returns a
 
 When `captions` contains one or more items, Codex must include
 `captionStyle`. When `captions` is empty or omitted, `captionStyle` must be
-omitted. Caption styling is intentionally limited to local presets:
-`short-form-bold` and `black-bar`. Codecut does not accept arbitrary CSS,
-per-caption style objects, or `keyword-highlight` in this P0 contract.
+omitted. Caption styling is intentionally limited to top-level local presets:
+`short-form-bold`, `black-bar`, `bold_caption`, and `keyword_caption`. Codecut
+does not accept arbitrary CSS, per-caption style objects, or `keyword-highlight`
+in this P0 contract.
+
+`title.stylePreset` is optional. If omitted, Codecut keeps the existing default
+text behavior. If present, it must be `hook_title` or `lower_title`.
+
+`audio.bgm.assetId` and every `audio.sfx[].assetId` must refer to an already
+imported audio media asset in the same project. Codecut does not search,
+download, substitute, or silently drop missing audio. `volume` is `0..1`.
+`bgm.mode` only supports `loop_to_timeline`; Codecut loops and truncates the
+last segment to the generated timeline duration. SFX starts at the declared
+timeline second and is truncated at the timeline end if needed.
+
+`transitions` only support adjacent video clips created from `clips[]`.
+`fromClipId` and `toClipId` refer to `clips[].id`, not timeline element IDs.
+The two clips must be adjacent within `0.05s`, and the transition duration must
+not exceed either neighboring clip duration. Invalid transitions fail the plan;
+Codecut does not move clips to make them valid.
 
 ## End-to-End Workflow
 
@@ -157,7 +205,8 @@ per-caption style objects, or `keyword-highlight` in this P0 contract.
 8. Codex calls `transcribe_media` for that media asset.
 9. Codex uses its own context to choose clips and write an EditPlan JSON file.
 10. Codex calls `apply_edit_plan` with that EditPlan.
-11. Codex calls `get_timeline_state` to verify the applied timeline.
+11. Codex calls `get_timeline_state` to verify clips, text style, audio source
+    and volume, and video transitions.
 12. Codex provides the editor URL so the user can preview the result or ask for another revision.
 13. Export is a separate follow-up until local executor export is implemented and tested.
 
@@ -241,6 +290,8 @@ Do not call `node scripts/codex-bridge.mjs export` for the executor workflow unt
 - If `transcribe_media` cannot find the media asset, Codex must call `list_media_assets` again and select a valid asset.
 - If `apply_edit_plan` fails validation, Codex must correct the EditPlan. Codecut must not auto-fix it.
 - If the timeline is not empty, Codex must pass `replaceExisting=true` only when replacing the current cut is intentional.
+- If BGM/SFX is requested, Codex must import or select valid audio assets before writing the EditPlan. Missing or non-audio assets must stop the workflow.
+- If transitions are requested, Codex must generate adjacent clip timings before applying the EditPlan. Do not rely on Codecut to reposition clips.
 - If export is requested, treat it as a separate migration task unless an implemented executor export path is available.
 
 `generate_captions` is not part of the Codex-only MVP automation path. Captions in this workflow come from the Codex-authored EditPlan and are applied by `apply_edit_plan`.

@@ -25,11 +25,46 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
   title?: {
     text: string,
     startTime: number,
-    duration: number
+    duration: number,
+    stylePreset?: "hook_title" | "lower_title"
   },
   captions?: Array<{
     text: string,
     startTime: number,
+    duration: number
+  }>,
+  captionStyle?: {
+    preset: "short-form-bold" | "black-bar" | "bold_caption" | "keyword_caption",
+    position: "lower-safe" | "center"
+  },
+  audio?: {
+    bgm?: {
+      assetId: string,
+      volume: number,
+      mode: "loop_to_timeline"
+    },
+    sfx?: Array<{
+      assetId: string,
+      startTime: number,
+      volume: number
+    }>
+  },
+  transitions?: Array<{
+    fromClipId: string,
+    toClipId: string,
+    type:
+      | "fade"
+      | "dissolve"
+      | "wipe-left"
+      | "wipe-right"
+      | "wipe-up"
+      | "wipe-down"
+      | "slide-left"
+      | "slide-right"
+      | "slide-up"
+      | "slide-down"
+      | "zoom-in"
+      | "zoom-out",
     duration: number
   }>,
   rationale: string
@@ -45,10 +80,54 @@ Current validation fail-fast checks include:
 - every clip range must fit inside source media duration.
 - total clip duration must stay within the target tolerance.
 - title and captions must fit inside the generated timeline.
+- captions must use top-level `captionStyle`; per-caption style objects are not
+  accepted.
+- BGM/SFX audio assets must exist in the imported media library and must be
+  `type === "audio"`.
+- BGM/SFX volume must be `0..1`; BGM mode is only `loop_to_timeline`.
+- SFX start times must fit inside the generated timeline.
+- transitions must reference existing `clips[].id` values, must be adjacent on
+  the output timeline within `0.05s`, and must not exceed either neighboring
+  clip duration.
 
 `target.aspectRatio` is a planning field in the current implemented schema. It does not update the project canvas by itself. When the user outcome requires vertical, square, or specific FPS output, call the implemented project settings path and verify the result through `get_project_info`.
 
-Do not include `intent`, `strategy`, `overlays`, `audio`, `acceptanceChecks`, `speed`, `fit`, `anchor`, or `volume` in a plan sent to the current `apply_edit_plan` tool. Those fields belong to a future schema migration.
+Do not include `intent`, `strategy`, `overlays`, `acceptanceChecks`, `speed`,
+`fit`, `anchor`, arbitrary style objects, external audio URLs, or automatic
+asset-download instructions in a plan sent to the current `apply_edit_plan`
+tool. Those fields belong to a future schema migration.
+
+Audio v1 only accepts already imported audio media assets:
+
+```json
+{
+  "audio": {
+    "bgm": {
+      "assetId": "audio_bgm_1",
+      "volume": 0.12,
+      "mode": "loop_to_timeline"
+    },
+    "sfx": [
+      { "assetId": "audio_sfx_1", "startTime": 0, "volume": 0.8 }
+    ]
+  }
+}
+```
+
+Transitions v1 only accepts adjacent generated video clips:
+
+```json
+{
+  "transitions": [
+    {
+      "fromClipId": "clip-1",
+      "toClipId": "clip-2",
+      "type": "fade",
+      "duration": 0.5
+    }
+  ]
+}
+```
 
 ## Future Product Schema
 

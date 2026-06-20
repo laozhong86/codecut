@@ -139,17 +139,57 @@ describe("codex bridge CLI helpers", () => {
 			version: 1,
 			projectId: "project-123",
 			sourceMediaId: "media-123",
-			target: { durationSec: 12, aspectRatio: "9:16" },
+			target: { durationSec: 20, aspectRatio: "9:16" },
 			clips: [
 				{
 					id: "clip-1",
 					sourceStart: 0,
-					sourceEnd: 12,
+					sourceEnd: 10,
 					timelineStart: 0,
 					reason: "Strong opening",
 				},
+				{
+					id: "clip-2",
+					sourceStart: 30,
+					sourceEnd: 40,
+					timelineStart: 10,
+					reason: "Concrete proof",
+				},
 			],
-			rationale: "Short vertical cut",
+			title: {
+				text: "One minute proof",
+				startTime: 0,
+				duration: 3,
+				stylePreset: "hook_title",
+			},
+			captions: [
+				{
+					text: "资源不等于能力",
+					startTime: 0,
+					duration: 2,
+				},
+			],
+			captionStyle: {
+				preset: "keyword_caption",
+				position: "lower-safe",
+			},
+			audio: {
+				bgm: {
+					assetId: "audio-bgm-1",
+					volume: 0.12,
+					mode: "loop_to_timeline",
+				},
+				sfx: [{ assetId: "audio-sfx-1", startTime: 0, volume: 0.8 }],
+			},
+			transitions: [
+				{
+					fromClipId: "clip-1",
+					toClipId: "clip-2",
+					type: "fade",
+					duration: 0.5,
+				},
+			],
+			rationale: "Short vertical cut with deterministic post-production assets.",
 		};
 		await writeFile(planPath, JSON.stringify(plan), "utf8");
 
