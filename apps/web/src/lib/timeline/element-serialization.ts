@@ -45,6 +45,7 @@ export function serializeElementVisualProperties(element: TimelineElement) {
 				hidden: element.hidden ?? false,
 				opacity: element.opacity,
 				transform: element.transform,
+				...(element.type === "video" ? { muted: element.muted ?? false } : {}),
 				...(element.type === "video" && element.playbackRate !== undefined
 					? { playbackRate: element.playbackRate }
 					: {}),

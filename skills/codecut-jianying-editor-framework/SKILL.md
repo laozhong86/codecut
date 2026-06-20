@@ -9,7 +9,7 @@ description: "Use when operating or extending the Codex-only Codecut editing MVP
 
 This is the main Codex skill for the current Codex-only Codecut editing MVP. Codecut is a local deterministic executor plus a browser-side visual preview surface. Codex is the only LLM and agent layer.
 
-Current implemented scope: use the local executor API and `scripts/codex-bridge.mjs` CLI to create or inspect a project, update explicit project settings when needed, import local media, list media, transcribe one existing audio/video asset, generate an EditPlan in Codex, apply that plan through Codecut validation, apply explicit masked visual effect actions when an existing person-mask derived asset is available, verify timeline state, and provide a browser URL for human preview.
+Current implemented scope: use the local executor API and `scripts/codex-bridge.mjs` CLI to create or inspect a project, update explicit project settings when needed, import local media, list media, transcribe one existing audio/video asset, generate an EditPlan or NarratedRemixPlan in Codex, apply that plan through Codecut validation, apply explicit masked visual effect actions when an existing person-mask derived asset is available, verify timeline state, and provide a browser URL for human preview.
 
 Historical Jianying and OpusClip notes are research material only. Do not install them into Codecut, do not copy their runtimes into the app, and do not treat them as the current tool contract.
 
@@ -70,6 +70,7 @@ Do not read every reference file before execution. The remaining references are 
 | Current bridge CLI | `scripts/codex-bridge.mjs` |
 | Current bridge whitelist | `apps/web/src/lib/agent-bridge/schema.ts` |
 | Current EditPlan validator/apply path | `apps/web/src/lib/agent-bridge/edit-plan/` |
+| Current NarratedRemixPlan validator/apply path | `apps/web/src/lib/agent-bridge/narrated-remix/` |
 
 ## Workflow Recipes
 
@@ -180,10 +181,11 @@ When the user wants Codex to edit through Codecut:
 8. If no media exists and no local media path is available, ask the user to import media in Codecut or provide an absolute local file path.
 9. Use `node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language auto --model-id <model>` when transcript-first editing is needed.
 10. If platform output requires a concrete canvas or FPS, call `update_project_settings` explicitly before applying the EditPlan. `EditPlan.target.aspectRatio` is a planning field and does not mutate project settings by itself.
-11. Generate the strict implemented EditPlan v1 in Codex. Use only fields supported by `apps/web/src/lib/agent-bridge/edit-plan/schema.ts`.
-12. Write the plan to a local JSON file and use `node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>`.
-13. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool get_timeline_state --args-json '{}'` to verify the applied timeline.
-14. Provide the editor URL for human preview and manual adjustment. Do not run export through the local executor until executor export is implemented and the user confirms.
+11. Generate the strict implemented EditPlan v1 in Codex for single-source clip plans. Use only fields supported by `apps/web/src/lib/agent-bridge/edit-plan/schema.ts`.
+12. For existing narration audio plus video B-roll, generate strict NarratedRemixPlan v1 instead. Use only fields supported by `apps/web/src/lib/agent-bridge/narrated-remix/schema.ts`; do not include TTS, BGM, SFX, image B-roll, or generated audio fields.
+13. Write the plan to a local JSON file. Use `node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>` for EditPlan. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool apply_narrated_remix_plan --args-json '{"plan":<json>,"replaceExisting":true}'` for NarratedRemixPlan.
+14. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool get_timeline_state --args-json '{}'` to verify the applied timeline.
+15. Provide the editor URL for human preview and manual adjustment. Do not run export through the local executor until executor export is implemented and the user confirms.
 
 When the user asks to extend Codecut implementation code:
 
@@ -212,9 +214,10 @@ For every editing operation through the current MVP, verify the user-visible res
 
 - Requested tracks/elements exist with correct type, timing, duration, and source.
 - `apply_edit_plan` returns a successful execution summary.
+- `apply_narrated_remix_plan` returns a successful execution summary when the request is existing narration audio plus video B-roll.
 - `get_timeline_state` confirms the expected element count, timing, duration, and media source.
 - Audio stays on audio tracks, text stays on text tracks, and visual media stays on video or sticker tracks.
-- Narration audio and subtitles remain aligned only when the current bridge path can place an existing audio asset; bridge-exposed speech generation is not part of the current MVP.
+- Narration audio and subtitles remain aligned through existing imported audio assets only; bridge-exposed speech generation is not part of the current MVP.
 - Browser proof is for human preview only; executor state proof comes from CLI results and `get_timeline_state`.
 - Tests, lint, or focused validation are run for the touched surface.
 
@@ -226,4 +229,5 @@ Current known MVP gaps:
 - Undo/redo transaction hardening is a future implementation task.
 - Local executor export is not implemented yet; treat export as a separate follow-up migration, not a default Codex command.
 - Bridge-exposed speech generation is not part of the current MVP. Existing audio assets can be placed on audio tracks through the implemented audio timeline tool.
+- NarratedRemixPlan v1 supports existing narration audio, imported video B-roll, and captions only. It does not support TTS, BGM, SFX, image B-roll, effects, or append mode.
 - Transcript-first editing requires an imported audio/video asset and the local executor transcription runtime.

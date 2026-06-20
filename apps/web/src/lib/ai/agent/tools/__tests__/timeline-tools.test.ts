@@ -234,6 +234,8 @@ describe("getTimelineStateTool", () => {
 				},
 				{
 					id: "video-track",
+					muted: false,
+					hidden: false,
 					transitions: [
 						{
 							id: "transition-1",
@@ -248,6 +250,7 @@ describe("getTimelineStateTool", () => {
 							id: "video-1",
 							visual: {
 								hidden: false,
+								muted: false,
 								opacity: 0.8,
 								transform: {
 									scale: 1.1,

@@ -24,6 +24,7 @@ function envelope({
 		| "import_media_file"
 		| "transcribe_media"
 		| "apply_edit_plan"
+		| "apply_narrated_remix_plan"
 		| "create_text_background_effect"
 		| "create_human_pip_effect"
 		| "get_timeline_state";
@@ -451,6 +452,160 @@ describe("codex executor", () => {
 					},
 				],
 			},
+		});
+	});
+
+	test("applies a narrated remix plan through the local executor", async () => {
+		await createExecutorProject({ projectId, name: "Narrated remix" });
+		const videoImports = [];
+		for (const [index, duration] of [12, 12, 12].entries()) {
+			videoImports.push(
+				await executeCodexExecutorEnvelope({
+					envelope: envelope({
+						tool: "import_media_file",
+						args: {
+							fileName: `broll-${index + 1}.mp4`,
+							mimeType: "video/mp4",
+							base64: Buffer.from(`video-${index + 1}`).toString("base64"),
+							size: 7,
+							lastModified: 1,
+							duration,
+							width: 1920,
+							height: 1080,
+						},
+					}),
+				}),
+			);
+		}
+		const narrationImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("narration").toString("base64"),
+					size: 9,
+					lastModified: 1,
+					duration: 30,
+				},
+			}),
+		});
+		const videoIds = videoImports.map(
+			(result) =>
+				resultData<{ assets: Array<{ id: string }> }>(result.results[0]).assets[0]
+					.id,
+		);
+		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
+			narrationImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_narrated_remix_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 30, aspectRatio: "9:16" },
+						visualBeats: [
+							{
+								id: "beat-1",
+								mediaId: videoIds[0],
+								sourceStart: 0,
+								sourceEnd: 10,
+								timelineStart: 0,
+								muted: true,
+								reason: "Opening b-roll",
+							},
+							{
+								id: "beat-2",
+								mediaId: videoIds[1],
+								sourceStart: 1,
+								sourceEnd: 11,
+								timelineStart: 10,
+								muted: true,
+								reason: "Middle b-roll",
+							},
+							{
+								id: "beat-3",
+								mediaId: videoIds[2],
+								sourceStart: 2,
+								sourceEnd: 12,
+								timelineStart: 20,
+								muted: true,
+								reason: "Closing b-roll",
+							},
+						],
+						narration: { mediaId: narrationId, startTime: 0 },
+						captions: [
+							{ text: "Opening line", startTime: 0, duration: 3 },
+							{ text: "Closing line", startTime: 24, duration: 4 },
+						],
+						rationale: "Narration-led B-roll remix",
+					},
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "apply_narrated_remix_plan",
+			success: true,
+			message: "Applied NarratedRemixPlan with 3 visual beat(s).",
+			data: {
+				visualBeatCount: 3,
+				audioElementCount: 1,
+				captionCount: 2,
+				totalDuration: 30,
+			},
+		});
+		expect(timelineResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				totalDuration: 30,
+			},
+		});
+		const timeline = resultData<{
+			tracks: Array<{
+				type: string;
+				elements: Array<{
+					type: string;
+					mediaId?: string;
+					content?: string;
+					visual?: { muted?: boolean };
+					audio?: { sourceType?: string; volume?: number; muted?: boolean };
+				}>;
+			}>;
+		}>(timelineResult.results[0]);
+		expect(timeline.tracks).toHaveLength(3);
+		expect(timeline.tracks[0]).toMatchObject({
+			type: "video",
+			elements: [
+				{ type: "video", mediaId: videoIds[0], visual: { muted: true } },
+				{ type: "video", mediaId: videoIds[1], visual: { muted: true } },
+				{ type: "video", mediaId: videoIds[2], visual: { muted: true } },
+			],
+		});
+		expect(timeline.tracks[1]).toMatchObject({
+			type: "audio",
+			elements: [
+				{
+					type: "audio",
+					mediaId: narrationId,
+					audio: { sourceType: "upload", volume: 1, muted: false },
+				},
+			],
+		});
+		expect(timeline.tracks[2]).toMatchObject({
+			type: "text",
+			elements: [
+				{ type: "text", content: "Opening line" },
+				{ type: "text", content: "Closing line" },
+			],
 		});
 	});
 

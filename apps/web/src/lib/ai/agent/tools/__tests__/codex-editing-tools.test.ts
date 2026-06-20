@@ -7,6 +7,7 @@ import { getToolByName } from "../index";
 import { executeApplyEditPlanTool } from "../edit-plan-tools";
 import { executeImportMediaFileTool } from "../media-tools";
 import { executeCreateTextBackgroundEffectTool } from "../masked-effect-tools";
+import { executeApplyNarratedRemixPlanTool } from "../narrated-remix-tools";
 import { executeTranscribeMediaTool } from "../transcription-tools";
 
 function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
@@ -80,6 +81,9 @@ describe("Codex deterministic editing tools", () => {
 		expect(getToolByName({ name: "create_human_pip_effect" })?.name).toBe(
 			"create_human_pip_effect",
 		);
+		expect(getToolByName({ name: "apply_narrated_remix_plan" })?.name).toBe(
+			"apply_narrated_remix_plan",
+		);
 		expect(BridgeToolNameSchema.safeParse("import_media_file").success).toBe(
 			true,
 		);
@@ -91,6 +95,9 @@ describe("Codex deterministic editing tools", () => {
 			BridgeToolNameSchema.safeParse("create_text_background_effect").success,
 		).toBe(true);
 		expect(BridgeToolNameSchema.safeParse("create_human_pip_effect").success).toBe(
+			true,
+		);
+		expect(BridgeToolNameSchema.safeParse("apply_narrated_remix_plan").success).toBe(
 			true,
 		);
 	});
@@ -348,6 +355,61 @@ describe("Codex deterministic editing tools", () => {
 		expect(result).toEqual({
 			success: false,
 			message: "Timeline is not empty. Set replaceExisting=true to replace it.",
+		});
+		expect(updateCount).toBe(0);
+	});
+
+	test("apply_narrated_remix_plan returns validation failures without mutating the timeline", () => {
+		let updateCount = 0;
+		const result = executeApplyNarratedRemixPlanTool({
+			args: {
+				replaceExisting: true,
+				plan: {
+					version: 1,
+					projectId: "other-project",
+					target: { durationSec: 10, aspectRatio: "9:16" },
+					visualBeats: [
+						{
+							id: "beat-1",
+							mediaId: "media-1",
+							sourceStart: 0,
+							sourceEnd: 10,
+							timelineStart: 0,
+							muted: true,
+							reason: "Example",
+						},
+					],
+					narration: { mediaId: "audio-1", startTime: 0 },
+					captions: [],
+					rationale: "Example",
+				},
+			},
+			projectId: "project-1",
+			editor: {
+				...editorWithMedia({
+					mediaAssets: [
+						mediaAsset(),
+						mediaAsset({
+							id: "audio-1",
+							name: "Narration.mp3",
+							type: "audio",
+							duration: 10,
+						}),
+					],
+				}),
+				timeline: {
+					getTracks: () => [],
+					updateTracks: () => {
+						updateCount += 1;
+					},
+				},
+			},
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "NarratedRemixPlan projectId does not match the active project.",
+			data: { path: "projectId" },
 		});
 		expect(updateCount).toBe(0);
 	});

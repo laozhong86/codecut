@@ -216,6 +216,83 @@ The two clips must be adjacent within `0.05s`, and the transition duration must
 not exceed either neighboring clip duration. Invalid transitions fail the plan;
 Codecut does not move clips to make them valid.
 
+## NarratedRemixPlan Contract
+
+For existing narration audio plus multi-video B-roll, Codex may use the separate
+`NarratedRemixPlan v1` contract with `apply_narrated_remix_plan`.
+
+P0 supports only:
+
+- already imported narration audio;
+- already imported video B-roll assets;
+- captions authored by Codex;
+- full timeline replacement after validation.
+
+P0 does not support:
+
+- TTS or speech generation fields;
+- BGM, SFX, or generated audio;
+- image B-roll;
+- partial append mode;
+- visual effects or template effects.
+
+```ts
+{
+  version: 1,
+  projectId: string,
+  target: {
+    durationSec: number,
+    aspectRatio: "9:16" | "16:9" | "1:1"
+  },
+  visualBeats: Array<{
+    id: string,
+    mediaId: string,
+    sourceStart: number,
+    sourceEnd: number,
+    timelineStart: number,
+    muted: true,
+    reason: string
+  }>,
+  narration: {
+    mediaId: string,
+    startTime: number
+  },
+  captions: Array<{
+    text: string,
+    startTime: number,
+    duration: number
+  }>,
+  rationale: string
+}
+```
+
+Validation is all-or-nothing:
+
+- `projectId` must match the active project.
+- `narration.mediaId` must resolve to an imported audio asset with known duration.
+- every `visualBeats[].mediaId` must resolve to an imported video asset with
+  known duration.
+- every source range must be inside the source asset and have
+  `sourceEnd > sourceStart`.
+- visual beats must be continuous from `0` with no gaps or overlaps.
+- total visual beat duration must equal `target.durationSec`.
+- captions must fit inside `target.durationSec`.
+- unknown fields such as `generateSpeech`, `text`, or `voiceId` fail schema
+  validation.
+
+When applied, Codecut replaces the timeline with:
+
+- one video track containing muted B-roll clips;
+- one audio track containing the narration audio;
+- one text track containing captions.
+
+After application, Codex must verify `get_timeline_state` proof fields:
+
+- video elements expose `visual.muted`;
+- audio elements expose `audio.sourceType`, `audio.volume`, and `audio.muted`;
+- track-level `muted` and `hidden` fields are present when the track type
+  supports them.
+
 ## End-to-End Workflow
 
 1. Codex confirms the local Codecut service is ready.
@@ -292,6 +369,15 @@ node scripts/codex-bridge.mjs apply-plan \
   --replace-existing true
 ```
 
+Apply a NarratedRemixPlan file through the generic bridge sender:
+
+```bash
+node scripts/codex-bridge.mjs send \
+  --project-id <id> \
+  --tool apply_narrated_remix_plan \
+  --args-json '{"plan":<NarratedRemixPlan JSON>,"replaceExisting":true}'
+```
+
 Check the applied timeline:
 
 ```bash
@@ -335,8 +421,10 @@ Do not call `node scripts/codex-bridge.mjs export` for the executor workflow unt
 - If `import_media_file` fails, Codex must verify the file path, file type, and active browser project before retrying.
 - If `transcribe_media` cannot find the media asset, Codex must call `list_media_assets` again and select a valid asset.
 - If `apply_edit_plan` fails validation, Codex must correct the EditPlan. Codecut must not auto-fix it.
+- If `apply_narrated_remix_plan` fails validation, Codex must correct the NarratedRemixPlan. Codecut must not auto-fix it.
 - If the timeline is not empty, Codex must pass `replaceExisting=true` only when replacing the current cut is intentional.
 - If BGM/SFX is requested, Codex must import or select valid audio assets before writing the EditPlan. Missing or non-audio assets must stop the workflow.
+- If TTS, image B-roll, BGM, or SFX is requested for narrated remix, stop and report that the current `NarratedRemixPlan v1` path only supports existing narration audio, video B-roll, and captions.
 - If transitions are requested, Codex must generate adjacent clip timings before applying the EditPlan. Do not rely on Codecut to reposition clips.
 - If a masked effect is requested, Codex must verify `get_timeline_state` exposes a matching `derivedAssets[]` person-mask entry before calling the effect action.
 - If `create_text_background_effect` or `create_human_pip_effect` fails, fix the media or derived-asset input. Do not simulate the effect with unrelated low-level timeline tools.

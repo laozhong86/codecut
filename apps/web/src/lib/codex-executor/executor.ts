@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 import { applyEditPlanToEditor } from "@/lib/agent-bridge/edit-plan/apply";
+import { applyNarratedRemixPlanToEditor } from "@/lib/agent-bridge/narrated-remix/apply";
 import {
 	type ExecutorTranscribeMedia,
 	parseExecutorTranscriptionLanguage,
@@ -40,6 +41,7 @@ type ExecutorToolName =
 	| "import_media_file"
 	| "transcribe_media"
 	| "apply_edit_plan"
+	| "apply_narrated_remix_plan"
 	| "create_text_background_effect"
 	| "create_human_pip_effect"
 	| "get_timeline_state";
@@ -101,6 +103,7 @@ const commandSchema = z
 			"import_media_file",
 			"transcribe_media",
 			"apply_edit_plan",
+			"apply_narrated_remix_plan",
 			"create_text_background_effect",
 			"create_human_pip_effect",
 			"get_timeline_state",
@@ -141,6 +144,13 @@ const updateProjectSettingsArgsSchema = z
 	.strict();
 
 const applyPlanArgsSchema = z
+	.object({
+		plan: z.unknown(),
+		replaceExisting: z.boolean(),
+	})
+	.strict();
+
+const applyNarratedRemixPlanArgsSchema = z
 	.object({
 		plan: z.unknown(),
 		replaceExisting: z.boolean(),
@@ -250,7 +260,9 @@ function serializeTrack(track: TimelineTrack) {
 		type: track.type,
 		name: track.name,
 		isMain: "isMain" in track ? track.isMain : false,
-			elements: track.elements.map((element) => ({
+		...("muted" in track ? { muted: track.muted } : {}),
+		...("hidden" in track ? { hidden: track.hidden } : {}),
+		elements: track.elements.map((element) => ({
 			id: element.id,
 			type: element.type,
 			name: element.name,
@@ -260,13 +272,11 @@ function serializeTrack(track: TimelineTrack) {
 			trimEnd: element.trimEnd,
 			...("content" in element ? { content: element.content } : {}),
 			...("mediaId" in element ? { mediaId: element.mediaId } : {}),
-				...serializeElementVisualProperties(element),
-			})),
-			...(track.type === "video"
-				? { transitions: track.transitions ?? [] }
-				: {}),
-		};
-	}
+			...serializeElementVisualProperties(element),
+		})),
+		...(track.type === "video" ? { transitions: track.transitions ?? [] } : {}),
+	};
+}
 
 function insertElement({
 	state,
@@ -693,6 +703,43 @@ async function runApplyEditPlan({
 	return result;
 }
 
+async function runApplyNarratedRemixPlan({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = applyNarratedRemixPlanArgsSchema.parse(args);
+	const result = applyNarratedRemixPlanToEditor({
+		plan: parsed.plan,
+		projectId: state.project.id,
+		replaceExisting: parsed.replaceExisting,
+		editor: {
+			media: {
+				getAssets: () => state.mediaAssets.map(toMediaAsset),
+			},
+			timeline: {
+				getTracks: () => state.tracks,
+				updateTracks: (tracks) => {
+					state.tracks = tracks;
+				},
+			},
+		},
+	});
+
+	if (!result.success) {
+		return result;
+	}
+
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Applied NarratedRemixPlan with ${result.summary.visualBeatCount} visual beat(s).`,
+		data: result.summary,
+	};
+}
+
 function summarizeEffect({
 	effect,
 	tracks,
@@ -883,6 +930,9 @@ async function executeCommand({
 	}
 	if (command.tool === "apply_edit_plan") {
 		return runApplyEditPlan({ state, args: command.args });
+	}
+	if (command.tool === "apply_narrated_remix_plan") {
+		return runApplyNarratedRemixPlan({ state, args: command.args });
 	}
 	if (command.tool === "create_text_background_effect") {
 		return runCreateTextBackgroundEffect({ state, args: command.args });

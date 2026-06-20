@@ -16,6 +16,7 @@ Implemented bridge tools relevant to Codex-driven editing:
 | `import_media_file` | Import one Codex-provided local media file payload into the browser media library. |
 | `transcribe_media` | Transcribe one existing audio/video media asset through the local executor transcription runtime. |
 | `apply_edit_plan` | Validate and apply the implemented EditPlan v1 to the timeline. |
+| `apply_narrated_remix_plan` | Validate and apply the implemented NarratedRemixPlan v1 for existing narration audio plus muted video B-roll and captions. |
 | `create_text_background_effect` | Replace the timeline with source video, text, and masked foreground layers using an existing person-mask derived asset. |
 | `create_human_pip_effect` | Replace the timeline with muted background video and masked talking-head foreground using an existing person-mask derived asset. |
 | `get_timeline_state` | Verify timeline tracks and elements after mutation. |
@@ -32,6 +33,16 @@ get_project_info -> optional update_project_settings -> list_media_assets -> opt
 ```
 
 Codecut validates and executes. Codex does all LLM reasoning and plan repair.
+
+Existing narration plus B-roll uses the separate deterministic path:
+
+```text
+get_project_info -> list_media_assets -> optional import_media_file -> Codex writes NarratedRemixPlan -> apply_narrated_remix_plan -> get_timeline_state
+```
+
+`NarratedRemixPlan v1` only accepts existing narration audio, imported video
+B-roll, and captions. It rejects TTS fields, BGM, SFX, image B-roll, gaps,
+overlaps, and caption overflow before mutating timeline state.
 
 Masked visual effects use explicit deterministic actions outside EditPlan v1:
 
@@ -52,6 +63,15 @@ Current `apply_edit_plan` behavior:
 - clears the timeline when `replaceExisting=true`, then inserts generated tracks and elements
 - does not support append mode in the current EditPlan path
 - does not provide mid-apply rollback or undo transaction hardening yet
+
+Current `apply_narrated_remix_plan` behavior:
+
+- validates the full plan before mutating timeline state
+- rejects non-empty timelines unless `replaceExisting=true`
+- replaces the timeline with one muted video B-roll track, one narration audio track, and one caption text track
+- requires continuous visual beats whose total duration equals `target.durationSec`
+- requires `narration.mediaId` to be an existing audio asset
+- requires every `visualBeats[].mediaId` to be an existing video asset
 
 ## Future Product Direction
 

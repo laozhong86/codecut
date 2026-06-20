@@ -28,6 +28,8 @@ export const getTimelineStateTool: AgentTool = {
 			type: track.type,
 			name: track.name,
 			isMain: "isMain" in track ? track.isMain : false,
+			...("muted" in track ? { muted: track.muted } : {}),
+			...("hidden" in track ? { hidden: track.hidden } : {}),
 			...(track.type === "video"
 				? { transitions: track.transitions ?? [] }
 				: {}),

@@ -4,11 +4,11 @@ Use this recipe when the user wants B-roll mixed with narration, a voiceover exp
 
 ## Current Capability Boundary
 
-This is a gated recipe. The current implemented EditPlan v1 does not include general audio, BGM, effects, or multi-source B-roll fields. The bridge can place an existing audio asset on an audio track, but bridge-exposed speech generation is not part of the current MVP. Use this recipe to plan and identify missing implementation support before claiming execution is complete.
+This recipe is executable only through the implemented `NarratedRemixPlan v1` path. P0 supports existing narration audio, imported video B-roll, and captions. It does not support TTS, BGM, SFX, image B-roll, effects, or append mode.
 
 ## Success Criteria
 
-- Visual sequence, narration script, audio asset, and captions all refer to the same target duration.
+- Visual sequence, existing narration audio asset, and captions all refer to the same target duration.
 - Voiceover audio lands on an audio track.
 - Captions align with the generated narration.
 - Timeline verification proves video/text/audio track separation.
@@ -16,32 +16,31 @@ This is a gated recipe. The current implemented EditPlan v1 does not include gen
 ## Required Context
 
 - Visual media assets with known duration.
-- User-approved narration script or Codex-generated draft script awaiting confirmation.
-- Existing narration audio file or a separately approved audio generation path, if execution is requested.
-- Current bridge tool support for importing and placing that audio asset.
+- Existing narration audio asset with known duration.
+- Caption text and timing authored by Codex from the available transcript or user-provided script.
+- Current bridge support for `apply_narrated_remix_plan`.
 
 ## Planning Path
 
 1. Inspect media assets and target duration.
-2. Draft a visual beat list before writing narration.
-3. Estimate narration length by duration, using roughly 4-5 Chinese characters per second or 2-3 English words per second.
-4. Ask for confirmation when the narration materially changes the user's message.
-5. Only execute if the current bridge/tool surface can import or reference narration audio and place it on an audio track. Do not claim bridge TTS generation unless `generate_speech` or an equivalent tool is exposed by the bridge schema.
+2. Confirm one existing audio asset will be used as narration.
+3. Draft a continuous muted video beat list with no gaps or overlaps.
+4. Keep visual beat total duration equal to `target.durationSec`.
+5. Write captions that fit inside the target duration.
 
 ## Execution Path When Supported
 
 1. Import or reference existing narration audio through an approved path.
-2. Add the visual sequence.
-3. Add narration audio at timeline start.
-4. Transcribe or segment the narration for captions.
-5. Apply captions.
-6. Verify video, audio, and text tracks separately.
+2. Import or reference video B-roll assets.
+3. Generate strict NarratedRemixPlan v1.
+4. Call `apply_narrated_remix_plan` with `replaceExisting=true` only when replacement is intentional.
+5. Verify video, audio, and text tracks separately through `get_timeline_state`.
 
 ## Stop Conditions
 
-- The requested edit needs multi-source clip composition unsupported by current EditPlan v1.
 - No approved path can provide a narration audio asset.
-- Audio insertion is unavailable.
+- The requested B-roll includes images instead of videos.
+- The requested edit requires TTS, BGM, SFX, effects, or append mode.
 - Captions cannot be aligned to narration timing.
 
 ## Report Back

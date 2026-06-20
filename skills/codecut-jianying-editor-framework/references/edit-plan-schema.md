@@ -155,6 +155,59 @@ Transitions v1 only accepts adjacent generated video clips:
 }
 ```
 
+## Current Implemented NarratedRemixPlan v1
+
+The runtime validator lives in
+`apps/web/src/lib/agent-bridge/narrated-remix/schema.ts`. Codex must generate
+only this shape when calling `apply_narrated_remix_plan`:
+
+```ts
+{
+  version: 1,
+  projectId: string,
+  target: {
+    durationSec: number,
+    aspectRatio: "9:16" | "16:9" | "1:1"
+  },
+  visualBeats: Array<{
+    id: string,
+    mediaId: string,
+    sourceStart: number,
+    sourceEnd: number,
+    timelineStart: number,
+    muted: true,
+    reason: string
+  }>,
+  narration: {
+    mediaId: string,
+    startTime: number
+  },
+  captions: Array<{
+    text: string,
+    startTime: number,
+    duration: number
+  }>,
+  rationale: string
+}
+```
+
+Current validation fail-fast checks include:
+
+- `projectId` must match the active project.
+- `narration.mediaId` must resolve to an imported audio media asset.
+- every `visualBeats[].mediaId` must resolve to an imported video media asset.
+- all audio/video durations must be known.
+- every visual source range must have `sourceEnd > sourceStart`.
+- every visual source range must fit inside the referenced media duration.
+- visual beats must start at `0`, be continuous, and have no gaps or overlaps.
+- visual beat total duration must equal `target.durationSec`.
+- captions must fit inside `target.durationSec`.
+- narration must cover `target.durationSec` from `narration.startTime`.
+
+Do not include TTS, generated speech, BGM, SFX, image B-roll, external media
+URLs, effect instructions, append instructions, or arbitrary style fields in
+`NarratedRemixPlan v1`.
+
 ## Future Product Schema
 
 ## Top-Level Shape
