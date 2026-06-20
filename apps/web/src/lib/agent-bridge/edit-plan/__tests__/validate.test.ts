@@ -308,6 +308,32 @@ describe("validateEditPlan", () => {
 		});
 	});
 
+	test("rejects per-caption stylePreset in favor of captionStyle", () => {
+		const plan = {
+			...validPlan(),
+			captions: [
+				{
+					text: "This caption tries to bypass the captionStyle contract.",
+					startTime: 0,
+					duration: 2,
+					stylePreset: "lower_title",
+				},
+			],
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan captions must use top-level captionStyle.",
+			path: "captions[0].stylePreset",
+		});
+	});
+
 	test("accepts imported audio assets and adjacent transitions", () => {
 		const plan = {
 			...validPlan(),

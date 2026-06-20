@@ -327,6 +327,92 @@ describe("applyEditPlanToEditor", () => {
 		});
 	});
 
+	test("applies hook title preset without changing caption style", () => {
+		const editor = fakeEditor();
+		const plan = {
+			...validPlan(),
+			title: {
+				text: "Stop wasting effort",
+				startTime: 0,
+				duration: 3,
+				stylePreset: "hook_title",
+			},
+		};
+
+		applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const textElements = editor.timeline.getTracks().flatMap((track) =>
+			track.type === "text" ? track.elements : [],
+		);
+
+		expect(textElements[0]).toMatchObject({
+			content: "Stop wasting effort",
+			fontFamily: "Inter",
+			fontSize: 10,
+			fontWeight: "bold",
+			color: "#ffffff",
+			backgroundColor: "#000000",
+			backgroundOpacity: 0.72,
+			backgroundPaddingX: 28,
+			backgroundPaddingY: 14,
+			backgroundBorderRadius: 10,
+			boxWidth: 52,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: -420 },
+				rotate: 0,
+			},
+		});
+		expect(textElements[1]).toMatchObject({
+			content: "This is the key insight.",
+			fontSize: 6,
+			stroke: { color: "#000000", width: 3 },
+		});
+	});
+
+	test("applies keyword caption style through the top-level captionStyle", () => {
+		const editor = fakeEditor();
+		const plan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "keyword_caption",
+				position: "lower-safe",
+			},
+		};
+
+		applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const textElements = editor.timeline.getTracks().flatMap((track) =>
+			track.type === "text" ? track.elements : [],
+		);
+
+		expect(textElements[1]).toMatchObject({
+			content: "This is the key insight.",
+			fontFamily: "Inter",
+			fontSize: 6,
+			fontWeight: "bold",
+			color: "#ffd84d",
+			stroke: { color: "#000000", width: 3 },
+			backgroundColor: "transparent",
+			boxWidth: 42,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: 300 },
+				rotate: 0,
+			},
+		});
+	});
+
 	test("does not modify a non-empty timeline unless replaceExisting is true", () => {
 		const existingElement = {
 			id: "existing-element",

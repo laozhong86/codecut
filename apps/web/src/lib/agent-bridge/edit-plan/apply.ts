@@ -9,7 +9,11 @@ import {
 	buildVideoElement,
 	buildUploadAudioElement,
 } from "@/lib/timeline/element-utils";
-import type { EditPlan, EditPlanCaptionStyle } from "./schema";
+import type { EditPlan } from "./schema";
+import {
+	resolveCaptionStylePreset,
+	resolveTitleStylePreset,
+} from "./text-presets";
 import { validateEditPlan } from "./validate";
 
 type InsertElementPlacement =
@@ -168,62 +172,6 @@ function createTextElement({
 	});
 }
 
-function getCaptionBoxWidth({
-	aspectRatio,
-}: {
-	aspectRatio: EditPlan["target"]["aspectRatio"];
-}): number {
-	if (aspectRatio === "9:16") return 42;
-	if (aspectRatio === "1:1") return 72;
-	return 120;
-}
-
-function resolveCaptionPresetStyles({
-	captionStyle,
-	aspectRatio,
-}: {
-	captionStyle: EditPlanCaptionStyle;
-	aspectRatio: EditPlan["target"]["aspectRatio"];
-}): Parameters<typeof buildTextElement>[0]["raw"] {
-	const transform = {
-		scale: 1,
-		position:
-			captionStyle.position === "lower-safe"
-				? { x: 0, y: 300 }
-				: { x: 0, y: 0 },
-		rotate: 0,
-	};
-	const boxWidth = getCaptionBoxWidth({ aspectRatio });
-
-	if (captionStyle.preset === "black-bar") {
-		return {
-			fontFamily: "Inter",
-			fontSize: 5,
-			fontWeight: "bold",
-			color: "#ffffff",
-			backgroundColor: "#000000",
-			backgroundOpacity: 0.78,
-			backgroundPaddingX: 24,
-			backgroundPaddingY: 12,
-			backgroundBorderRadius: 8,
-			boxWidth,
-			transform,
-		};
-	}
-
-	return {
-		fontFamily: "Inter",
-		fontSize: 6,
-		fontWeight: "bold",
-		color: "#ffffff",
-		backgroundColor: "transparent",
-		stroke: { color: "#000000", width: 3 },
-		shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
-		boxWidth,
-		transform,
-	};
-}
-
 export function applyEditPlanToEditor({
 	plan,
 	projectId,
@@ -297,10 +245,16 @@ export function applyEditPlanToEditor({
 		textItems.push({
 			...normalizedPlan.title,
 			name: "EditPlan Title",
+			raw: normalizedPlan.title.stylePreset
+				? resolveTitleStylePreset({
+						preset: normalizedPlan.title.stylePreset,
+						aspectRatio: normalizedPlan.target.aspectRatio,
+					})
+				: undefined,
 		});
 	}
 	const captionRaw = normalizedPlan.captionStyle
-		? resolveCaptionPresetStyles({
+		? resolveCaptionStylePreset({
 				captionStyle: normalizedPlan.captionStyle,
 				aspectRatio: normalizedPlan.target.aspectRatio,
 			})

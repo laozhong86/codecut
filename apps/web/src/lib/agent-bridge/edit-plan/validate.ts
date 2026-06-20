@@ -181,6 +181,12 @@ export function validateEditPlan({
 	for (let index = 0; index < (normalizedPlan.captions ?? []).length; index += 1) {
 		const caption = normalizedPlan.captions?.[index];
 		if (!caption) continue;
+		if (caption.stylePreset) {
+			return fail({
+				message: "EditPlan captions must use top-level captionStyle.",
+				path: `captions[${index}].stylePreset`,
+			});
+		}
 		if (timedTextExceeds({ item: caption, timelineDuration })) {
 			return fail({
 				message: "EditPlan caption exceeds the generated timeline duration.",
