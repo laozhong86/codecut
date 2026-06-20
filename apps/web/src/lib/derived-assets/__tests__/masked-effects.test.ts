@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import type { MediaAsset } from "@/types/assets";
 import type { DerivedAsset } from "@/types/project";
 import type { TextTrack, VideoTrack } from "@/types/timeline";
-import { createTextBackgroundEffect } from "../masked-effects";
+import {
+	createHumanPipEffect,
+	createTextBackgroundEffect,
+} from "../masked-effects";
 
 function videoAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	return {
@@ -113,6 +116,123 @@ describe("createTextBackgroundEffect", () => {
 				startTime: 8,
 				duration: 4,
 				mediaAssets: [videoAsset(), videoAsset({ id: "alpha-1" })],
+				derivedAssets: [personMask()],
+			}),
+		).toThrow("Effect time range exceeds source media duration.");
+	});
+});
+
+describe("createHumanPipEffect", () => {
+	test("creates muted background and masked foreground picture-in-picture layers", () => {
+		const result = createHumanPipEffect({
+			foregroundMediaId: "video-1",
+			backgroundMediaId: "background-1",
+			derivedAssetId: "mask-1",
+			placement: "right_down",
+			scale: 0.35,
+			startTime: 1,
+			duration: 5,
+			mediaAssets: [
+				videoAsset(),
+				videoAsset({ id: "alpha-1" }),
+				videoAsset({
+					id: "background-1",
+					name: "Background.mp4",
+					width: 1080,
+					height: 1920,
+				}),
+			],
+			derivedAssets: [personMask()],
+			generateId: idGenerator(),
+		});
+
+		expect(result.tracks).toHaveLength(2);
+
+		const foregroundTrack = result.tracks[0] as VideoTrack;
+		const backgroundTrack = result.tracks[1] as VideoTrack;
+		const foregroundElement = foregroundTrack.elements[0];
+
+		expect(backgroundTrack.isMain).toBe(true);
+		expect(backgroundTrack.elements[0]).toMatchObject({
+			type: "video",
+			mediaId: "background-1",
+			startTime: 1,
+			duration: 5,
+			trimStart: 1,
+			trimEnd: 6,
+			muted: true,
+		});
+		expect(foregroundElement).toMatchObject({
+			type: "video",
+			mediaId: "video-1",
+			startTime: 1,
+			duration: 5,
+			trimStart: 1,
+			trimEnd: 6,
+			muted: false,
+			transform: {
+				scale: 0.35,
+				position: { x: 264.6, y: 537.6 },
+				rotate: 0,
+			},
+			mask: {
+				type: "person-mask",
+				derivedAssetId: "mask-1",
+			},
+		});
+	});
+
+	test("rejects a missing background media asset", () => {
+		expect(() =>
+			createHumanPipEffect({
+				foregroundMediaId: "video-1",
+				backgroundMediaId: "missing-background",
+				derivedAssetId: "mask-1",
+				placement: "right_down",
+				scale: 0.35,
+				startTime: 0,
+				duration: 5,
+				mediaAssets: [videoAsset(), videoAsset({ id: "alpha-1" })],
+				derivedAssets: [personMask()],
+			}),
+		).toThrow("Background media asset was not found.");
+	});
+
+	test("rejects unsupported scale values", () => {
+		expect(() =>
+			createHumanPipEffect({
+				foregroundMediaId: "video-1",
+				backgroundMediaId: "background-1",
+				derivedAssetId: "mask-1",
+				placement: "right_down",
+				scale: 1.2,
+				startTime: 0,
+				duration: 5,
+				mediaAssets: [
+					videoAsset(),
+					videoAsset({ id: "alpha-1" }),
+					videoAsset({ id: "background-1" }),
+				],
+				derivedAssets: [personMask()],
+			}),
+		).toThrow("Human PIP scale must be between 0.1 and 1.");
+	});
+
+	test("rejects time ranges outside the background video", () => {
+		expect(() =>
+			createHumanPipEffect({
+				foregroundMediaId: "video-1",
+				backgroundMediaId: "background-1",
+				derivedAssetId: "mask-1",
+				placement: "right_down",
+				scale: 0.35,
+				startTime: 8,
+				duration: 5,
+				mediaAssets: [
+					videoAsset(),
+					videoAsset({ id: "alpha-1" }),
+					videoAsset({ id: "background-1", duration: 10 }),
+				],
 				derivedAssets: [personMask()],
 			}),
 		).toThrow("Effect time range exceeds source media duration.");

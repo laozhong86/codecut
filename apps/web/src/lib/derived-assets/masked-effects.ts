@@ -20,6 +20,26 @@ export interface TextBackgroundEffectParams {
 	generateId?: () => string;
 }
 
+export type HumanPipPlacement =
+	| "right_down"
+	| "right_up"
+	| "left_down"
+	| "left_up"
+	| "center";
+
+export interface HumanPipEffectParams {
+	foregroundMediaId: string;
+	backgroundMediaId: string;
+	derivedAssetId: string;
+	placement: HumanPipPlacement;
+	scale: number;
+	startTime: number;
+	duration: number;
+	mediaAssets: MediaAsset[];
+	derivedAssets: DerivedAsset[];
+	generateId?: () => string;
+}
+
 export interface TimelineEffectResult {
 	tracks: TimelineTrack[];
 }
@@ -44,6 +64,22 @@ function requireVideoAsset({
 		throw new Error(`${label} media duration is required.`);
 	}
 	return asset as RequiredVideoMediaAsset;
+}
+
+function requireMediaDimensions({
+	media,
+	label,
+}: {
+	media: MediaAsset;
+	label: string;
+}): { width: number; height: number } {
+	if (typeof media.width !== "number" || media.width <= 0) {
+		throw new Error(`${label} media width is required.`);
+	}
+	if (typeof media.height !== "number" || media.height <= 0) {
+		throw new Error(`${label} media height is required.`);
+	}
+	return { width: media.width, height: media.height };
 }
 
 function requirePersonMask({
@@ -78,6 +114,31 @@ function validateRange({
 	if (startTime + duration > sourceDuration) {
 		throw new Error("Effect time range exceeds source media duration.");
 	}
+}
+
+function getPipPosition({
+	placement,
+	scale,
+	width,
+	height,
+}: {
+	placement: HumanPipPlacement;
+	scale: number;
+	width: number;
+	height: number;
+}): { x: number; y: number } {
+	if (placement === "center") {
+		return { x: 0, y: 0 };
+	}
+
+	const margin = Math.min(width, height) * 0.08;
+	const x = (width * (1 - scale)) / 2 - margin;
+	const y = (height * (1 - scale)) / 2 - margin;
+
+	return {
+		x: placement.startsWith("right") ? x : -x,
+		y: placement.endsWith("down") ? y : -y,
+	};
 }
 
 export function createTextBackgroundEffect({
@@ -181,6 +242,128 @@ export function createTextBackgroundEffect({
 				elements: [sourceElement],
 				isMain: true,
 				muted: false,
+				hidden: false,
+			},
+		],
+	};
+}
+
+export function createHumanPipEffect({
+	foregroundMediaId,
+	backgroundMediaId,
+	derivedAssetId,
+	placement,
+	scale,
+	startTime,
+	duration,
+	mediaAssets,
+	derivedAssets,
+	generateId = generateUUID,
+}: HumanPipEffectParams): TimelineEffectResult {
+	if (scale < 0.1 || scale > 1) {
+		throw new Error("Human PIP scale must be between 0.1 and 1.");
+	}
+
+	const foregroundMedia = requireVideoAsset({
+		mediaId: foregroundMediaId,
+		mediaAssets,
+		label: "Foreground",
+	});
+	const backgroundMedia = requireVideoAsset({
+		mediaId: backgroundMediaId,
+		mediaAssets,
+		label: "Background",
+	});
+	const personMask = requirePersonMask({ derivedAssetId, derivedAssets });
+
+	if (personMask.sourceMediaId !== foregroundMediaId) {
+		throw new Error("Person mask does not belong to the foreground media.");
+	}
+	requireVideoAsset({
+		mediaId: personMask.alphaMediaId,
+		mediaAssets,
+		label: "Person mask alpha",
+	});
+	validateRange({
+		startTime,
+		duration,
+		sourceDuration: foregroundMedia.duration,
+	});
+	validateRange({
+		startTime,
+		duration,
+		sourceDuration: backgroundMedia.duration,
+	});
+	validateRange({
+		startTime,
+		duration,
+		sourceDuration: personMask.duration,
+	});
+	const backgroundSize = requireMediaDimensions({
+		media: backgroundMedia,
+		label: "Background",
+	});
+
+	const backgroundElement: VideoElement = {
+		id: generateId(),
+		type: "video",
+		name: `${backgroundMedia.name} background`,
+		mediaId: backgroundMediaId,
+		duration,
+		startTime,
+		trimStart: startTime,
+		trimEnd: startTime + duration,
+		muted: true,
+		hidden: false,
+		transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+		opacity: 1,
+	};
+	const foregroundElement: VideoElement = {
+		id: generateId(),
+		type: "video",
+		name: `${foregroundMedia.name} human pip`,
+		mediaId: foregroundMediaId,
+		duration,
+		startTime,
+		trimStart: startTime,
+		trimEnd: startTime + duration,
+		muted: false,
+		hidden: false,
+		transform: {
+			scale,
+			position: getPipPosition({
+				placement,
+				scale,
+				width: backgroundSize.width,
+				height: backgroundSize.height,
+			}),
+			rotate: 0,
+		},
+		opacity: 1,
+		mask: {
+			type: "person-mask",
+			derivedAssetId,
+		},
+	};
+
+	return {
+		tracks: [
+			{
+				id: generateId(),
+				name: "Human PIP foreground",
+				type: "video",
+				elements: [foregroundElement],
+				isMain: false,
+				muted: false,
+				hidden: false,
+			},
+			{
+				id: generateId(),
+				name: "Human PIP background",
+				type: "video",
+				elements: [backgroundElement],
+				isMain: true,
+				muted: true,
 				hidden: false,
 			},
 		],
