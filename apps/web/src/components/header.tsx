@@ -21,10 +21,6 @@ export function Header() {
 
 	const links = [
 		{
-			label: t('Features'),
-			href: "#features",
-		},
-		{
 			label: t("Why not CapCut?"),
 			href: "/why-not-capcut",
 		},
@@ -34,15 +30,15 @@ export function Header() {
 		<header className="bg-background/80 sticky top-0 z-10 border-b border-border/40 backdrop-blur-md dark:border-transparent">
 			<div className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-3">
 				<div className="relative z-10 flex items-center gap-8">
-					<Link href="/" className="flex items-center gap-2.5">
+					<Link href="/projects" className="flex items-center gap-2.5">
 						<Image
 							src={DEFAULT_LOGO_URL}
-							alt="Cutia Logo"
+							alt="Codecut Logo"
 							className="dark:invert"
 							width={28}
 							height={28}
 						/>
-						<span className="text-lg font-bold tracking-tight">Cutia</span>
+						<span className="text-lg font-bold tracking-tight">Codecut</span>
 					</Link>
 					<nav className="hidden items-center gap-1 md:flex">
 						{links.map((link) => (

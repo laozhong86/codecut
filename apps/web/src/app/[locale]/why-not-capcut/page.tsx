@@ -7,14 +7,14 @@ import { ComparisonJsonLd } from "./json-ld";
 import { GitHubContributeSection } from "@/components/gitHub-contribute-section";
 
 export const metadata: Metadata = {
-	title: "Why Not CapCut? Cutia vs CapCut Comparison — Cutia",
+	title: "Why Not CapCut? Codecut vs CapCut Comparison — Codecut",
 	description:
-		"Compare Cutia and CapCut side by side. Cutia is a free, open-source, privacy-first browser video editor — no uploads, no account, no watermarks. See how it stacks up against CapCut.",
+		"Compare Codecut and CapCut side by side. Codecut is a free, open-source, privacy-first browser video editor — no uploads, no account, no watermarks. See how it stacks up against CapCut.",
 	alternates: {
 		canonical: `${SITE_URL}/why-not-capcut`,
 	},
 	keywords: [
-		"Cutia vs CapCut",
+		"Codecut vs CapCut",
 		"CapCut alternative",
 		"free CapCut alternative",
 		"open source CapCut alternative",
@@ -26,25 +26,25 @@ export const metadata: Metadata = {
 		"CapCut open source alternative",
 	],
 	openGraph: {
-		title: "Why Not CapCut? Cutia vs CapCut — Side-by-Side Comparison",
+		title: "Why Not CapCut? Codecut vs CapCut — Side-by-Side Comparison",
 		description:
-			"Cutia is a free, open-source, privacy-first alternative to CapCut. Compare features, privacy, pricing, and more.",
+			"Codecut is a free, open-source, privacy-first alternative to CapCut. Compare features, privacy, pricing, and more.",
 		url: `${SITE_URL}/why-not-capcut`,
 		type: "article",
 		images: [
 			{
-				url: "/icon.svg",
+				url: "/icon.png",
 				width: 512,
 				height: 512,
-				alt: "Cutia — CapCut Alternative",
+				alt: "Codecut — CapCut Alternative",
 			},
 		],
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Why Not CapCut? Cutia vs CapCut Comparison",
+		title: "Why Not CapCut? Codecut vs CapCut Comparison",
 		description:
-			"Cutia is a free, open-source, privacy-first alternative to CapCut. Compare features, privacy, pricing, and more.",
+			"Codecut is a free, open-source, privacy-first alternative to CapCut. Compare features, privacy, pricing, and more.",
 	},
 };
 
@@ -58,30 +58,30 @@ export default async function WhyNotCapcutPage({
 	return (
 		<BasePage
 			title="Why not CapCut?"
-			description="Cutia is a free, open-source, privacy-first alternative to CapCut. Here's how they compare."
+			description="Codecut is a free, open-source, privacy-first alternative to CapCut. Here's how they compare."
 		>
 			<ComparisonJsonLd locale={locale} />
 
 			<section className="flex flex-col gap-4">
 				<h2 className="text-2xl font-semibold">
-					Cutia is a free, open-source video editor that keeps your files on
+					Codecut is a free, open-source video editor that keeps your files on
 					your device
 				</h2>
 				<p className="text-muted-foreground leading-relaxed">
 					CapCut is a popular video editor, but it uploads your media to remote
 					servers, requires an account, and is closed-source proprietary
-					software. Cutia takes a different approach: it runs entirely in your
+					software. Codecut takes a different approach: it runs entirely in your
 					browser, your files never leave your device, and the source code is
 					open for anyone to inspect. If you care about privacy, freedom, or
 					simply want a video editor that works without sign-ups and
-					watermarks, Cutia is designed for you.
+					watermarks, Codecut is designed for you.
 				</p>
 			</section>
 
 			<ComparisonTable />
 
 			<section className="flex flex-col gap-4">
-				<h2 className="text-2xl font-semibold">Who should use Cutia?</h2>
+				<h2 className="text-2xl font-semibold">Who should use Codecut?</h2>
 				<ul className="text-muted-foreground list-disc space-y-2 pl-6 leading-relaxed">
 					<li>
 						<strong>Privacy-conscious creators</strong> who want their media
@@ -110,7 +110,7 @@ export default async function WhyNotCapcutPage({
 
 			<GitHubContributeSection
 				title="Built by the community"
-				description="Cutia is open source and community-driven. Contribute, report issues, or fork it on GitHub."
+				description="Codecut is open source and community-driven. Contribute, report issues, or fork it on GitHub."
 			/>
 		</BasePage>
 	);

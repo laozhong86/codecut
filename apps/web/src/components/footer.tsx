@@ -21,15 +21,15 @@ export function Footer() {
 		<footer className="border-t">
 			<div className="mx-auto flex max-w-7xl flex-col items-center gap-6 px-6 py-8 sm:flex-row sm:justify-between">
 				<div className="flex items-center gap-6">
-					<Link href="/" className="flex items-center gap-2">
+					<Link href="/projects" className="flex items-center gap-2">
 						<Image
 							src={DEFAULT_LOGO_URL}
-							alt="Cutia"
+							alt="Codecut"
 							width={20}
 							height={20}
 							className="dark:invert"
 						/>
-						<span className="text-sm font-semibold">Cutia</span>
+						<span className="text-sm font-semibold">Codecut</span>
 					</Link>
 					<nav className="flex items-center gap-4">
 						{footerLinks.map((link) => (
@@ -63,7 +63,7 @@ export function Footer() {
 						<FaGithub className="size-4" />
 					</a>
 					<span className="text-muted-foreground ml-2 text-xs">
-						© {new Date().getFullYear()} Cutia
+						© {new Date().getFullYear()} Codecut
 					</span>
 				</div>
 			</div>

@@ -13,7 +13,6 @@ function buildAlternates({ path }: { path: string }) {
 
 export default function sitemap(): MetadataRoute.Sitemap {
 	const paths = [
-		{ path: "", priority: 1, changeFrequency: "weekly" as const },
 		{ path: "/roadmap", priority: 1, changeFrequency: "weekly" as const },
 		{ path: "/privacy", priority: 0.5, changeFrequency: "monthly" as const },
 		{ path: "/terms", priority: 0.5, changeFrequency: "monthly" as const },
