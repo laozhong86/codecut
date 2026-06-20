@@ -8,6 +8,10 @@ import {
 } from "../queue";
 import type { BridgeCommandResult } from "../schema";
 
+type AgentBridgeTestGlobal = typeof globalThis & {
+	__cutiaAgentBridgeQueueItems?: Map<string, unknown>;
+};
+
 const envelope = {
 	version: 1 as const,
 	projectId: "project-123",
@@ -100,6 +104,13 @@ describe("agent bridge queue", () => {
 		const stored = getBridgeQueueItem({ id: item.id });
 		expect(stored?.status).toBe("completed");
 		expect(stored?.results?.[0].message).toBe("ok");
+	});
+
+	test("stores items on process global state for API route boundaries", () => {
+		const item = enqueueBridgeEnvelope({ envelope });
+		const bridgeGlobal = globalThis as AgentBridgeTestGlobal;
+
+		expect(bridgeGlobal.__cutiaAgentBridgeQueueItems?.has(item.id)).toBe(true);
 	});
 
 	test("rejects completion before an item is claimed", () => {
