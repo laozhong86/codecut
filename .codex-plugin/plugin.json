@@ -1,0 +1,26 @@
+{
+  "name": "codecut",
+  "version": "0.1.1",
+  "description": "Codex-only Codecut editing workflow for local executor transcription, EditPlan application, verification, and export.",
+  "author": {
+    "name": "Local OPC"
+  },
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codecut",
+    "shortDescription": "Codex-only Codecut editing workflow.",
+    "longDescription": "Codecut packages a Codex-only editing workflow for operating Codecut through the local executor and codex-bridge CLI. Codecut stays deterministic: it exposes project state, media assets, local executor transcription, EditPlan validation/application, timeline verification, and export. Codex remains the only LLM and Agent layer.",
+    "developerName": "Local OPC",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use $codecut-jianying-editor-framework to operate the current Codex-only Codecut editing MVP through the local executor and EditPlan workflow."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

@@ -1,12 +1,12 @@
-# Codex Cutia Agent Bridge Implementation Plan
+# Codex Codecut Agent Bridge Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a local MVP bridge so Codex can send structured editing commands to an open Cutia editor page, and Cutia can execute those commands through its existing Agent tools with immediate timeline updates.
+**Goal:** Build a local MVP bridge so Codex can send structured editing commands to an open Codecut editor page, and Codecut can execute those commands through its existing Agent tools with immediate timeline updates.
 
-**Architecture:** Codex does not click the UI and does not write IndexedDB directly. Codex posts a signed command envelope to a local Next.js API queue; the open Cutia editor page polls the queue, executes the commands in the browser with existing `AgentTool` implementations, then posts execution results back for Codex to read.
+**Architecture:** Codex does not click the UI and does not write IndexedDB directly. Codex posts a signed command envelope to a local Next.js API queue; the open Codecut editor page polls the queue, executes the commands in the browser with existing `AgentTool` implementations, then posts execution results back for Codex to read.
 
-**Tech Stack:** Next.js App Router, Bun test, Zod, existing Cutia `EditorCore`, existing Cutia `AgentTool` registry.
+**Tech Stack:** Next.js App Router, Bun test, Zod, existing Codecut `EditorCore`, existing Codecut `AgentTool` registry.
 
 ---
 
@@ -15,9 +15,9 @@
 This plan covers the MVP bridge only:
 
 - Codex can enqueue timeline/project commands for one open local editor project.
-- Cutia executes commands through existing tools, so the timeline updates through `EditorCore`.
+- Codecut executes commands through existing tools, so the timeline updates through `EditorCore`.
 - Codex can poll command results.
-- The bridge is local-dev only and requires `CUTIA_AGENT_BRIDGE_TOKEN` for external command submission.
+- The bridge is local-dev only and requires `CODECUT_AGENT_BRIDGE_TOKEN` for external command submission.
 
 This plan intentionally excludes:
 
@@ -25,14 +25,14 @@ This plan intentionally excludes:
 - Direct IndexedDB writes.
 - Cloud deployment auth.
 - Automatic video export.
-- Adding new editing tools beyond the current Cutia tool set.
+- Adding new editing tools beyond the current Codecut tool set.
 - AI image/video provider setup.
 
 ## File Structure
 
 - Create `apps/web/src/lib/agent-bridge/schema.ts`
   - Owns the external command envelope schema and result types.
-  - Whitelists only stable Cutia tool names for the MVP.
+  - Whitelists only stable Codecut tool names for the MVP.
 
 - Create `apps/web/src/lib/agent-bridge/execute.ts`
   - Executes a validated command envelope in the browser.
@@ -403,7 +403,7 @@ export async function executeBridgeEnvelope({
 				commandId: command.id,
 				tool: command.tool,
 				success: false,
-				message: `Bridge tool "${command.tool}" is not implemented in Cutia.`,
+				message: `Bridge tool "${command.tool}" is not implemented in Codecut.`,
 			});
 			shouldSkipRemaining = true;
 			continue;
@@ -688,10 +688,10 @@ const postBodySchema = z.object({
 });
 
 function validateBridgeToken(request: NextRequest): NextResponse | null {
-	const expectedToken = process.env.CUTIA_AGENT_BRIDGE_TOKEN;
+	const expectedToken = process.env.CODECUT_AGENT_BRIDGE_TOKEN;
 	if (!expectedToken) {
 		return NextResponse.json(
-			{ error: "CUTIA_AGENT_BRIDGE_TOKEN is required." },
+			{ error: "CODECUT_AGENT_BRIDGE_TOKEN is required." },
 			{ status: 503 },
 		);
 	}
@@ -793,10 +793,10 @@ const postBodySchema = z.object({
 });
 
 function validateBridgeToken(request: NextRequest): NextResponse | null {
-	const expectedToken = process.env.CUTIA_AGENT_BRIDGE_TOKEN;
+	const expectedToken = process.env.CODECUT_AGENT_BRIDGE_TOKEN;
 	if (!expectedToken) {
 		return NextResponse.json(
-			{ error: "CUTIA_AGENT_BRIDGE_TOKEN is required." },
+			{ error: "CODECUT_AGENT_BRIDGE_TOKEN is required." },
 			{ status: 503 },
 		);
 	}
@@ -1043,12 +1043,12 @@ git commit -m "feat: execute codex bridge commands in editor"
 **Files:**
 - No source file changes.
 
-- [ ] **Step 1: Restart the Cutia dev server with a bridge token**
+- [ ] **Step 1: Restart the Codecut dev server with a bridge token**
 
 Stop the existing `bun run dev:web` process, then run:
 
 ```bash
-CUTIA_AGENT_BRIDGE_TOKEN=local-dev-bridge bun run dev:web
+CODECUT_AGENT_BRIDGE_TOKEN=local-dev-bridge bun run dev:web
 ```
 
 Expected: Next.js starts on `http://localhost:4100`.
@@ -1107,7 +1107,7 @@ Expected response shape:
 
 - [ ] **Step 4: Verify the page updates**
 
-Expected: within one second, the open Cutia editor shows a new text element on the timeline or preview.
+Expected: within one second, the open Codecut editor shows a new text element on the timeline or preview.
 
 - [ ] **Step 5: Poll the result**
 
@@ -1154,7 +1154,7 @@ If the team keeps local verification notes in commits, commit only source change
 
 ## Self-Review
 
-- Spec coverage: The plan covers a Codex-to-Cutia bridge, command schema, local queue, API routes, browser execution, and end-to-end verification.
+- Spec coverage: The plan covers a Codex-to-Codecut bridge, command schema, local queue, API routes, browser execution, and end-to-end verification.
 - Placeholder scan: The plan contains no incomplete placeholders.
 - Type consistency: `BridgeEnvelope`, `BridgeCommandResult`, and queue item types are defined before they are used.
 - Scope check: The bridge MVP is one subsystem. Export automation and richer editing tools are explicitly deferred.
