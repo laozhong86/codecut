@@ -4,6 +4,7 @@ import { storageService } from "@/services/storage/service";
 import { generateUUID } from "@/utils/id";
 import { videoCache } from "@/services/video-cache/service";
 import { hasMediaId } from "@/lib/timeline/element-utils";
+import { getDerivedAssetCleanupForMediaRemoval } from "@/lib/derived-assets/cleanup";
 
 export class MediaManager {
 	private assets: MediaAsset[] = [];
@@ -45,26 +46,42 @@ export class MediaManager {
 		projectId: string;
 		id: string;
 	}): Promise<void> {
-		const asset = this.assets.find((asset) => asset.id === id);
+		const activeProject = this.editor.project.getActiveOrNull();
+		const cleanupPlan = activeProject
+			? getDerivedAssetCleanupForMediaRemoval({
+					removedMediaId: id,
+					derivedAssets: activeProject.derivedAssets,
+				})
+			: { derivedAssetIds: [], mediaAssetIds: [id] };
+		const mediaIdsToRemove = new Set(cleanupPlan.mediaAssetIds);
 
-		videoCache.clearVideo({ mediaId: id });
+		for (const mediaId of mediaIdsToRemove) {
+			videoCache.clearVideo({ mediaId });
+		}
 
-		if (asset?.url) {
-			URL.revokeObjectURL(asset.url);
-			if (asset.thumbnailUrl) {
-				URL.revokeObjectURL(asset.thumbnailUrl);
+		for (const mediaAsset of this.assets) {
+			if (!mediaIdsToRemove.has(mediaAsset.id)) continue;
+			if (mediaAsset.url) {
+				URL.revokeObjectURL(mediaAsset.url);
+				if (mediaAsset.thumbnailUrl) {
+					URL.revokeObjectURL(mediaAsset.thumbnailUrl);
+				}
 			}
 		}
 
-		this.assets = this.assets.filter((asset) => asset.id !== id);
+		this.assets = this.assets.filter((asset) => !mediaIdsToRemove.has(asset.id));
 		this.notify();
+
+		for (const derivedAssetId of cleanupPlan.derivedAssetIds) {
+			this.editor.project.removeDerivedAsset({ id: derivedAssetId });
+		}
 
 		const tracks = this.editor.timeline.getTracks();
 		const elementsToRemove: Array<{ trackId: string; elementId: string }> = [];
 
 		for (const track of tracks) {
 			for (const element of track.elements) {
-				if (hasMediaId(element) && element.mediaId === id) {
+				if (hasMediaId(element) && mediaIdsToRemove.has(element.mediaId)) {
 					elementsToRemove.push({ trackId: track.id, elementId: element.id });
 				}
 			}
@@ -75,7 +92,11 @@ export class MediaManager {
 		}
 
 		try {
-			await storageService.deleteMediaAsset({ projectId, id });
+			await Promise.all(
+				cleanupPlan.mediaAssetIds.map((mediaId) =>
+					storageService.deleteMediaAsset({ projectId, id: mediaId }),
+				),
+			);
 		} catch (error) {
 			console.error("Failed to delete media asset:", error);
 		}

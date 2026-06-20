@@ -1,6 +1,7 @@
 import type { EditorCore } from "@/core";
 import type {
 	TProject,
+	DerivedAsset,
 	TProjectMetadata,
 	TProjectSortKey,
 	TProjectSortOption,
@@ -538,6 +539,38 @@ export class ProjectManager {
 
 	getTimelineViewState(): TTimelineViewState {
 		return this.active?.timelineViewState ?? DEFAULT_TIMELINE_VIEW_STATE;
+	}
+
+	getDerivedAssets(): DerivedAsset[] {
+		return this.getActive().derivedAssets;
+	}
+
+	addDerivedAsset({ derivedAsset }: { derivedAsset: DerivedAsset }): void {
+		const active = this.getActive();
+		if (active.derivedAssets.some((asset) => asset.id === derivedAsset.id)) {
+			throw new Error("Derived asset already exists.");
+		}
+
+		this.active = {
+			...active,
+			derivedAssets: [...active.derivedAssets, derivedAsset],
+		};
+		this.notify();
+		this.editor.save.markDirty();
+	}
+
+	removeDerivedAsset({ id }: { id: string }): void {
+		const active = this.getActive();
+		if (!active.derivedAssets.some((asset) => asset.id === id)) {
+			throw new Error("Derived asset was not found.");
+		}
+
+		this.active = {
+			...active,
+			derivedAssets: active.derivedAssets.filter((asset) => asset.id !== id),
+		};
+		this.notify();
+		this.editor.save.markDirty();
 	}
 
 	setTimelineViewState({ viewState }: { viewState: TTimelineViewState }): void {
