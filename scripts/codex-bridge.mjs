@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 const requiredConfig = [
 	"CUTIA_AGENT_BRIDGE_URL",
 	"CUTIA_AGENT_BRIDGE_TOKEN",
@@ -221,7 +224,10 @@ export async function runCli({
 	return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (
+	process.argv[1] &&
+	resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
 	runCli({ argv: process.argv.slice(2), env: process.env }).catch((error) => {
 		console.error(error instanceof Error ? error.message : error);
 		console.error(usage());
