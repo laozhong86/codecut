@@ -22,7 +22,6 @@ import {
 	ArrowLeft02Icon,
 	BubbleChatIcon,
 	CommandIcon,
-	SparklesIcon,
 } from "@hugeicons/core-free-icons";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -30,7 +29,6 @@ import { ShortcutsDialog } from "./dialogs/shortcuts-dialog";
 import Image from "next/image";
 import { cn } from "@/utils/ui";
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
-import { useAgentStore } from "@/stores/agent-store";
 
 export function EditorHeader() {
 	const { t } = useTranslation();
@@ -54,7 +52,6 @@ export function EditorHeader() {
 				</FeedbackTrigger>
 				<LanguageToggle />
 				<ThemeToggle />
-				<AgentToggle />
 				<ExportButton />
 			</nav>
 		</header>
@@ -254,23 +251,5 @@ function EditableProjectName() {
 				isEditing && "ring-1 ring-ring cursor-text hover:bg-transparent",
 			)}
 		/>
-	);
-}
-
-function AgentToggle() {
-	const { t } = useTranslation();
-	const isOpen = useAgentStore((s) => s.isOpen);
-	const togglePanel = useAgentStore((s) => s.togglePanel);
-
-	return (
-		<Button
-			variant={isOpen ? "secondary" : "ghost"}
-			size="icon"
-			onClick={togglePanel}
-			title={t("AI Agent")}
-			className="size-8"
-		>
-			<HugeiconsIcon icon={SparklesIcon} className="size-4" />
-		</Button>
 	);
 }
