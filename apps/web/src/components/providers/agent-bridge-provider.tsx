@@ -23,6 +23,10 @@ interface PendingBridgeResponse {
 }
 
 type ExecuteEnvelope = typeof executeBridgeEnvelope;
+type BridgeFetch = (
+	input: RequestInfo | URL,
+	init?: RequestInit,
+) => Promise<Response>;
 
 async function postResults({
 	id,
@@ -31,7 +35,7 @@ async function postResults({
 }: {
 	id: string;
 	results: BridgeCommandResult[];
-	fetchImpl: typeof fetch;
+	fetchImpl: BridgeFetch;
 }): Promise<void> {
 	const response = await fetchImpl("/api/agent-bridge/results", {
 		method: "POST",
@@ -52,7 +56,7 @@ export async function pollAgentBridgeOnce({
 	executeEnvelope = executeBridgeEnvelope,
 }: {
 	projectId: string;
-	fetchImpl?: typeof fetch;
+	fetchImpl?: BridgeFetch;
 	executeEnvelope?: ExecuteEnvelope;
 }): Promise<void> {
 	const response = await fetchImpl(

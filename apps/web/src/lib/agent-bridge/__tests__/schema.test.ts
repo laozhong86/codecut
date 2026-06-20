@@ -47,6 +47,11 @@ describe("agent bridge schema", () => {
 		expect(result.success).toBe(false);
 	});
 
+	test("accepts the browser-side export tool", () => {
+		const result = BridgeToolNameSchema.safeParse("export_project");
+		expect(result.success).toBe(true);
+	});
+
 	test("rejects non-Codex sources", () => {
 		const result = BridgeEnvelopeSchema.safeParse({
 			version: 1,
