@@ -17,14 +17,14 @@ export const BridgeCommandSchema = z.object({
 	id: z.string().min(1),
 	tool: BridgeToolNameSchema,
 	args: z.record(z.string(), z.unknown()),
-});
+}).strict();
 
 export const BridgeEnvelopeSchema = z.object({
 	version: z.literal(1),
 	projectId: z.string().min(1),
 	source: z.literal("codex"),
 	commands: z.array(BridgeCommandSchema).min(1).max(20),
-});
+}).strict();
 
 export const BridgeCommandResultSchema = z.object({
 	commandId: z.string().min(1),
@@ -33,12 +33,12 @@ export const BridgeCommandResultSchema = z.object({
 	message: z.string(),
 	data: z.record(z.string(), z.unknown()).optional(),
 	skipped: z.boolean().optional(),
-});
+}).strict();
 
 export const BridgeEnvelopeResultSchema = z.object({
 	envelopeProjectId: z.string().min(1),
 	results: z.array(BridgeCommandResultSchema),
-});
+}).strict();
 
 export type BridgeToolName = z.infer<typeof BridgeToolNameSchema>;
 export type BridgeCommand = z.infer<typeof BridgeCommandSchema>;

@@ -63,4 +63,40 @@ describe("agent bridge schema", () => {
 
 		expect(result.success).toBe(false);
 	});
+
+	test("rejects unexpected top-level envelope fields", () => {
+		const result = BridgeEnvelopeSchema.safeParse({
+			version: 1,
+			projectId: "project-123",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "get_project_info",
+					args: {},
+				},
+			],
+			extra: true,
+		});
+
+		expect(result.success).toBe(false);
+	});
+
+	test("rejects unexpected command fields", () => {
+		const result = BridgeEnvelopeSchema.safeParse({
+			version: 1,
+			projectId: "project-123",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "get_project_info",
+					args: {},
+					extra: true,
+				},
+			],
+		});
+
+		expect(result.success).toBe(false);
+	});
 });
