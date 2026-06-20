@@ -8,6 +8,10 @@ import {
 	parseExecutorTranscriptionModelId,
 	transcribeMediaWithNodeRuntime,
 } from "@/lib/codex-executor/transcription";
+import {
+	createHumanPipEffect,
+	createTextBackgroundEffect,
+} from "@/lib/derived-assets/masked-effects";
 import { serializeElementVisualProperties } from "@/lib/timeline/element-serialization";
 import {
 	addTransitionToTrack,
@@ -17,6 +21,7 @@ import {
 import { buildEmptyTrack } from "@/lib/timeline/track-utils";
 import { calculateTotalDuration } from "@/lib/timeline";
 import type { MediaAsset } from "@/types/assets";
+import type { DerivedAsset } from "@/types/project";
 import type {
 	CreateTimelineElement,
 	TimelineElement,
@@ -35,6 +40,8 @@ type ExecutorToolName =
 	| "import_media_file"
 	| "transcribe_media"
 	| "apply_edit_plan"
+	| "create_text_background_effect"
+	| "create_human_pip_effect"
 	| "get_timeline_state";
 
 interface ExecutorMediaAsset {
@@ -65,6 +72,7 @@ interface ExecutorProjectState {
 		updatedAt: string;
 	};
 	mediaAssets: ExecutorMediaAsset[];
+	derivedAssets: DerivedAsset[];
 	tracks: TimelineTrack[];
 }
 
@@ -93,6 +101,8 @@ const commandSchema = z
 			"import_media_file",
 			"transcribe_media",
 			"apply_edit_plan",
+			"create_text_background_effect",
+			"create_human_pip_effect",
 			"get_timeline_state",
 		]),
 		args: z.record(z.string(), z.unknown()),
@@ -142,6 +152,36 @@ const transcribeMediaArgsSchema = z
 		mediaId: z.string().min(1),
 		language: z.unknown(),
 		modelId: z.unknown(),
+	})
+	.strict();
+
+const createTextBackgroundEffectArgsSchema = z
+	.object({
+		sourceMediaId: z.string().min(1),
+		derivedAssetId: z.string().min(1),
+		content: z.string().min(1),
+		startTime: z.number(),
+		duration: z.number(),
+		replaceExisting: z.boolean(),
+	})
+	.strict();
+
+const createHumanPipEffectArgsSchema = z
+	.object({
+		foregroundMediaId: z.string().min(1),
+		backgroundMediaId: z.string().min(1),
+		derivedAssetId: z.string().min(1),
+		placement: z.enum([
+			"right_down",
+			"right_up",
+			"left_down",
+			"left_up",
+			"center",
+		]),
+		scale: z.number(),
+		startTime: z.number(),
+		duration: z.number(),
+		replaceExisting: z.boolean(),
 	})
 	.strict();
 
@@ -365,6 +405,7 @@ export async function createExecutorProject({
 			updatedAt: now,
 		},
 		mediaAssets: [],
+		derivedAssets: [],
 		tracks: [],
 	};
 	await mkdir(mediaDirectory({ projectId }), { recursive: true });
@@ -411,6 +452,7 @@ export async function getExecutorProjectSnapshot({
 			lastModified: asset.lastModified,
 			url: `/api/codex-executor/media?projectId=${encodeURIComponent(projectId)}&mediaId=${encodeURIComponent(asset.id)}`,
 		})),
+		derivedAssets: state.derivedAssets,
 	};
 }
 
@@ -535,6 +577,7 @@ function runGetProjectInfo({ state }: { state: ExecutorProjectState }) {
 				width: asset.width,
 				height: asset.height,
 			})),
+			derivedAssets: state.derivedAssets,
 		},
 	};
 }
@@ -650,6 +693,113 @@ async function runApplyEditPlan({
 	return result;
 }
 
+function summarizeEffect({
+	effect,
+	tracks,
+}: {
+	effect: "text-background" | "human-pip";
+	tracks: TimelineTrack[];
+}) {
+	return {
+		effect,
+		trackCount: tracks.length,
+		elementCount: tracks.reduce(
+			(total, track) => total + track.elements.length,
+			0,
+		),
+		totalDuration: calculateTotalDuration({ tracks }),
+	};
+}
+
+function assertTimelineCanBeReplaced({
+	state,
+	replaceExisting,
+}: {
+	state: ExecutorProjectState;
+	replaceExisting: boolean;
+}) {
+	if (state.tracks.length > 0 && !replaceExisting) {
+		return {
+			success: false,
+			message: "Timeline is not empty. Set replaceExisting=true to replace it.",
+		};
+	}
+	return null;
+}
+
+async function runCreateTextBackgroundEffect({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = createTextBackgroundEffectArgsSchema.parse(args);
+	const blocked = assertTimelineCanBeReplaced({
+		state,
+		replaceExisting: parsed.replaceExisting,
+	});
+	if (blocked) return blocked;
+
+	const result = createTextBackgroundEffect({
+		sourceMediaId: parsed.sourceMediaId,
+		derivedAssetId: parsed.derivedAssetId,
+		content: parsed.content,
+		startTime: parsed.startTime,
+		duration: parsed.duration,
+		mediaAssets: state.mediaAssets.map(toMediaAsset),
+		derivedAssets: state.derivedAssets,
+	});
+	state.tracks = result.tracks;
+	await saveProjectState({ state });
+
+	const summary = summarizeEffect({
+		effect: "text-background",
+		tracks: result.tracks,
+	});
+	return {
+		success: true,
+		message: `Created text-background effect with ${summary.trackCount} track(s).`,
+		data: summary,
+	};
+}
+
+async function runCreateHumanPipEffect({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = createHumanPipEffectArgsSchema.parse(args);
+	const blocked = assertTimelineCanBeReplaced({
+		state,
+		replaceExisting: parsed.replaceExisting,
+	});
+	if (blocked) return blocked;
+
+	const result = createHumanPipEffect({
+		foregroundMediaId: parsed.foregroundMediaId,
+		backgroundMediaId: parsed.backgroundMediaId,
+		derivedAssetId: parsed.derivedAssetId,
+		placement: parsed.placement,
+		scale: parsed.scale,
+		startTime: parsed.startTime,
+		duration: parsed.duration,
+		mediaAssets: state.mediaAssets.map(toMediaAsset),
+		derivedAssets: state.derivedAssets,
+	});
+	state.tracks = result.tracks;
+	await saveProjectState({ state });
+
+	const summary = summarizeEffect({ effect: "human-pip", tracks: result.tracks });
+	return {
+		success: true,
+		message: `Created human-pip effect with ${summary.trackCount} track(s).`,
+		data: summary,
+	};
+}
+
 async function runTranscribeMedia({
 	state,
 	args,
@@ -698,6 +848,7 @@ function runGetTimelineState({ state }: { state: ExecutorProjectState }) {
 		data: {
 			tracks: state.tracks.map(serializeTrack),
 			totalDuration: duration,
+			derivedAssets: state.derivedAssets,
 		},
 	};
 }
@@ -732,6 +883,12 @@ async function executeCommand({
 	}
 	if (command.tool === "apply_edit_plan") {
 		return runApplyEditPlan({ state, args: command.args });
+	}
+	if (command.tool === "create_text_background_effect") {
+		return runCreateTextBackgroundEffect({ state, args: command.args });
+	}
+	if (command.tool === "create_human_pip_effect") {
+		return runCreateHumanPipEffect({ state, args: command.args });
 	}
 	if (command.tool === "get_timeline_state") {
 		return runGetTimelineState({ state });

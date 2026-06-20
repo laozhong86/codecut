@@ -4,6 +4,7 @@ import { captionTools } from "./caption-tools";
 import { characterTools } from "./character-tools";
 import { editPlanTools } from "./edit-plan-tools";
 import { exportTools } from "./export-tools";
+import { maskedEffectTools } from "./masked-effect-tools";
 import { mediaTools } from "./media-tools";
 import { projectTools } from "./project-tools";
 import { timelineTools } from "./timeline-tools";
@@ -17,6 +18,7 @@ const ALL_TOOLS: AgentTool[] = [
 	...timelineTools,
 	...transcriptionTools,
 	...editPlanTools,
+	...maskedEffectTools,
 	...captionTools,
 	...aiGenerationTools,
 	...characterTools,

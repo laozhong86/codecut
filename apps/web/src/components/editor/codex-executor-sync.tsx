@@ -34,6 +34,7 @@ type ExecutorSnapshot = {
 	revision: number;
 	duration: number;
 	tracks: TimelineTrack[];
+	derivedAssets: TProject["derivedAssets"];
 	mediaAssets: Array<{
 		id: string;
 		name: string;
@@ -104,7 +105,7 @@ export function applyCodexExecutorSnapshot({
 		currentSceneId: sceneId,
 		settings: snapshot.project.settings,
 		version: CURRENT_PROJECT_VERSION,
-		derivedAssets: [],
+		derivedAssets: snapshot.derivedAssets,
 	};
 	const mediaAssets: MediaAsset[] = snapshot.mediaAssets.map((asset) => ({
 		id: asset.id,

@@ -123,12 +123,30 @@ Codex sends exactly one editing plan format to Codecut:
     text: string,
     startTime: number,
     duration: number,
-    stylePreset?: "hook_title" | "lower_title"
+    stylePreset?: "hook_title" | "lower_title",
+    richSpans?: Array<{
+      start: number,
+      end: number,
+      color?: string,
+      fontScale?: number,
+      fontWeight?: "normal" | "bold",
+      fontStyle?: "normal" | "italic",
+      stroke?: { color: string, width: number }
+    }>
   },
   captions?: Array<{
     text: string,
     startTime: number,
-    duration: number
+    duration: number,
+    richSpans?: Array<{
+      start: number,
+      end: number,
+      color?: string,
+      fontScale?: number,
+      fontWeight?: "normal" | "bold",
+      fontStyle?: "normal" | "italic",
+      stroke?: { color: string, width: number }
+    }>
   }>,
   captionStyle?: {
     preset: "short-form-bold" | "black-bar" | "bold_caption" | "keyword_caption",
@@ -179,6 +197,11 @@ in this P0 contract.
 
 `title.stylePreset` is optional. If omitted, Codecut keeps the existing default
 text behavior. If present, it must be `hook_title` or `lower_title`.
+
+`title.richSpans` and `captions[].richSpans` are optional keyword styling
+ranges. Ranges use `[start, end)` code point indexes over `Array.from(text)`.
+Spans must be integer, ordered, non-overlapping, and inside the text length.
+Invalid rich spans fail validation; Codecut does not repair or clamp them.
 
 `audio.bgm.assetId` and every `audio.sfx[].assetId` must refer to an already
 imported audio media asset in the same project. Codecut does not search,
@@ -278,6 +301,29 @@ node scripts/codex-bridge.mjs send \
   --args-json '{}'
 ```
 
+Create a text-background masked effect from an existing person-mask derived asset:
+
+```bash
+node scripts/codex-bridge.mjs send \
+  --project-id <id> \
+  --tool create_text_background_effect \
+  --args-json '{"sourceMediaId":"<video-id>","derivedAssetId":"<person-mask-id>","content":"Core claim","startTime":0,"duration":5,"replaceExisting":true}'
+```
+
+Create a human picture-in-picture masked effect from an existing person-mask derived asset:
+
+```bash
+node scripts/codex-bridge.mjs send \
+  --project-id <id> \
+  --tool create_human_pip_effect \
+  --args-json '{"foregroundMediaId":"<talking-head-id>","backgroundMediaId":"<background-video-id>","derivedAssetId":"<person-mask-id>","placement":"right_down","scale":0.35,"startTime":0,"duration":5,"replaceExisting":true}'
+```
+
+Both masked effect tools are explicit timeline actions outside EditPlan v1. They
+only consume an existing `person-mask` derived asset. They do not generate
+person masks, call an LLM, infer missing media, or append to non-empty timelines
+unless `replaceExisting=true` is provided intentionally.
+
 Export after review is not part of the current local executor path:
 
 ```bash
@@ -292,6 +338,8 @@ Do not call `node scripts/codex-bridge.mjs export` for the executor workflow unt
 - If the timeline is not empty, Codex must pass `replaceExisting=true` only when replacing the current cut is intentional.
 - If BGM/SFX is requested, Codex must import or select valid audio assets before writing the EditPlan. Missing or non-audio assets must stop the workflow.
 - If transitions are requested, Codex must generate adjacent clip timings before applying the EditPlan. Do not rely on Codecut to reposition clips.
+- If a masked effect is requested, Codex must verify `get_timeline_state` exposes a matching `derivedAssets[]` person-mask entry before calling the effect action.
+- If `create_text_background_effect` or `create_human_pip_effect` fails, fix the media or derived-asset input. Do not simulate the effect with unrelated low-level timeline tools.
 - If export is requested, treat it as a separate migration task unless an implemented executor export path is available.
 
 `generate_captions` is not part of the Codex-only MVP automation path. Captions in this workflow come from the Codex-authored EditPlan and are applied by `apply_edit_plan`.

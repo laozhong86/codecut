@@ -9,7 +9,7 @@ description: "Use when operating or extending the Codex-only Codecut editing MVP
 
 This is the main Codex skill for the current Codex-only Codecut editing MVP. Codecut is a local deterministic executor plus a browser-side visual preview surface. Codex is the only LLM and agent layer.
 
-Current implemented scope: use the local executor API and `scripts/codex-bridge.mjs` CLI to create or inspect a project, update explicit project settings when needed, import local media, list media, transcribe one existing audio/video asset, generate an EditPlan in Codex, apply that plan through Codecut validation, verify timeline state, and provide a browser URL for human preview.
+Current implemented scope: use the local executor API and `scripts/codex-bridge.mjs` CLI to create or inspect a project, update explicit project settings when needed, import local media, list media, transcribe one existing audio/video asset, generate an EditPlan in Codex, apply that plan through Codecut validation, apply explicit masked visual effect actions when an existing person-mask derived asset is available, verify timeline state, and provide a browser URL for human preview.
 
 Historical Jianying and OpusClip notes are research material only. Do not install them into Codecut, do not copy their runtimes into the app, and do not treat them as the current tool contract.
 

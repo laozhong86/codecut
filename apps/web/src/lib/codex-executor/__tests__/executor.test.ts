@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { DerivedAsset } from "@/types/project";
 import {
 	createExecutorProject,
 	executeCodexExecutorEnvelope,
+	getExecutorProjectSnapshot,
 	getExecutorProjectState,
 	getExecutorStatus,
 } from "../executor";
@@ -22,6 +24,8 @@ function envelope({
 		| "import_media_file"
 		| "transcribe_media"
 		| "apply_edit_plan"
+		| "create_text_background_effect"
+		| "create_human_pip_effect"
 		| "get_timeline_state";
 	args: Record<string, unknown>;
 }) {
@@ -38,6 +42,22 @@ function resultData<T>(result: unknown): T {
 		throw new Error("Expected executor result data.");
 	}
 	return (result as { data: T }).data;
+}
+
+function personMask(overrides: Partial<DerivedAsset> = {}): DerivedAsset {
+	return {
+		id: "mask-1",
+		type: "person-mask",
+		sourceMediaId: "source-id",
+		alphaMediaId: "alpha-id",
+		duration: 12,
+		width: 1920,
+		height: 1080,
+		fps: 30,
+		confidence: 0.8,
+		createdAt: "2026-06-21T00:00:00.000Z",
+		...overrides,
+	};
 }
 
 describe("codex executor", () => {
@@ -431,6 +451,245 @@ describe("codex executor", () => {
 					},
 				],
 			},
+		});
+	});
+
+	test("creates a text-background masked effect from local executor state", async () => {
+		await createExecutorProject({ projectId, name: "Masked cut" });
+		const sourceImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("source").toString("base64"),
+					size: 6,
+					lastModified: 1,
+					duration: 12,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const alphaImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "alpha.webm",
+					mimeType: "video/webm",
+					base64: Buffer.from("alpha").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 12,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const sourceId = resultData<{ assets: Array<{ id: string }> }>(
+			sourceImport.results[0],
+		).assets[0].id;
+		const alphaId = resultData<{ assets: Array<{ id: string }> }>(
+			alphaImport.results[0],
+		).assets[0].id;
+		const state = await getExecutorProjectState({ projectId });
+		state.derivedAssets = [personMask({ sourceMediaId: sourceId, alphaMediaId: alphaId })];
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			`${JSON.stringify(state, null, 2)}\n`,
+			"utf8",
+		);
+
+		const effectResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "create_text_background_effect",
+				args: {
+					sourceMediaId: sourceId,
+					derivedAssetId: "mask-1",
+					content: "Behind person",
+					startTime: 1,
+					duration: 4,
+					replaceExisting: true,
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+		const snapshot = await getExecutorProjectSnapshot({ projectId });
+
+		expect(effectResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "create_text_background_effect",
+			success: true,
+			message: "Created text-background effect with 3 track(s).",
+			data: {
+				effect: "text-background",
+				trackCount: 3,
+				elementCount: 3,
+				totalDuration: 5,
+			},
+		});
+		expect(timelineResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				derivedAssets: [{ id: "mask-1", alphaMediaId: alphaId }],
+			},
+		});
+		const timeline = resultData<{
+			tracks: Array<{
+				type: string;
+				elements: Array<{
+					type: string;
+					mediaId?: string;
+					visual?: { mask?: { type: string; derivedAssetId: string } };
+				}>;
+			}>;
+		}>(timelineResult.results[0]);
+		expect(timeline.tracks[0]).toMatchObject({
+			type: "video",
+			elements: [
+				{
+					type: "video",
+					mediaId: sourceId,
+					visual: {
+						mask: { type: "person-mask", derivedAssetId: "mask-1" },
+					},
+				},
+			],
+		});
+		expect(snapshot.derivedAssets).toEqual([
+			personMask({ sourceMediaId: sourceId, alphaMediaId: alphaId }),
+		]);
+	});
+
+	test("creates a human-pip masked effect from local executor state", async () => {
+		await createExecutorProject({ projectId, name: "Human PIP cut" });
+		const foregroundImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "talking-head.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("front").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 12,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const alphaImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "alpha.webm",
+					mimeType: "video/webm",
+					base64: Buffer.from("alpha").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 12,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const backgroundImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "background.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("background").toString("base64"),
+					size: 10,
+					lastModified: 1,
+					duration: 12,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const foregroundId = resultData<{ assets: Array<{ id: string }> }>(
+			foregroundImport.results[0],
+		).assets[0].id;
+		const alphaId = resultData<{ assets: Array<{ id: string }> }>(
+			alphaImport.results[0],
+		).assets[0].id;
+		const backgroundId = resultData<{ assets: Array<{ id: string }> }>(
+			backgroundImport.results[0],
+		).assets[0].id;
+		const state = await getExecutorProjectState({ projectId });
+		state.derivedAssets = [
+			personMask({ sourceMediaId: foregroundId, alphaMediaId: alphaId }),
+		];
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			`${JSON.stringify(state, null, 2)}\n`,
+			"utf8",
+		);
+
+		const effectResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "create_human_pip_effect",
+				args: {
+					foregroundMediaId: foregroundId,
+					backgroundMediaId: backgroundId,
+					derivedAssetId: "mask-1",
+					placement: "right_down",
+					scale: 0.35,
+					startTime: 1,
+					duration: 4,
+					replaceExisting: true,
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+
+		expect(effectResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "create_human_pip_effect",
+			success: true,
+			message: "Created human-pip effect with 2 track(s).",
+			data: {
+				effect: "human-pip",
+				trackCount: 2,
+				elementCount: 2,
+				totalDuration: 5,
+			},
+		});
+		const timeline = resultData<{
+			tracks: Array<{
+				type: string;
+				elements: Array<{
+					type: string;
+					mediaId?: string;
+					visual?: { mask?: { type: string; derivedAssetId: string } };
+				}>;
+			}>;
+		}>(timelineResult.results[0]);
+		expect(timeline.tracks[0]).toMatchObject({
+			type: "video",
+			elements: [
+				{
+					type: "video",
+					mediaId: foregroundId,
+					visual: {
+						mask: { type: "person-mask", derivedAssetId: "mask-1" },
+					},
+				},
+			],
+		});
+		expect(timeline.tracks[1]).toMatchObject({
+			type: "video",
+			elements: [
+				{
+					type: "video",
+					mediaId: backgroundId,
+				},
+			],
 		});
 	});
 });

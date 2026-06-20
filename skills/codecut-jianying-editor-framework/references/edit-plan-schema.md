@@ -26,12 +26,30 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
     text: string,
     startTime: number,
     duration: number,
-    stylePreset?: "hook_title" | "lower_title"
+    stylePreset?: "hook_title" | "lower_title",
+    richSpans?: Array<{
+      start: number,
+      end: number,
+      color?: string,
+      fontScale?: number,
+      fontWeight?: "normal" | "bold",
+      fontStyle?: "normal" | "italic",
+      stroke?: { color: string, width: number }
+    }>
   },
   captions?: Array<{
     text: string,
     startTime: number,
-    duration: number
+    duration: number,
+    richSpans?: Array<{
+      start: number,
+      end: number,
+      color?: string,
+      fontScale?: number,
+      fontWeight?: "normal" | "bold",
+      fontStyle?: "normal" | "italic",
+      stroke?: { color: string, width: number }
+    }>
   }>,
   captionStyle?: {
     preset: "short-form-bold" | "black-bar" | "bold_caption" | "keyword_caption",
@@ -82,6 +100,9 @@ Current validation fail-fast checks include:
 - title and captions must fit inside the generated timeline.
 - captions must use top-level `captionStyle`; per-caption style objects are not
   accepted.
+- `richSpans` must use integer `[start, end)` code point indexes, must be
+  ordered and non-overlapping, and must stay inside the corresponding title or
+  caption text.
 - BGM/SFX audio assets must exist in the imported media library and must be
   `type === "audio"`.
 - BGM/SFX volume must be `0..1`; BGM mode is only `loop_to_timeline`.
@@ -96,6 +117,11 @@ Do not include `intent`, `strategy`, `overlays`, `acceptanceChecks`, `speed`,
 `fit`, `anchor`, arbitrary style objects, external audio URLs, or automatic
 asset-download instructions in a plan sent to the current `apply_edit_plan`
 tool. Those fields belong to a future schema migration.
+
+Masked visual effects are not part of EditPlan v1. Use the explicit
+`create_text_background_effect` or `create_human_pip_effect` bridge action only
+after `get_timeline_state` proves that a matching `person-mask` derived asset
+already exists.
 
 Audio v1 only accepts already imported audio media assets:
 

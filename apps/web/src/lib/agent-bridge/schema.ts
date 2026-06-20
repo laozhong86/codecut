@@ -15,6 +15,8 @@ export const BridgeToolNameSchema = z.enum([
 	"export_project",
 	"transcribe_media",
 	"apply_edit_plan",
+	"create_text_background_effect",
+	"create_human_pip_effect",
 ]);
 
 export const BridgeCommandSchema = z.object({

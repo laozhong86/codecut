@@ -16,6 +16,8 @@ Implemented bridge tools relevant to Codex-driven editing:
 | `import_media_file` | Import one Codex-provided local media file payload into the browser media library. |
 | `transcribe_media` | Transcribe one existing audio/video media asset through the local executor transcription runtime. |
 | `apply_edit_plan` | Validate and apply the implemented EditPlan v1 to the timeline. |
+| `create_text_background_effect` | Replace the timeline with source video, text, and masked foreground layers using an existing person-mask derived asset. |
+| `create_human_pip_effect` | Replace the timeline with muted background video and masked talking-head foreground using an existing person-mask derived asset. |
 | `get_timeline_state` | Verify timeline tracks and elements after mutation. |
 | `export_project` | Legacy/browser-mounted export path only. Local executor export is not implemented yet. |
 
@@ -30,6 +32,16 @@ get_project_info -> optional update_project_settings -> list_media_assets -> opt
 ```
 
 Codecut validates and executes. Codex does all LLM reasoning and plan repair.
+
+Masked visual effects use explicit deterministic actions outside EditPlan v1:
+
+```text
+get_timeline_state confirms derivedAssets[] -> create_text_background_effect or create_human_pip_effect -> get_timeline_state
+```
+
+These actions require an existing `person-mask` derived asset. They do not
+generate masks, infer missing media, call an LLM, or use low-level timeline
+mutation tools as a fallback.
 
 Do not call `export_project` through the local executor until executor export is implemented and tested.
 

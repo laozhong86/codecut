@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { MediaAsset } from "@/types/assets";
+import type { DerivedAsset } from "@/types/project";
 import type { TimelineTrack } from "@/types/timeline";
 import { BridgeToolNameSchema } from "@/lib/agent-bridge/schema";
 import { getToolByName } from "../index";
 import { executeApplyEditPlanTool } from "../edit-plan-tools";
 import { executeImportMediaFileTool } from "../media-tools";
+import { executeCreateTextBackgroundEffectTool } from "../masked-effect-tools";
 import { executeTranscribeMediaTool } from "../transcription-tools";
 
 function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
@@ -20,14 +22,35 @@ function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	};
 }
 
+function personMask(overrides: Partial<DerivedAsset> = {}): DerivedAsset {
+	return {
+		id: "mask-1",
+		type: "person-mask",
+		sourceMediaId: "media-1",
+		alphaMediaId: "alpha-1",
+		duration: 120,
+		width: 1920,
+		height: 1080,
+		fps: 30,
+		confidence: 0.8,
+		createdAt: "2026-06-21T00:00:00.000Z",
+		...overrides,
+	};
+}
+
 function editorWithMedia({
 	mediaAssets = [mediaAsset()],
 	tracks = [],
+	derivedAssets = [],
 }: {
 	mediaAssets?: MediaAsset[];
 	tracks?: TimelineTrack[];
+	derivedAssets?: DerivedAsset[];
 } = {}) {
 	return {
+		project: {
+			getDerivedAssets: () => derivedAssets,
+		},
 		media: {
 			getAssets: () => mediaAssets,
 		},
@@ -51,6 +74,12 @@ describe("Codex deterministic editing tools", () => {
 		expect(getToolByName({ name: "apply_edit_plan" })?.name).toBe(
 			"apply_edit_plan",
 		);
+		expect(getToolByName({ name: "create_text_background_effect" })?.name).toBe(
+			"create_text_background_effect",
+		);
+		expect(getToolByName({ name: "create_human_pip_effect" })?.name).toBe(
+			"create_human_pip_effect",
+		);
 		expect(BridgeToolNameSchema.safeParse("import_media_file").success).toBe(
 			true,
 		);
@@ -58,6 +87,12 @@ describe("Codex deterministic editing tools", () => {
 			true,
 		);
 		expect(BridgeToolNameSchema.safeParse("apply_edit_plan").success).toBe(true);
+		expect(
+			BridgeToolNameSchema.safeParse("create_text_background_effect").success,
+		).toBe(true);
+		expect(BridgeToolNameSchema.safeParse("create_human_pip_effect").success).toBe(
+			true,
+		);
 	});
 
 	test("apply_edit_plan returns validation failures without mutating the timeline", () => {
@@ -212,6 +247,109 @@ describe("Codex deterministic editing tools", () => {
 			message: "Imported file size does not match payload size.",
 		});
 		expect(addCount).toBe(0);
+	});
+
+	test("create_text_background_effect replaces the timeline with masked effect layers", async () => {
+		const updatedTrackBatches: TimelineTrack[][] = [];
+		const result = executeCreateTextBackgroundEffectTool({
+			args: {
+				sourceMediaId: "media-1",
+				derivedAssetId: "mask-1",
+				content: "Core claim",
+				startTime: 2,
+				duration: 6,
+				replaceExisting: true,
+			},
+			editor: {
+				...editorWithMedia({
+					mediaAssets: [
+						mediaAsset(),
+						mediaAsset({ id: "alpha-1", name: "Mask alpha.webm" }),
+					],
+					derivedAssets: [personMask()],
+				}),
+				timeline: {
+					getTracks: () => [],
+					updateTracks: (tracks) => {
+						updatedTrackBatches.push(tracks);
+					},
+				},
+			},
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			message: "Created text-background effect with 3 track(s).",
+			data: {
+				effect: "text-background",
+				trackCount: 3,
+				elementCount: 3,
+				totalDuration: 8,
+			},
+		});
+		expect(updatedTrackBatches).toHaveLength(1);
+		const tracks = updatedTrackBatches[0];
+		expect(tracks[0].elements[0]).toMatchObject({
+			type: "video",
+			mediaId: "media-1",
+			mask: { type: "person-mask", derivedAssetId: "mask-1" },
+		});
+	});
+
+	test("create_text_background_effect refuses to overwrite an existing timeline without replaceExisting", async () => {
+		let updateCount = 0;
+		const result = executeCreateTextBackgroundEffectTool({
+			args: {
+				sourceMediaId: "media-1",
+				derivedAssetId: "mask-1",
+				content: "Core claim",
+				startTime: 2,
+				duration: 6,
+				replaceExisting: false,
+			},
+			editor: {
+				...editorWithMedia({
+					mediaAssets: [
+						mediaAsset(),
+						mediaAsset({ id: "alpha-1", name: "Mask alpha.webm" }),
+					],
+					derivedAssets: [personMask()],
+					tracks: [
+						{
+							id: "track-1",
+							name: "Existing",
+							type: "video",
+							isMain: true,
+							muted: false,
+							hidden: false,
+							elements: [],
+						},
+					],
+				}),
+				timeline: {
+					getTracks: () => [
+						{
+							id: "track-1",
+							name: "Existing",
+							type: "video",
+							isMain: true,
+							muted: false,
+							hidden: false,
+							elements: [],
+						},
+					],
+					updateTracks: () => {
+						updateCount += 1;
+					},
+				},
+			},
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "Timeline is not empty. Set replaceExisting=true to replace it.",
+		});
+		expect(updateCount).toBe(0);
 	});
 
 	test("transcribe_media fails when the media asset does not exist", async () => {
