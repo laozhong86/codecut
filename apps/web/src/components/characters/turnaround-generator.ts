@@ -1,45 +1,77 @@
-import { getImageProvider } from "@/lib/ai/providers";
-import { useAISettingsStore } from "@/stores/ai-settings-store";
+const CHARACTER_PORTRAIT_MODEL = "gpt-5.4-mini";
+const CHARACTER_PORTRAIT_REASONING_EFFORT = "low";
 
-const CHARACTER_PORTRAIT_PROMPT_PREFIX =
-	"character portrait, front facing view, full body from head to feet, nothing cropped, arms relaxed at sides, hands naturally hanging down, white background, clean design, high quality";
-
-export function buildCharacterPortraitPrompt({
+export function buildGenerateCharacterPortraitRequest({
+	name,
+	gender,
+	age,
 	description,
+	styleDescription,
 }: {
+	name?: string;
+	gender?: string;
+	age?: string;
 	description: string;
-}): string {
-	return `${CHARACTER_PORTRAIT_PROMPT_PREFIX}, ${description}`;
+	styleDescription?: string;
+}) {
+	return {
+		action: "generate_character_portrait",
+		input: {
+			model: CHARACTER_PORTRAIT_MODEL,
+			reasoningEffort: CHARACTER_PORTRAIT_REASONING_EFFORT,
+			name: name?.trim() || undefined,
+			gender: gender?.trim() || undefined,
+			age: age?.trim() || undefined,
+			description: description.trim(),
+			styleDescription: styleDescription?.trim() || undefined,
+		},
+	};
 }
 
 export async function generateCharacterPortrait({
+	name,
+	gender,
+	age,
 	description,
+	styleDescription,
 }: {
+	name?: string;
+	gender?: string;
+	age?: string;
 	description: string;
-}): Promise<{ url: string }> {
-	const { imageProviderId, imageApiKey } = useAISettingsStore.getState();
-
-	if (!imageProviderId || !imageApiKey) {
-		throw new Error(
-			"No image AI provider configured. Please set up an image provider and API key in Settings.",
-		);
-	}
-
-	const provider = getImageProvider({ id: imageProviderId });
-	if (!provider) {
-		throw new Error(`Image provider '${imageProviderId}' not found`);
-	}
-
-	const prompt = buildCharacterPortraitPrompt({ description });
-
-	const results = await provider.generateImage({
-		request: { prompt, aspectRatio: "9:16" },
-		apiKey: imageApiKey,
+	styleDescription?: string;
+}): Promise<{ url: string; prompt: string }> {
+	const response = await fetch("/api/agent-action", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(
+			buildGenerateCharacterPortraitRequest({
+				name,
+				gender,
+				age,
+				description,
+				styleDescription,
+			}),
+		),
 	});
+	const result = (await response.json()) as {
+		ok?: boolean;
+		error?: string;
+		prompt?: string;
+		assets?: Array<{ type: string; url: string }>;
+	};
 
-	if (results.length === 0) {
-		throw new Error("No images were generated");
+	if (!response.ok || !result.ok) {
+		throw new Error(result.error ?? `Portrait generation failed (${response.status})`);
 	}
 
-	return { url: results[0].url };
+	const imageAsset = result.assets?.find((asset) => asset.type === "image");
+	if (!imageAsset) {
+		throw new Error("Codex did not return a generated portrait image");
+	}
+
+	return {
+		url: imageAsset.url,
+		prompt: result.prompt ?? description.trim(),
+	};
 }

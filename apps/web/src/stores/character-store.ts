@@ -138,13 +138,18 @@ interface CharacterStoreState {
 
 	addCharacter: (params: {
 		name: string;
+		gender?: AICharacter["gender"];
+		age?: AICharacter["age"];
 		description: string;
 	}) => string;
 
 	updateCharacter: (params: {
 		id: string;
 		updates: Partial<
-			Pick<AICharacter, "name" | "description" | "styleDescription">
+			Pick<
+				AICharacter,
+				"name" | "gender" | "age" | "description" | "styleDescription"
+			>
 		>;
 	}) => void;
 
@@ -182,12 +187,14 @@ export const useCharacterStore = create<CharacterStoreState>()(
 		(set, get) => ({
 			characters: [],
 
-			addCharacter: ({ name, description }) => {
+			addCharacter: ({ name, gender, age, description }) => {
 				const now = new Date().toISOString();
 				const id = generateUUID();
 				const character: AICharacter = {
 					id,
 					name,
+					gender,
+					age,
 					description,
 					images: [],
 					generations: [],

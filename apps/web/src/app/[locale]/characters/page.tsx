@@ -88,17 +88,6 @@ export default function CharactersPage() {
 							<BreadcrumbItem>
 								<BreadcrumbLink asChild>
 									<Link
-										href="/"
-										className="text-sm sm:text-base"
-									>
-										{t("Home")}
-									</Link>
-								</BreadcrumbLink>
-							</BreadcrumbItem>
-							<BreadcrumbSeparator />
-							<BreadcrumbItem>
-								<BreadcrumbLink asChild>
-									<Link
 										href="/projects"
 										className="text-sm sm:text-base"
 									>
