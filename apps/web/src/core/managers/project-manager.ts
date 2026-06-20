@@ -614,8 +614,7 @@ export class ProjectManager {
 		tempCanvas.width = thumbWidth;
 		tempCanvas.height = thumbHeight;
 
-		const representativeTime =
-			duration * ProjectManager.THUMBNAIL_TIME_RATIO;
+		const representativeTime = duration * ProjectManager.THUMBNAIL_TIME_RATIO;
 
 		await renderer.renderToCanvas({
 			node: scene,
@@ -647,6 +646,8 @@ export class ProjectManager {
 	}
 
 	private notify(): void {
-		this.listeners.forEach((fn) => fn());
+		this.listeners.forEach((fn) => {
+			fn();
+		});
 	}
 }

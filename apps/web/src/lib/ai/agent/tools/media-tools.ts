@@ -181,7 +181,7 @@ export async function executeImportMediaFileTool({
 export const importMediaFileTool: AgentTool = {
 	name: "import_media_file",
 	description:
-		"Import one Codex-provided local file payload into the current Cutia media library. This tool does not call an LLM and does not modify the timeline.",
+		"Import one Codex-provided local file payload into the current Codecut media library. This tool does not call an LLM and does not modify the timeline.",
 	parameters: {
 		type: "object",
 		properties: {

@@ -5,6 +5,7 @@ import {
 	buildTextElement,
 	buildUploadAudioElement,
 } from "@/lib/timeline/element-utils";
+import { serializeElementVisualProperties } from "@/lib/timeline/element-serialization";
 import type { AgentTool } from "./types";
 
 export const getTimelineStateTool: AgentTool = {
@@ -36,6 +37,7 @@ export const getTimelineStateTool: AgentTool = {
 				trimEnd: element.trimEnd,
 				...("content" in element ? { content: element.content } : {}),
 				...("mediaId" in element ? { mediaId: element.mediaId } : {}),
+				...serializeElementVisualProperties(element),
 			})),
 		}));
 

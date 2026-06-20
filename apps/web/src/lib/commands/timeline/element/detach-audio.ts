@@ -9,9 +9,7 @@ export class DetachAudioCommand extends Command {
 	private savedState: TimelineTrack[] | null = null;
 	private previousSelection: { trackId: string; elementId: string }[] = [];
 
-	constructor(
-		private elements: { trackId: string; elementId: string }[],
-	) {
+	constructor(private elements: { trackId: string; elementId: string }[]) {
 		super();
 	}
 
@@ -24,14 +22,14 @@ export class DetachAudioCommand extends Command {
 
 		for (const { trackId, elementId } of this.elements) {
 			const track = updatedTracks.find((t) => t.id === trackId);
-			if (!track || track.type !== "video") continue;
+			if (track?.type !== "video") continue;
 
 			const element = track.elements.find((el) => el.id === elementId);
-			if (!element || element.type !== "video") continue;
+			if (element?.type !== "video") continue;
 
 			const mediaAssets = editor.media.getAssets();
 			const mediaAsset = mediaAssets.find((a) => a.id === element.mediaId);
-			if (!mediaAsset || mediaAsset.type !== "video") continue;
+			if (mediaAsset?.type !== "video") continue;
 
 			const audioElement = {
 				id: generateUUID(),
@@ -57,9 +55,7 @@ export class DetachAudioCommand extends Command {
 				} as typeof t;
 			});
 
-			const existingAudioTrack = updatedTracks.find(
-				(t) => t.type === "audio",
-			);
+			const existingAudioTrack = updatedTracks.find((t) => t.type === "audio");
 
 			if (existingAudioTrack) {
 				updatedTracks = updatedTracks.map((t) => {

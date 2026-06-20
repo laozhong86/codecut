@@ -62,13 +62,7 @@ function encodeFloat32ToWav({
 	const buffer = new ArrayBuffer(44 + dataSize);
 	const view = new DataView(buffer);
 
-	const writeString = ({
-		offset,
-		str,
-	}: {
-		offset: number;
-		str: string;
-	}) => {
+	const writeString = ({ offset, str }: { offset: number; str: string }) => {
 		for (let i = 0; i < str.length; i++) {
 			view.setUint8(offset + i, str.charCodeAt(i));
 		}
@@ -175,9 +169,9 @@ export function TranscriptionPlayground() {
 	const [error, setError] = useState<string | null>(null);
 	const [elapsedMs, setElapsedMs] = useState<number | null>(null);
 
-	const [streamingChunks, setStreamingChunks] = useState<
-		TranscriptionChunk[]
-	>([]);
+	const [streamingChunks, setStreamingChunks] = useState<TranscriptionChunk[]>(
+		[],
+	);
 	const [streamingTps, setStreamingTps] = useState<number>(0);
 
 	const [isRecording, setIsRecording] = useState(false);
@@ -628,11 +622,7 @@ export function TranscriptionPlayground() {
 									Original Audio
 								</Label>
 								{audioUrl && (
-									<audio
-										controls
-										src={audioUrl}
-										className="h-10 w-full"
-									>
+									<audio controls src={audioUrl} className="h-10 w-full">
 										<track kind="captions" />
 									</audio>
 								)}
@@ -649,8 +639,7 @@ export function TranscriptionPlayground() {
 												preprocessedAudio.samples.length /
 												preprocessedAudio.sampleRate
 											).toFixed(2)}
-											s ·{" "}
-											{preprocessedAudio.samples.length.toLocaleString()}{" "}
+											s · {preprocessedAudio.samples.length.toLocaleString()}{" "}
 											samples
 										</Badge>
 									)}
@@ -674,9 +663,7 @@ export function TranscriptionPlayground() {
 										onClick={handlePreprocess}
 										disabled={isPreprocessing || isProcessing}
 									>
-										{isPreprocessing
-											? "Preprocessing..."
-											: "Preprocess Audio"}
+										{isPreprocessing ? "Preprocessing..." : "Preprocess Audio"}
 									</Button>
 								)}
 							</div>
@@ -775,7 +762,9 @@ export function TranscriptionPlayground() {
 								</TableHeader>
 								<TableBody>
 									{streamingChunks.map((chunk, index) => (
-										<TableRow key={`streaming-${chunk.timestamp[0]}-${index}`}>
+										<TableRow
+											key={`streaming-${chunk.timestamp[0]}-${chunk.timestamp[1] ?? "open"}-${chunk.text}`}
+										>
 											<TableCell className="text-muted-foreground font-mono text-xs">
 												{index + 1}
 											</TableCell>
@@ -867,9 +856,7 @@ export function TranscriptionPlayground() {
 														key={`${segment.start}-${segment.end}`}
 														ref={isActive ? activeSegmentRef : undefined}
 														className={`cursor-pointer ${isActive ? "bg-primary/10" : ""}`}
-														onClick={() =>
-															seekAndPlay({ time: segment.start })
-														}
+														onClick={() => seekAndPlay({ time: segment.start })}
 														onKeyDown={(event) => {
 															if (event.key === "Enter" || event.key === " ") {
 																seekAndPlay({ time: segment.start });

@@ -173,9 +173,19 @@ function buildEnhancedPrompt({
 	if (!character) return prompt;
 
 	const parts: string[] = [];
+	const characterParts: string[] = [];
 
+	if (character.gender) {
+		characterParts.push(`Gender: ${character.gender}`);
+	}
+	if (character.age) {
+		characterParts.push(`Age range: ${character.age}`);
+	}
 	if (character.description) {
-		parts.push(`[Character: ${character.name}] ${character.description}`);
+		characterParts.push(`Description: ${character.description}`);
+	}
+	if (characterParts.length > 0) {
+		parts.push(`[Character: ${character.name}]\n${characterParts.join("\n")}`);
 	}
 
 	parts.push(prompt);
