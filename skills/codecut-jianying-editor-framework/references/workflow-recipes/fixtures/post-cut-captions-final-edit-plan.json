@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "projectId": "project-post-cut-captions-fixture",
+  "sourceMediaId": "media-source-video",
+  "target": {
+    "durationSec": 12,
+    "aspectRatio": "9:16"
+  },
+  "clips": [
+    {
+      "id": "clip-1",
+      "sourceStart": 10,
+      "sourceEnd": 16,
+      "timelineStart": 0,
+      "fit": "cover",
+      "reason": "Opening claim"
+    },
+    {
+      "id": "clip-2",
+      "sourceStart": 40,
+      "sourceEnd": 46,
+      "timelineStart": 6,
+      "fit": "cover",
+      "reason": "Proof example"
+    }
+  ],
+  "captions": [
+    {
+      "text": "先把剪辑稳定下来",
+      "startTime": 0,
+      "duration": 2.4
+    },
+    {
+      "text": "再从成片音频生成字幕",
+      "startTime": 6,
+      "duration": 2.8
+    }
+  ],
+  "captionStyle": {
+    "preset": "talking-head-pop",
+    "position": "lower-safe"
+  },
+  "rationale": "Final EditPlan after build-post-cut-captions output was merged into the clip-first plan."
+}

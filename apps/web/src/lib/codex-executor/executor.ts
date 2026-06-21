@@ -1,7 +1,9 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import type { Dirent } from "node:fs";
+import { dirname, isAbsolute, join } from "node:path";
 import { z } from "zod";
 import { applyEditPlanToEditor } from "@/lib/agent-bridge/edit-plan/apply";
+import { validateEditPlan } from "@/lib/agent-bridge/edit-plan/validate";
 import { applyNarratedRemixPlanToEditor } from "@/lib/agent-bridge/narrated-remix/apply";
 import {
 	type ProbeAudio,
@@ -60,11 +62,15 @@ type ExecutorToolName =
 	| "build_video_context"
 	| "inspect_video_range"
 	| "build_post_cut_captions"
+	| "validate_edit_plan"
+	| "preview_edit_plan"
 	| "apply_edit_plan"
 	| "apply_narrated_remix_plan"
 	| "create_text_background_effect"
 	| "create_human_pip_effect"
 	| "generate_digital_human"
+	| "export_project"
+	| "verify_timeline"
 	| "get_timeline_state";
 
 interface ExecutorMediaAsset {
@@ -80,7 +86,7 @@ interface ExecutorMediaAsset {
 	path: string;
 }
 
-export interface CodecutDraftV1 {
+export interface ExecutorProjectState {
 	version: 1;
 	revision: number;
 	project: {
@@ -99,7 +105,7 @@ export interface CodecutDraftV1 {
 	tracks: TimelineTrack[];
 }
 
-type ExecutorProjectState = CodecutDraftV1;
+export type CodecutDraftV1 = ExecutorProjectState;
 
 export interface ExecutorStatus {
 	projectId: string;
@@ -128,11 +134,15 @@ const commandSchema = z
 			"build_video_context",
 			"inspect_video_range",
 			"build_post_cut_captions",
+			"validate_edit_plan",
+			"preview_edit_plan",
 			"apply_edit_plan",
 			"apply_narrated_remix_plan",
 			"create_text_background_effect",
 			"create_human_pip_effect",
 			"generate_digital_human",
+			"export_project",
+			"verify_timeline",
 			"get_timeline_state",
 		]),
 		args: z.record(z.string(), z.unknown()),
@@ -174,6 +184,12 @@ const applyPlanArgsSchema = z
 	.object({
 		plan: z.unknown(),
 		replaceExisting: z.boolean(),
+	})
+	.strict();
+
+const editPlanOnlyArgsSchema = z
+	.object({
+		plan: z.unknown(),
 	})
 	.strict();
 
@@ -252,12 +268,47 @@ const generateDigitalHumanArgsSchema = z
 	})
 	.strict();
 
+const exportProjectArgsSchema = z
+	.object({
+		format: z.string().min(1),
+		quality: z.string().min(1),
+		includeAudio: z.boolean(),
+		outputFile: z.string().min(1),
+		overwrite: z.boolean(),
+	})
+	.strict();
+
+const verifyTimelineArgsSchema = z
+	.object({
+		verification: z
+			.object({
+				totalDuration: z.number().nonnegative().optional(),
+				trackCount: z.number().int().nonnegative().optional(),
+				clipCount: z.number().int().nonnegative().optional(),
+				captionCount: z.number().int().nonnegative().optional(),
+				audioCount: z.number().int().nonnegative().optional(),
+				mediaIds: z.array(z.string().min(1)).optional(),
+			})
+			.strict(),
+	})
+	.strict();
+
 export type ExecutorGenerateDigitalHuman = (params: {
 	apiKey: string;
 	imageAsset: RunningHubExecutorMediaAsset;
 	audioAsset: RunningHubExecutorMediaAsset;
 	request: DigitalHumanGenerationRequest;
 }) => Promise<RunningHubGeneratedDigitalHuman>;
+
+type ExecutorExportFormat = "mp4" | "webm";
+type ExecutorExportQuality = "low" | "medium" | "high" | "very_high";
+
+export type ExecutorExportProject = (params: {
+	state: ExecutorProjectState;
+	format: ExecutorExportFormat;
+	quality: ExecutorExportQuality;
+	includeAudio: boolean;
+}) => Promise<ArrayBuffer | Uint8Array>;
 
 function executorRoot(): string {
 	return (
@@ -268,6 +319,10 @@ function executorRoot(): string {
 
 function projectDirectory({ projectId }: { projectId: string }): string {
 	return join(executorRoot(), "projects", projectId);
+}
+
+function projectsDirectory(): string {
+	return join(executorRoot(), "projects");
 }
 
 function projectStatePath({ projectId }: { projectId: string }): string {
@@ -620,6 +675,62 @@ export async function getExecutorStatus({
 	}
 }
 
+export async function listExecutorProjects() {
+	let entries: Dirent[];
+	try {
+		entries = await readdir(projectsDirectory(), { withFileTypes: true });
+	} catch (error) {
+		if ((error as { code?: string }).code === "ENOENT") {
+			return { projects: [] };
+		}
+		throw error;
+	}
+
+	const projects = [];
+	for (const entry of entries) {
+		if (!entry.isDirectory()) continue;
+		const state = await loadProjectState({ projectId: entry.name });
+		projects.push({
+			projectId: state.project.id,
+			name: state.project.name,
+			revision: state.revision,
+			updatedAt: state.project.updatedAt,
+			mediaAssetCount: state.mediaAssets.length,
+			trackCount: state.tracks.length,
+			totalDuration: calculateTotalDuration({ tracks: state.tracks }),
+		});
+	}
+	projects.sort((left, right) => left.projectId.localeCompare(right.projectId));
+	return { projects };
+}
+
+export async function renameExecutorProject({
+	projectId,
+	name,
+}: {
+	projectId: string;
+	name: string;
+}) {
+	const state = await loadProjectState({ projectId });
+	state.project.name = name;
+	await saveProjectState({ state });
+	return {
+		projectId: state.project.id,
+		name: state.project.name,
+		revision: state.revision,
+	};
+}
+
+export async function deleteExecutorProject({
+	projectId,
+}: {
+	projectId: string;
+}) {
+	await loadProjectState({ projectId });
+	await rm(projectDirectory({ projectId }), { recursive: true, force: false });
+	return { projectId };
+}
+
 async function runImportMedia({
 	state,
 	args,
@@ -793,6 +904,286 @@ async function runUpdateProjectSettings({
 	return {
 		success: true,
 		message: `Project settings updated: ${updated.join(", ")}`,
+	};
+}
+
+async function runValidateEditPlan({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = editPlanOnlyArgsSchema.parse(args);
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
+	const validation = validateEditPlan({
+		plan: parsed.plan,
+		projectId: state.project.id,
+		mediaAssets,
+	});
+	if (!validation.success) {
+		return {
+			success: false,
+			message: validation.message,
+			data: {
+				valid: false,
+				revision: state.revision,
+				...(validation.path ? { path: validation.path } : {}),
+			},
+		};
+	}
+
+	return {
+		success: true,
+		message: "EditPlan is valid.",
+		data: {
+			valid: true,
+			revision: state.revision,
+		},
+	};
+}
+
+async function runPreviewEditPlan({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = editPlanOnlyArgsSchema.parse(args);
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
+	const validation = validateEditPlan({
+		plan: parsed.plan,
+		projectId: state.project.id,
+		mediaAssets,
+	});
+	if (!validation.success) {
+		return {
+			success: false,
+			message: validation.message,
+			data: {
+				valid: false,
+				revision: state.revision,
+				...(validation.path ? { path: validation.path } : {}),
+			},
+		};
+	}
+
+	const plan = validation.normalizedPlan;
+	const audioCount =
+		(plan.audio?.bgm ? 1 : 0) + (plan.audio?.sfx?.length ?? 0);
+	const totalClipDuration = plan.clips.reduce(
+		(total, clip) => total + clip.sourceEnd - clip.sourceStart,
+		0,
+	);
+	return {
+		success: true,
+		message: `Previewed EditPlan with ${plan.clips.length} clip(s).`,
+		data: {
+			valid: true,
+			revision: state.revision,
+			summary: {
+				sourceMediaId: plan.sourceMediaId,
+				targetDuration: plan.target.durationSec,
+				totalClipDuration,
+				aspectRatio: plan.target.aspectRatio,
+				clipCount: plan.clips.length,
+				captionCount: plan.captions?.length ?? 0,
+				audioCount,
+				transitionCount: plan.transitions?.length ?? 0,
+				willReplaceTimeline: true,
+			},
+			clips: plan.clips.map((clip) => ({
+				id: clip.id,
+				sourceStart: clip.sourceStart,
+				sourceEnd: clip.sourceEnd,
+				timelineStart: clip.timelineStart,
+				duration: clip.sourceEnd - clip.sourceStart,
+				reason: clip.reason,
+				...(clip.fit ? { fit: clip.fit } : {}),
+			})),
+		},
+	};
+}
+
+function requireExportFormat(value: string): ExecutorExportFormat {
+	if (value === "mp4" || value === "webm") return value;
+	throw new Error("--format must be mp4 or webm");
+}
+
+function requireExportQuality(value: string): ExecutorExportQuality {
+	if (
+		value === "low" ||
+		value === "medium" ||
+		value === "high" ||
+		value === "very_high"
+	) {
+		return value;
+	}
+	throw new Error("--quality must be low, medium, high, or very_high");
+}
+
+async function localFileExists(path: string): Promise<boolean> {
+	try {
+		await stat(path);
+		return true;
+	} catch (error) {
+		if ((error as { code?: string }).code === "ENOENT") return false;
+		throw error;
+	}
+}
+
+function exportBytesToBuffer(bytes: ArrayBuffer | Uint8Array): Buffer {
+	if (bytes instanceof ArrayBuffer) {
+		return Buffer.from(bytes);
+	}
+	return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+}
+
+async function runExportProject({
+	state,
+	args,
+	exportProject,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	exportProject: ExecutorExportProject;
+}) {
+	const parsed = exportProjectArgsSchema.parse(args);
+	const format = requireExportFormat(parsed.format);
+	const quality = requireExportQuality(parsed.quality);
+	if (!isAbsolute(parsed.outputFile)) {
+		throw new Error("--output-file must be an absolute path");
+	}
+	if (
+		!parsed.overwrite &&
+		(await localFileExists(parsed.outputFile))
+	) {
+		throw new Error("Output file already exists. Set overwrite=true to replace it.");
+	}
+
+	const totalDuration = calculateTotalDuration({ tracks: state.tracks });
+	if (state.tracks.length === 0 || totalDuration <= 0) {
+		throw new Error("Cannot export an empty timeline.");
+	}
+
+	const exported = await exportProject({
+		state,
+		format,
+		quality,
+		includeAudio: parsed.includeAudio,
+	});
+	const bytes = exportBytesToBuffer(exported);
+	if (bytes.byteLength <= 0) {
+		throw new Error("Local exporter returned an empty file.");
+	}
+	await writeFile(parsed.outputFile, bytes);
+
+	return {
+		success: true,
+		message: `Exported ${format} to ${parsed.outputFile}`,
+		data: {
+			outputFile: parsed.outputFile,
+			byteLength: bytes.byteLength,
+			format,
+			includeAudio: parsed.includeAudio,
+			revision: state.revision,
+			totalDuration,
+		},
+	};
+}
+
+function timelineVerificationActuals({ state }: { state: ExecutorProjectState }) {
+	const mediaIds = new Set<string>();
+	let clipCount = 0;
+	let captionCount = 0;
+	let audioCount = 0;
+
+	for (const track of state.tracks) {
+		for (const element of track.elements) {
+			if ("mediaId" in element && typeof element.mediaId === "string") {
+				mediaIds.add(element.mediaId);
+			}
+			if (track.type === "video" && element.type === "video") {
+				clipCount += 1;
+			}
+			if (track.type === "text" && element.type === "text") {
+				captionCount += 1;
+			}
+			if (track.type === "audio" && element.type === "audio") {
+				audioCount += 1;
+			}
+		}
+	}
+
+	return {
+		totalDuration: calculateTotalDuration({ tracks: state.tracks }),
+		trackCount: state.tracks.length,
+		clipCount,
+		captionCount,
+		audioCount,
+		mediaIds: [...mediaIds].sort(),
+	};
+}
+
+function arraysEqual(left: string[], right: string[]): boolean {
+	if (left.length !== right.length) return false;
+	return left.every((value, index) => value === right[index]);
+}
+
+function runVerifyTimeline({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = verifyTimelineArgsSchema.parse(args);
+	const expected = parsed.verification;
+	const actual = timelineVerificationActuals({ state });
+	const failures: Array<{
+		field: string;
+		expected: number | string[];
+		actual: number | string[];
+	}> = [];
+
+	for (const field of [
+		"totalDuration",
+		"trackCount",
+		"clipCount",
+		"captionCount",
+		"audioCount",
+	] as const) {
+		if (expected[field] !== undefined && actual[field] !== expected[field]) {
+			failures.push({
+				field,
+				expected: expected[field],
+				actual: actual[field],
+			});
+		}
+	}
+	if (expected.mediaIds !== undefined) {
+		const expectedMediaIds = [...expected.mediaIds].sort();
+		if (!arraysEqual(expectedMediaIds, actual.mediaIds)) {
+			failures.push({
+				field: "mediaIds",
+				expected: expectedMediaIds,
+				actual: actual.mediaIds,
+			});
+		}
+	}
+
+	if (failures.length > 0) {
+		return {
+			success: false,
+			message: `Timeline verification failed: ${failures.map((failure) => failure.field).join(", ")}`,
+			data: { failures, actual },
+		};
+	}
+	return {
+		success: true,
+		message: "Timeline verification passed.",
+		data: { failures: [], actual },
 	};
 }
 
@@ -1453,6 +1844,7 @@ async function executeCommand({
 	inspectVideoRange,
 	env,
 	generateDigitalHuman,
+	exportProject,
 }: {
 	state: ExecutorProjectState;
 	command: ExecutorCommand;
@@ -1463,6 +1855,7 @@ async function executeCommand({
 	inspectVideoRange: InspectVideoRange;
 	env: Record<string, string | undefined>;
 	generateDigitalHuman: ExecutorGenerateDigitalHuman;
+	exportProject: ExecutorExportProject;
 }) {
 	if (command.tool === "get_project_info") {
 		return runGetProjectInfo({ state, lastStatus });
@@ -1505,6 +1898,12 @@ async function executeCommand({
 			transcribeMediaRange,
 		});
 	}
+	if (command.tool === "validate_edit_plan") {
+		return runValidateEditPlan({ state, args: command.args });
+	}
+	if (command.tool === "preview_edit_plan") {
+		return runPreviewEditPlan({ state, args: command.args });
+	}
 	if (command.tool === "apply_edit_plan") {
 		return runApplyEditPlan({ state, args: command.args });
 	}
@@ -1524,6 +1923,12 @@ async function executeCommand({
 			env,
 			generateDigitalHuman,
 		});
+	}
+	if (command.tool === "export_project") {
+		return runExportProject({ state, args: command.args, exportProject });
+	}
+	if (command.tool === "verify_timeline") {
+		return runVerifyTimeline({ state, args: command.args });
 	}
 	if (command.tool === "get_timeline_state") {
 		return runGetTimelineState({ state });
@@ -1560,6 +1965,12 @@ const defaultGenerateDigitalHuman: ExecutorGenerateDigitalHuman = ({
 		request,
 	});
 
+const defaultExportProject: ExecutorExportProject = async () => {
+	throw new Error(
+		"Local executor export requires a Node-compatible renderer. Browser download export is not supported by codex-bridge export.",
+	);
+};
+
 export async function executeCodexExecutorEnvelope({
 	envelope,
 	transcribeMedia = transcribeMediaWithNodeRuntime,
@@ -1568,6 +1979,7 @@ export async function executeCodexExecutorEnvelope({
 	inspectVideoRange = inspectVideoRangeWithNodeRuntime,
 	env = process.env,
 	generateDigitalHuman = defaultGenerateDigitalHuman,
+	exportProject = defaultExportProject,
 }: {
 	envelope: unknown;
 	transcribeMedia?: ExecutorTranscribeMedia;
@@ -1576,6 +1988,7 @@ export async function executeCodexExecutorEnvelope({
 	inspectVideoRange?: InspectVideoRange;
 	env?: Record<string, string | undefined>;
 	generateDigitalHuman?: ExecutorGenerateDigitalHuman;
+	exportProject?: ExecutorExportProject;
 }) {
 	const parsedEnvelope = envelopeSchema.parse(envelope);
 	const state = await loadProjectState({ projectId: parsedEnvelope.projectId });
@@ -1601,10 +2014,11 @@ export async function executeCodexExecutorEnvelope({
 				transcribeMedia,
 				probeAudio,
 				transcribeMediaRange,
-				inspectVideoRange,
-				env,
-				generateDigitalHuman,
-			});
+					inspectVideoRange,
+					env,
+					generateDigitalHuman,
+					exportProject,
+				});
 			const success = result.success !== false;
 			const message =
 				"message" in result ? result.message : `${command.tool} completed.`;

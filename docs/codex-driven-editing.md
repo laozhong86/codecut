@@ -10,8 +10,10 @@ Codecut does:
 - Store media assets imported through the UI or the local Codex bridge.
 - Run deterministic local executor transcription for an existing audio or video asset.
 - Validate an explicit EditPlan.
+- Preview an explicit EditPlan without mutating timeline state.
 - Apply a valid EditPlan to the timeline.
-- Export the current project through a deterministic export runtime.
+- Verify timeline metrics against explicit verification JSON.
+- Export the current project to an explicit local file when the Node-compatible renderer is available.
 
 Codecut does not:
 
@@ -525,22 +527,24 @@ After application, Codex must verify `get_timeline_state` proof fields:
 20. Codex updates the EditingDecisionLedger for EditPlan templates, or writes a strict NarratedRemixPlan for `narrated-broll`.
 21. Codex projects the selected structure into an implemented EditPlan v1 JSON
     file under `05-execution/`, or keeps `narrated-broll` inside NarratedRemixPlan v1 only.
-22. For EditPlan templates, Codex calls `apply_edit_plan` with a stable
+22. For EditPlan paths, Codex calls `validate-edit-plan` and
+    `preview-edit-plan` before applying any clip-first or final plan.
+23. For EditPlan templates, Codex calls `apply_edit_plan` with a stable
     clip-first EditPlan when edited audio transcription from edited clip ranges
     is required.
-23. For EditPlan templates with captions, Codex runs
+24. For EditPlan templates with captions, Codex runs
     `build-post-cut-captions`, then writes those returned captions into the
     final EditPlan with the matching `captionStyle`.
-24. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the final
+25. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the final
     strict plan.
-25. Codex calls `get_timeline_state` to verify clips, text style, audio source
-    and volume, and video transitions.
+26. Codex calls `verify-timeline` and `get_timeline_state` to verify clips,
+    text style, audio source and volume, and video transitions.
     This readback must include the expected video track clip count, text track
     caption count, timeline duration, and clip trim ranges before the edit can
     be reported as complete.
-26. Codex writes verification notes under `06-verification/`.
-27. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
-28. Export is a separate follow-up until local executor export is implemented and tested.
+27. Codex writes verification notes under `06-verification/`.
+28. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
+29. If export is requested, Codex calls `export` with explicit output path and overwrite policy. If the local renderer runtime is unavailable, report that runtime gap.
 
 ## Fast Path: Local File To Short
 
@@ -565,12 +569,12 @@ When the request includes one absolute local media file and a concrete target su
 15. Inspect ambiguous or reframe-sensitive source ranges with
    `inspect-video-range` before writing the EditPlan.
 16. Write an EditingDecisionLedger for EditPlan templates, or a strict NarratedRemixPlan for `narrated-broll`.
-17. For EditPlan templates, generate and apply a clip-first EditPlan v1 when
-    edited audio captions are required.
+17. For EditPlan templates, generate, validate, preview, and apply a clip-first
+    EditPlan v1 when edited audio captions are required.
 18. For EditPlan templates with captions, run `build-post-cut-captions`, then
-    apply the final EditPlan v1 with captions.
+    validate, preview, and apply the final EditPlan v1 with captions.
 19. For `narrated-broll`, apply the final strict NarratedRemixPlan v1.
-20. Verify with `get_timeline_state`.
+20. Verify with `verify-timeline` and `get_timeline_state`.
 21. Keep the opened editor URL available for human preview.
 
 Do not spend the first turn auditing all skill references. Read only the workflow document and the matching recipe unless an implementation or validation failure requires deeper reference lookup.
@@ -695,19 +699,39 @@ into the final EditPlan and apply that plan.
 Apply a local EditPlan file:
 
 ```bash
+node scripts/codex-bridge.mjs validate-edit-plan \
+  --project-id <id> \
+  --plan-json-file /absolute/path/edit-plan.json
+```
+
+```bash
+node scripts/codex-bridge.mjs preview-edit-plan \
+  --project-id <id> \
+  --plan-json-file /absolute/path/edit-plan.json
+```
+
+```bash
 node scripts/codex-bridge.mjs apply-plan \
   --project-id <id> \
   --plan-json-file /absolute/path/edit-plan.json \
   --replace-existing true
 ```
 
-Apply a NarratedRemixPlan file through the generic bridge sender:
+Apply a NarratedRemixPlan file:
 
 ```bash
-node scripts/codex-bridge.mjs send \
+node scripts/codex-bridge.mjs apply-narrated-remix-plan \
   --project-id <id> \
-  --tool apply_narrated_remix_plan \
-  --args-json '{"plan":<NarratedRemixPlan JSON>,"replaceExisting":true}'
+  --plan-json-file /absolute/path/remix-plan.json \
+  --replace-existing true
+```
+
+Verify the applied timeline against explicit acceptance criteria:
+
+```bash
+node scripts/codex-bridge.mjs verify-timeline \
+  --project-id <id> \
+  --verification-json-file /absolute/path/verification.json
 ```
 
 Check the applied timeline:
@@ -742,24 +766,44 @@ only consume an existing `person-mask` derived asset. They do not generate
 person masks, call an LLM, infer missing media, or append to non-empty timelines
 unless `replaceExisting=true` is provided intentionally.
 
-Export after review is not part of the current local executor path:
+Manage local executor projects:
 
 ```bash
-Do not call `node scripts/codex-bridge.mjs export` for the executor workflow until executor export has been implemented and verified.
+node scripts/codex-bridge.mjs list-projects
+node scripts/codex-bridge.mjs rename-project --project-id <id> --name "<business project name>"
+node scripts/codex-bridge.mjs delete-project --project-id <id>
 ```
+
+Export after review:
+
+```bash
+node scripts/codex-bridge.mjs export \
+  --project-id <id> \
+  --format mp4 \
+  --quality high \
+  --include-audio true \
+  --output-file /absolute/path/out.mp4 \
+  --overwrite false
+```
+
+`export` is executor-native and writes only to the local `--output-file`. It
+does not trigger browser download. If the current server runtime lacks a
+Node-compatible renderer, the command fails fast and reports that runtime gap.
 
 ## Failure Handling
 
 - If `import_media_file` fails, Codex must verify the file path, file type, and active browser project before retrying.
 - If `transcribe_media` cannot find the media asset, Codex must call `list_media_assets` again and select a valid asset.
 - If `apply_edit_plan` fails validation, Codex must correct the EditPlan. Codecut must not auto-fix it.
+- If `validate_edit_plan` or `preview_edit_plan` fails, Codex must correct the plan before applying. Do not skip directly to `apply_edit_plan`.
 - If `apply_narrated_remix_plan` fails validation, Codex must correct the NarratedRemixPlan. Codecut must not auto-fix it.
+- If `verify_timeline` fails, Codex must inspect the returned mismatch fields and correct the plan or verification JSON. Do not treat a failed verification as success because `apply_edit_plan` completed.
 - If the timeline is not empty, Codex must pass `replaceExisting=true` only when replacing the current cut is intentional.
 - If BGM/SFX is requested, Codex must import or select valid audio assets before writing the EditPlan. Missing or non-audio assets must stop the workflow.
 - If TTS, image B-roll, BGM, or SFX is requested for narrated remix, stop and report that the current `NarratedRemixPlan v1` path only supports existing narration audio, video B-roll, and captions.
 - If transitions are requested, Codex must generate adjacent clip timings before applying the EditPlan. Do not rely on Codecut to reposition clips.
 - If a masked effect is requested, Codex must verify `get_timeline_state` exposes a matching `derivedAssets[]` person-mask entry before calling the effect action.
 - If `create_text_background_effect` or `create_human_pip_effect` fails, fix the media or derived-asset input. Do not simulate the effect with unrelated low-level timeline tools.
-- If export is requested, treat it as a separate migration task unless an implemented executor export path is available.
+- If export fails with the Node-compatible renderer runtime gap, report that blocker. Do not use browser download as a fallback.
 
 `generate_captions` is not part of the Codex-only MVP automation path. Captions in this workflow come from the Codex-authored EditPlan and are applied by `apply_edit_plan`.

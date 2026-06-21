@@ -9,9 +9,12 @@ import {
 	buildExportEnvelope,
 	buildImportMediaEnvelope,
 	buildInspectVideoRangeEnvelope,
+	buildPreviewEditPlanEnvelope,
 	buildPostCutCaptionsEnvelope,
 	buildTranscribeEnvelope,
+	buildValidateEditPlanEnvelope,
 	buildVideoContextEnvelope,
+	buildVerifyTimelineEnvelope,
 	parseBoolean,
 	requireRuntimeConfig,
 	runInstallDoctor,
@@ -69,7 +72,8 @@ describe("codex bridge CLI helpers", () => {
 			format: "mp4",
 			quality: "high",
 			includeAudio: true,
-			download: true,
+			outputFile: "/tmp/codecut-export.mp4",
+			overwrite: false,
 		});
 
 		expect(envelope.commands[0]).toEqual({
@@ -79,9 +83,32 @@ describe("codex bridge CLI helpers", () => {
 				format: "mp4",
 				quality: "high",
 				includeAudio: true,
-				download: true,
+				outputFile: "/tmp/codecut-export.mp4",
+				overwrite: false,
 			},
 		});
+	});
+
+	test("export command requires an absolute output file and explicit overwrite", () => {
+		expect(() =>
+			buildExportEnvelope({
+				projectId: "project-123",
+				format: "mp4",
+				quality: "high",
+				includeAudio: true,
+				outputFile: "relative.mp4",
+				overwrite: false,
+			}),
+		).toThrow("--output-file must be an absolute path");
+		expect(() =>
+			buildExportEnvelope({
+				projectId: "project-123",
+				format: "mp4",
+				quality: "high",
+				includeAudio: true,
+				outputFile: "/tmp/codecut-export.mp4",
+			}),
+		).toThrow("--overwrite is required");
 	});
 
 	test("builds a transcribe command envelope with explicit model options", () => {
@@ -398,6 +425,95 @@ describe("codex bridge CLI helpers", () => {
 		}
 	});
 
+	test("builds validate and preview EditPlan command envelopes without mutation flags", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
+		const planPath = join(directory, "edit-plan.json");
+		const plan = {
+			version: 1,
+			projectId: "project-123",
+			sourceMediaId: "media-123",
+			target: { durationSec: 10, aspectRatio: "9:16" },
+			clips: [
+				{
+					id: "clip-1",
+					sourceStart: 0,
+					sourceEnd: 10,
+					timelineStart: 0,
+					reason: "Hook",
+				},
+			],
+			rationale: "Short cut",
+		};
+		await writeFile(planPath, JSON.stringify(plan), "utf8");
+
+		try {
+			await expect(
+				buildValidateEditPlanEnvelope({
+					projectId: "project-123",
+					planJsonFile: "edit-plan.json",
+				}),
+			).rejects.toThrow("--plan-json-file must be an absolute path");
+
+			expect(
+				await buildValidateEditPlanEnvelope({
+					projectId: "project-123",
+					planJsonFile: planPath,
+				}),
+			).toEqual(
+				buildCommandEnvelope({
+					projectId: "project-123",
+					tool: "validate_edit_plan",
+					args: { plan },
+				}),
+			);
+			expect(
+				await buildPreviewEditPlanEnvelope({
+					projectId: "project-123",
+					planJsonFile: planPath,
+				}),
+			).toEqual(
+				buildCommandEnvelope({
+					projectId: "project-123",
+					tool: "preview_edit_plan",
+					args: { plan },
+				}),
+			);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("builds verify-timeline envelope from an absolute verification JSON file", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
+		const verificationPath = join(directory, "verification.json");
+		const verification = {
+			totalDuration: 10,
+			trackCount: 2,
+			clipCount: 1,
+			captionCount: 0,
+			audioCount: 0,
+			mediaIds: ["media-123"],
+		};
+		await writeFile(verificationPath, JSON.stringify(verification), "utf8");
+
+		try {
+			const envelope = await buildVerifyTimelineEnvelope({
+				projectId: "project-123",
+				verificationJsonFile: verificationPath,
+			});
+
+			expect(envelope).toEqual(
+				buildCommandEnvelope({
+					projectId: "project-123",
+					tool: "verify_timeline",
+					args: { verification },
+				}),
+			);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test("parses boolean flags strictly", () => {
 		expect(parseBoolean("true", "includeAudio")).toBe(true);
 		expect(parseBoolean("false", "includeAudio")).toBe(false);
@@ -454,6 +570,58 @@ describe("codex bridge CLI helpers", () => {
 			commands: [{ tool: "get_project_info", args: {} }],
 		});
 		expect(JSON.parse(output[0]).status).toBe("completed");
+	});
+
+	test("project management commands call executor project endpoints directly", async () => {
+		const requests = [];
+		const fetchImpl = async (url, init = {}) => {
+			requests.push({ url, init });
+			return new Response(JSON.stringify({ ok: true }));
+		};
+		const env = {
+			CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+			CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+			CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+			CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+		};
+
+		await runCli({
+			argv: ["list-projects"],
+			env,
+			fetchImpl,
+			stdout: () => {},
+		});
+		await runCli({
+			argv: [
+				"rename-project",
+				"--project-id",
+				"project-123",
+				"--name",
+				"Renamed",
+			],
+			env,
+			fetchImpl,
+			stdout: () => {},
+		});
+		await runCli({
+			argv: ["delete-project", "--project-id", "project-123"],
+			env,
+			fetchImpl,
+			stdout: () => {},
+		});
+
+		expect(requests.map((request) => [request.init.method, request.url])).toEqual([
+			["GET", "http://localhost:4100/api/codex-executor/projects"],
+			["PATCH", "http://localhost:4100/api/codex-executor/project"],
+			["DELETE", "http://localhost:4100/api/codex-executor/project"],
+		]);
+		expect(JSON.parse(requests[1].init.body)).toEqual({
+			projectId: "project-123",
+			name: "Renamed",
+		});
+		expect(JSON.parse(requests[2].init.body)).toEqual({
+			projectId: "project-123",
+		});
 	});
 
 	test("doctor verifies the local executor without enqueueing commands", async () => {

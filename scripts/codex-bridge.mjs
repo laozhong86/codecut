@@ -29,8 +29,15 @@ function usage() {
 		"  node scripts/codex-bridge.mjs inspect-video-range --project-id <id> --media-id <id> --start-seconds <seconds> --end-seconds <seconds> [--frame-count <1..16>]",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text \"...\" --motion-prompt \"...\" --width 1280 --height 720 --fps 25",
+		"  node scripts/codex-bridge.mjs validate-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
+		"  node scripts/codex-bridge.mjs preview-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>",
-		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --download <true|false>",
+		"  node scripts/codex-bridge.mjs apply-narrated-remix-plan --project-id <id> --plan-json-file /absolute/path/remix-plan.json --replace-existing <true|false>",
+		"  node scripts/codex-bridge.mjs verify-timeline --project-id <id> --verification-json-file /absolute/path/verification.json",
+		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --output-file /absolute/path/out.mp4 --overwrite <true|false>",
+		"  node scripts/codex-bridge.mjs list-projects",
+		"  node scripts/codex-bridge.mjs rename-project --project-id <id> --name <name>",
+		"  node scripts/codex-bridge.mjs delete-project --project-id <id>",
 		"",
 		"Required local env:",
 		...requiredConfig.map((name) => `  ${name}`),
@@ -554,8 +561,8 @@ export function buildExportEnvelope({
 	format,
 	quality,
 	includeAudio,
-	download,
-	fileName,
+	outputFile,
+	overwrite,
 }) {
 	if (!format) {
 		throw new Error("--format is required");
@@ -566,8 +573,14 @@ export function buildExportEnvelope({
 	if (typeof includeAudio !== "boolean") {
 		throw new Error("--include-audio is required");
 	}
-	if (typeof download !== "boolean") {
-		throw new Error("--download is required");
+	if (!outputFile) {
+		throw new Error("--output-file is required");
+	}
+	if (!isAbsolute(outputFile)) {
+		throw new Error("--output-file must be an absolute path");
+	}
+	if (typeof overwrite !== "boolean") {
+		throw new Error("--overwrite is required");
 	}
 
 	return buildCommandEnvelope({
@@ -577,8 +590,8 @@ export function buildExportEnvelope({
 			format,
 			quality,
 			includeAudio,
-			download,
-			...(fileName ? { fileName } : {}),
+			outputFile,
+			overwrite,
 		},
 	});
 }
@@ -742,6 +755,20 @@ export function buildDigitalHumanEnvelope({
 	});
 }
 
+async function readJsonObjectFile({ filePath, flagName }) {
+	if (!filePath) {
+		throw new Error(`--${flagName} is required`);
+	}
+	if (!isAbsolute(filePath)) {
+		throw new Error(`--${flagName} must be an absolute path`);
+	}
+	const value = JSON.parse(await readFile(filePath, "utf8"));
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error(`--${flagName} must contain a JSON object`);
+	}
+	return value;
+}
+
 function requireRunningHubApiKey({ env }) {
 	if (!env.RUNNINGHUB_API_KEY) {
 		throw new Error("RUNNINGHUB_API_KEY is required");
@@ -850,20 +877,13 @@ export async function buildApplyPlanEnvelope({
 	planJsonFile,
 	replaceExisting,
 }) {
-	if (!planJsonFile) {
-		throw new Error("--plan-json-file is required");
-	}
-	if (!isAbsolute(planJsonFile)) {
-		throw new Error("--plan-json-file must be an absolute path");
-	}
 	if (typeof replaceExisting !== "boolean") {
 		throw new Error("--replace-existing is required");
 	}
-
-	const plan = JSON.parse(await readFile(planJsonFile, "utf8"));
-	if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
-		throw new Error("--plan-json-file must contain a JSON object");
-	}
+	const plan = await readJsonObjectFile({
+		filePath: planJsonFile,
+		flagName: "plan-json-file",
+	});
 
 	return buildCommandEnvelope({
 		projectId,
@@ -872,6 +892,74 @@ export async function buildApplyPlanEnvelope({
 			plan,
 			replaceExisting,
 		},
+	});
+}
+
+export async function buildNarratedRemixPlanEnvelope({
+	projectId,
+	planJsonFile,
+	replaceExisting,
+}) {
+	if (typeof replaceExisting !== "boolean") {
+		throw new Error("--replace-existing is required");
+	}
+	const plan = await readJsonObjectFile({
+		filePath: planJsonFile,
+		flagName: "plan-json-file",
+	});
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "apply_narrated_remix_plan",
+		args: {
+			plan,
+			replaceExisting,
+		},
+	});
+}
+
+export async function buildValidateEditPlanEnvelope({
+	projectId,
+	planJsonFile,
+}) {
+	const plan = await readJsonObjectFile({
+		filePath: planJsonFile,
+		flagName: "plan-json-file",
+	});
+	return buildCommandEnvelope({
+		projectId,
+		tool: "validate_edit_plan",
+		args: { plan },
+	});
+}
+
+export async function buildPreviewEditPlanEnvelope({
+	projectId,
+	planJsonFile,
+}) {
+	const plan = await readJsonObjectFile({
+		filePath: planJsonFile,
+		flagName: "plan-json-file",
+	});
+	return buildCommandEnvelope({
+		projectId,
+		tool: "preview_edit_plan",
+		args: { plan },
+	});
+}
+
+export async function buildVerifyTimelineEnvelope({
+	projectId,
+	verificationJsonFile,
+}) {
+	const verification = await readJsonObjectFile({
+		filePath: verificationJsonFile,
+		flagName: "verification-json-file",
+	});
+	return buildCommandEnvelope({
+		projectId,
+		tool: "verify_timeline",
+		args: { verification },
 	});
 }
 
@@ -916,6 +1004,59 @@ async function postExecutorProject({ config, projectId, name, fetchImpl }) {
 		throw new Error(
 			`Executor project creation failed: ${response.status} ${text}`,
 		);
+	}
+	return JSON.parse(text);
+}
+
+async function fetchExecutorProjects({ config, fetchImpl }) {
+	const response = await fetchImpl(
+		`${config.baseUrl}/api/codex-executor/projects`,
+		{
+			method: "GET",
+			headers: { Authorization: `Bearer ${config.token}` },
+		},
+	);
+	const text = await response.text();
+	if (!response.ok) {
+		throw new Error(`Executor project list failed: ${response.status} ${text}`);
+	}
+	return JSON.parse(text);
+}
+
+async function patchExecutorProject({ config, projectId, name, fetchImpl }) {
+	const response = await fetchImpl(
+		`${config.baseUrl}/api/codex-executor/project`,
+		{
+			method: "PATCH",
+			headers: {
+				Authorization: `Bearer ${config.token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ projectId, name }),
+		},
+	);
+	const text = await response.text();
+	if (!response.ok) {
+		throw new Error(`Executor project rename failed: ${response.status} ${text}`);
+	}
+	return JSON.parse(text);
+}
+
+async function deleteExecutorProject({ config, projectId, fetchImpl }) {
+	const response = await fetchImpl(
+		`${config.baseUrl}/api/codex-executor/project`,
+		{
+			method: "DELETE",
+			headers: {
+				Authorization: `Bearer ${config.token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ projectId }),
+		},
+	);
+	const text = await response.text();
+	if (!response.ok) {
+		throw new Error(`Executor project delete failed: ${response.status} ${text}`);
 	}
 	return JSON.parse(text);
 }
@@ -988,6 +1129,36 @@ export async function runCli({
 		});
 		stdout(JSON.stringify(result, null, 2));
 		return 0;
+	} else if (command === "list-projects") {
+		const result = await fetchExecutorProjects({ config, fetchImpl });
+		stdout(JSON.stringify(result, null, 2));
+		return 0;
+	} else if (command === "rename-project") {
+		if (!flags.projectId) {
+			throw new Error("--project-id is required");
+		}
+		if (!flags.name) {
+			throw new Error("--name is required");
+		}
+		const result = await patchExecutorProject({
+			config,
+			projectId: flags.projectId,
+			name: flags.name,
+			fetchImpl,
+		});
+		stdout(JSON.stringify(result, null, 2));
+		return 0;
+	} else if (command === "delete-project") {
+		if (!flags.projectId) {
+			throw new Error("--project-id is required");
+		}
+		const result = await deleteExecutorProject({
+			config,
+			projectId: flags.projectId,
+			fetchImpl,
+		});
+		stdout(JSON.stringify(result, null, 2));
+		return 0;
 	} else if (command === "doctor") {
 		const executor = await waitForExecutor({
 			config,
@@ -1006,14 +1177,14 @@ export async function runCli({
 			args: JSON.parse(flags.argsJson),
 		});
 	} else if (command === "export") {
-		envelope = buildExportEnvelope({
-			projectId: flags.projectId,
-			format: flags.format,
-			quality: flags.quality,
-			includeAudio: parseBoolean(flags.includeAudio, "includeAudio"),
-			download: parseBoolean(flags.download, "download"),
-			fileName: flags.fileName,
-		});
+			envelope = buildExportEnvelope({
+				projectId: flags.projectId,
+				format: flags.format,
+				quality: flags.quality,
+				includeAudio: parseBoolean(flags.includeAudio, "includeAudio"),
+				outputFile: flags.outputFile,
+				overwrite: parseBoolean(flags.overwrite, "overwrite"),
+			});
 	} else if (command === "import-media") {
 		const mediaMetadata = await probeMediaFile({ filePath: flags.filePath });
 		envelope = await buildImportMediaEnvelope({
@@ -1050,9 +1221,9 @@ export async function runCli({
 			language: flags.language,
 			modelId: flags.modelId,
 		});
-	} else if (command === "generate-digital-human") {
-		requireRunningHubApiKey({ env });
-		envelope = buildDigitalHumanEnvelope({
+		} else if (command === "generate-digital-human") {
+			requireRunningHubApiKey({ env });
+			envelope = buildDigitalHumanEnvelope({
 			projectId: flags.projectId,
 			imageMediaId: flags.imageMediaId,
 			audioMediaId: flags.audioMediaId,
@@ -1060,15 +1231,36 @@ export async function runCli({
 			motionPrompt: flags.motionPrompt,
 			width: flags.width,
 			height: flags.height,
-			fps: flags.fps,
-		});
-	} else if (command === "apply-plan") {
-		envelope = await buildApplyPlanEnvelope({
-			projectId: flags.projectId,
-			planJsonFile: flags.planJsonFile,
-			replaceExisting: parseBoolean(flags.replaceExisting, "replaceExisting"),
-		});
-	} else {
+				fps: flags.fps,
+			});
+		} else if (command === "validate-edit-plan") {
+			envelope = await buildValidateEditPlanEnvelope({
+				projectId: flags.projectId,
+				planJsonFile: flags.planJsonFile,
+			});
+		} else if (command === "preview-edit-plan") {
+			envelope = await buildPreviewEditPlanEnvelope({
+				projectId: flags.projectId,
+				planJsonFile: flags.planJsonFile,
+			});
+		} else if (command === "apply-plan") {
+			envelope = await buildApplyPlanEnvelope({
+				projectId: flags.projectId,
+				planJsonFile: flags.planJsonFile,
+				replaceExisting: parseBoolean(flags.replaceExisting, "replaceExisting"),
+			});
+		} else if (command === "apply-narrated-remix-plan") {
+			envelope = await buildNarratedRemixPlanEnvelope({
+				projectId: flags.projectId,
+				planJsonFile: flags.planJsonFile,
+				replaceExisting: parseBoolean(flags.replaceExisting, "replaceExisting"),
+			});
+		} else if (command === "verify-timeline") {
+			envelope = await buildVerifyTimelineEnvelope({
+				projectId: flags.projectId,
+				verificationJsonFile: flags.verificationJsonFile,
+			});
+		} else {
 		throw new Error(`Unknown command: ${command}`);
 	}
 
