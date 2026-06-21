@@ -255,11 +255,30 @@ function mediaTypeForMimeType({
 	throw new Error(`Unsupported media MIME type: ${mimeType}`);
 }
 
-function fileForMediaAsset(asset: ExecutorMediaAsset): File {
-	return new File([], asset.name, { type: asset.mimeType });
+async function fileForMediaAsset(asset: ExecutorMediaAsset): Promise<File> {
+	let bytes: Buffer;
+	try {
+		bytes = await readFile(asset.path);
+	} catch {
+		throw new Error(`Failed to load executor media asset ${asset.id}.`);
+	}
+	if (bytes.byteLength === 0) {
+		throw new Error(`Executor media asset ${asset.id} is empty.`);
+	}
+	if (bytes.byteLength !== asset.size) {
+		throw new Error(`Executor media asset size mismatch for ${asset.id}.`);
+	}
+	const fileBytes = bytes.buffer.slice(
+		bytes.byteOffset,
+		bytes.byteOffset + bytes.byteLength,
+	) as ArrayBuffer;
+	return new File([fileBytes], asset.name, {
+		type: asset.mimeType,
+		lastModified: asset.lastModified,
+	});
 }
 
-function toMediaAsset(asset: ExecutorMediaAsset): MediaAsset {
+async function toMediaAsset(asset: ExecutorMediaAsset): Promise<MediaAsset> {
 	return {
 		id: asset.id,
 		name: asset.name,
@@ -267,8 +286,14 @@ function toMediaAsset(asset: ExecutorMediaAsset): MediaAsset {
 		duration: asset.duration,
 		width: asset.width,
 		height: asset.height,
-		file: fileForMediaAsset(asset),
+		file: await fileForMediaAsset(asset),
 	};
+}
+
+async function toMediaAssets(
+	assets: ExecutorMediaAsset[],
+): Promise<MediaAsset[]> {
+	return Promise.all(assets.map(toMediaAsset));
 }
 
 function serializeTrack(track: TimelineTrack) {
@@ -680,13 +705,14 @@ async function runApplyEditPlan({
 	args: Record<string, unknown>;
 }) {
 	const parsed = applyPlanArgsSchema.parse(args);
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
 	const result = applyEditPlanToEditor({
 		plan: parsed.plan,
 		projectId: state.project.id,
 		replaceExisting: parsed.replaceExisting,
 		editor: {
 			media: {
-				getAssets: () => state.mediaAssets.map(toMediaAsset),
+				getAssets: () => mediaAssets,
 			},
 			timeline: {
 				getTracks: () => state.tracks,
@@ -732,13 +758,14 @@ async function runApplyNarratedRemixPlan({
 	args: Record<string, unknown>;
 }) {
 	const parsed = applyNarratedRemixPlanArgsSchema.parse(args);
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
 	const result = applyNarratedRemixPlanToEditor({
 		plan: parsed.plan,
 		projectId: state.project.id,
 		replaceExisting: parsed.replaceExisting,
 		editor: {
 			media: {
-				getAssets: () => state.mediaAssets.map(toMediaAsset),
+				getAssets: () => mediaAssets,
 			},
 			timeline: {
 				getTracks: () => state.tracks,
@@ -808,6 +835,7 @@ async function runCreateTextBackgroundEffect({
 		replaceExisting: parsed.replaceExisting,
 	});
 	if (blocked) return blocked;
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
 
 	const result = createTextBackgroundEffect({
 		sourceMediaId: parsed.sourceMediaId,
@@ -815,7 +843,7 @@ async function runCreateTextBackgroundEffect({
 		content: parsed.content,
 		startTime: parsed.startTime,
 		duration: parsed.duration,
-		mediaAssets: state.mediaAssets.map(toMediaAsset),
+		mediaAssets,
 		derivedAssets: state.derivedAssets,
 	});
 	state.tracks = result.tracks;
@@ -845,6 +873,7 @@ async function runCreateHumanPipEffect({
 		replaceExisting: parsed.replaceExisting,
 	});
 	if (blocked) return blocked;
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
 
 	const result = createHumanPipEffect({
 		foregroundMediaId: parsed.foregroundMediaId,
@@ -854,7 +883,7 @@ async function runCreateHumanPipEffect({
 		scale: parsed.scale,
 		startTime: parsed.startTime,
 		duration: parsed.duration,
-		mediaAssets: state.mediaAssets.map(toMediaAsset),
+		mediaAssets,
 		derivedAssets: state.derivedAssets,
 	});
 	state.tracks = result.tracks;

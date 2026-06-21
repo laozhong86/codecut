@@ -77,6 +77,9 @@ async function loadExecutorMediaFile({
 		throw new Error(`Failed to load executor media asset ${asset.id}.`);
 	}
 	const blob = await response.blob();
+	if (blob.size === 0) {
+		throw new Error(`Executor media asset ${asset.id} is empty.`);
+	}
 	if (blob.size !== asset.size) {
 		throw new Error(`Executor media asset size mismatch for ${asset.id}.`);
 	}

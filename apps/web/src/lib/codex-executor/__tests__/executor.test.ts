@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DerivedAsset } from "@/types/project";
@@ -270,6 +270,67 @@ describe("codex executor", () => {
 			message: "Timeline has 2 track(s), total duration: 12.00s",
 		});
 		expect(state.revision).toBeGreaterThan(1);
+	});
+
+	test("apply_edit_plan fails before mutating when executor media file is empty", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const state = await getExecutorProjectState({ projectId });
+		const mediaPath = join(stateDir, "projects", projectId, "media", "empty");
+		await mkdir(join(stateDir, "projects", projectId, "media"), {
+			recursive: true,
+		});
+		await writeFile(mediaPath, "");
+		state.mediaAssets = [
+			{
+				id: "empty-video",
+				name: "empty.mp4",
+				type: "video",
+				mimeType: "video/mp4",
+				duration: 20,
+				width: 1920,
+				height: 1080,
+				size: 0,
+				lastModified: 1,
+				path: mediaPath,
+			},
+		];
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			`${JSON.stringify(state, null, 2)}\n`,
+			"utf8",
+		);
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: "empty-video",
+						target: { durationSec: 5, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 5,
+								timelineStart: 0,
+								reason: "Hook",
+							},
+						],
+						rationale: "Short cut",
+					},
+				},
+			}),
+		});
+		const after = await getExecutorProjectState({ projectId });
+
+		expect(applyResult.results[0]).toMatchObject({
+			success: false,
+			message: "Executor media asset empty-video is empty.",
+		});
+		expect(after.tracks).toEqual([]);
 	});
 
 	test("readbacks EditPlan video text audio and transitions through timeline state", async () => {

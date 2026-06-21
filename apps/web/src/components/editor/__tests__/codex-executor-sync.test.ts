@@ -108,4 +108,21 @@ describe("applyCodexExecutorSnapshot", () => {
 
 		expect(capturedAssets).toEqual([]);
 	});
+
+	test("fails before syncing when an executor media blob is empty", async () => {
+		globalThis.fetch = (async () =>
+			new Response(new Blob([], { type: "video/mp4" }))) as unknown as typeof fetch;
+		const capturedAssets: MediaAsset[][] = [];
+		const snapshot = executorSnapshot();
+		snapshot.mediaAssets[0].size = 0;
+
+		await expect(
+			applyCodexExecutorSnapshot({
+				editor: editorStub({ capturedAssets }),
+				snapshot,
+			}),
+		).rejects.toThrow("Executor media asset media-1 is empty.");
+
+		expect(capturedAssets).toEqual([]);
+	});
 });
