@@ -105,8 +105,12 @@ export async function uploadRunningHubMediaFile({
 		},
 	);
 	const payload = await parseRunningHubJson({ response });
-	const data = payload.data as { fileName?: string; download_url?: string } | null;
-	const fileName = data?.fileName ?? data?.download_url;
+	const data = payload.data as {
+		fileName?: string;
+		filename?: string;
+		download_url?: string;
+	} | null;
+	const fileName = data?.fileName ?? data?.filename ?? data?.download_url;
 	if (!fileName) {
 		throw new Error("RunningHub upload returned no file name");
 	}

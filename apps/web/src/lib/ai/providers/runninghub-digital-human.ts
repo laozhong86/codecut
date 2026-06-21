@@ -109,6 +109,10 @@ export function normalizeRunningHubDigitalHumanStatus({
 	if (status === "SUCCESS") return "succeeded";
 	if (status === "FAILED") return "failed";
 	if (status === "RUNNING") return "running";
+	if (status === "succeeded") return "succeeded";
+	if (status === "failed") return "failed";
+	if (status === "running") return "running";
+	if (status === "pending") return "pending";
 	return "pending";
 }
 
