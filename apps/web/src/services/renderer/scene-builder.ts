@@ -40,10 +40,13 @@ function buildVisualElementNode({
 	element: VideoElement | ImageElement;
 	mediaMap: Map<string, MediaAsset>;
 	derivedAssetMap: Map<string, DerivedAsset>;
-}): BaseNode | null {
+}): BaseNode {
 	const mediaAsset = mediaMap.get(element.mediaId);
-	if (!mediaAsset?.file || !mediaAsset?.url) {
-		return null;
+	if (!mediaAsset) {
+		throw new Error(`Timeline media asset was not found: ${element.mediaId}`);
+	}
+	if (!mediaAsset.file) {
+		throw new Error(`Timeline media asset has no file: ${mediaAsset.id}`);
 	}
 
 	if (mediaAsset.type === "video") {
@@ -60,7 +63,7 @@ function buildVisualElementNode({
 			}
 
 			const alphaMedia = mediaMap.get(derivedAsset.alphaMediaId);
-			if (!alphaMedia?.file || !alphaMedia?.url) {
+			if (!alphaMedia?.file) {
 				throw new Error("Masked video alpha media asset was not found.");
 			}
 			if (alphaMedia.type !== "video") {
@@ -102,6 +105,7 @@ function buildVisualElementNode({
 	if (mediaAsset.type === "image") {
 		return new ImageNode({
 			url: mediaAsset.url,
+			file: mediaAsset.file,
 			duration: element.duration,
 			timeOffset: element.startTime,
 			trimStart: element.trimStart,
@@ -111,7 +115,7 @@ function buildVisualElementNode({
 		});
 	}
 
-	return null;
+	throw new Error(`Timeline media asset is not visual: ${mediaAsset.id}`);
 }
 
 function getElementEndTime({

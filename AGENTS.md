@@ -120,10 +120,26 @@ Each command extends `Command` from `@/lib/commands/base-command` and implements
 
 Actions and commands work together: actions are "what triggered this", commands are "how to do it (and undo it)".
 
-## Branch Merge Workflow
+## GitHub Management Workflow
 
-When merging a branch, treat remote `origin/main` as the source of truth:
+Use this workflow for code changes that should be published or reviewed. Read-only investigation, local-only prototypes under `/tmp`, and GitHub or CI status checks do not require a PR unless the user asks.
 
-1. Merge the branch into the remote `main` branch first, using the remote PR or merge flow.
-2. After the remote merge succeeds, sync local `main` from `origin/main`.
-3. If local `main` cannot fast-forward from `origin/main`, stop and report the branch drift before making further changes.
+### Before Writing
+
+- Run `git status -sb` and identify the current branch before editing tracked files.
+- If the working tree already contains unrelated modifications, keep the change scoped and do not rewrite, stage, or clean up those files.
+- For non-trivial code changes or PR-bound work, use an isolated feature branch or git worktree before editing. This repo does not define Gxgen's `npm run worktree:*` helpers; do not cite or run those commands unless this repo adds equivalents.
+- In one session, keep tracked-file writes anchored to one branch or worktree. Do not spread one task across multiple worktrees without explicit user approval.
+
+### PR And Review
+
+- Create PRs with an explicit base. Unless repo evidence says otherwise, use `main` / `origin/main` as the base.
+- Verify the exact current head before requesting review, merging, or reporting a clean PR.
+- Separate external review-provider limits from code defects. Quota, billing, spending-limit, account payment, or prepaid-credit failures may be recorded as external gates; real failed checks, request-changes reviews, unresolved actionable comments, or current-head findings must be fixed or escalated.
+
+### Merge And Cleanup
+
+- Merge through the remote PR or remote merge flow first; treat GitHub PR state, merge commit, and `origin/main` as the merge truth.
+- If a local merge command fails after the remote reports merged, re-check GitHub truth before assuming the merge failed.
+- After remote merge succeeds, fast-forward local `main` from `origin/main`. If it cannot fast-forward, stop and report drift.
+- Remove temporary worktrees or local feature branches only after merge truth is verified. Preserve remote branches unless the user explicitly asks to delete them.

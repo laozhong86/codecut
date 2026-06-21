@@ -713,6 +713,11 @@ describe("codex bridge CLI helpers", () => {
 					expect(args).toContain("--itemize-changes");
 					return { stdout: "", stderr: "" };
 				},
+				nodeRendererProbe: async () => ({
+					id: "node_renderer",
+					ok: true,
+					message: "Node Canvas/WebCodecs renderer is available.",
+				}),
 				fetchImpl: async (url, init) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -737,6 +742,7 @@ describe("codex bridge CLI helpers", () => {
 				["cache_plugin", true],
 				["plugin_sync", true],
 				["environment", true],
+				["node_renderer", true],
 				["web_service", true],
 				["executor_project", true],
 			]);
@@ -799,6 +805,11 @@ describe("codex bridge CLI helpers", () => {
 					stdout: ">fcs....... scripts/codex-bridge.mjs\n",
 					stderr: "",
 				}),
+				nodeRendererProbe: async () => ({
+					id: "node_renderer",
+					ok: true,
+					message: "Node Canvas/WebCodecs renderer is available.",
+				}),
 				fetchImpl: async (url) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -852,6 +863,11 @@ describe("codex bridge CLI helpers", () => {
 					CODECUT_AGENT_BRIDGE_TOKEN: "secret-token",
 					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
 				},
+				nodeRendererProbe: async () => ({
+					id: "node_renderer",
+					ok: true,
+					message: "Node Canvas/WebCodecs renderer is available.",
+				}),
 				fetchImpl: async () => {
 					throw new Error("fetch should not run without valid env");
 				},

@@ -64,6 +64,22 @@ function maskedVideoTrack(): TimelineTrack {
 }
 
 describe("buildScene masked video", () => {
+	test("builds visual nodes from executor media files without blob URLs", () => {
+		const scene = buildScene({
+			tracks: [maskedVideoTrack()],
+			mediaAssets: [
+				videoAsset({ url: undefined }),
+				videoAsset({ id: "alpha-1", url: undefined }),
+			],
+			derivedAssets: [personMask()],
+			duration: 4,
+			canvasSize: { width: 1080, height: 1920 },
+			background: { type: "color", color: "#000000" },
+		});
+
+		expect(scene.children.length).toBeGreaterThan(0);
+	});
+
 	test("rejects masked video when the derived asset is missing", () => {
 		expect(() =>
 			buildScene({

@@ -1,29 +1,22 @@
 import type { CanvasRenderer } from "../canvas-renderer";
+import type { RendererImage } from "../runtime";
 import { VisualNode, type VisualNodeParams } from "./visual-node";
 
 export interface ImageNodeParams extends VisualNodeParams {
-	url: string;
+	url?: string;
+	file?: File;
 }
 
 export class ImageNode extends VisualNode<ImageNodeParams> {
-	private image?: HTMLImageElement;
-	private readyPromise: Promise<void>;
+	private readyPromise?: Promise<RendererImage>;
 
-	constructor(params: ImageNodeParams) {
-		super(params);
-		this.readyPromise = this.load();
-	}
-
-	private async load() {
-		const image = new Image();
-		image.crossOrigin = "anonymous";
-		this.image = image;
-
-		await new Promise<void>((resolve, reject) => {
-			image.onload = () => resolve();
-			image.onerror = () => reject(new Error("Image load failed"));
-			image.src = this.params.url;
-		});
+	private load({ renderer }: { renderer: CanvasRenderer }) {
+		if (!this.readyPromise) {
+			this.readyPromise = renderer.runtime
+				.loadImage({ url: this.params.url, file: this.params.file })
+				.then((image) => image);
+		}
+		return this.readyPromise;
 	}
 
 	async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
@@ -33,18 +26,14 @@ export class ImageNode extends VisualNode<ImageNodeParams> {
 			return;
 		}
 
-		await this.readyPromise;
+		const image = await this.load({ renderer });
 
-		if (!this.image) {
-			return;
-		}
-
-		const mediaW = this.image.naturalWidth || renderer.width;
-		const mediaH = this.image.naturalHeight || renderer.height;
+		const mediaW = image.naturalWidth || image.width || renderer.width;
+		const mediaH = image.naturalHeight || image.height || renderer.height;
 
 		this.renderVisual({
 			renderer,
-			source: this.image,
+			source: image,
 			sourceWidth: mediaW,
 			sourceHeight: mediaH,
 		});

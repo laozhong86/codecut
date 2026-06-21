@@ -1,27 +1,9 @@
 import type { CanvasRenderer } from "../canvas-renderer";
 import { VideoNode, type VideoNodeParams } from "./video-node";
-import { videoCache } from "@/services/video-cache/service";
 
 export interface MaskedVideoNodeParams extends VideoNodeParams {
 	alphaMediaId: string;
 	alphaFile: File;
-}
-
-function createCanvas({
-	width,
-	height,
-}: {
-	width: number;
-	height: number;
-}): OffscreenCanvas | HTMLCanvasElement {
-	if (typeof OffscreenCanvas !== "undefined") {
-		return new OffscreenCanvas(width, height);
-	}
-
-	const canvas = document.createElement("canvas");
-	canvas.width = width;
-	canvas.height = height;
-	return canvas;
 }
 
 export class MaskedVideoNode extends VideoNode {
@@ -34,12 +16,12 @@ export class MaskedVideoNode extends VideoNode {
 
 		const videoTime = this.getLocalTime(time);
 		const [sourceFrame, alphaFrame] = await Promise.all([
-			videoCache.getFrameAt({
+			renderer.runtime.getFrameAt({
 				mediaId: this.params.mediaId,
 				file: this.params.file,
 				time: videoTime,
 			}),
-			videoCache.getFrameAt({
+			renderer.runtime.getFrameAt({
 				mediaId: this.params.alphaMediaId,
 				file: this.params.alphaFile,
 				time: videoTime,
@@ -53,7 +35,7 @@ export class MaskedVideoNode extends VideoNode {
 			throw new Error("Masked video alpha frame is missing.");
 		}
 
-		const maskCanvas = createCanvas({
+		const maskCanvas = renderer.createCanvas({
 			width: sourceFrame.canvas.width,
 			height: sourceFrame.canvas.height,
 		});

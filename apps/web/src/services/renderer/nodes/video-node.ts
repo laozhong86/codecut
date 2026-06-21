@@ -1,9 +1,8 @@
 import type { CanvasRenderer } from "../canvas-renderer";
 import { VisualNode, type VisualNodeParams } from "./visual-node";
-import { videoCache } from "@/services/video-cache/service";
 
 export interface VideoNodeParams extends VisualNodeParams {
-	url: string;
+	url?: string;
 	file: File;
 	mediaId: string;
 }
@@ -17,7 +16,7 @@ export class VideoNode extends VisualNode<VideoNodeParams> {
 		}
 
 		const videoTime = this.getLocalTime(time);
-		const frame = await videoCache.getFrameAt({
+		const frame = await renderer.runtime.getFrameAt({
 			mediaId: this.params.mediaId,
 			file: this.params.file,
 			time: videoTime,

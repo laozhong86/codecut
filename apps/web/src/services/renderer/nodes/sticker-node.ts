@@ -1,4 +1,5 @@
 import type { CanvasRenderer } from "../canvas-renderer";
+import type { RendererImage } from "../runtime";
 import { VisualNode, type VisualNodeParams } from "./visual-node";
 
 export interface StickerNodeParams extends VisualNodeParams {
@@ -7,29 +8,16 @@ export interface StickerNodeParams extends VisualNodeParams {
 }
 
 export class StickerNode extends VisualNode<StickerNodeParams> {
-	private image?: HTMLImageElement;
-	private readyPromise: Promise<void>;
+	private readyPromise?: Promise<RendererImage>;
 
-	constructor(params: StickerNodeParams) {
-		super(params);
-		this.readyPromise = this.load();
-	}
-
-	private async load() {
-		const image = new Image();
-		image.crossOrigin = "anonymous";
-		this.image = image;
-		const color = this.params.color
-			? `&color=${encodeURIComponent(this.params.color)}`
-			: "";
-		const url = `https://api.iconify.design/${this.params.iconName}.svg?width=200&height=200${color}`;
-
-		await new Promise<void>((resolve, reject) => {
-			image.onload = () => resolve();
-			image.onerror = () =>
-				reject(new Error(`Failed to load sticker: ${this.params.iconName}`));
-			image.src = url;
-		});
+	private load({ renderer }: { renderer: CanvasRenderer }) {
+		if (!this.readyPromise) {
+			this.readyPromise = renderer.runtime.loadSticker({
+				iconName: this.params.iconName,
+				color: this.params.color,
+			});
+		}
+		return this.readyPromise;
 	}
 
 	async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
@@ -39,17 +27,13 @@ export class StickerNode extends VisualNode<StickerNodeParams> {
 			return;
 		}
 
-		await this.readyPromise;
-
-		if (!this.image) {
-			return;
-		}
+		const image = await this.load({ renderer });
 
 		this.renderVisual({
 			renderer,
-			source: this.image,
-			sourceWidth: 200,
-			sourceHeight: 200,
+			source: image,
+			sourceWidth: image.width || image.naturalWidth || 200,
+			sourceHeight: image.height || image.naturalHeight || 200,
 		});
 	}
 }
