@@ -102,10 +102,11 @@ Do not stop at framework analysis. Execute the workflow.
 6. If the target is vertical or square, call `update_project_settings` before applying the EditPlan.
 7. Run `import-media` with the absolute file path.
 8. Run `list_media_assets`, select the imported audio/video asset, then run `transcribe`.
-9. Generate one strict EditPlan v1 and write it to a temporary local JSON file.
-10. Run `apply-plan --replace-existing true` for the newly created empty project.
-11. Run `get_timeline_state` and report the verified duration, track count, clip count, caption count, project ID, and editor URL.
-12. Do not export unless the user explicitly asks for export after preview and an implemented export path is available.
+9. Run `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
+10. Generate one strict EditPlan v1 and write it to a temporary local JSON file.
+11. Run `apply-plan --replace-existing true` for the newly created empty project.
+12. Run `get_timeline_state` and report the verified duration, track count, clip count, caption count, project ID, and editor URL.
+13. Do not export unless the user explicitly asks for export after preview and an implemented export path is available.
 
 For this path, keep progress updates operational. Avoid long meta commentary about plugin location, cache paths, or framework provenance unless a command fails.
 

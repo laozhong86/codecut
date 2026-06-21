@@ -322,9 +322,10 @@ When the request includes one absolute local media file and a concrete target su
 4. Import the local file.
 5. List media and select the imported audio/video asset.
 6. Transcribe through the local executor.
-7. Generate and apply one EditPlan v1.
-8. Verify with `get_timeline_state`.
-9. Provide the editor URL for human preview.
+7. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
+8. Generate and apply one EditPlan v1.
+9. Verify with `get_timeline_state`.
+10. Provide the editor URL for human preview.
 
 Do not spend the first turn auditing all skill references. Read only the workflow document and the matching recipe unless an implementation or validation failure requires deeper reference lookup.
 
