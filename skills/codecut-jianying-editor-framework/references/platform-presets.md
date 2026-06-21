@@ -2,6 +2,8 @@
 
 Use platform presets to constrain EditPlan defaults. Presets are planning defaults, not hidden runtime fallbacks. If the user gives a different requirement, use the user's explicit requirement and state the tradeoff.
 
+P0 video templates read these presets as parameter guidance after template resolution. Presets do not select a weaker template, invent missing evidence, or repair unsupported execution paths. The execution order is material audit -> template resolve -> platform preset parameters -> decision ledger or strict plan -> apply -> readback.
+
 ## Short-Form Vertical
 
 Applies to TikTok, Reels, Shorts, and similar feeds.
@@ -13,7 +15,7 @@ Applies to TikTok, Reels, Shorts, and similar feeds.
 | FPS | 30 |
 | Duration | 15-45 seconds |
 | Structure | hook -> proof/demo -> value beat -> CTA or loop |
-| Captions | `talking-head-pop` for opinion/talking-head, `product-punch` for product hooks, `short-form-bold` fallback |
+| Captions | Resolved template caption preset, such as `talking-head-pop` or `product-punch`; no hidden fallback |
 | BGM with voice | 0.08-0.14 |
 | BGM without voice | 0.18-0.28 |
 | Decision ledger | Required before EditPlan when the request is a platform cut, highlight, or broad short-form improvement |
@@ -146,7 +148,7 @@ Use implemented caption presets only:
 - `product-punch`: product proof, UGC ad, deal hook, comparison demo, before/after.
 - `lifestyle-warm`: vlog, Xiaohongshu-style lifestyle, food, travel, daily routine, soft recommendation.
 - `cinematic-serif`: brand story, fashion, emotional montage, premium product film.
-- `short-form-bold`: generic short-form fallback when no stronger type signal exists.
+- `short-form-bold`: generic short-form route only when the user request is explicitly generic and no P0 template is selected; do not use it as a hidden fallback.
 - `black-bar`: only when the user explicitly wants a boxed subtitle look; Do not use it to mask burned-in captions.
 
 ## Preset Selection

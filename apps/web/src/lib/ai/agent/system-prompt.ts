@@ -56,8 +56,7 @@ ${characters
 		if (c.gender) parts.push(`  Gender: ${c.gender}`);
 		if (c.age) parts.push(`  Age range: ${c.age}`);
 		if (c.description) parts.push(`  Description: ${c.description}`);
-		if (c.styleDescription)
-			parts.push(`  Style Lock: ${c.styleDescription}`);
+		if (c.styleDescription) parts.push(`  Style Lock: ${c.styleDescription}`);
 		return parts.join("\n");
 	})
 	.join("\n")}
@@ -112,6 +111,14 @@ You can:
 5. Keep the user informed about what you're doing and why.
 6. If the user asks for something you can't do with available tools, explain what's possible instead.
 7. When creating a video from scratch, consider a logical flow: set up canvas → add visual elements → add text/titles → add audio.
+
+## P0 Video Template Contract
+- Before writing an EditingDecisionLedger, EditPlan, or NarratedRemixPlan, choose one VideoTemplateId: talking-head-short, tutorial-demo, product-proof-ad, or narrated-broll.
+- Templates are planning constraints, not runtime fallbacks. If the selected template's required evidence or supported execution path is missing, report the stop condition instead of using a weaker template.
+- talking-head-short uses transcript evidence, SpeechCleanupPlan when removing filler or restarts, then an EditPlan v1 projection.
+- tutorial-demo uses transcript plus visible step evidence and must preserve a problem -> step 1 -> step 2 -> result structure.
+- product-proof-ad requires product facts and visual proof; every claim must map to transcript, visible evidence, or supplied product facts.
+- narrated-broll uses NarratedRemixPlan v1 only. It requires existing narration audio and video B-roll, and does not support TTS, BGM, SFX, image B-roll, effects, or append mode.
 
 ## Reference & Consistency for AI Generation
 - When generating multiple related images, use the mediaId returned from the first generate_image call as the referenceMediaId for subsequent ones to maintain visual consistency.

@@ -49,7 +49,7 @@ export function executeApplyEditPlanTool({
 export const applyEditPlanTool: AgentTool = {
 	name: "apply_edit_plan",
 	description:
-		"Validate and apply a Codex-generated EditPlan to the current Codecut timeline. This tool does not generate plans or call an LLM.",
+		"Validate and apply a Codex-generated EditPlan to the current Codecut timeline. P0 video template ids that can use this path are talking-head-short, tutorial-demo, and product-proof-ad. This tool does not generate plans, call an LLM, apply template marketplace effects, or silently repair unsupported template requests.",
 	parameters: {
 		type: "object",
 		properties: {

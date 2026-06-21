@@ -10,21 +10,30 @@ Pick the narrowest workflow that satisfies the user outcome. If the user asks fo
 
 After classifying the request, read the matching workflow recipe before generating an EditPlan or sending bridge commands. Recipes are execution guidance for the current Codecut MVP; they do not imply new bridge tools.
 
+Before writing an EditingDecisionLedger, EditPlan, or NarratedRemixPlan, resolve a P0 video template when the request matches one of the implemented manifests in `apps/web/src/lib/video-templates/registry.ts`. The template is a planning constraint, not a runtime fallback. If required evidence is missing, stop and report the template stop condition instead of choosing a weaker template.
+
+P0 template ids:
+
+- `talking-head-short`: transcript-backed talking-head cleanup or short-form polish.
+- `tutorial-demo`: transcript plus visible step evidence for tutorial or software demo.
+- `product-proof-ad`: product facts plus visual proof for UGC/product conversion.
+- `narrated-broll`: existing narration audio plus imported video B-roll through NarratedRemixPlan v1 only.
+
 ## Intent Types
 
-| Intent | User wording | Primary value | Required context | Recipe | Current status |
-| --- | --- | --- | --- | --- | --- |
-| Long-to-short | "把长视频剪成短视频", "提炼精华", "剪成 45 秒" | Compression | transcript, source duration, optional scenes | [long-to-short](workflow-recipes/long-to-short.md) | Implemented through EditingDecisionLedger plus EditPlan v1 |
-| Talking-head polish | "去废话", "剪紧凑", "口播精剪" | Pace and clarity | transcript, optional silence spans, source duration | [talking-head-polish](workflow-recipes/talking-head-polish.md) | Codex transcript-first planning is implemented; word-boundary enforcement is not automatic |
-| TikTok/Reels/Shorts | "TikTok 版", "9:16", "爆款开头" | Platform fit | transcript, aspect ratio, optional scenes | [long-to-short](workflow-recipes/long-to-short.md) | Implemented as long-to-short plus EditingDecisionLedger and explicit project settings; EditPlan aspectRatio does not mutate canvas |
-| Tutorial/demo | "教程", "软件演示", "步骤讲清楚" | Comprehension | transcript, OCR/UI text, scene steps | [long-to-short](workflow-recipes/long-to-short.md) plus visual-context warnings | Gated when OCR/scene context is missing |
-| UGC/product ad | "商品短视频", "带货", "广告", "转化", "转化型短视频" | Proof and conversion | visual proof, transcript claims, product context | [long-to-short](workflow-recipes/long-to-short.md) plus claim guardrails | Requires EditingDecisionLedger; gated when proof or offer facts are missing |
-| AI video re-edit | "AI 视频二创", "AI 成片修一下" | Remove artifacts and tighten story | keyframes/contact sheet, transcript if any | [timeline-inspection](workflow-recipes/timeline-inspection.md) before any edit | Gated until visual context exists |
-| Subtitle/caption pass | "加字幕", "字幕好看点", "翻译字幕" | Readability | transcript or supplied captions | [subtitle-pass](workflow-recipes/subtitle-pass.md) | Implemented within EditPlan v1 caption limits |
-| Voiceover/narration | "配音", "旁白", "讲解" | Narrative clarity | script, existing audio path, target duration | [voiceover-remix](workflow-recipes/voiceover-remix.md) | Existing audio insertion is implemented; bridge-exposed speech generation and multi-source remix are gated |
-| Timeline inspection | "看看项目里有什么", "验证剪辑结果", "能导出吗" | Confidence before mutation/export | active editor project, timeline state | [timeline-inspection](workflow-recipes/timeline-inspection.md) | Implemented read-only |
-| Template/style application | "套模板", "像这个风格", "统一样式" | Reusable visual language | template/style reference, existing timeline | [timeline-inspection](workflow-recipes/timeline-inspection.md) first | Future/gated unless expressible in EditPlan v1 |
-| Batch variants | "批量剪", "多个版本", "不同角度" | Scale | shared assets, variant goals | [long-to-short](workflow-recipes/long-to-short.md) per variant | Gated; run one verified variant before scaling |
+| Intent | Template ID | User wording | Primary value | Required context | Recipe | Current status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Long-to-short | Resolve by business goal | "把长视频剪成短视频", "提炼精华", "剪成 45 秒" | Compression | transcript, source duration, optional scenes | [long-to-short](workflow-recipes/long-to-short.md) | Implemented through EditingDecisionLedger plus EditPlan v1 |
+| Talking-head polish | `talking-head-short` | "去废话", "剪紧凑", "口播精剪" | Pace and clarity | transcript, optional silence spans, source duration | [talking-head-polish](workflow-recipes/talking-head-polish.md) | Codex transcript-first planning is implemented; word-boundary enforcement is not automatic |
+| TikTok/Reels/Shorts | Resolve by business goal | "TikTok 版", "9:16", "爆款开头" | Platform fit | transcript, aspect ratio, optional scenes | [long-to-short](workflow-recipes/long-to-short.md) | Implemented as long-to-short plus EditingDecisionLedger and explicit project settings; EditPlan aspectRatio does not mutate canvas |
+| Tutorial/demo | `tutorial-demo` | "教程", "软件演示", "步骤讲清楚" | Comprehension | transcript, OCR/UI text, scene steps | [long-to-short](workflow-recipes/long-to-short.md) plus visual-context warnings | Gated when OCR/scene context is missing |
+| UGC/product ad | `product-proof-ad` | "商品短视频", "带货", "广告", "转化", "转化型短视频" | Proof and conversion | visual proof, transcript claims, product context | [long-to-short](workflow-recipes/long-to-short.md) plus claim guardrails | Requires EditingDecisionLedger; gated when proof or offer facts are missing |
+| AI video re-edit | None in P0 | "AI 视频二创", "AI 成片修一下" | Remove artifacts and tighten story | keyframes/contact sheet, transcript if any | [timeline-inspection](workflow-recipes/timeline-inspection.md) before any edit | Gated until visual context exists |
+| Subtitle/caption pass | None in P0 | "加字幕", "字幕好看点", "翻译字幕" | Readability | transcript or supplied captions | [subtitle-pass](workflow-recipes/subtitle-pass.md) | Implemented within EditPlan v1 caption limits |
+| Voiceover/narration | `narrated-broll` when existing narration and video B-roll exist | "配音", "旁白", "讲解" | Narrative clarity | script, existing audio path, target duration | [voiceover-remix](workflow-recipes/voiceover-remix.md) | Existing audio insertion is implemented; bridge-exposed speech generation and multi-source remix are gated |
+| Timeline inspection | None in P0 | "看看项目里有什么", "验证剪辑结果", "能导出吗" | Confidence before mutation/export | active editor project, timeline state | [timeline-inspection](workflow-recipes/timeline-inspection.md) | Implemented read-only |
+| Template/style application | Only if expressible as a P0 manifest | "套模板", "像这个风格", "统一样式" | Reusable visual language | template/style reference, existing timeline | [timeline-inspection](workflow-recipes/timeline-inspection.md) first | Future/gated unless expressible in EditPlan v1 |
+| Batch variants | Resolve per variant | "批量剪", "多个版本", "不同角度" | Scale | shared assets, variant goals | [long-to-short](workflow-recipes/long-to-short.md) per variant | Gated; run one verified variant before scaling |
 
 ## Recipe Selection Rule
 
@@ -57,6 +66,8 @@ Default for MVP: 30-60 seconds, transcript-first, no visual highlighter required
 
 ### Talking-head polish
 
+P0 template: `talking-head-short`.
+
 Read [talking-head-polish](workflow-recipes/talking-head-polish.md) before executing.
 
 1. Use transcript and silence spans.
@@ -80,6 +91,8 @@ Acceptance: project settings reflect the requested vertical target, hook exists,
 
 ### Tutorial/demo
 
+P0 template: `tutorial-demo`.
+
 Route to [long-to-short](workflow-recipes/long-to-short.md) only if transcript or visible step context is available. Otherwise stop and report missing OCR/scene context.
 
 1. Preserve logical sequence over virality.
@@ -90,6 +103,8 @@ Route to [long-to-short](workflow-recipes/long-to-short.md) only if transcript o
 Acceptance: viewer can follow what happened without reading the whole transcript.
 
 ### UGC/product ad
+
+P0 template: `product-proof-ad`.
 
 Route to [long-to-short](workflow-recipes/long-to-short.md) only when product facts and proof are available. Otherwise ask for the missing business facts before generating claims.
 
@@ -122,6 +137,8 @@ Read [subtitle-pass](workflow-recipes/subtitle-pass.md) before executing.
 Acceptance: captions are readable, timed, and verified through timeline state.
 
 ### Voiceover/narration
+
+P0 template: `narrated-broll` only when existing narration audio and imported video B-roll are both available.
 
 Read [voiceover-remix](workflow-recipes/voiceover-remix.md) before planning or executing.
 
