@@ -27,6 +27,52 @@ describe("video context", () => {
 		).rejects.toThrow("Transcription range is required.");
 	});
 
+	test("transcribeMediaRangeWithNodeRuntime rejects negative range starts", async () => {
+		await expect(
+			transcribeMediaRangeWithNodeRuntime({
+				mediaAsset: {
+					id: "media-1",
+					name: "source.mp4",
+					path: "/tmp/source.mp4",
+				},
+				language: "zh",
+				modelId: "whisper-large-v3-turbo",
+				range: { start: -1, end: 1 },
+			}),
+		).rejects.toThrow(
+			"Transcription range start must be a finite non-negative number.",
+		);
+	});
+
+	for (const invalidRange of [
+		{
+			name: "NaN start",
+			range: { start: Number.NaN, end: 1 },
+			expectedError:
+				"Transcription range start must be a finite non-negative number.",
+		},
+		{
+			name: "infinite end",
+			range: { start: 0, end: Number.POSITIVE_INFINITY },
+			expectedError: "Transcription range end must be a finite number.",
+		},
+	] as const) {
+		test(`transcribeMediaRangeWithNodeRuntime rejects ${invalidRange.name}`, async () => {
+			await expect(
+				transcribeMediaRangeWithNodeRuntime({
+					mediaAsset: {
+						id: "media-1",
+						name: "source.mp4",
+						path: "/tmp/source.mp4",
+					},
+					language: "zh",
+					modelId: "whisper-large-v3-turbo",
+					range: invalidRange.range,
+				}),
+			).rejects.toThrow(invalidRange.expectedError);
+		});
+	}
+
 	test("transcribeMediaRangeWithNodeRuntime rejects non-positive durations", async () => {
 		await expect(
 			transcribeMediaRangeWithNodeRuntime({

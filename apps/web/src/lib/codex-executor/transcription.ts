@@ -89,10 +89,18 @@ function ffmpegAudioArgs({
 }): string[] {
 	const args = ["-v", "error"];
 	if (range) {
-		const duration = range.end - range.start;
-		if (duration <= 0) {
+		if (!Number.isFinite(range.start) || range.start < 0) {
+			throw new Error(
+				"Transcription range start must be a finite non-negative number.",
+			);
+		}
+		if (!Number.isFinite(range.end)) {
+			throw new Error("Transcription range end must be a finite number.");
+		}
+		if (range.end <= range.start) {
 			throw new Error("Transcription range duration must be positive.");
 		}
+		const duration = range.end - range.start;
 		args.push("-ss", String(range.start), "-t", String(duration));
 	}
 	return [
