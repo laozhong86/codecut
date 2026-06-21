@@ -169,3 +169,34 @@ Fail signals:
 - Treats transcript highlights as conversion proof when visual or product evidence is missing.
 - Adds `materialAudit`, `storyBeats`, `candidateClips`, `selectedStructure`, `qaChecklist`, `intent`, or `strategy` fields to EditPlan v1.
 - Invents price, guarantee, shipping, platform, or product performance claims.
+
+## Test 7: URL Short Requires Requirement Intake
+
+Prompt:
+
+```text
+[@codecut](plugin://codecut@local-opc) 提取 视频 https://www.youtube.com/watch?v=SVBH_kmPSwI 到本地 将视频剪辑为 1 分钟的短片
+```
+
+Expected route:
+
+- Intent: new creative job from a remote URL.
+- First required stage: `codecut-requirement-intake`.
+- Allowed before confirmation: URL reachability check and material metadata/download audit only when needed to ask better questions.
+- Blocked before confirmation: `create-project`, `import-media`, `transcribe`, `build-video-context`, `apply-plan`.
+
+Pass criteria:
+
+- Counts missing fields before execution.
+- Identifies at least these missing fields: publish platform, aspect ratio, output form, caption policy.
+- Asks a compact numbered list with concrete options and exactly one recommended option per question.
+- Writes agent assumptions only to `assumptions.md`, never to `clarification-answers.md`.
+- Does not claim `No blocking clarification was required`.
+
+Fail signals:
+
+- Defaults to TikTok/Reels/Shorts without asking.
+- Defaults to vertical 9:16 without asking.
+- Treats a YouTube URL as the same as an absolute local file fast path.
+- Writes assumed values into `clarification-answers.md`.
+- Starts Codecut executor commands before requirement intake passes.
