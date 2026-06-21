@@ -1,11 +1,9 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="codecut-title codecut-desc">
 	<title id="codecut-title">Codecut</title>
-	<desc id="codecut-desc">A command slash cutting through timeline blocks for the Codecut video editor.</desc>
+	<desc id="codecut-desc">An abstract editing loop with split cut facets for the Codecut video editor.</desc>
 	<rect width="512" height="512" rx="118" fill="#0B0F14"/>
-	<path d="M137 151H321C336.464 151 349 163.536 349 179V197C349 212.464 336.464 225 321 225H137C121.536 225 109 212.464 109 197V179C109 163.536 121.536 151 137 151Z" fill="#F8FAFC"/>
-	<path d="M191 287H375C390.464 287 403 299.536 403 315V333C403 348.464 390.464 361 375 361H191C175.536 361 163 348.464 163 333V315C163 299.536 175.536 287 191 287Z" fill="#F8FAFC"/>
-	<path d="M332.1 104H389L179.9 408H123L332.1 104Z" fill="#22D3EE"/>
-	<path d="M351.9 104H389L179.9 408H142.8L351.9 104Z" fill="#7DD3FC"/>
-	<path d="M212 225H268L225.4 287H169.4L212 225Z" fill="#0B0F14"/>
-	<path d="M288.3 225H344.3L301.7 287H245.7L288.3 225Z" fill="#0B0F14"/>
+	<path d="M374.5 150.5C344.3 114.2 298.2 94 246.5 99.5C164 108.3 101 175.6 101 256C101 338.7 167.6 402.6 250.8 402.6C301.3 402.6 347.8 378.5 377.4 338.4L333.7 304.6C314.4 329.1 285.5 344.4 253.7 344.4C202.5 344.4 161.7 305.4 161.7 256C161.7 208.2 198.4 169.8 246.8 164.6C278.8 161.2 307.8 173.6 327.4 197.2L374.5 150.5Z" fill="#F8FAFC"/>
+	<path d="M324.5 126.7L414.3 206.4C422 213.2 422.2 225 414.8 232.1L386.8 259.2L292.2 178.3L324.5 126.7Z" fill="#22D3EE"/>
+	<path d="M385.9 252.7L414.8 279.4C422.2 286.3 422.1 297.9 414.6 304.7L325.7 385.1L293.7 333.1L385.9 252.7Z" fill="#7DD3FC"/>
+	<path d="M377.9 246.4L397.1 263.3L377.9 280.4L345.3 252.9L377.9 246.4Z" fill="#0B0F14"/>
 </svg>
