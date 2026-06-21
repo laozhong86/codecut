@@ -16,6 +16,7 @@ type FetchLike = (
 
 const RUNNINGHUB_POLL_INTERVAL_MS = 5000;
 const RUNNINGHUB_MAX_POLL_ATTEMPTS = 120;
+const RUNNINGHUB_AI_APP_RUN_ENDPOINT = `${RUNNINGHUB_API_BASE}/task/openapi/ai-app/run`;
 
 function runningHubHeaders({ apiKey }: { apiKey: string }) {
 	if (!apiKey) {
@@ -37,14 +38,25 @@ async function parseRunningHubJson({
 		throw new Error(`RunningHub returned non-JSON response: ${text}`);
 	}
 
+	const message =
+		(typeof payload.errorMessage === "string" && payload.errorMessage) ||
+		(typeof payload.message === "string" && payload.message) ||
+		(typeof payload.msg === "string" && payload.msg) ||
+		(typeof payload.error === "string" && payload.error) ||
+		(typeof payload.failedReason === "string" && payload.failedReason) ||
+		null;
 	if (!response.ok) {
-		const message =
-			typeof payload.errorMessage === "string" && payload.errorMessage
-				? payload.errorMessage
-				: typeof payload.message === "string" && payload.message
-					? payload.message
-					: `RunningHub request failed: ${response.status}`;
-		throw new Error(message);
+		throw new Error(message || `RunningHub request failed: ${response.status}`);
+	}
+	const code = payload.code;
+	if (
+		code !== undefined &&
+		code !== 0 &&
+		code !== 200 &&
+		code !== "0" &&
+		code !== "200"
+	) {
+		throw new Error(message || `RunningHub request failed with code ${code}`);
 	}
 	return payload;
 }
@@ -65,33 +77,37 @@ export async function submitRunningHubVoiceDesignTask({
 		throw new Error("Emotion / voice description is required");
 	}
 
-	const response = await fetchImpl(
-		`${RUNNINGHUB_API_BASE}/openapi/v2/run/ai-app/${RUNNINGHUB_VOICE_DESIGN_APP_ID}`,
-		{
-			method: "POST",
-			headers: {
-				...runningHubHeaders({ apiKey }),
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(
-				buildRunningHubVoiceDesignSubmitBody({
-					text: request.text.trim(),
-					emotionPrompt: request.emotionPrompt.trim(),
-				}),
-			),
+	const response = await fetchImpl(RUNNINGHUB_AI_APP_RUN_ENDPOINT, {
+		method: "POST",
+		headers: {
+			...runningHubHeaders({ apiKey }),
+			"Content-Type": "application/json",
 		},
-	);
+		body: JSON.stringify({
+			webappId: RUNNINGHUB_VOICE_DESIGN_APP_ID,
+			...buildRunningHubVoiceDesignSubmitBody({
+				text: request.text.trim(),
+				emotionPrompt: request.emotionPrompt.trim(),
+			}),
+		}),
+	});
 	const payload = await parseRunningHubJson({ response });
-	const taskId = payload.taskId;
+	const data = payload.data as {
+		taskId?: unknown;
+		taskStatus?: unknown;
+		status?: unknown;
+		errorMessage?: unknown;
+	} | null;
+	const taskId = data?.taskId;
 	if (typeof taskId !== "string" || !taskId) {
 		throw new Error("RunningHub submit returned no task ID");
 	}
-	const status = String(payload.status ?? "QUEUED");
+	const status = String(data?.taskStatus ?? data?.status ?? "QUEUED");
 	return {
 		taskId,
 		status: normalizeRunningHubVoiceDesignStatus({ status }),
-		...(typeof payload.errorMessage === "string" && payload.errorMessage
-			? { error: payload.errorMessage }
+		...(typeof data?.errorMessage === "string" && data.errorMessage
+			? { error: data.errorMessage }
 			: {}),
 	};
 }

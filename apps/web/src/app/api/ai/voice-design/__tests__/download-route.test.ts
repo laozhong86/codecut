@@ -8,11 +8,6 @@ describe("voice design result download route", () => {
 	test("accepts RunningHub audio result hosts", () => {
 		expect(
 			assertAllowedRunningHubAudioUrl({
-				url: "https://www.runninghub.cn/output/result.wav",
-			}).hostname,
-		).toBe("www.runninghub.cn");
-		expect(
-			assertAllowedRunningHubAudioUrl({
 				url: "https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.wav",
 			}).hostname,
 		).toBe("rh-images-1252422369.cos.ap-beijing.myqcloud.com");
@@ -27,6 +22,16 @@ describe("voice design result download route", () => {
 		expect(() =>
 			assertAllowedRunningHubAudioUrl({
 				url: "https://other-tenant.cos.ap-beijing.myqcloud.com/output/result.wav",
+			}),
+		).toThrow("RunningHub result URL host is not allowed");
+		expect(() =>
+			assertAllowedRunningHubAudioUrl({
+				url: "https://www.runninghub.cn/output/result.wav",
+			}),
+		).toThrow("RunningHub result URL host is not allowed");
+		expect(() =>
+			assertAllowedRunningHubAudioUrl({
+				url: "https://rh-images-attacker.cos.ap-beijing.myqcloud.com/output/result.wav",
 			}),
 		).toThrow("RunningHub result URL host is not allowed");
 	});
@@ -61,7 +66,7 @@ describe("voice design result download route", () => {
 	test("rejects non-audio result bodies", async () => {
 		await expect(
 			downloadRunningHubAudioResult({
-				url: "https://www.runninghub.cn/output/result.wav",
+				url: "https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.wav",
 				fetchImpl: async () =>
 					new Response("not-audio", {
 						headers: { "content-type": "text/plain" },

@@ -8,11 +8,6 @@ describe("digital human result download route", () => {
 	test("accepts RunningHub result hosts", () => {
 		expect(
 			assertAllowedRunningHubUrl({
-				url: "https://www.runninghub.cn/output/result.mp4",
-			}).hostname,
-		).toBe("www.runninghub.cn");
-		expect(
-			assertAllowedRunningHubUrl({
 				url: "https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.mp4",
 			}).hostname,
 		).toBe("rh-images-1252422369.cos.ap-beijing.myqcloud.com");
@@ -27,6 +22,16 @@ describe("digital human result download route", () => {
 		expect(() =>
 			assertAllowedRunningHubUrl({
 				url: "https://other-tenant.cos.ap-beijing.myqcloud.com/output/result.mp4",
+			}),
+		).toThrow("RunningHub result URL host is not allowed");
+		expect(() =>
+			assertAllowedRunningHubUrl({
+				url: "https://www.runninghub.cn/output/result.mp4",
+			}),
+		).toThrow("RunningHub result URL host is not allowed");
+		expect(() =>
+			assertAllowedRunningHubUrl({
+				url: "https://rh-images-attacker.cos.ap-beijing.myqcloud.com/output/result.mp4",
 			}),
 		).toThrow("RunningHub result URL host is not allowed");
 	});
@@ -61,7 +66,7 @@ describe("digital human result download route", () => {
 	test("rejects non-video result bodies", async () => {
 		await expect(
 			downloadRunningHubResult({
-				url: "https://www.runninghub.cn/output/result.mp4",
+				url: "https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.mp4",
 				fetchImpl: async () =>
 					new Response("not-video", {
 						headers: { "content-type": "text/plain" },

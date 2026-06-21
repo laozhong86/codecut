@@ -93,6 +93,71 @@ describe("RunningHub voice design provider", () => {
 		).rejects.toThrow("submit failed");
 	});
 
+	test("submits the voice design AI App through the webapp run contract", async () => {
+		const request = {
+			text: "把肩膀沉下来，深呼吸。",
+			emotionPrompt: "温柔、低沉、安抚感强的心理咨询师声音",
+		};
+		const calls: Array<{ url: string; init?: RequestInit }> = [];
+
+		const result = await submitRunningHubVoiceDesignTask({
+			apiKey: "rh-key",
+			request,
+			fetchImpl: async (url, init) => {
+				calls.push({ url: String(url), init });
+				return new Response(
+					JSON.stringify({
+						code: 0,
+						msg: "success",
+						data: {
+							taskId: "voice-task-1",
+							taskStatus: "RUNNING",
+						},
+					}),
+				);
+			},
+		});
+
+		expect(calls).toHaveLength(1);
+		expect(calls[0].url).toBe(
+			"https://www.runninghub.cn/task/openapi/ai-app/run",
+		);
+		expect(calls[0].init?.headers).toMatchObject({
+			Authorization: "Bearer rh-key",
+			"Content-Type": "application/json",
+		});
+		const body = JSON.parse(String(calls[0].init?.body));
+		expect(body).toMatchObject({
+			webappId: "2049802245339918337",
+			instanceType: "default",
+			usePersonalQueue: "false",
+		});
+		expect(body.nodeInfoList).toEqual(
+			buildRunningHubVoiceDesignSubmitBody(request).nodeInfoList,
+		);
+		expect(result).toEqual({
+			taskId: "voice-task-1",
+			status: "running",
+		});
+	});
+
+	test("fails fast when RunningHub voice query returns an app-level error", async () => {
+		await expect(
+			queryRunningHubVoiceDesignTask({
+				apiKey: "rh-key",
+				taskId: "voice-task-1",
+				fetchImpl: async () =>
+					new Response(
+						JSON.stringify({
+							code: 804,
+							msg: "task not found",
+							data: null,
+						}),
+					),
+			}),
+		).rejects.toThrow("task not found");
+	});
+
 	test("fails fast when RunningHub query succeeds without audio", async () => {
 		await expect(
 			queryRunningHubVoiceDesignTask({
@@ -125,6 +190,21 @@ describe("RunningHub voice design provider", () => {
 
 		await expect(
 			downloadRunningHubAudio({
+				audioUrl: "https://www.runninghub.cn/output/result.wav",
+				fetchImpl: async () => new Response("audio", { status: 200 }),
+			}),
+		).rejects.toThrow("RunningHub result URL host is not allowed");
+
+		await expect(
+			downloadRunningHubAudio({
+				audioUrl:
+					"https://rh-images-attacker.cos.ap-beijing.myqcloud.com/output/result.wav",
+				fetchImpl: async () => new Response("audio", { status: 200 }),
+			}),
+		).rejects.toThrow("RunningHub result URL host is not allowed");
+
+		await expect(
+			downloadRunningHubAudio({
 				audioUrl:
 					"https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.wav",
 				fetchImpl: async () =>
@@ -137,7 +217,8 @@ describe("RunningHub voice design provider", () => {
 
 		await expect(
 			downloadRunningHubAudio({
-				audioUrl: "https://www.runninghub.cn/output/result.wav",
+				audioUrl:
+					"https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.wav",
 				fetchImpl: async () =>
 					new Response("not-audio", {
 						headers: { "content-type": "text/plain" },
@@ -147,7 +228,8 @@ describe("RunningHub voice design provider", () => {
 
 		await expect(
 			downloadRunningHubAudio({
-				audioUrl: "https://www.runninghub.cn/output/result.wav",
+				audioUrl:
+					"https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.wav",
 				fetchImpl: async () =>
 					new Response("audio", {
 						headers: {

@@ -32,8 +32,7 @@ describe("runninghub api health script", () => {
 
 		expect(contract.digitalHuman).toEqual({
 			appId: "2052014238952108033",
-			endpoint:
-				"https://www.runninghub.cn/openapi/v2/run/ai-app/2052014238952108033",
+			endpoint: "https://www.runninghub.cn/task/openapi/ai-app/run",
 			nodeInfoList: [
 				{ nodeId: "54", fieldName: "value", description: "宽" },
 				{ nodeId: "55", fieldName: "value", description: "高" },
@@ -46,8 +45,7 @@ describe("runninghub api health script", () => {
 		});
 		expect(contract.voiceDesign).toEqual({
 			appId: "2049802245339918337",
-			endpoint:
-				"https://www.runninghub.cn/openapi/v2/run/ai-app/2049802245339918337",
+			endpoint: "https://www.runninghub.cn/task/openapi/ai-app/run",
 			nodeInfoList: [
 				{ nodeId: "24", fieldName: "text", description: "语音内容" },
 				{ nodeId: "21", fieldName: "text", description: "声音描述" },
