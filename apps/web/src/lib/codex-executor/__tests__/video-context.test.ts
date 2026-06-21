@@ -31,6 +31,15 @@ describe("video context", () => {
 		).toEqual([{ start: 301.25, end: 304.5, text: "second chunk" }]);
 	});
 
+	test("offsetTranscriptSegments keeps 3 decimal places after offset rounding", () => {
+		expect(
+			offsetTranscriptSegments({
+				offsetSeconds: 300,
+				segments: [{ start: 1.2345, end: 4.5675, text: "rounded chunk" }],
+			}),
+		).toEqual([{ start: 301.235, end: 304.567, text: "rounded chunk" }]);
+	});
+
 	test("guessVideoContextAssetType flags long multi-segment text as oral", () => {
 		expect(
 			guessVideoContextAssetType({
@@ -49,6 +58,7 @@ describe("video context", () => {
 	test("shouldSuggestTrimFillers requires at least two filler markers", () => {
 		expect(shouldSuggestTrimFillers("嗯，我们然后看这里")).toBe(true);
 		expect(shouldSuggestTrimFillers("然后进入下一步")).toBe(false);
+		expect(shouldSuggestTrimFillers("然后然后")).toBe(false);
 	});
 
 	test("buildVideoContextWithTranscriber merges chunk transcripts into one context", async () => {
@@ -116,8 +126,8 @@ describe("video context", () => {
 	});
 
 	test("buildVideoContextWithTranscriber fails fast on chunk transcription errors", async () => {
-		await expect(
-			buildVideoContextWithTranscriber({
+		try {
+			await buildVideoContextWithTranscriber({
 				mediaAsset: {
 					id: "media-1",
 					name: "source.mp4",
@@ -136,9 +146,13 @@ describe("video context", () => {
 						segments: [{ start: 1, end: 2, text: "ok" }],
 					};
 				},
-			}),
-		).rejects.toThrow(
-			"VideoContext chunk 2 failed for source range 300.00s-600.00s: ASR failed",
-		);
+			});
+			throw new Error("Expected buildVideoContextWithTranscriber to reject.");
+		} catch (error) {
+			expect(error).toBeInstanceOf(Error);
+			expect((error as Error).message).toBe(
+				"VideoContext chunk 2 failed for source range 300.00s-600.00s: ASR failed",
+			);
+		}
 	});
 });

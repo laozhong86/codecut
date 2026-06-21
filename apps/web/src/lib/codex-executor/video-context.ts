@@ -126,13 +126,12 @@ export function guessVideoContextAssetType({
 const FILLER_MARKERS = ["嗯", "呃", "啊", "就是", "然后", "那个"];
 
 export function shouldSuggestTrimFillers(text: string): boolean {
-	let matches = 0;
+	const matchedMarkers = new Set<string>();
 	for (const marker of FILLER_MARKERS) {
-		const parts = text.split(marker);
-		if (parts.length > 1) {
-			matches += parts.length - 1;
+		if (text.includes(marker)) {
+			matchedMarkers.add(marker);
 		}
-		if (matches >= 2) {
+		if (matchedMarkers.size >= 2) {
 			return true;
 		}
 	}
