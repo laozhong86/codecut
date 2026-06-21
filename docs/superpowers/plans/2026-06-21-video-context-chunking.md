@@ -4,7 +4,7 @@
 
 **Goal:** Add a local `build_video_context` executor tool that analyzes one imported audio/video asset, automatically splits long media into fixed 300-second analysis chunks, and returns source-timestamped transcript context for Codex editing decisions.
 
-**Architecture:** Keep Cutia as the deterministic local executor. Add a focused VideoContext builder that plans 300-second chunks, calls a range-aware local transcription runtime for each chunk, offsets segment timestamps back to source-video seconds, and returns warnings for visual/OCR features that are not implemented. The CLI only sends the executor command and prints the returned context.
+**Architecture:** Keep Codecut as the deterministic local executor. Add a focused VideoContext builder that plans 300-second chunks, calls a range-aware local transcription runtime for each chunk, offsets segment timestamps back to source-video seconds, and returns warnings for visual/OCR features that are not implemented. The CLI only sends the executor command and prints the returned context.
 
 **Tech Stack:** Bun test, TypeScript, Zod, local Codex executor, existing `ffmpeg` audio extraction, existing Transformers.js transcription runtime, existing `scripts/codex-bridge.mjs` CLI.
 
@@ -1092,7 +1092,7 @@ node scripts/codex-bridge.mjs build-video-context \
   --model-id whisper-tiny
 ```
 
-- [ ] **Step 2: Update Cutia skill routing**
+- [ ] **Step 2: Update Codecut skill routing**
 
 Modify `skills/codecut-jianying-editor-framework/SKILL.md` so the Default Workflow includes:
 

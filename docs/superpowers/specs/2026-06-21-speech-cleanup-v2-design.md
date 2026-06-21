@@ -2,8 +2,8 @@
 
 ## Overview
 
-Build a local speech-cleanup contract for CodeCut/Cutia that lets Codex decide
-which transcript segments are kept or dropped, while CodeCut deterministically
+Build a local speech-cleanup contract for Codecut that lets Codex decide
+which transcript segments are kept or dropped, while Codecut deterministically
 rebuilds a continuous timeline and projects the result into the existing
 EditPlan v1 executor.
 
@@ -32,7 +32,7 @@ The first 60 seconds were tested through the current local transcription path.
 The test output was saved to:
 
 ```text
-/tmp/cutia-vad-comparison/comparison-results.json
+/tmp/codecut-vad-comparison/comparison-results.json
 ```
 
 ## Product Decision
@@ -209,7 +209,7 @@ Follow one path and fail fast.
 - Do not claim filler removal when the result only removes silence or when
   filler marker words remain in kept text.
 
-## Cutia Mapping
+## Codecut Mapping
 
 The first implementation should live outside the current EditPlan validator so
 that existing v1 behavior stays stable.

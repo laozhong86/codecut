@@ -92,7 +92,7 @@ Codecut 标志要表达一句话：
 Codecut
 ```
 
-统一使用 `Codecut`。不要在 logo 锁定组合中使用 `CodeCut`、`Code Cut`、`CUTIA` 或中文名，除非后续有单独命名决策。
+统一使用 `Codecut`。不要在 logo 锁定组合中使用大小写变体、拆词变体、旧项目名或中文名，除非后续有单独命名决策。
 
 推荐组合方式：
 

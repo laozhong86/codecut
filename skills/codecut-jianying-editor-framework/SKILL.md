@@ -25,7 +25,7 @@ Historical Jianying and OpusClip notes are research material only. Do not instal
 ## Operational Discipline
 
 - Treat `CODECUT_AGENT_BRIDGE_*` as the only supported bridge environment prefix.
-- Do not map, infer, or revive legacy `CUTIA_AGENT_BRIDGE_*` variables inside commands.
+- Do not map, infer, or revive legacy non-Codecut bridge environment prefixes inside commands.
 - If a required `CODECUT_AGENT_BRIDGE_*` key is missing, first load `apps/web/.env.local` from the plugin root with `set -a; source apps/web/.env.local; set +a`, then retry the env check without printing token values. If the key is still missing, stop at P0 and report the exact missing key.
 - Keep progress updates about the business run: service gate, project ID, media ID, transcription, EditPlan validation, timeline verification.
 - Do not narrate plugin cache paths, framework provenance, or reference-file audits unless a command fails because of that layer.

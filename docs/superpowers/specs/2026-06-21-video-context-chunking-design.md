@@ -2,17 +2,17 @@
 
 ## Overview
 
-Cutia needs a local video analysis context that gives Codex enough structured evidence to make editing decisions before it writes an EditPlan. The transferable product pattern from VectCut is not the cloud API chain; it is the context pipeline: media duration, transcript timestamps, coarse asset classification, and editing hints.
+Codecut needs a local video analysis context that gives Codex enough structured evidence to make editing decisions before it writes an EditPlan. The transferable product pattern from VectCut is not the cloud API chain; it is the context pipeline: media duration, transcript timestamps, coarse asset classification, and editing hints.
 
-This spec adds a local `build_video_context` executor tool for one imported Cutia media asset. For videos longer than 300 seconds, Cutia automatically analyzes the source in fixed 5-minute chunks and merges each chunk transcript back into original source-video timestamps.
+This spec adds a local `build_video_context` executor tool for one imported Codecut media asset. For videos longer than 300 seconds, Codecut automatically analyzes the source in fixed 5-minute chunks and merges each chunk transcript back into original source-video timestamps.
 
 ## Success Criteria
 
 - Codex can request context for one existing imported audio or video asset through the local executor.
 - Videos with duration greater than 300 seconds are analyzed in 300-second chunks.
 - Transcript segment timestamps in the final context are source-video seconds, not chunk-local seconds.
-- Cutia does not create temporary media assets or mutate the timeline while building context.
-- Cutia does not call cloud LLM or VectCut APIs.
+- Codecut does not create temporary media assets or mutate the timeline while building context.
+- Codecut does not call cloud LLM or VectCut APIs.
 - Missing visual analysis and OCR are reported as warnings instead of invented content.
 - A failed chunk fails the request with the concrete chunk index and source time range.
 
@@ -27,21 +27,21 @@ This spec adds a local `build_video_context` executor tool for one imported Cuti
 ## Non-Goals
 
 - No VectCut, OpusClip, or other cloud API calls.
-- No physical video split files in the Cutia media library.
+- No physical video split files in the Codecut media library.
 - No timeline mutation.
 - No background job system.
 - No preview or apply behavior changes.
-- No new LLM provider settings in Cutia.
+- No new LLM provider settings in Codecut.
 - No configurable chunk-size UI.
 
 ## User Flow
 
-1. User imports a long video into a Cutia project, or Codex imports a local media file through the existing CLI.
+1. User imports a long video into a Codecut project, or Codex imports a local media file through the existing CLI.
 2. Codex confirms the project and media asset with existing executor commands.
 3. Codex runs `build_video_context` for the selected media asset.
-4. Cutia probes metadata, validates the media can be analyzed, and splits the analysis into 300-second windows.
-5. Cutia transcribes each analysis chunk locally.
-6. Cutia returns a merged `VideoContext` with metadata, transcript, analysis chunk status, warnings, asset type guess, and editing hints.
+4. Codecut probes metadata, validates the media can be analyzed, and splits the analysis into 300-second windows.
+5. Codecut transcribes each analysis chunk locally.
+6. Codecut returns a merged `VideoContext` with metadata, transcript, analysis chunk status, warnings, asset type guess, and editing hints.
 7. Codex uses that context to write an EditPlan through the existing `apply_edit_plan` flow.
 
 ## Tool Contract
