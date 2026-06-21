@@ -27,6 +27,17 @@ export interface GeneratePersonMaskParams {
 
 const MIN_CONFIDENCE = 0.6;
 const DURATION_TOLERANCE_SECONDS = 0.05;
+const FPS_TOLERANCE = 0.01;
+
+export interface DerivedPersonMaskBindingParams {
+	personMask: DerivedAsset;
+	sourceMedia: MediaAsset;
+	alphaMedia: MediaAsset;
+	effectRange?: {
+		startTime: number;
+		duration: number;
+	};
+}
 
 export function validatePersonMaskMetadata({
 	personMask,
@@ -63,16 +74,45 @@ export function validatePersonMaskMetadata({
 	}
 }
 
-export function validatePersonMaskBinding({
+function assertEffectRange({
+	effectRange,
+	sourceDuration,
+	label,
+}: {
+	effectRange:
+		| {
+				startTime: number;
+				duration: number;
+		  }
+		| undefined;
+	sourceDuration: number;
+	label: "source media" | "person mask" | "person mask alpha";
+}) {
+	if (!effectRange) return;
+	if (effectRange.startTime < 0) {
+		throw new Error("Effect start time must be non-negative.");
+	}
+	if (effectRange.duration <= 0) {
+		throw new Error("Effect duration must be positive.");
+	}
+	if (effectRange.startTime + effectRange.duration > sourceDuration) {
+		throw new Error(`Effect time range exceeds ${label} duration.`);
+	}
+}
+
+export function validateDerivedPersonMaskBinding({
 	personMask,
 	sourceMedia,
 	alphaMedia,
-}: {
-	personMask: DerivedAsset;
-	sourceMedia: MediaAsset;
-	alphaMedia: MediaAsset;
-}) {
+	effectRange,
+}: DerivedPersonMaskBindingParams) {
 	validatePersonMaskMetadata({ personMask });
+	if (sourceMedia.type !== "video") {
+		throw new Error("Person mask source media must be video.");
+	}
+	if (alphaMedia.type !== "video") {
+		throw new Error("Person mask alpha media must be video.");
+	}
 	if (personMask.sourceMediaId !== sourceMedia.id) {
 		throw new Error("Person mask does not belong to the source media.");
 	}
@@ -81,21 +121,31 @@ export function validatePersonMaskBinding({
 			"Person mask alpha media does not match the derived asset.",
 		);
 	}
+	if (typeof sourceMedia.duration !== "number") {
+		throw new Error("Person mask source media duration is required.");
+	}
 	if (
-		typeof sourceMedia.duration !== "number" ||
 		Math.abs(personMask.duration - sourceMedia.duration) >
-			DURATION_TOLERANCE_SECONDS
+		DURATION_TOLERANCE_SECONDS
 	) {
 		throw new Error(
 			"Person mask duration must match the source media duration.",
 		);
 	}
+	if (typeof alphaMedia.duration !== "number") {
+		throw new Error("Person mask alpha duration is required.");
+	}
 	if (
-		typeof alphaMedia.duration === "number" &&
 		Math.abs(personMask.duration - alphaMedia.duration) >
-			DURATION_TOLERANCE_SECONDS
+		DURATION_TOLERANCE_SECONDS
 	) {
 		throw new Error("Person mask alpha duration must match the mask duration.");
+	}
+	if (
+		typeof sourceMedia.width !== "number" ||
+		typeof sourceMedia.height !== "number"
+	) {
+		throw new Error("Person mask source media dimensions are required.");
 	}
 	if (
 		personMask.width !== sourceMedia.width ||
@@ -106,21 +156,52 @@ export function validatePersonMaskBinding({
 		);
 	}
 	if (
-		typeof alphaMedia.width === "number" &&
-		typeof alphaMedia.height === "number" &&
-		(personMask.width !== alphaMedia.width ||
-			personMask.height !== alphaMedia.height)
+		typeof alphaMedia.width !== "number" ||
+		typeof alphaMedia.height !== "number"
+	) {
+		throw new Error("Person mask alpha dimensions are required.");
+	}
+	if (
+		personMask.width !== alphaMedia.width ||
+		personMask.height !== alphaMedia.height
 	) {
 		throw new Error(
 			"Person mask alpha dimensions must match the mask dimensions.",
 		);
 	}
 	if (
+		typeof sourceMedia.fps === "number" &&
+		Math.abs(personMask.fps - sourceMedia.fps) > FPS_TOLERANCE
+	) {
+		throw new Error("Person mask fps must match the source media fps.");
+	}
+	if (
 		typeof alphaMedia.fps === "number" &&
-		Math.abs(personMask.fps - alphaMedia.fps) > 0.01
+		Math.abs(personMask.fps - alphaMedia.fps) > FPS_TOLERANCE
 	) {
 		throw new Error("Person mask alpha fps must match the mask fps.");
 	}
+	assertEffectRange({
+		effectRange,
+		sourceDuration: sourceMedia.duration,
+		label: "source media",
+	});
+	assertEffectRange({
+		effectRange,
+		sourceDuration: personMask.duration,
+		label: "person mask",
+	});
+	assertEffectRange({
+		effectRange,
+		sourceDuration: alphaMedia.duration,
+		label: "person mask alpha",
+	});
+}
+
+export function validatePersonMaskBinding(
+	params: DerivedPersonMaskBindingParams,
+) {
+	validateDerivedPersonMaskBinding(params);
 }
 
 export async function generatePersonMask({

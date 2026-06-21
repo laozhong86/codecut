@@ -1256,4 +1256,95 @@ describe("codex executor", () => {
 			],
 		});
 	});
+
+	test("create_human_pip_effect rejects unsupported placement before mutating executor timeline", async () => {
+		await createExecutorProject({ projectId, name: "Human PIP cut" });
+		const foregroundImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "talking-head.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("front").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 12,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const alphaImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "alpha.webm",
+					mimeType: "video/webm",
+					base64: Buffer.from("alpha").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 12,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const backgroundImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "background.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("background").toString("base64"),
+					size: 10,
+					lastModified: 1,
+					duration: 12,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const foregroundId = resultData<{ assets: Array<{ id: string }> }>(
+			foregroundImport.results[0],
+		).assets[0].id;
+		const alphaId = resultData<{ assets: Array<{ id: string }> }>(
+			alphaImport.results[0],
+		).assets[0].id;
+		const backgroundId = resultData<{ assets: Array<{ id: string }> }>(
+			backgroundImport.results[0],
+		).assets[0].id;
+		const state = await getExecutorProjectState({ projectId });
+		state.derivedAssets = [
+			personMask({ sourceMediaId: foregroundId, alphaMediaId: alphaId }),
+		];
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			`${JSON.stringify(state, null, 2)}\n`,
+			"utf8",
+		);
+
+		const effectResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "create_human_pip_effect",
+				args: {
+					foregroundMediaId: foregroundId,
+					backgroundMediaId: backgroundId,
+					derivedAssetId: "mask-1",
+					placement: "bottom_right",
+					scale: 0.35,
+					startTime: 1,
+					duration: 4,
+					replaceExisting: true,
+				},
+			}),
+		});
+		const after = await getExecutorProjectState({ projectId });
+
+		expect(effectResult.results[0]).toMatchObject({
+			success: false,
+			message:
+				"placement must be one of right_down, right_up, left_down, left_up, center.",
+		});
+		expect(after.tracks).toEqual([]);
+	});
 });

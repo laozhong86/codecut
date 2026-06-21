@@ -7,7 +7,7 @@ import type {
 	VideoElement,
 } from "@/types/timeline";
 import { generateUUID } from "@/utils/id";
-import { validatePersonMaskBinding } from "./person-mask";
+import { validateDerivedPersonMaskBinding } from "./person-mask";
 
 type RequiredVideoMediaAsset = MediaAsset & {
 	type: "video";
@@ -185,20 +185,11 @@ export function createTextBackgroundEffect({
 		mediaAssets,
 		label: "Person mask alpha",
 	});
-	validatePersonMaskBinding({
+	validateDerivedPersonMaskBinding({
 		personMask,
 		sourceMedia,
 		alphaMedia,
-	});
-	validateRange({
-		startTime,
-		duration,
-		sourceDuration: sourceMedia.duration,
-	});
-	validateRange({
-		startTime,
-		duration,
-		sourceDuration: personMask.duration,
+		effectRange: { startTime, duration },
 	});
 
 	const sourceElement: VideoElement = {
@@ -308,10 +299,11 @@ export function createHumanPipEffect({
 		label: "Person mask alpha",
 	});
 	try {
-		validatePersonMaskBinding({
+		validateDerivedPersonMaskBinding({
 			personMask,
 			sourceMedia: foregroundMedia,
 			alphaMedia,
+			effectRange: { startTime, duration },
 		});
 	} catch (error) {
 		if (
@@ -325,17 +317,7 @@ export function createHumanPipEffect({
 	validateRange({
 		startTime,
 		duration,
-		sourceDuration: foregroundMedia.duration,
-	});
-	validateRange({
-		startTime,
-		duration,
 		sourceDuration: backgroundMedia.duration,
-	});
-	validateRange({
-		startTime,
-		duration,
-		sourceDuration: personMask.duration,
 	});
 	const backgroundSize = requireMediaDimensions({
 		media: backgroundMedia,

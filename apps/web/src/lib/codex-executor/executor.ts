@@ -19,6 +19,7 @@ import {
 import {
 	createHumanPipEffect,
 	createTextBackgroundEffect,
+	requireHumanPipPlacement,
 } from "@/lib/derived-assets/masked-effects";
 import { serializeElementVisualProperties } from "@/lib/timeline/element-serialization";
 import {
@@ -198,13 +199,7 @@ const createHumanPipEffectArgsSchema = z
 		foregroundMediaId: z.string().min(1),
 		backgroundMediaId: z.string().min(1),
 		derivedAssetId: z.string().min(1),
-		placement: z.enum([
-			"right_down",
-			"right_up",
-			"left_down",
-			"left_up",
-			"center",
-		]),
+		placement: z.string().min(1),
 		scale: z.number(),
 		startTime: z.number(),
 		duration: z.number(),
@@ -879,7 +874,7 @@ async function runCreateHumanPipEffect({
 		foregroundMediaId: parsed.foregroundMediaId,
 		backgroundMediaId: parsed.backgroundMediaId,
 		derivedAssetId: parsed.derivedAssetId,
-		placement: parsed.placement,
+		placement: requireHumanPipPlacement(parsed.placement),
 		scale: parsed.scale,
 		startTime: parsed.startTime,
 		duration: parsed.duration,
