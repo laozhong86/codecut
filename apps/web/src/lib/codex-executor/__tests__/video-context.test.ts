@@ -13,6 +13,35 @@ describe("video context", () => {
 		expect(typeof transcribeMediaRangeWithNodeRuntime).toBe("function");
 	});
 
+	test("transcribeMediaRangeWithNodeRuntime requires range at runtime", async () => {
+		await expect(
+			transcribeMediaRangeWithNodeRuntime({
+				mediaAsset: {
+					id: "media-1",
+					name: "source.mp4",
+					path: "/tmp/source.mp4",
+				},
+				language: "zh",
+				modelId: "whisper-large-v3-turbo",
+			} as any),
+		).rejects.toThrow("Transcription range is required.");
+	});
+
+	test("transcribeMediaRangeWithNodeRuntime rejects non-positive durations", async () => {
+		await expect(
+			transcribeMediaRangeWithNodeRuntime({
+				mediaAsset: {
+					id: "media-1",
+					name: "source.mp4",
+					path: "/tmp/source.mp4",
+				},
+				language: "zh",
+				modelId: "whisper-large-v3-turbo",
+				range: { start: 10, end: 10 },
+			}),
+		).rejects.toThrow("Transcription range duration must be positive.");
+	});
+
 	test("buildAnalysisChunks splits long media into 300 second chunks", () => {
 		expect(buildAnalysisChunks({ durationSeconds: 725 })).toEqual([
 			{ index: 1, start: 0, end: 300 },

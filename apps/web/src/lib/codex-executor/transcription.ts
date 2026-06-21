@@ -316,13 +316,18 @@ async function runTranscriptionWithNodeRuntime({
 }
 
 export const transcribeMediaRangeWithNodeRuntime: ExecutorTranscribeMediaRange =
-	async ({ mediaAsset, language, modelId, range }) =>
-		runTranscriptionWithNodeRuntime({
+	async ({ mediaAsset, language, modelId, range }) => {
+		if (!range) {
+			throw new Error("Transcription range is required.");
+		}
+
+		return runTranscriptionWithNodeRuntime({
 			mediaAsset,
 			language,
 			modelId,
 			range,
 		});
+	};
 
 export async function probeMediaAudioWithFfprobe({
 	mediaAsset,
