@@ -24,6 +24,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
 		"  node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
+		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>",
 		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --download <true|false>",
 		"",
@@ -511,6 +512,33 @@ export function buildTranscribeEnvelope({
 	});
 }
 
+export function buildVideoContextEnvelope({
+	projectId,
+	mediaId,
+	language,
+	modelId,
+}) {
+	if (!mediaId) {
+		throw new Error("--media-id is required");
+	}
+	if (!language) {
+		throw new Error("--language is required");
+	}
+	if (!modelId) {
+		throw new Error("--model-id is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "build_video_context",
+		args: {
+			mediaId,
+			language,
+			modelId,
+		},
+	});
+}
+
 const extensionMimeTypes = new Map([
 	[".jpg", "image/jpeg"],
 	[".jpeg", "image/jpeg"],
@@ -786,6 +814,13 @@ export async function runCli({
 		});
 	} else if (command === "transcribe") {
 		envelope = buildTranscribeEnvelope({
+			projectId: flags.projectId,
+			mediaId: flags.mediaId,
+			language: flags.language,
+			modelId: flags.modelId,
+		});
+	} else if (command === "build-video-context") {
+		envelope = buildVideoContextEnvelope({
 			projectId: flags.projectId,
 			mediaId: flags.mediaId,
 			language: flags.language,
