@@ -8,6 +8,7 @@ import {
 	buildExportEnvelope,
 	buildImportMediaEnvelope,
 	buildTranscribeEnvelope,
+	buildVideoContextEnvelope,
 	parseBoolean,
 	requireRuntimeConfig,
 	runInstallDoctor,
@@ -95,6 +96,32 @@ describe("codex bridge CLI helpers", () => {
 				language: "auto",
 				modelId: "whisper-base",
 			},
+		});
+	});
+
+	test("buildVideoContextEnvelope creates a build_video_context command", () => {
+		expect(
+			buildVideoContextEnvelope({
+				projectId: "project-1",
+				mediaId: "media-1",
+				language: "auto",
+				modelId: "whisper-tiny",
+			}),
+		).toEqual({
+			version: 1,
+			projectId: "project-1",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "build_video_context",
+					args: {
+						mediaId: "media-1",
+						language: "auto",
+						modelId: "whisper-tiny",
+					},
+				},
+			],
 		});
 	});
 
@@ -189,7 +216,8 @@ describe("codex bridge CLI helpers", () => {
 					duration: 0.5,
 				},
 			],
-			rationale: "Short vertical cut with deterministic post-production assets.",
+			rationale:
+				"Short vertical cut with deterministic post-production assets.",
 		};
 		await writeFile(planPath, JSON.stringify(plan), "utf8");
 

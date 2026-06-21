@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import {
 	DEFAULT_CHUNK_LENGTH_SECONDS,
 	DEFAULT_STRIDE_SECONDS,
@@ -22,6 +22,11 @@ export interface ExecutorTranscriptionMedia {
 	duration?: number;
 }
 
+export interface ExecutorTranscriptionRange {
+	start: number;
+	end: number;
+}
+
 export type ExecutorTranscribeMedia = ({
 	mediaAsset,
 	language,
@@ -30,6 +35,18 @@ export type ExecutorTranscribeMedia = ({
 	mediaAsset: ExecutorTranscriptionMedia;
 	language: TranscriptionLanguage;
 	modelId: TranscriptionModelId;
+}) => Promise<TranscriptionResult & { modelId?: string }>;
+
+export type ExecutorTranscribeMediaRange = ({
+	mediaAsset,
+	language,
+	modelId,
+	range,
+}: {
+	mediaAsset: ExecutorTranscriptionMedia;
+	language: TranscriptionLanguage;
+	modelId: TranscriptionModelId;
+	range: ExecutorTranscriptionRange;
 }) => Promise<TranscriptionResult & { modelId?: string }>;
 
 export function parseExecutorTranscriptionLanguage(
@@ -45,7 +62,9 @@ export function parseExecutorTranscriptionLanguage(
 	) {
 		return value as TranscriptionLanguage;
 	}
-	throw new Error("language must be auto or a supported transcription language");
+	throw new Error(
+		"language must be auto or a supported transcription language",
+	);
 }
 
 export function parseExecutorTranscriptionModelId(
@@ -63,26 +82,59 @@ export function parseExecutorTranscriptionModelId(
 	throw new Error("modelId must be a supported transcription model");
 }
 
-async function extractAudioSamples({
+function ffmpegAudioArgs({
 	filePath,
+	range,
 }: {
 	filePath: string;
+	range?: ExecutorTranscriptionRange;
+}): string[] {
+	const args = ["-v", "error"];
+	if (range) {
+		if (!Number.isFinite(range.start) || range.start < 0) {
+			throw new Error(
+				"Transcription range start must be a finite non-negative number.",
+			);
+		}
+		if (!Number.isFinite(range.end)) {
+			throw new Error("Transcription range end must be a finite number.");
+		}
+		if (range.end <= range.start) {
+			throw new Error("Transcription range duration must be positive.");
+		}
+		const duration = range.end - range.start;
+		args.push("-ss", String(range.start), "-t", String(duration));
+	}
+	return [
+		...args,
+		"-i",
+		filePath,
+		"-vn",
+		"-ac",
+		"1",
+		"-ar",
+		String(SAMPLE_RATE),
+		"-f",
+		"f32le",
+		"pipe:1",
+	];
+}
+
+async function extractAudioSamples({
+	filePath,
+	range,
+}: {
+	filePath: string;
+	range?: ExecutorTranscriptionRange;
 }): Promise<Float32Array> {
 	return new Promise((resolve, reject) => {
-		const ffmpeg = spawn("ffmpeg", [
-			"-v",
-			"error",
-			"-i",
-			filePath,
-			"-vn",
-			"-ac",
-			"1",
-			"-ar",
-			String(SAMPLE_RATE),
-			"-f",
-			"f32le",
-			"pipe:1",
-		]);
+		const ffmpeg = spawn(
+			"ffmpeg",
+			ffmpegAudioArgs({
+				filePath,
+				range,
+			}),
+		);
 		const chunks: Buffer[] = [];
 		let totalBytes = 0;
 		let stderr = "";
@@ -98,7 +150,9 @@ async function extractAudioSamples({
 		ffmpeg.stdout.on("data", (chunk: Buffer) => {
 			totalBytes += chunk.byteLength;
 			if (totalBytes > MAX_AUDIO_BYTES) {
-				fail(new Error("Extracted audio is too large for local transcription."));
+				fail(
+					new Error("Extracted audio is too large for local transcription."),
+				);
 				return;
 			}
 			chunks.push(chunk);
@@ -133,6 +187,53 @@ async function extractAudioSamples({
 	});
 }
 
+function readProcessStdout({
+	child,
+}: {
+	child: ChildProcessWithoutNullStreams;
+}): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let stdout = "";
+		let stderr = "";
+		let settled = false;
+
+		const fail = (error: Error) => {
+			if (settled) return;
+			settled = true;
+			child.kill();
+			reject(error);
+		};
+
+		child.stdout.on("data", (chunk: Buffer) => {
+			stdout += chunk.toString("utf8");
+		});
+		child.stderr.on("data", (chunk: Buffer) => {
+			stderr += chunk.toString("utf8");
+		});
+		child.on("error", (error) => {
+			fail(
+				new Error(
+					`Failed to start ${child.spawnfile ?? "process"}: ${error.message}`,
+				),
+			);
+		});
+		child.on("close", (code) => {
+			if (settled) return;
+			settled = true;
+			if (code !== 0) {
+				reject(
+					new Error(
+						stderr.trim() ||
+							`${child.spawnfile ?? "process"} exited with code ${code}`,
+					),
+				);
+				return;
+			}
+			resolve(stdout);
+		});
+	});
+}
+
 function normalizeSegments(output: unknown): TranscriptionSegment[] {
 	const chunks =
 		typeof output === "object" && output && "chunks" in output
@@ -162,13 +263,33 @@ export const transcribeMediaWithNodeRuntime: ExecutorTranscribeMedia = async ({
 	mediaAsset,
 	language,
 	modelId,
-}) => {
+}) =>
+	runTranscriptionWithNodeRuntime({
+		mediaAsset,
+		language,
+		modelId,
+	});
+
+async function runTranscriptionWithNodeRuntime({
+	mediaAsset,
+	language,
+	modelId,
+	range,
+}: {
+	mediaAsset: ExecutorTranscriptionMedia;
+	language: TranscriptionLanguage;
+	modelId: TranscriptionModelId;
+	range?: ExecutorTranscriptionRange;
+}) {
 	const model = TRANSCRIPTION_MODELS.find((entry) => entry.id === modelId);
 	if (!model) {
 		throw new Error(`Unknown model: ${modelId}`);
 	}
 
-	const audio = await extractAudioSamples({ filePath: mediaAsset.path });
+	const audio = await extractAudioSamples({
+		filePath: mediaAsset.path,
+		range,
+	});
 	const { pipeline } = await import("@huggingface/transformers");
 	const transcriber = await pipeline(
 		"automatic-speech-recognition",
@@ -206,4 +327,45 @@ export const transcribeMediaWithNodeRuntime: ExecutorTranscribeMedia = async ({
 		language,
 		modelId,
 	};
-};
+}
+
+export const transcribeMediaRangeWithNodeRuntime: ExecutorTranscribeMediaRange =
+	async ({ mediaAsset, language, modelId, range }) => {
+		if (!range) {
+			throw new Error("Transcription range is required.");
+		}
+
+		return runTranscriptionWithNodeRuntime({
+			mediaAsset,
+			language,
+			modelId,
+			range,
+		});
+	};
+
+export async function probeMediaAudioWithFfprobe({
+	mediaAsset,
+}: {
+	mediaAsset: ExecutorTranscriptionMedia;
+}): Promise<{ hasAudio: boolean }> {
+	const ffprobe = spawn("ffprobe", [
+		"-v",
+		"error",
+		"-select_streams",
+		"a:0",
+		"-show_entries",
+		"stream=index,codec_type",
+		"-of",
+		"json",
+		mediaAsset.path,
+	]);
+	const stdout = await readProcessStdout({ child: ffprobe });
+	const payload = JSON.parse(stdout) as {
+		streams?: Array<{ codec_type?: string }>;
+	};
+	const firstAudioStream = payload.streams?.[0];
+
+	return {
+		hasAudio: firstAudioStream?.codec_type === "audio",
+	};
+}

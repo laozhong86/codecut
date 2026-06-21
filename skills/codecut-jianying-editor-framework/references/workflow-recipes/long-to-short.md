@@ -16,6 +16,7 @@ Use this recipe when the user wants one imported source video compressed into a 
 - `get_project_info`
 - `list_media_assets`
 - `transcribe_media` for talking videos
+- `build_video_context` for long-video or transcript-first planning
 - Source duration and media dimensions
 
 If transcript is unavailable for speech-led content, stop and report the missing context. Do not infer content from the file name.
@@ -26,10 +27,11 @@ If transcript is unavailable for speech-led content, stop and report the missing
 2. Confirm the project ID is explicit and matches the local project being modified.
 3. Pick the source media asset; import only if the user supplied an absolute local path and no suitable asset exists.
 4. Transcribe the source when speech determines clip selection.
-5. Select clips with a clear role: hook, proof, process, value, or CTA.
-6. Generate an implemented EditPlan v1 only.
-7. Apply only to an empty timeline, or use `replaceExisting=true` after explicit user confirmation that existing timeline content can be cleared. Append is not implemented in the current `apply_edit_plan` path.
-8. Verify with `get_timeline_state`.
+5. Build VideoContext with `build_video_context` when long-video or transcript-first planning needs source-timestamped context.
+6. Select clips with a clear role: hook, proof, process, value, or CTA.
+7. Generate an implemented EditPlan v1 only.
+8. Apply only to an empty timeline, or use `replaceExisting=true` after explicit user confirmation that existing timeline content can be cleared. Append is not implemented in the current `apply_edit_plan` path.
+9. Verify with `get_timeline_state`.
 
 ## Defaults
 

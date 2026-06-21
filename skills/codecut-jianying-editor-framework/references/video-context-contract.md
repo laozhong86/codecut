@@ -2,7 +2,7 @@
 
 VideoContext is the source of truth Codex uses before creating an EditPlan. Codex should not infer video content from file names, project names, or user guesses when structured context is available.
 
-Current MVP boundary: there is no separate `buildVideoContext` bridge tool or durable `VideoContext` store yet. For today's Codecut workflow, Codex assembles the needed planning context from `get_project_info`, `list_media_assets`, `transcribe_media`, and any user-supplied evidence. Treat the richer VideoContext model below as the target contract for future implementation.
+Current MVP boundary: local `build_video_context` is implemented for L2 transcript context on one imported audio/video asset. It builds merged source-timestamped transcript context from deterministic local transcription, splitting media longer than 300 seconds into fixed 5-minute analysis chunks without creating temporary media assets. Durable `VideoContext` storage and richer visual/audio analysis remain future work.
 
 ## Principle
 
@@ -125,6 +125,13 @@ OCR helps tutorial/demo edits and product proof. If OCR is missing, Codex should
 
 MVP should target L2 for long-to-short talking videos.
 
+Implemented for MVP:
+
+- L2 transcript context through local `build_video_context`
+- fixed 300-second analysis chunking for long media
+- source-video timestamp normalization across chunks
+- deterministic transcript-based `oral_candidate` and filler hints
+
 ## Warnings
 
 VideoContext must carry warnings when context is incomplete:
@@ -144,7 +151,7 @@ Existing Codecut capabilities already cover part of this contract:
 
 - media metadata from media processing
 - audio extraction from timeline/media utilities
-- transcript from the transcription service
+- L2 transcript context from the local `build_video_context` executor, which reuses the transcription service
 - captions from caption chunk builder
 
 Missing or future capabilities:

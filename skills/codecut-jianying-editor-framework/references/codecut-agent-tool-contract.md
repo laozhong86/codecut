@@ -15,6 +15,7 @@ Implemented bridge tools relevant to Codex-driven editing:
 | `list_media_assets` | Inspect imported media assets. |
 | `import_media_file` | Import one Codex-provided local media file payload into the browser media library. |
 | `transcribe_media` | Transcribe one existing audio/video media asset through the local executor transcription runtime. |
+| `build_video_context` | Build local L2 transcript context for one imported audio/video asset; media longer than 300 seconds is analyzed in fixed 5-minute chunks and returned with source-video timestamps. |
 | `apply_edit_plan` | Validate and apply the implemented EditPlan v1 to the timeline. |
 | `apply_narrated_remix_plan` | Validate and apply the implemented NarratedRemixPlan v1 for existing narration audio plus muted video B-roll and captions. |
 | `create_text_background_effect` | Replace the timeline with source video, text, and masked foreground layers using an existing person-mask derived asset. |
@@ -29,7 +30,7 @@ Do not claim the current MVP has `getProjectState`, `buildVideoContext`, `valida
 Codex should use one path for generated edits:
 
 ```text
-get_project_info -> optional update_project_settings -> list_media_assets -> optional import_media_file -> transcribe_media -> Codex writes EditPlan -> apply_edit_plan -> get_timeline_state
+get_project_info -> optional update_project_settings -> list_media_assets -> optional import_media_file -> transcribe_media -> build_video_context -> Codex writes EditPlan -> apply_edit_plan -> get_timeline_state
 ```
 
 Codecut validates and executes. Codex does all LLM reasoning and plan repair.

@@ -4,9 +4,16 @@ import { z } from "zod";
 import { applyEditPlanToEditor } from "@/lib/agent-bridge/edit-plan/apply";
 import { applyNarratedRemixPlanToEditor } from "@/lib/agent-bridge/narrated-remix/apply";
 import {
+	type ProbeAudio,
+	buildVideoContextWithTranscriber,
+} from "@/lib/codex-executor/video-context";
+import {
 	type ExecutorTranscribeMedia,
+	type ExecutorTranscribeMediaRange,
 	parseExecutorTranscriptionLanguage,
 	parseExecutorTranscriptionModelId,
+	probeMediaAudioWithFfprobe,
+	transcribeMediaRangeWithNodeRuntime,
 	transcribeMediaWithNodeRuntime,
 } from "@/lib/codex-executor/transcription";
 import {
@@ -40,6 +47,7 @@ type ExecutorToolName =
 	| "list_media_assets"
 	| "import_media_file"
 	| "transcribe_media"
+	| "build_video_context"
 	| "apply_edit_plan"
 	| "apply_narrated_remix_plan"
 	| "create_text_background_effect"
@@ -102,6 +110,7 @@ const commandSchema = z
 			"list_media_assets",
 			"import_media_file",
 			"transcribe_media",
+			"build_video_context",
 			"apply_edit_plan",
 			"apply_narrated_remix_plan",
 			"create_text_background_effect",
@@ -158,6 +167,14 @@ const applyNarratedRemixPlanArgsSchema = z
 	.strict();
 
 const transcribeMediaArgsSchema = z
+	.object({
+		mediaId: z.string().min(1),
+		language: z.unknown(),
+		modelId: z.unknown(),
+	})
+	.strict();
+
+const buildVideoContextArgsSchema = z
 	.object({
 		mediaId: z.string().min(1),
 		language: z.unknown(),
@@ -339,8 +356,12 @@ function addTransition({
 	const track = state.tracks.find((candidate) => candidate.id === trackId);
 	if (track?.type !== "video") return null;
 
-	const fromElement = track.elements.find((element) => element.id === fromElementId);
-	const toElement = track.elements.find((element) => element.id === toElementId);
+	const fromElement = track.elements.find(
+		(element) => element.id === fromElementId,
+	);
+	const toElement = track.elements.find(
+		(element) => element.id === toElementId,
+	);
 	if (!fromElement || !toElement) return null;
 	if (!areElementsAdjacent({ elementA: fromElement, elementB: toElement })) {
 		return null;
@@ -673,30 +694,30 @@ async function runApplyEditPlan({
 					state.tracks = tracks;
 				},
 				addTrack: ({ type, index }) => addTrack({ state, type, index }),
-					insertElement: ({ element, placement }) => {
-						if (placement.mode !== "explicit") {
-							throw new Error("Executor requires explicit track placement.");
-						}
-						insertElement({ state, element, trackId: placement.trackId });
-					},
-					addTransition: ({
+				insertElement: ({ element, placement }) => {
+					if (placement.mode !== "explicit") {
+						throw new Error("Executor requires explicit track placement.");
+					}
+					insertElement({ state, element, trackId: placement.trackId });
+				},
+				addTransition: ({
+					trackId,
+					fromElementId,
+					toElementId,
+					type,
+					duration,
+				}) =>
+					addTransition({
+						state,
 						trackId,
 						fromElementId,
 						toElementId,
 						type,
 						duration,
-					}) =>
-						addTransition({
-							state,
-							trackId,
-							fromElementId,
-							toElementId,
-							type,
-							duration,
-						}),
-				},
+					}),
 			},
-		});
+		},
+	});
 	if (result.success) {
 		await saveProjectState({ state });
 	}
@@ -839,7 +860,10 @@ async function runCreateHumanPipEffect({
 	state.tracks = result.tracks;
 	await saveProjectState({ state });
 
-	const summary = summarizeEffect({ effect: "human-pip", tracks: result.tracks });
+	const summary = summarizeEffect({
+		effect: "human-pip",
+		tracks: result.tracks,
+	});
 	return {
 		success: true,
 		message: `Created human-pip effect with ${summary.trackCount} track(s).`,
@@ -864,7 +888,10 @@ async function runTranscribeMedia({
 	);
 
 	if (!mediaAsset) {
-		return { success: false, message: `Media asset '${parsed.mediaId}' not found` };
+		return {
+			success: false,
+			message: `Media asset '${parsed.mediaId}' not found`,
+		};
 	}
 	if (mediaAsset.type !== "video" && mediaAsset.type !== "audio") {
 		return {
@@ -887,6 +914,99 @@ async function runTranscribeMedia({
 	};
 }
 
+async function runBuildVideoContext({
+	state,
+	args,
+	probeAudio,
+	transcribeMediaRange,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	probeAudio: ProbeAudio;
+	transcribeMediaRange: ExecutorTranscribeMediaRange;
+}) {
+	const parsed = buildVideoContextArgsSchema.parse(args);
+	const language = parseExecutorTranscriptionLanguage(parsed.language);
+	const modelId = parseExecutorTranscriptionModelId(parsed.modelId);
+	const mediaAsset = state.mediaAssets.find(
+		(asset) => asset.id === parsed.mediaId,
+	);
+
+	if (!mediaAsset) {
+		return {
+			success: false,
+			message: `Media asset '${parsed.mediaId}' not found`,
+		};
+	}
+	if (mediaAsset.type !== "video" && mediaAsset.type !== "audio") {
+		return {
+			success: false,
+			message: `Media asset '${mediaAsset.name}' is type '${mediaAsset.type}', expected video or audio`,
+		};
+	}
+
+	const videoContextMediaAsset = {
+		id: mediaAsset.id,
+		name: mediaAsset.name,
+		type: mediaAsset.type,
+		durationSeconds: mediaAsset.duration,
+		width: mediaAsset.width,
+		height: mediaAsset.height,
+		path: mediaAsset.path,
+	};
+
+	const context = await buildVideoContextWithTranscriber({
+		mediaAsset: videoContextMediaAsset,
+		probeAudio,
+		transcribeRange: async ({
+			mediaAsset: targetMediaAsset,
+			startSeconds,
+			endSeconds,
+		}) => {
+			const result = await transcribeMediaRange({
+				mediaAsset: {
+					id: targetMediaAsset.id,
+					name: targetMediaAsset.name,
+					path: mediaAsset.path,
+					duration: mediaAsset.duration,
+				},
+				language,
+				modelId,
+				range: { start: startSeconds, end: endSeconds },
+			});
+
+			return {
+				text: result.text,
+				language: result.language,
+				modelId: result.modelId ?? modelId,
+				segments: result.segments,
+			};
+		},
+	});
+
+	return {
+		success: true,
+		message: `Built VideoContext for '${mediaAsset.name}'`,
+		data: {
+			version: context.version,
+			mediaId: context.mediaId,
+			name: context.name,
+			assetType: context.assetType,
+			qualityLevel: context.qualityLevel,
+			metadata: context.metadata,
+			transcript: {
+				fullText: context.text,
+				language: context.language,
+				modelId: context.modelId,
+				segments: context.segments,
+			},
+			analysisChunks: context.analysisChunks,
+			warnings: context.warnings,
+			suggestTrimFillers: context.suggestTrimFillers,
+		},
+	};
+}
+
 function runGetTimelineState({ state }: { state: ExecutorProjectState }) {
 	const duration = calculateTotalDuration({ tracks: state.tracks });
 	return {
@@ -904,10 +1024,14 @@ async function executeCommand({
 	state,
 	command,
 	transcribeMedia,
+	probeAudio,
+	transcribeMediaRange,
 }: {
 	state: ExecutorProjectState;
 	command: ExecutorCommand;
 	transcribeMedia: ExecutorTranscribeMedia;
+	probeAudio: ProbeAudio;
+	transcribeMediaRange: ExecutorTranscribeMediaRange;
 }) {
 	if (command.tool === "get_project_info") {
 		return runGetProjectInfo({ state });
@@ -928,6 +1052,14 @@ async function executeCommand({
 			transcribeMedia,
 		});
 	}
+	if (command.tool === "build_video_context") {
+		return runBuildVideoContext({
+			state,
+			args: command.args,
+			probeAudio,
+			transcribeMediaRange,
+		});
+	}
 	if (command.tool === "apply_edit_plan") {
 		return runApplyEditPlan({ state, args: command.args });
 	}
@@ -946,12 +1078,32 @@ async function executeCommand({
 	throw new Error(`Unsupported executor tool: ${command.tool}`);
 }
 
+const defaultBuildVideoContextProbeAudio: ProbeAudio = async ({
+	mediaAsset,
+}) => {
+	if (!("path" in mediaAsset) || typeof mediaAsset.path !== "string") {
+		throw new Error("VideoContext probe requires a media asset path.");
+	}
+
+	return probeMediaAudioWithFfprobe({
+		mediaAsset: {
+			id: mediaAsset.id,
+			name: mediaAsset.name,
+			path: mediaAsset.path,
+		},
+	});
+};
+
 export async function executeCodexExecutorEnvelope({
 	envelope,
 	transcribeMedia = transcribeMediaWithNodeRuntime,
+	probeAudio = defaultBuildVideoContextProbeAudio,
+	transcribeMediaRange = transcribeMediaRangeWithNodeRuntime,
 }: {
 	envelope: unknown;
 	transcribeMedia?: ExecutorTranscribeMedia;
+	probeAudio?: ProbeAudio;
+	transcribeMediaRange?: ExecutorTranscribeMediaRange;
 }) {
 	const parsedEnvelope = envelopeSchema.parse(envelope);
 	const state = await loadProjectState({ projectId: parsedEnvelope.projectId });
@@ -967,7 +1119,13 @@ export async function executeCodexExecutorEnvelope({
 			revision: state.revision,
 		});
 		try {
-			const result = await executeCommand({ state, command, transcribeMedia });
+			const result = await executeCommand({
+				state,
+				command,
+				transcribeMedia,
+				probeAudio,
+				transcribeMediaRange,
+			});
 			const success = result.success !== false;
 			const message =
 				"message" in result ? result.message : `${command.tool} completed.`;

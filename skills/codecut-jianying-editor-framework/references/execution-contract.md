@@ -23,7 +23,7 @@ Define success before coding:
 
 1. State assumptions. If the request has multiple valid interpretations, list them and ask only when the wrong choice would change the product outcome.
 2. Read the smallest relevant surface from `SKILL.md` routing.
-3. For Codex-generated edits, use the implemented bridge path: `get_project_info`, optional `update_project_settings` for explicit canvas/FPS requirements, `list_media_assets`, `transcribe_media`, Codex-generated implemented `EditPlan`, `apply_edit_plan`, then `get_timeline_state`.
+3. For Codex-generated edits, use the implemented bridge path: `get_project_info`, optional `update_project_settings` for explicit canvas/FPS requirements, `list_media_assets`, `transcribe_media`, `build_video_context` when transcript-first planning needs source-timestamped context, Codex-generated implemented `EditPlan`, `apply_edit_plan`, then `get_timeline_state`.
 4. Write or run a failing validation first for implementation code.
 5. Use existing Codecut paths:
    - actions for user-facing triggers
@@ -45,9 +45,10 @@ Before this loop starts, the local service and current executor path must be rea
 3. `list_media_assets`
 4. `import_media_file` only when no suitable media exists and the user provided an absolute local file path
 5. `transcribe_media`
-6. `apply_edit_plan`
-7. `get_timeline_state`
-8. `export_project` only after user confirmation and only when an implemented executor/browser export path is explicitly available
+6. `build_video_context` when long-video or transcript-first planning needs merged source-timestamped context
+7. `apply_edit_plan`
+8. `get_timeline_state`
+9. `export_project` only after user confirmation and only when an implemented executor/browser export path is explicitly available
 
 Future separate `preview_edit_plan` and `verify_editor_state` tools can be planned later, but they are not part of the currently installed tool surface. Current `apply_edit_plan` validates and mutates through the editor runtime in one bridge command.
 

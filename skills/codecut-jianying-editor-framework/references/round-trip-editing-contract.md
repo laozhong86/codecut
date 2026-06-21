@@ -13,6 +13,7 @@ get_project_info
   -> optional update_project_settings
   -> list_media_assets
   -> transcribe_media
+  -> build_video_context
   -> Codex generates implemented EditPlan v1
   -> apply_edit_plan
   -> get_timeline_state
@@ -52,7 +53,7 @@ Round-trip editing separates those concerns. Codex can reason about creator inte
 | `EditPlanPreview` | Codecut | Human-readable diff before mutation |
 | `ApplyEditPlanResult` | Codecut | Applied track/element ids, warnings, and verification status |
 
-Current MVP boundary: these object names describe the target product model. In today's bridge, `ProjectState` is represented by `get_project_info`, media context by `list_media_assets`, transcript context by `transcribe_media`, mutation by `apply_edit_plan`, and verification by `get_timeline_state`. There is no separate `VideoContext`, `EditPlanPreview`, or `verifyEditorState` bridge object yet.
+Current MVP boundary: these object names describe the target product model. In today's bridge, `ProjectState` is represented by `get_project_info`, media context by `list_media_assets`, L2 transcript context by the snake_case `build_video_context` executor tool after `transcribe_media`, mutation by `apply_edit_plan`, and verification by `get_timeline_state`. There is no separate durable `VideoContext` store, `EditPlanPreview`, or `verifyEditorState` bridge object yet.
 
 ## Coordinate Rules
 
@@ -72,10 +73,11 @@ Common failure: treating a transcript timestamp from the source video as if it w
 2. Codecut returns current project state through `get_project_info`.
 3. Codecut returns imported media through `list_media_assets`.
 4. Codecut returns transcript segments through `transcribe_media` when transcript-first editing is needed.
-5. Codex returns one strict implemented EditPlan v1.
-6. Codecut validates and applies the plan through `apply_edit_plan`.
-7. Codecut returns timeline state through `get_timeline_state`.
-8. The user previews the visible result in the browser.
+5. Codecut returns merged source-timestamped context through `build_video_context` when long-video or transcript-first planning needs structured context.
+6. Codex returns one strict implemented EditPlan v1.
+7. Codecut validates and applies the plan through `apply_edit_plan`.
+8. Codecut returns timeline state through `get_timeline_state`.
+9. The user previews the visible result in the browser.
 
 ## Confirmation Rules
 
