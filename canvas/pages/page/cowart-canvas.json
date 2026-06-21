@@ -1,0 +1,281 @@
+{
+  "schema": {
+    "schemaVersion": 2,
+    "sequences": {
+      "com.tldraw.store": 5,
+      "com.tldraw.asset": 1,
+      "com.tldraw.camera": 1,
+      "com.tldraw.document": 2,
+      "com.tldraw.instance": 26,
+      "com.tldraw.instance_page_state": 5,
+      "com.tldraw.page": 1,
+      "com.tldraw.instance_presence": 6,
+      "com.tldraw.pointer": 1,
+      "com.tldraw.shape": 4,
+      "com.tldraw.user": 1,
+      "com.tldraw.asset.image": 6,
+      "com.tldraw.asset.video": 5,
+      "com.tldraw.asset.bookmark": 2,
+      "com.tldraw.shape.group": 0,
+      "com.tldraw.shape.text": 4,
+      "com.tldraw.shape.bookmark": 2,
+      "com.tldraw.shape.draw": 4,
+      "com.tldraw.shape.geo": 11,
+      "com.tldraw.shape.note": 12,
+      "com.tldraw.shape.line": 5,
+      "com.tldraw.shape.frame": 1,
+      "com.tldraw.shape.arrow": 8,
+      "com.tldraw.shape.highlight": 3,
+      "com.tldraw.shape.embed": 4,
+      "com.tldraw.shape.image": 5,
+      "com.tldraw.shape.video": 4,
+      "com.tldraw.binding.arrow": 1
+    }
+  },
+  "store": {
+    "asset:ig_0994e3f5ca4aa360016a37b14032008191986a193dc7b6e35e": {
+      "id": "asset:ig_0994e3f5ca4aa360016a37b14032008191986a193dc7b6e35e",
+      "typeName": "asset",
+      "type": "image",
+      "props": {
+        "name": "ig_0994e3f5ca4aa360016a37b14032008191986a193dc7b6e35e.png",
+        "src": "/page-assets/page/ig_0994e3f5ca4aa360016a37b14032008191986a193dc7b6e35e.png",
+        "w": 1254,
+        "h": 1254,
+        "fileSize": 1497365,
+        "mimeType": "image/png",
+        "isAnimated": false
+      },
+      "meta": {
+        "source": "codex-imagegen",
+        "request": "rotate outer petal outline 10 degrees, keep internal graphic unchanged"
+      }
+    },
+    "asset:663136741": {
+      "id": "asset:663136741",
+      "type": "image",
+      "typeName": "asset",
+      "props": {
+        "name": "tldrawFile.png",
+        "src": "/page-assets/page/tldrawFile.png",
+        "w": 1024,
+        "h": 1024,
+        "fileSize": 106102,
+        "mimeType": "image/png",
+        "isAnimated": false
+      },
+      "meta": {}
+    },
+    "asset:badge-reference-angle-ig_068b936e88397e0c016a37b34a0a888191b9650232cea10495": {
+      "id": "asset:badge-reference-angle-ig_068b936e88397e0c016a37b34a0a888191b9650232cea10495",
+      "typeName": "asset",
+      "type": "image",
+      "props": {
+        "name": "badge-reference-angle-ig_068b936e88397e0c016a37b34a0a888191b9650232cea10495.png",
+        "src": "/page-assets/page/badge-reference-angle-ig_068b936e88397e0c016a37b34a0a888191b9650232cea10495.png",
+        "w": 1254,
+        "h": 1254,
+        "fileSize": 1763832,
+        "mimeType": "image/png",
+        "isAnimated": false
+      },
+      "meta": {
+        "source": "codex-imagegen",
+        "reference": "blue flower icon outer angle only",
+        "request": "match reference outer petal angle while preserving internal white mark"
+      }
+    },
+    "shape:DNEyF7-FDYcI-k2lTmAyp": {
+      "x": -2994.8018186191507,
+      "y": 49.406319635902946,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "meta": {},
+      "id": "shape:DNEyF7-FDYcI-k2lTmAyp",
+      "type": "image",
+      "props": {
+        "w": 1024,
+        "h": 1024,
+        "assetId": "asset:663136741",
+        "playing": true,
+        "url": "",
+        "crop": null,
+        "flipX": false,
+        "flipY": false,
+        "altText": ""
+      },
+      "parentId": "page:page",
+      "index": "a6SCX65V",
+      "typeName": "shape"
+    },
+    "shape:ig_0994e3f5ca4aa360016a37b14032008191986a193dc7b6e35e": {
+      "x": -160.5420148142548,
+      "y": -186.85977199701415,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "meta": {
+        "insertedBy": "codex",
+        "purpose": "cowart-load-generated-image",
+        "cowartAnnotationSourceShapeId": "shape:_DFGLibv9dXocFYrf2tXU"
+      },
+      "id": "shape:ig_0994e3f5ca4aa360016a37b14032008191986a193dc7b6e35e",
+      "type": "image",
+      "props": {
+        "w": 1143.931771059195,
+        "h": 1143.931771059195,
+        "assetId": "asset:ig_0994e3f5ca4aa360016a37b14032008191986a193dc7b6e35e",
+        "playing": true,
+        "url": "",
+        "crop": null,
+        "flipX": false,
+        "flipY": false,
+        "altText": "Outer petal rotated 10 degrees badge edit"
+      },
+      "parentId": "page:page",
+      "index": "a2",
+      "typeName": "shape"
+    },
+    "user:7fUnhZ0znRmmFFxny89UA": {
+      "name": "",
+      "color": "#BD54C6",
+      "imageUrl": "",
+      "meta": {},
+      "id": "user:7fUnhZ0znRmmFFxny89UA",
+      "typeName": "user"
+    },
+    "page:page": {
+      "meta": {},
+      "id": "page:page",
+      "name": "Page 1",
+      "index": "a1",
+      "typeName": "page"
+    },
+    "document:document": {
+      "gridSize": 10,
+      "name": "",
+      "meta": {},
+      "id": "document:document",
+      "typeName": "document"
+    },
+    "shape:HAUZPGt1YGhs5VAL0T3JF": {
+      "x": 939.9826279319916,
+      "y": 69.78901819350654,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "meta": {
+        "cowartAnnotationArrow": true
+      },
+      "id": "shape:HAUZPGt1YGhs5VAL0T3JF",
+      "type": "arrow",
+      "props": {
+        "kind": "arc",
+        "elbowMidPoint": 0.5,
+        "dash": "draw",
+        "size": "m",
+        "fill": "none",
+        "color": "red",
+        "labelColor": "red",
+        "bend": 120.00089888045646,
+        "start": {
+          "x": 0,
+          "y": 0
+        },
+        "end": {
+          "x": -464.37048624391446,
+          "y": -305.073480752894
+        },
+        "arrowheadStart": "none",
+        "arrowheadEnd": "arrow",
+        "richText": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph"
+            }
+          ]
+        },
+        "labelPosition": 0,
+        "font": "draw",
+        "scale": 1
+      },
+      "parentId": "page:page",
+      "index": "a3wao8IV",
+      "typeName": "shape"
+    },
+    "shape:badge-reference-angle-ig_068b936e88397e0c016a37b34a0a888191b9650232cea10495": {
+      "x": 2207.321527304135,
+      "y": -186.85977199701415,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "meta": {
+        "insertedBy": "codex",
+        "cowartGeneratedFromAnnotationEdit": true,
+        "cowartAnnotationSourceShapeId": "shape:ig_0994e3f5ca4aa360016a37b14032008191986a193dc7b6e35e",
+        "cowartAnnotationScreenshot": "codex-clipboard-24c78f27-0b04-434e-a1bf-ea7225873867.png",
+        "purpose": "reference-angle-variant"
+      },
+      "id": "shape:badge-reference-angle-ig_068b936e88397e0c016a37b34a0a888191b9650232cea10495",
+      "type": "image",
+      "props": {
+        "w": 1143.931771059195,
+        "h": 1143.931771059195,
+        "assetId": "asset:badge-reference-angle-ig_068b936e88397e0c016a37b34a0a888191b9650232cea10495",
+        "playing": true,
+        "url": "",
+        "crop": null,
+        "flipX": false,
+        "flipY": false,
+        "altText": "Badge outer petal angle adjusted to match blue reference angle"
+      },
+      "parentId": "page:page",
+      "index": "a5",
+      "typeName": "shape"
+    },
+    "shape:j7IzlzGjMqCFbFphbIhQ7": {
+      "x": 906.9159988805673,
+      "y": 69.60512649366888,
+      "rotation": 0,
+      "isLocked": false,
+      "opacity": 1,
+      "meta": {},
+      "id": "shape:j7IzlzGjMqCFbFphbIhQ7",
+      "type": "text",
+      "props": {
+        "color": "black",
+        "size": "m",
+        "w": 145,
+        "font": "draw",
+        "textAlign": "start",
+        "autoSize": true,
+        "scale": 1,
+        "richText": {
+          "type": "doc",
+          "attrs": {
+            "dir": "auto"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "dir": "auto"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "向左调整角度"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "parentId": "page:page",
+      "index": "a4XmpfQV",
+      "typeName": "shape"
+    }
+  }
+}
