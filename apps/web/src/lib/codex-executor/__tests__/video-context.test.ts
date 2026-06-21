@@ -35,7 +35,7 @@ describe("video context", () => {
 		expect(
 			offsetTranscriptSegments({
 				offsetSeconds: 300,
-				segments: [{ start: 1.2345, end: 4.5675, text: "rounded chunk" }],
+				segments: [{ start: 1.2346, end: 4.5674, text: "rounded chunk" }],
 			}),
 		).toEqual([{ start: 301.235, end: 304.567, text: "rounded chunk" }]);
 	});
@@ -126,8 +126,8 @@ describe("video context", () => {
 	});
 
 	test("buildVideoContextWithTranscriber fails fast on chunk transcription errors", async () => {
-		try {
-			await buildVideoContextWithTranscriber({
+		await expect(
+			buildVideoContextWithTranscriber({
 				mediaAsset: {
 					id: "media-1",
 					name: "source.mp4",
@@ -146,13 +146,9 @@ describe("video context", () => {
 						segments: [{ start: 1, end: 2, text: "ok" }],
 					};
 				},
-			});
-			throw new Error("Expected buildVideoContextWithTranscriber to reject.");
-		} catch (error) {
-			expect(error).toBeInstanceOf(Error);
-			expect((error as Error).message).toBe(
-				"VideoContext chunk 2 failed for source range 300.00s-600.00s: ASR failed",
-			);
-		}
+			}),
+		).rejects.toThrow(
+			/^VideoContext chunk 2 failed for source range 300\.00s-600\.00s: ASR failed$/,
+		);
 	});
 });
