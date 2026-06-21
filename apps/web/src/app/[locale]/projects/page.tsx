@@ -54,6 +54,7 @@ import { RenameProjectDialog } from "@/components/editor/dialogs/rename-project-
 import { cn } from "@/utils/ui";
 import { StorageIndicator } from "./storage-indicator";
 import { createProjectFromName } from "./create-project";
+import { TemplateScriptsDialog } from "@/components/editor/template-scripts/template-scripts-dialog";
 
 const formatProjectDuration = ({
 	duration,
@@ -171,6 +172,7 @@ function ProjectsHeader() {
 							<span className="hidden sm:inline">{t("Characters")}</span>
 						</Button>
 					</Link>
+					<TemplateScriptsDialog />
 					<NewProjectButton />
 				</div>
 			</div>

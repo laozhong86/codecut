@@ -9,6 +9,7 @@ import { streamChatCompletion } from "./llm-client";
 import { buildSystemPrompt } from "./system-prompt";
 import { getAllToolSchemas, getToolByName } from "./tools";
 import { type AgentTool, buildToolSchema } from "./tools/types";
+import { localTemplateScriptService } from "@/lib/template-scripts";
 import type {
 	AgentLLMConfig,
 	AgentMessage,
@@ -129,10 +130,7 @@ async function executeAndPushResult({
 	} catch (error) {
 		result = {
 			success: false,
-			message:
-				error instanceof Error
-					? error.message
-					: "Tool execution failed",
+			message: error instanceof Error ? error.message : "Tool execution failed",
 		};
 	}
 	pushToolResult({
@@ -172,9 +170,7 @@ async function executeToolCallBatch({
 					result = {
 						success: false,
 						message:
-							error instanceof Error
-								? error.message
-								: "Tool execution failed",
+							error instanceof Error ? error.message : "Tool execution failed",
 					};
 				}
 				return { rawToolCall, result };
@@ -258,6 +254,7 @@ export async function runAgentLoop({
 
 	const baseToolSchemas = getAllToolSchemas();
 	const conversationMessages = [...messages];
+	const localTemplateScripts = await localTemplateScriptService.listTemplates();
 	let rounds = 0;
 
 	while (rounds < MAX_TOOL_ROUNDS) {
@@ -266,7 +263,10 @@ export async function runAgentLoop({
 
 		callbacks.onMessageStart();
 
-		const systemPrompt = buildSystemPrompt({ roleId: activeRoleId });
+		const systemPrompt = buildSystemPrompt({
+			roleId: activeRoleId,
+			localTemplateScripts,
+		});
 		const toolSchemas = switchRoleTool
 			? [...baseToolSchemas, buildToolSchema({ tool: switchRoleTool })]
 			: baseToolSchemas;
@@ -333,9 +333,7 @@ export async function runAgentLoop({
 		}));
 
 		const confirmableEntries = toolCallEntries.filter(
-			(
-				entry,
-			): entry is ToolCallEntry & { tool: AgentTool } =>
+			(entry): entry is ToolCallEntry & { tool: AgentTool } =>
 				entry.tool?.requiresConfirmation === true && !autoMode,
 		);
 
@@ -378,8 +376,7 @@ export async function runAgentLoop({
 				continue;
 			}
 
-			const needsConfirmation =
-				tool.requiresConfirmation && !autoMode;
+			const needsConfirmation = tool.requiresConfirmation && !autoMode;
 
 			if (needsConfirmation && !confirmedIds.has(rawToolCall.id)) {
 				pushToolResult({
@@ -402,12 +399,8 @@ export async function runAgentLoop({
 				let nextIndex = entryIndex + 1;
 				while (nextIndex < toolCallEntries.length) {
 					const next = toolCallEntries[nextIndex];
-					const nextNeedsConfirm =
-						next.tool?.requiresConfirmation && !autoMode;
-					if (
-						!nextNeedsConfirm ||
-						!confirmedIds.has(next.rawToolCall.id)
-					)
+					const nextNeedsConfirm = next.tool?.requiresConfirmation && !autoMode;
+					if (!nextNeedsConfirm || !confirmedIds.has(next.rawToolCall.id))
 						break;
 					batch.push(next);
 					nextIndex++;

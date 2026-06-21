@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { EditorCore } from "@/core";
 import { buildDefaultScene } from "@/lib/scenes";
+import { createLocalTemplateScript } from "@/lib/template-scripts";
 import { buildSystemPrompt } from "../system-prompt";
 
 function initializePromptProject() {
@@ -55,5 +56,41 @@ describe("buildSystemPrompt", () => {
 		expect(prompt).toContain("BGM");
 		expect(prompt).toContain("SFX");
 		expect(prompt).toContain("image B-roll");
+	});
+
+	test("exposes local template scripts as read-only editing context", () => {
+		initializePromptProject();
+
+		const prompt = buildSystemPrompt({
+			localTemplateScripts: [
+				createLocalTemplateScript({
+					id: "ugc-proof",
+					name: "UGC proof script",
+					trigger: {
+						types: ["product-proof-ad"],
+						defaultForTypes: ["product-proof-ad"],
+						aliases: ["ugc proof"],
+					},
+					script: {
+						objective: "Build a proof-led product short.",
+						steps: [
+							{
+								id: "hook",
+								label: "Hook",
+								instruction: "Open with the strongest visible proof.",
+							},
+						],
+						verification: ["Claims must map to visible proof."],
+					},
+					now: new Date("2026-06-22T00:00:00.000Z"),
+				}),
+			],
+		});
+
+		expect(prompt).toContain("Local Template Scripts");
+		expect(prompt).toContain("ugc-proof");
+		expect(prompt).toContain("Default triggers: product-proof-ad");
+		expect(prompt).toContain("Open with the strongest visible proof.");
+		expect(prompt).toContain("Read the matching local template script");
 	});
 });

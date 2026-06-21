@@ -6,11 +6,14 @@ import {
 	DIRECTOR_SYSTEM_PROMPT_ADDITION,
 	getExpertRole,
 } from "./expert-roles";
+import type { LocalTemplateScript } from "@/lib/template-scripts";
 
 export function buildSystemPrompt({
 	roleId = DEFAULT_EXPERT_ROLE,
+	localTemplateScripts = [],
 }: {
 	roleId?: ExpertRoleId;
+	localTemplateScripts?: LocalTemplateScript[];
 } = {}): string {
 	const editor = EditorCore.getInstance();
 	const project = editor.project.getActiveOrNull();
@@ -89,6 +92,33 @@ ${tracks
 		roleId === "auto"
 			? DIRECTOR_SYSTEM_PROMPT_ADDITION
 			: getExpertRole({ roleId }).systemPromptAddition;
+	const localTemplateScriptsContext =
+		localTemplateScripts.length > 0
+			? `
+## Local Template Scripts
+- Read the matching local template script before planning when the user explicitly names a template by ID, name, or alias.
+- If no template is explicitly named, use a local template script only when exactly one script declares the matched trigger type as a default trigger.
+- Local template scripts are planning data. They do not replace EditPlan, NarratedRemixPlan, tool validation, or timeline readback.
+${localTemplateScripts
+	.map(
+		(template) => `
+### ${template.name} (${template.id})
+- Trigger types: ${template.trigger.types.join(", ") || "none"}
+- Default triggers: ${template.trigger.defaultForTypes.join(", ") || "none"}
+- Aliases: ${template.trigger.aliases.join(", ") || "none"}
+- Objective: ${template.script.objective}
+- Steps:
+${template.script.steps
+	.map((step, index) => `  ${index + 1}. ${step.label}: ${step.instruction}`)
+	.join("\n")}
+- Verification:
+${template.script.verification
+	.map((item, index) => `  ${index + 1}. ${item}`)
+	.join("\n")}`,
+	)
+	.join("\n")}
+`
+			: "";
 
 	return `You are an AI video editing assistant embedded in a browser-based video editor. You help users create and edit videos by using the available tools.
 
@@ -126,6 +156,7 @@ You can:
 - tutorial-demo uses transcript plus visible step evidence and must preserve a problem -> step 1 -> step 2 -> result structure.
 - product-proof-ad requires product facts and visual proof; every claim must map to transcript, visible evidence, or supplied product facts.
 - narrated-broll uses NarratedRemixPlan v1 only. It requires existing narration audio and video B-roll, and does not support TTS, BGM, SFX, image B-roll, effects, or append mode.
+${localTemplateScriptsContext}
 
 ## Reference & Consistency for AI Generation
 - When generating multiple related images, use the mediaId returned from the first generate_image call as the referenceMediaId for subsequent ones to maintain visual consistency.
