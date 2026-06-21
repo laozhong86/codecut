@@ -4,7 +4,7 @@
 
 **Goal:** Add a local `build_visual_context` executor tool that creates timeline-wide visual evidence artifacts and conservative vertical-reframe preflight before Codex writes an EditPlan.
 
-**Architecture:** Reuse the existing `inspect_video_range` pipeline instead of creating another FFmpeg path. Add a focused `visual-context.ts` builder that splits a video into fixed 60-second windows, calls the injected range inspector for each window, classifies source orientation, and returns explicit warnings for OCR/subject/semantic analysis that v1 does not implement. Wire the builder into the local executor, CLI, bridge schema, and agent-facing docs.
+**Architecture:** Reuse the existing `inspect_video_range` pipeline instead of creating another FFmpeg path. Add a focused `visual-context.ts` builder that splits a video into fixed 60-second windows, calls the injected range inspector for each window, classifies source orientation, and returns explicit warnings for OCR/subject/semantic analysis that v1 does not implement. Wire the builder into the local executor, CLI, and agent-facing docs. Keep browser bridge schema unchanged because this is an executor-only evidence command.
 
 **Tech Stack:** Bun test, TypeScript, Zod, local Codex executor, existing `inspectVideoRange`, existing `scripts/codex-bridge.mjs` CLI, existing Codecut skill docs.
 
@@ -19,7 +19,6 @@ This plan covers:
 - Reuse `inspect_video_range` for contact sheets, frame timestamps, waveform samples, and silence ranges.
 - Return conservative visual preflight for explicit target aspect ratios.
 - Add CLI support through `scripts/codex-bridge.mjs build-visual-context`.
-- Add bridge schema support for browser-side command validation.
 - Update docs and skill references so agents know when to call the tool.
 
 This plan excludes:
@@ -46,12 +45,6 @@ This plan excludes:
 
 - Modify `apps/web/src/lib/codex-executor/__tests__/executor.test.ts`
   - Adds executor-level success and fail-fast tests.
-
-- Modify `apps/web/src/lib/agent-bridge/schema.ts`
-  - Adds `build_visual_context` to the bridge tool enum.
-
-- Modify `apps/web/src/lib/agent-bridge/__tests__/schema.test.ts`
-  - Tests the new bridge tool is accepted.
 
 - Modify `scripts/codex-bridge.mjs`
   - Adds usage text, envelope builder, and CLI branch for `build-visual-context`.
@@ -950,26 +943,13 @@ git commit -m "feat: expose visual context executor command"
 
 ---
 
-### Task 3: Add Bridge Schema And CLI
+### Task 3: Add CLI Envelope Support
 
 **Files:**
-- Modify: `apps/web/src/lib/agent-bridge/schema.ts`
-- Modify: `apps/web/src/lib/agent-bridge/__tests__/schema.test.ts`
 - Modify: `scripts/codex-bridge.mjs`
 - Modify: `scripts/__tests__/codex-bridge.test.mjs`
 
-- [ ] **Step 1: Add failing bridge schema test**
-
-Add this test to `apps/web/src/lib/agent-bridge/__tests__/schema.test.ts`:
-
-```ts
-test("accepts the visual context tool", () => {
-	const result = BridgeToolNameSchema.safeParse("build_visual_context");
-	expect(result.success).toBe(true);
-});
-```
-
-- [ ] **Step 2: Add failing CLI helper tests**
+- [ ] **Step 1: Add failing CLI helper tests**
 
 Update the import list in `scripts/__tests__/codex-bridge.test.mjs`:
 
@@ -1029,33 +1009,17 @@ test("buildVisualContextEnvelope requires explicit inputs", () => {
 });
 ```
 
-- [ ] **Step 3: Run failing schema and CLI tests**
+- [ ] **Step 2: Run failing CLI tests**
 
 Run:
 
 ```bash
-bun test apps/web/src/lib/agent-bridge/__tests__/schema.test.ts scripts/__tests__/codex-bridge.test.mjs
+bun test scripts/__tests__/codex-bridge.test.mjs
 ```
 
-Expected: FAIL because schema and CLI helper do not support `build_visual_context`.
+Expected: FAIL because the CLI helper does not support `build_visual_context`.
 
-- [ ] **Step 4: Add bridge schema tool**
-
-In `apps/web/src/lib/agent-bridge/schema.ts`, add:
-
-```ts
-"build_visual_context",
-```
-
-Place it near:
-
-```ts
-"transcribe_media",
-"build_visual_context",
-"build_post_cut_captions",
-```
-
-- [ ] **Step 5: Add CLI usage and envelope helper**
+- [ ] **Step 3: Add CLI usage and envelope helper**
 
 In `scripts/codex-bridge.mjs`, add usage text near `build-video-context`:
 
@@ -1103,20 +1067,20 @@ Add CLI branch near `build-video-context`:
 	});
 ```
 
-- [ ] **Step 6: Run schema and CLI tests**
+- [ ] **Step 4: Run CLI tests**
 
 Run:
 
 ```bash
-bun test apps/web/src/lib/agent-bridge/__tests__/schema.test.ts scripts/__tests__/codex-bridge.test.mjs
+bun test scripts/__tests__/codex-bridge.test.mjs
 ```
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/lib/agent-bridge/schema.ts apps/web/src/lib/agent-bridge/__tests__/schema.test.ts scripts/codex-bridge.mjs scripts/__tests__/codex-bridge.test.mjs
+git add scripts/codex-bridge.mjs scripts/__tests__/codex-bridge.test.mjs
 git commit -m "feat: add visual context bridge command"
 ```
 
@@ -1200,7 +1164,6 @@ Run:
 bun test \
   apps/web/src/lib/codex-executor/__tests__/visual-context.test.ts \
   apps/web/src/lib/codex-executor/__tests__/executor.test.ts \
-  apps/web/src/lib/agent-bridge/__tests__/schema.test.ts \
   scripts/__tests__/codex-bridge.test.mjs
 ```
 
@@ -1260,7 +1223,7 @@ Expected: JSON result includes `qualityLevel: "L3_visual_evidence"`, at least on
 If verification required fixes, commit them:
 
 ```bash
-git add apps/web/src/lib/codex-executor/visual-context.ts apps/web/src/lib/codex-executor/__tests__/visual-context.test.ts apps/web/src/lib/codex-executor/executor.ts apps/web/src/lib/codex-executor/__tests__/executor.test.ts apps/web/src/lib/agent-bridge/schema.ts apps/web/src/lib/agent-bridge/__tests__/schema.test.ts scripts/codex-bridge.mjs scripts/__tests__/codex-bridge.test.mjs docs/codex-driven-editing.md skills/codecut-jianying-editor-framework/SKILL.md skills/codecut-jianying-editor-framework/references/video-context-contract.md
+git add apps/web/src/lib/codex-executor/visual-context.ts apps/web/src/lib/codex-executor/__tests__/visual-context.test.ts apps/web/src/lib/codex-executor/executor.ts apps/web/src/lib/codex-executor/__tests__/executor.test.ts scripts/codex-bridge.mjs scripts/__tests__/codex-bridge.test.mjs docs/codex-driven-editing.md skills/codecut-jianying-editor-framework/SKILL.md skills/codecut-jianying-editor-framework/references/video-context-contract.md
 git commit -m "fix: complete visual context verification"
 ```
 
@@ -1276,7 +1239,7 @@ Spec coverage:
 - No project mutation: Task 2 executor success test.
 - Explicit target aspect ratio: Task 2 args schema and Task 3 CLI tests.
 - No OCR/subject overclaim: Task 1 output warnings and Task 4 docs.
-- CLI and bridge contract: Task 3.
+- CLI contract: Task 3.
 - Agent workflow enforcement: Task 4.
 
 Placeholder scan:

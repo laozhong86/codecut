@@ -31,6 +31,8 @@ VectCut's practical advantage is the ability to produce a material report before
 - Missing OCR, face tracking, subject detection, and semantic scene description are warnings, not invented facts.
 - Executor tests prove no project revision change.
 - CLI support exists so agent workflows can call it without a browser tab.
+- Browser bridge schema is not expanded in v1 because this is an executor-only
+  evidence command, not a browser agent tool.
 - Agent-facing docs explain when this tool is required before EditPlan authoring.
 
 ## Non-Goals
@@ -249,5 +251,4 @@ Minimum verification:
 - Executor test proving success and no project revision mutation.
 - Executor test proving image/audio media is rejected before invoking inspection.
 - CLI test proving `build-visual-context` creates the exact command envelope.
-- Schema test proving bridge tool enum accepts `build_visual_context`.
 - Docs update proving the workflow requires visual context for reframe-sensitive edits.

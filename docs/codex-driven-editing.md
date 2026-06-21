@@ -521,30 +521,43 @@ After application, Codex must verify `get_timeline_state` proof fields:
 17. Codex resolves one P0 video template or reports why no implemented template can satisfy the request.
 18. Codex calls `build_video_context` for transcript-first planning when a long
    source video needs structured context.
-19. Codex calls `inspect-video-range` for source ranges where visual continuity,
+19. Codex calls `build-visual-context` when tutorial, product-proof,
+    screen-recording, or horizontal-to-vertical jobs need timeline-wide visual
+    evidence before final EditPlan authoring. Treat returned artifacts as
+    evidence. Do not claim OCR, subject-safe crop, burned-caption detection, or
+    semantic scene recognition unless a later tool returns those facts
+    explicitly.
+20. Codex calls `inspect-video-range` for source ranges where visual continuity,
     waveform shape, silence gaps, caption overlap, or reframe risk affects the
     EditPlan decision.
-20. Codex updates the EditingDecisionLedger for EditPlan templates, or writes a strict NarratedRemixPlan for `narrated-broll`.
-21. Codex projects the selected structure into an implemented EditPlan v1 JSON
+21. Codex updates the EditingDecisionLedger for EditPlan templates, or writes a strict NarratedRemixPlan for `narrated-broll`.
+22. Codex projects the selected structure into an implemented EditPlan v1 JSON
     file under `05-execution/`, or keeps `narrated-broll` inside NarratedRemixPlan v1 only.
-22. For EditPlan paths, Codex calls `validate-edit-plan` and
+23. For EditPlan paths, Codex calls `validate-edit-plan` and
     `preview-edit-plan` before applying any clip-first or final plan.
-23. For EditPlan templates, Codex calls `apply_edit_plan` with a stable
+24. For EditPlan templates, Codex calls `apply_edit_plan` with a stable
     clip-first EditPlan when edited audio transcription from edited clip ranges
     is required.
-24. For EditPlan templates with captions, Codex runs
+25. For EditPlan templates with captions, Codex runs
     `build-post-cut-captions`, then writes those returned captions into the
     final EditPlan with the matching `captionStyle`.
-25. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the final
+26. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the final
     strict plan.
-26. Codex calls `verify-timeline` and `get_timeline_state` to verify clips,
+27. Codex calls `verify-timeline` and `get_timeline_state` to verify clips,
     text style, audio source and volume, and video transitions.
     This readback must include the expected video track clip count, text track
     caption count, timeline duration, and clip trim ranges before the edit can
     be reported as complete.
-27. Codex writes verification notes under `06-verification/`.
-28. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
-29. If export is requested, Codex calls `export` with explicit output path and overwrite policy. If the local renderer runtime is unavailable, report that runtime gap.
+28. Codex writes verification notes under `06-verification/`.
+29. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
+30. If export is requested, Codex calls `export` with explicit output path and overwrite policy. If the local renderer runtime is unavailable, report that runtime gap.
+
+```bash
+node scripts/codex-bridge.mjs build-visual-context \
+  --project-id <project-id> \
+  --media-id <media-id> \
+  --target-aspect-ratio 9:16
+```
 
 ## Fast Path: Local File To Short
 

@@ -88,6 +88,12 @@ Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview
 
 ## Visual And Caption Gates
 
+For tutorial, product-proof, screen-recording, or horizontal-to-vertical jobs,
+run `build_visual_context` before final EditPlan authoring. Use it as
+timeline-wide visual evidence and reframe preflight. It does not perform OCR,
+subject detection, burned-caption detection, or semantic scene recognition; do
+not claim those facts from its output.
+
 For horizontal source media converted to vertical shorts, run visual preflight
 before final EditPlan authoring. If burned-in subtitles or face-safe crop risk
 exists, use `vertical_face_safe_crop_above_burned_captions` as the documented
