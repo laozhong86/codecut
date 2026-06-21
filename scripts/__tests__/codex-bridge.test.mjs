@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
 	buildApplyPlanEnvelope,
 	buildCommandEnvelope,
+	buildDigitalHumanEnvelope,
 	buildExportEnvelope,
 	buildImportMediaEnvelope,
 	buildInspectVideoRangeEnvelope,
@@ -29,6 +30,7 @@ describe("codex bridge CLI helpers", () => {
 
 		expect(exitCode).toBe(0);
 		expect(output).toContain("node scripts/codex-bridge.mjs send");
+		expect(output).toContain("node scripts/codex-bridge.mjs generate-digital-human");
 	});
 
 	test("requires local runtime config instead of using hidden defaults", () => {
@@ -205,6 +207,79 @@ describe("codex bridge CLI helpers", () => {
 				},
 			],
 		});
+	});
+
+	test("buildDigitalHumanEnvelope creates a generate_digital_human command", () => {
+		expect(
+			buildDigitalHumanEnvelope({
+				projectId: "project-1",
+				imageMediaId: "image-1",
+				audioMediaId: "audio-1",
+				scriptText: "欢迎来到今天的口播",
+				motionPrompt: "女人自然点头微笑",
+				width: 1280,
+				height: 720,
+				fps: 25,
+			}),
+		).toEqual({
+			version: 1,
+			projectId: "project-1",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "generate_digital_human",
+					args: {
+						imageMediaId: "image-1",
+						audioMediaId: "audio-1",
+						scriptText: "欢迎来到今天的口播",
+						motionPrompt: "女人自然点头微笑",
+						width: 1280,
+						height: 720,
+						fps: 25,
+					},
+				},
+			],
+		});
+	});
+
+	test("buildDigitalHumanEnvelope requires all explicit inputs", () => {
+		expect(() =>
+			buildDigitalHumanEnvelope({
+				projectId: "project-1",
+				imageMediaId: "",
+				audioMediaId: "audio-1",
+				scriptText: "欢迎来到今天的口播",
+				motionPrompt: "女人自然点头微笑",
+				width: 1280,
+				height: 720,
+				fps: 25,
+			}),
+		).toThrow("--image-media-id is required");
+		expect(() =>
+			buildDigitalHumanEnvelope({
+				projectId: "project-1",
+				imageMediaId: "image-1",
+				audioMediaId: "audio-1",
+				scriptText: "",
+				motionPrompt: "女人自然点头微笑",
+				width: 1280,
+				height: 720,
+				fps: 25,
+			}),
+		).toThrow("--script-text is required");
+		expect(() =>
+			buildDigitalHumanEnvelope({
+				projectId: "project-1",
+				imageMediaId: "image-1",
+				audioMediaId: "audio-1",
+				scriptText: "欢迎来到今天的口播",
+				motionPrompt: "女人自然点头微笑",
+				width: 0,
+				height: 720,
+				fps: 25,
+			}),
+		).toThrow("--width must be a positive number");
 	});
 
 	test("builds an import-media command envelope from an absolute local file path", async () => {
@@ -735,5 +810,43 @@ describe("codex bridge CLI helpers", () => {
 		).rejects.toThrow(
 			"Token must be provided through CODECUT_AGENT_BRIDGE_TOKEN",
 		);
+	});
+
+	test("generate-digital-human requires RUNNINGHUB_API_KEY before contacting executor", async () => {
+		const requests = [];
+		await expect(
+			runCli({
+				argv: [
+					"generate-digital-human",
+					"--project-id",
+					"project-123",
+					"--image-media-id",
+					"image-1",
+					"--audio-media-id",
+					"audio-1",
+					"--script-text",
+					"欢迎来到今天的口播",
+					"--motion-prompt",
+					"女人自然点头微笑",
+					"--width",
+					"1280",
+					"--height",
+					"720",
+					"--fps",
+					"25",
+				],
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+					CODECUT_AGENT_BRIDGE_TOKEN: "env-token",
+					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+					CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+				},
+				fetchImpl: async (url, init) => {
+					requests.push({ url, init });
+					throw new Error("fetch should not be called");
+				},
+			}),
+		).rejects.toThrow("RUNNINGHUB_API_KEY is required");
+		expect(requests).toHaveLength(0);
 	});
 });

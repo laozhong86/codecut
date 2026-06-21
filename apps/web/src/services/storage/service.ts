@@ -12,6 +12,11 @@ import type {
 	ProjectStorageStats,
 } from "./types";
 import type { SavedSoundsData, SavedSound, SoundEffect } from "@/types/sounds";
+import type {
+	GeneratedVoice,
+	GeneratedVoiceAudioData,
+	GeneratedVoicesData,
+} from "@/types/voice";
 import {
 	migrations,
 	runStorageMigrations,
@@ -21,6 +26,8 @@ import type { TimelineTrack, TScene } from "@/types/timeline";
 class StorageService {
 	private projectsAdapter: IndexedDBAdapter<SerializedProject>;
 	private savedSoundsAdapter: IndexedDBAdapter<SavedSoundsData>;
+	private generatedVoicesAdapter: IndexedDBAdapter<GeneratedVoicesData>;
+	private generatedVoiceAudioAdapter: IndexedDBAdapter<GeneratedVoiceAudioData>;
 	private config: StorageConfig;
 	private migrationsPromise: Promise<void> | null = null;
 
@@ -29,6 +36,8 @@ class StorageService {
 			projectsDb: "video-editor-projects",
 			mediaDb: "video-editor-media",
 			savedSoundsDb: "video-editor-saved-sounds",
+			generatedVoicesDb: "video-editor-generated-voices",
+			generatedVoiceAudioDb: "video-editor-generated-voice-audio",
 			version: 1,
 		};
 
@@ -43,6 +52,19 @@ class StorageService {
 			"saved-sounds",
 			this.config.version,
 		);
+
+		this.generatedVoicesAdapter = new IndexedDBAdapter<GeneratedVoicesData>(
+			this.config.generatedVoicesDb,
+			"generated-voices",
+			this.config.version,
+		);
+
+		this.generatedVoiceAudioAdapter =
+			new IndexedDBAdapter<GeneratedVoiceAudioData>(
+				this.config.generatedVoiceAudioDb,
+				"generated-voice-audio",
+				this.config.version,
+			);
 	}
 
 	private async ensureMigrations(): Promise<void> {
@@ -508,6 +530,68 @@ class StorageService {
 		} catch (error) {
 			console.error("Failed to clear saved sounds:", error);
 			throw error;
+		}
+	}
+
+	async loadGeneratedVoices(): Promise<GeneratedVoicesData> {
+		const generatedVoicesData =
+			await this.generatedVoicesAdapter.get("generated-voices");
+		return (
+			generatedVoicesData || {
+				voices: [],
+				lastModified: new Date().toISOString(),
+			}
+		);
+	}
+
+	async saveGeneratedVoice({
+		voice,
+		audioBlob,
+	}: {
+		voice: GeneratedVoice;
+		audioBlob: Blob;
+	}): Promise<void> {
+		if (!audioBlob.size) {
+			throw new Error("Generated voice audio is empty");
+		}
+
+		const currentData = await this.loadGeneratedVoices();
+		const updatedData: GeneratedVoicesData = {
+			voices: [
+				voice,
+				...currentData.voices.filter(
+					(existingVoice) => existingVoice.id !== voice.id,
+				),
+			],
+			lastModified: new Date().toISOString(),
+		};
+
+		await this.generatedVoiceAudioAdapter.set(voice.audioBlobId, {
+			blob: audioBlob,
+		});
+		await this.generatedVoicesAdapter.set("generated-voices", updatedData);
+	}
+
+	async loadGeneratedVoiceAudio({
+		audioBlobId,
+	}: {
+		audioBlobId: string;
+	}): Promise<Blob | null> {
+		const audioData = await this.generatedVoiceAudioAdapter.get(audioBlobId);
+		return audioData?.blob ?? null;
+	}
+
+	async removeGeneratedVoice({ voiceId }: { voiceId: string }): Promise<void> {
+		const currentData = await this.loadGeneratedVoices();
+		const voice = currentData.voices.find((entry) => entry.id === voiceId);
+		const updatedData: GeneratedVoicesData = {
+			voices: currentData.voices.filter((entry) => entry.id !== voiceId),
+			lastModified: new Date().toISOString(),
+		};
+
+		await this.generatedVoicesAdapter.set("generated-voices", updatedData);
+		if (voice) {
+			await this.generatedVoiceAudioAdapter.remove(voice.audioBlobId);
 		}
 	}
 

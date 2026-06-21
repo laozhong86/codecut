@@ -1,0 +1,155 @@
+import { describe, expect, test } from "bun:test";
+import {
+	buildRunningHubVoiceDesignSubmitBody,
+	extractRunningHubVoiceDesignAudioUrl,
+	normalizeRunningHubVoiceDesignStatus,
+} from "../runninghub-voice-design";
+import {
+	downloadRunningHubAudio,
+	queryRunningHubVoiceDesignTask,
+	submitRunningHubVoiceDesignTask,
+} from "../runninghub-voice-design-server";
+
+describe("RunningHub voice design provider", () => {
+	test("builds the fixed AI App nodeInfoList from voice design inputs", () => {
+		expect(
+			buildRunningHubVoiceDesignSubmitBody({
+				text: "把肩膀沉下来，深呼吸。",
+				emotionPrompt: "温柔、低沉、安抚感强的心理咨询师声音",
+			}),
+		).toEqual({
+			nodeInfoList: [
+				{
+					nodeId: "24",
+					fieldName: "text",
+					fieldValue: "把肩膀沉下来，深呼吸。",
+					description: "语音内容",
+				},
+				{
+					nodeId: "21",
+					fieldName: "text",
+					fieldValue: "温柔、低沉、安抚感强的心理咨询师声音",
+					description: "声音描述",
+				},
+			],
+			instanceType: "default",
+			usePersonalQueue: "false",
+		});
+	});
+
+	test("maps RunningHub voice task statuses to Codecut task statuses", () => {
+		expect(normalizeRunningHubVoiceDesignStatus({ status: "QUEUED" })).toBe(
+			"pending",
+		);
+		expect(normalizeRunningHubVoiceDesignStatus({ status: "RUNNING" })).toBe(
+			"running",
+		);
+		expect(normalizeRunningHubVoiceDesignStatus({ status: "SUCCESS" })).toBe(
+			"succeeded",
+		);
+		expect(normalizeRunningHubVoiceDesignStatus({ status: "FAILED" })).toBe(
+			"failed",
+		);
+	});
+
+	test("extracts audio result URL and fails when no audio result exists", () => {
+		expect(
+			extractRunningHubVoiceDesignAudioUrl({
+				results: [
+					{ url: "https://example.com/preview.png", outputType: "png" },
+					{ url: "https://example.com/voice.wav", outputType: "wav" },
+				],
+			}),
+		).toBe("https://example.com/voice.wav");
+
+		expect(() =>
+			extractRunningHubVoiceDesignAudioUrl({
+				results: [
+					{ url: "https://example.com/result.mp4", outputType: "mp4" },
+				],
+			}),
+		).toThrow("RunningHub task succeeded without an audio result");
+	});
+
+	test("fails fast when RunningHub voice submit fails", async () => {
+		await expect(
+			submitRunningHubVoiceDesignTask({
+				apiKey: "rh-key",
+				request: {
+					text: "把肩膀沉下来，深呼吸。",
+					emotionPrompt: "温柔、低沉、安抚感强的心理咨询师声音",
+				},
+				fetchImpl: async () =>
+					new Response(JSON.stringify({ errorMessage: "submit failed" }), {
+						status: 400,
+					}),
+			}),
+		).rejects.toThrow("submit failed");
+	});
+
+	test("fails fast when RunningHub query succeeds without audio", async () => {
+		await expect(
+			queryRunningHubVoiceDesignTask({
+				apiKey: "rh-key",
+				taskId: "task-1",
+				fetchImpl: async () =>
+					new Response(
+						JSON.stringify({
+							taskId: "task-1",
+							status: "SUCCESS",
+							results: [
+								{
+									url: "https://example.com/result.mp4",
+									outputType: "mp4",
+								},
+							],
+						}),
+					),
+			}),
+		).rejects.toThrow("RunningHub task succeeded without an audio result");
+	});
+
+	test("downloads audio results with RunningHub host, redirect, type, and size guards", async () => {
+		await expect(
+			downloadRunningHubAudio({
+				audioUrl: "https://example.com/result.wav",
+				fetchImpl: async () => new Response("audio", { status: 200 }),
+			}),
+		).rejects.toThrow("RunningHub result URL host is not allowed");
+
+		await expect(
+			downloadRunningHubAudio({
+				audioUrl:
+					"https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.wav",
+				fetchImpl: async () =>
+					new Response(null, {
+						status: 302,
+						headers: { location: "http://127.0.0.1/private" },
+					}),
+			}),
+		).rejects.toThrow("RunningHub result download redirects are not allowed");
+
+		await expect(
+			downloadRunningHubAudio({
+				audioUrl: "https://www.runninghub.cn/output/result.wav",
+				fetchImpl: async () =>
+					new Response("not-audio", {
+						headers: { "content-type": "text/plain" },
+					}),
+			}),
+		).rejects.toThrow("RunningHub result download returned a non-audio file");
+
+		await expect(
+			downloadRunningHubAudio({
+				audioUrl: "https://www.runninghub.cn/output/result.wav",
+				fetchImpl: async () =>
+					new Response("audio", {
+						headers: {
+							"content-type": "audio/wav",
+							"content-length": String(101 * 1024 * 1024),
+						},
+					}),
+			}),
+		).rejects.toThrow("RunningHub result audio exceeds the maximum size");
+	});
+});

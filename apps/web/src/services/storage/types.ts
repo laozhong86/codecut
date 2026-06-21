@@ -53,6 +53,8 @@ export interface StorageConfig {
 	projectsDb: string;
 	mediaDb: string;
 	savedSoundsDb: string;
+	generatedVoicesDb: string;
+	generatedVoiceAudioDb: string;
 	version: number;
 }
 

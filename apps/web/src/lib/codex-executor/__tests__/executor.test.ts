@@ -30,6 +30,7 @@ function envelope({
 		| "apply_narrated_remix_plan"
 		| "create_text_background_effect"
 		| "create_human_pip_effect"
+		| "generate_digital_human"
 		| "get_timeline_state";
 	args: Record<string, unknown>;
 }) {
@@ -171,6 +172,176 @@ describe("codex executor", () => {
 				mediaAssets: [{ name: "source.mp4", duration: 120 }],
 			},
 		});
+	});
+
+	test("generate_digital_human creates a local video media asset", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const importImage = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "portrait.png",
+					mimeType: "image/png",
+					base64: Buffer.from("image").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					width: 1280,
+					height: 720,
+				},
+			}),
+		});
+		const importAudio = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "voice.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("audio").toString("base64"),
+					size: 5,
+					lastModified: 2,
+					duration: 3,
+				},
+			}),
+		});
+		const imageId = resultData<{ assets: Array<{ id: string }> }>(
+			importImage.results[0],
+		).assets[0].id;
+		const audioId = resultData<{ assets: Array<{ id: string }> }>(
+			importAudio.results[0],
+		).assets[0].id;
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_digital_human",
+				args: {
+					imageMediaId: imageId,
+					audioMediaId: audioId,
+					scriptText: "欢迎来到今天的口播",
+					motionPrompt: "女人自然点头微笑",
+					width: 1280,
+					height: 720,
+					fps: 25,
+				},
+			}),
+			env: { RUNNINGHUB_API_KEY: "rh-key" },
+			generateDigitalHuman: async ({
+				apiKey,
+				imageAsset,
+				audioAsset,
+				request,
+			}) => {
+				expect(apiKey).toBe("rh-key");
+				expect(imageAsset.id).toBe(imageId);
+				expect(audioAsset.id).toBe(audioId);
+				expect(request).toMatchObject({
+					scriptText: "欢迎来到今天的口播",
+					motionPrompt: "女人自然点头微笑",
+					width: 1280,
+					height: 720,
+					fps: 25,
+				});
+				return {
+					taskId: "task-1",
+					videoBytes: Buffer.from("mp4"),
+					mimeType: "video/mp4",
+					duration: 3,
+				};
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "generate_digital_human",
+			success: true,
+			message: "Generated digital human video 'digital-human-task-1.mp4'",
+			data: {
+				taskId: "task-1",
+				provider: "runninghub-digital-human",
+				duration: 3,
+				name: "digital-human-task-1.mp4",
+			},
+		});
+		expect(typeof resultData<{ mediaId: string }>(result.results[0]).mediaId).toBe(
+			"string",
+		);
+
+		const snapshot = await getExecutorProjectSnapshot({ projectId });
+		expect(snapshot.mediaAssets).toContainEqual(
+			expect.objectContaining({
+				name: "digital-human-task-1.mp4",
+				type: "video",
+				duration: 3,
+				size: 3,
+			}),
+		);
+	});
+
+	test("generate_digital_human rejects wrong media types and missing API key", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const importAudio = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "voice.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("audio").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 3,
+				},
+			}),
+		});
+		const audioId = resultData<{ assets: Array<{ id: string }> }>(
+			importAudio.results[0],
+		).assets[0].id;
+
+		const wrongType = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_digital_human",
+				args: {
+					imageMediaId: audioId,
+					audioMediaId: audioId,
+					scriptText: "欢迎来到今天的口播",
+					motionPrompt: "女人自然点头微笑",
+					width: 1280,
+					height: 720,
+					fps: 25,
+				},
+			}),
+			env: { RUNNINGHUB_API_KEY: "rh-key" },
+			generateDigitalHuman: async () => {
+				throw new Error("should not run");
+			},
+		});
+
+		expect(wrongType.results[0]).toMatchObject({
+			success: false,
+			message: expect.stringContaining("expected image"),
+		});
+
+		const missingKey = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_digital_human",
+				args: {
+					imageMediaId: "image-1",
+					audioMediaId: audioId,
+					scriptText: "欢迎来到今天的口播",
+					motionPrompt: "女人自然点头微笑",
+					width: 1280,
+					height: 720,
+					fps: 25,
+				},
+			}),
+			env: {},
+			generateDigitalHuman: async () => {
+				throw new Error("should not run");
+			},
+		});
+
+		expect(missingKey.results[0]).toMatchObject({
+			success: false,
+			message: "RUNNINGHUB_API_KEY is required",
+		});
+		expect(JSON.stringify(missingKey)).not.toContain("rh-key");
 	});
 
 	test("applies an EditPlan and exposes timeline state plus run status", async () => {

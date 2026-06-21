@@ -18,6 +18,7 @@ export const BridgeToolNameSchema = z.enum([
 	"apply_narrated_remix_plan",
 	"create_text_background_effect",
 	"create_human_pip_effect",
+	"generate_digital_human",
 ]);
 
 export const BridgeCommandSchema = z.object({
