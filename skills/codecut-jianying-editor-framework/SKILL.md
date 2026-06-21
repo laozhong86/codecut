@@ -11,6 +11,15 @@ Codecut is a local deterministic executor plus browser preview. Codex is the onl
 
 The local executor draft and `get_timeline_state` are proof. EditPlans are intent. Browser preview is for the human user, not the agent runtime.
 
+Browser is not the Agent runtime. Use `setupBrowserRuntime`, `agent.browsers.get("iab")`, `browser.capabilities.get("visibility")`, and `browser.tabs.selected()` only to open or inspect the Codex in-app browser preview for the human user.
+
+Preview URLs:
+
+- `http://127.0.0.1:4100/en/projects`
+- `http://127.0.0.1:4100/en/editor/<projectId>`
+
+Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview URL.
+
 ## Required Stage Routing
 
 For every request, choose one path before running commands:
@@ -49,11 +58,20 @@ Allowed before requirement intake passes:
 ## Current Runtime Rules
 
 - Use only `CODECUT_AGENT_BRIDGE_*` env keys.
-- Load bridge env from `apps/web/.env.local` when needed.
+- Load bridge env from `apps/web/.env.local` when needed with `source apps/web/.env.local`.
 - Use `http://127.0.0.1:4100`; do not switch ports.
 - Run `doctor-install` and `doctor` before business executor commands.
 - Do not depend on browser-mounted heartbeat for command execution.
 - Do not use FFmpeg, shell scripts, or overlay rendering as the Codecut editing path for cuts or subtitle burn-in.
+
+## Cross-Stage Editing Rules
+
+- Before creating a new executor project, define a business project name from the user brief or ask for one when the brief does not contain enough context.
+- Create projects with `create-project --project-id <id> --name "<business project name>"`.
+- Do not create projects with generic names such as "Untitled", "Test", or "Short Video".
+- For horizontal sources converted to vertical shorts, run a visual preflight and use `vertical_face_safe_crop_above_burned_captions` when faces or important content would collide with captions.
+- Do not use `black-bar` as a subtitle mask.
+- Caption timing must use a post-cut caption source: choose source transcript remap, edited audio transcription, or `build-post-cut-captions` based on the actual edit path.
 
 ## Planning References
 
