@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "codecut_mcp": {
+      "title": "Codecut MCP",
+      "description": "Expose stable Codecut local executor tools through MCP.",
+      "cwd": ".",
+      "command": "node",
+      "args": [
+        "./mcp/server.mjs"
+      ]
+    }
+  }
+}

@@ -25,6 +25,24 @@ describe("Codecut plugin startup guidance", () => {
 		});
 	});
 
+	test("declares the bundled Codecut MCP server", async () => {
+		const pluginManifest = JSON.parse(
+			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
+		);
+		const mcpManifest = JSON.parse(
+			await readFile(join(pluginRoot, ".mcp.json"), "utf8"),
+		);
+
+		expect(pluginManifest.mcpServers).toBe("./.mcp.json");
+		expect(mcpManifest.mcpServers.codecut_mcp).toEqual({
+			title: "Codecut MCP",
+			description: "Expose stable Codecut local executor tools through MCP.",
+			cwd: ".",
+			command: "node",
+			args: ["./mcp/server.mjs"],
+		});
+	});
+
 	test("opens the local preview through the current Codex in-app browser", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
@@ -182,7 +200,9 @@ describe("Codecut plugin startup guidance", () => {
 		expect(subtitlePass).toContain("Existing Subtitle Policy");
 		expect(subtitlePass).toContain("editable caption/text track");
 		expect(subtitlePass).toContain("burned-in source subtitles");
-		expect(subtitlePass).toContain("preserve, replace, translation overlay, or avoid");
+		expect(subtitlePass).toContain(
+			"preserve, replace, translation overlay, or avoid",
+		);
 		expect(subtitlePass).toContain("Do not stack new captions");
 	});
 });
