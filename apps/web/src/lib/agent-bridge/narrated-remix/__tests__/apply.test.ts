@@ -21,7 +21,7 @@ function audioAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 		id: "narration-1",
 		name: "Narration.mp3",
 		type: "audio",
-		duration: 30,
+		duration: 40,
 		file: new File(["audio"], "narration.mp3", { type: "audio/mpeg" }),
 		...overrides,
 	});
@@ -52,7 +52,7 @@ function validPlan() {
 				reason: "Shows the process.",
 			},
 		],
-		narration: { mediaId: "narration-1", startTime: 0 },
+		narration: { mediaId: "narration-1", sourceStart: 2 },
 		captions: [
 			{ text: "The key idea", startTime: 0, duration: 3 },
 			{ text: "The proof", startTime: 10, duration: 4 },
@@ -145,6 +145,8 @@ describe("applyNarratedRemixPlanToEditor", () => {
 						mediaId: "narration-1",
 						startTime: 0,
 						duration: 30,
+						trimStart: 2,
+						trimEnd: 32,
 						volume: 1,
 						muted: false,
 					},

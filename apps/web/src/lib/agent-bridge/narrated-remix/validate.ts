@@ -105,7 +105,9 @@ export function validateNarratedRemixPlan({
 	}
 	if (
 		exceeds({
-			end: normalizedPlan.narration.startTime + normalizedPlan.target.durationSec,
+			end:
+				normalizedPlan.narration.sourceStart +
+				normalizedPlan.target.durationSec,
 			limit: narrationAsset.duration,
 		})
 	) {

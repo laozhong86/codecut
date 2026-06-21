@@ -101,8 +101,8 @@ function buildNarrationElement({
 			startTime: 0,
 		}),
 		id: generateUUID(),
-		trimStart: plan.narration.startTime,
-		trimEnd: plan.narration.startTime + plan.target.durationSec,
+		trimStart: plan.narration.sourceStart,
+		trimEnd: plan.narration.sourceStart + plan.target.durationSec,
 		volume: 1,
 		muted: false,
 	};

@@ -640,7 +640,7 @@ describe("codex executor", () => {
 								reason: "Closing b-roll",
 							},
 						],
-						narration: { mediaId: narrationId, startTime: 0 },
+						narration: { mediaId: narrationId, sourceStart: 0 },
 						captions: [
 							{ text: "Opening line", startTime: 0, duration: 3 },
 							{ text: "Closing line", startTime: 24, duration: 4 },

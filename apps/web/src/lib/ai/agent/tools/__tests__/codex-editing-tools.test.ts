@@ -379,7 +379,7 @@ describe("Codex deterministic editing tools", () => {
 							reason: "Example",
 						},
 					],
-					narration: { mediaId: "audio-1", startTime: 0 },
+					narration: { mediaId: "audio-1", sourceStart: 0 },
 					captions: [],
 					rationale: "Example",
 				},

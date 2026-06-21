@@ -255,7 +255,7 @@ P0 does not support:
   }>,
   narration: {
     mediaId: string,
-    startTime: number
+    sourceStart: number
   },
   captions: Array<{
     text: string,

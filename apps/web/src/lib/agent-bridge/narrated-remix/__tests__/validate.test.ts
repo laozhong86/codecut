@@ -51,7 +51,7 @@ function validPlan() {
 				reason: "Shows the process.",
 			},
 		],
-		narration: { mediaId: "narration-1", startTime: 0 },
+		narration: { mediaId: "narration-1", sourceStart: 0 },
 		captions: [
 			{ text: "The key idea", startTime: 0, duration: 3 },
 			{ text: "The proof", startTime: 10, duration: 4 },
@@ -90,7 +90,7 @@ describe("validateNarratedRemixPlan", () => {
 				...validPlan(),
 				narration: {
 					mediaId: "narration-1",
-					startTime: 0,
+					sourceStart: 0,
 					generateSpeech: true,
 					text: "Generate this.",
 					voiceId: "voice-1",
@@ -104,6 +104,23 @@ describe("validateNarratedRemixPlan", () => {
 			success: false,
 			message: "NarratedRemixPlan schema is invalid.",
 			path: "narration",
+		});
+	});
+
+	test("rejects legacy narration startTime", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				narration: { mediaId: "narration-1", startTime: 0 },
+			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "NarratedRemixPlan schema is invalid.",
+			path: "narration.sourceStart",
 		});
 	});
 

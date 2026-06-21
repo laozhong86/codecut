@@ -180,7 +180,7 @@ only this shape when calling `apply_narrated_remix_plan`:
   }>,
   narration: {
     mediaId: string,
-    startTime: number
+    sourceStart: number
   },
   captions: Array<{
     text: string,
@@ -202,7 +202,7 @@ Current validation fail-fast checks include:
 - visual beats must start at `0`, be continuous, and have no gaps or overlaps.
 - visual beat total duration must equal `target.durationSec`.
 - captions must fit inside `target.durationSec`.
-- narration must cover `target.durationSec` from `narration.startTime`.
+- narration must cover `target.durationSec` from `narration.sourceStart`.
 
 Do not include TTS, generated speech, BGM, SFX, image B-roll, external media
 URLs, effect instructions, append instructions, or arbitrary style fields in

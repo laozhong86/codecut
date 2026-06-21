@@ -17,7 +17,7 @@ export const NarratedRemixVisualBeatSchema = z
 export const NarratedRemixNarrationSchema = z
 	.object({
 		mediaId: z.string().min(1),
-		startTime: z.number().min(0),
+		sourceStart: z.number().min(0),
 	})
 	.strict();
 
