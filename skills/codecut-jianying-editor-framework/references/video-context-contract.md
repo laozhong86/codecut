@@ -139,18 +139,21 @@ Implemented for MVP:
 - source-video timestamp normalization across chunks
 - deterministic transcript-based `assetTypeGuess` and `editingHints`
 
-## Warnings
+## Failure Conditions And Warnings
 
-VideoContext must carry warnings when context is incomplete:
+Current MVP failure conditions stop `build_video_context` and do not return partial context:
 
 - no audio track
 - transcription failed
 - unsupported codec
+
+VideoContext warnings are for optional context that is incomplete but does not block L2 transcript planning:
+
 - visual analysis not run
 - OCR skipped
 - long video may take time to process
 
-Warnings should influence the plan. For example, if there is no transcript, Codex should not claim it selected the strongest spoken argument.
+Warnings should influence the plan. For example, if visual analysis was not run, Codex should not claim it selected the strongest visual moment.
 
 ## Codecut Mapping
 
