@@ -216,6 +216,39 @@ The two clips must be adjacent within `0.05s`, and the transition duration must
 not exceed either neighboring clip duration. Invalid transitions fail the plan;
 Codecut does not move clips to make them valid.
 
+## Speech Cleanup Contract
+
+For talking-head cleanup, Codex may generate a local `SpeechCleanupPlan` before
+creating the final EditPlan v1. This keeps semantic judgment in Codex and keeps
+timeline reconstruction deterministic in Codecut.
+
+Flow:
+
+```text
+transcribe_media
+  -> Codex labels SpeechCleanupDecision[]
+  -> rebuildTimelineFromSpeechCleanup()
+  -> EditPlan v1 projection
+  -> apply_edit_plan
+  -> get_timeline_state
+```
+
+Rules:
+
+- Use seconds for all source and timeline fields.
+- Mark every transcript segment as `keep` or `drop`.
+- Every `drop` decision must include `dropReason`.
+- Source ranges must be sorted, non-overlapping, and have
+  `sourceEnd > sourceStart`.
+- Do not auto-fix overlapping, reversed, or unlabeled decisions.
+- Do not use audio VAD as a semantic deletion substitute.
+- Do not claim word-level precision unless the selected transcription model
+  supports word timestamps.
+- Apply only the generated EditPlan v1 projection through `apply_edit_plan`.
+
+The cleanup report is an execution artifact. It is not persisted in project
+storage in the first implementation phase.
+
 ## NarratedRemixPlan Contract
 
 For existing narration audio plus multi-video B-roll, Codex may use the separate

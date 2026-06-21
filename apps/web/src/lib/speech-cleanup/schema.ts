@@ -58,7 +58,31 @@ export const SpeechCleanupPlanSchema = z
 		decisions: z.array(SpeechCleanupDecisionSchema).min(1),
 		rationale: z.string().min(1),
 	})
-	.strict();
+	.strict()
+	.superRefine((plan, ctx) => {
+		let previousStart = 0;
+		let previousEnd = 0;
+
+		for (let index = 0; index < plan.decisions.length; index += 1) {
+			const decision = plan.decisions[index];
+			if (index > 0 && decision.sourceStart < previousStart) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "SpeechCleanup decisions must be sorted by sourceStart.",
+					path: ["decisions", index, "sourceStart"],
+				});
+			} else if (index > 0 && decision.sourceStart < previousEnd) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "SpeechCleanup decisions must not overlap.",
+					path: ["decisions", index, "sourceStart"],
+				});
+			}
+
+			previousStart = decision.sourceStart;
+			previousEnd = decision.sourceEnd;
+		}
+	});
 
 export type SpeechCleanupAction = z.infer<typeof SpeechCleanupActionSchema>;
 export type SpeechCleanupDropReason = z.infer<

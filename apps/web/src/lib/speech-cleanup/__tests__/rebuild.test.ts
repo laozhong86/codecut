@@ -172,8 +172,8 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 
 	test("fails when a decision exceeds source duration", () => {
 		const plan = speechCleanupPlan();
-		plan.decisions[1] = {
-			...plan.decisions[1],
+		plan.decisions[3] = {
+			...plan.decisions[3],
 			sourceEnd: 22,
 		};
 

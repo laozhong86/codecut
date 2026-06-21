@@ -73,4 +73,30 @@ describe("SpeechCleanupPlanSchema", () => {
 
 		expect(result.success).toBe(false);
 	});
+
+	test("rejects overlapping source ranges", () => {
+		const plan = validPlan();
+		plan.decisions = [
+			{
+				id: "seg-1",
+				text: "第一段保留",
+				sourceStart: 0,
+				sourceEnd: 2,
+				action: "keep",
+				reason: "First claim.",
+			},
+			{
+				id: "seg-2",
+				text: "第二段保留",
+				sourceStart: 1,
+				sourceEnd: 3,
+				action: "keep",
+				reason: "Second claim.",
+			},
+		];
+
+		const result = SpeechCleanupPlanSchema.safeParse(plan);
+
+		expect(result.success).toBe(false);
+	});
 });
