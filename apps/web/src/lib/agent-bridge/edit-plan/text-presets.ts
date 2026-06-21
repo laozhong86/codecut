@@ -104,20 +104,6 @@ export function resolveCaptionStylePreset({
 		};
 	}
 
-	if (captionStyle.preset === "keyword_caption") {
-		return {
-			fontFamily: "Inter",
-			fontSize: 6,
-			fontWeight: "bold",
-			color: "#ffd84d",
-			backgroundColor: "transparent",
-			stroke: { color: "#000000", width: 3 },
-			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
-			boxWidth,
-			transform,
-		};
-	}
-
 	return {
 		fontFamily: "Inter",
 		fontSize: 6,

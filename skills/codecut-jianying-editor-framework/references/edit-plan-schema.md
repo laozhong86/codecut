@@ -52,7 +52,7 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
     }>
   }>,
   captionStyle?: {
-    preset: "short-form-bold" | "black-bar" | "bold_caption" | "keyword_caption",
+    preset: "short-form-bold" | "black-bar",
     position: "lower-safe" | "center"
   },
   audio?: {

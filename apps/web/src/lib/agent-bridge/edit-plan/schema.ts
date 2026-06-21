@@ -5,8 +5,6 @@ export const EditPlanAspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 export const EditPlanCaptionStylePresetSchema = z.enum([
 	"short-form-bold",
 	"black-bar",
-	"bold_caption",
-	"keyword_caption",
 ]);
 
 export const EditPlanCaptionPositionSchema = z.enum(["lower-safe", "center"]);

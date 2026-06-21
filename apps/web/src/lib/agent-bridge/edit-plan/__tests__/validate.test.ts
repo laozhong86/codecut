@@ -111,7 +111,8 @@ describe("validateEditPlan", () => {
 
 		expect(result).toEqual({
 			success: false,
-			message: "EditPlan sourceMediaId was not found in the project media library.",
+			message:
+				"EditPlan sourceMediaId was not found in the project media library.",
 			path: "sourceMediaId",
 		});
 	});
@@ -284,6 +285,48 @@ describe("validateEditPlan", () => {
 		});
 	});
 
+	test("rejects bold_caption captionStyle preset", () => {
+		const plan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "bold_caption",
+				position: "lower-safe",
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan schema is invalid.",
+		});
+	});
+
+	test("rejects keyword_caption captionStyle preset", () => {
+		const plan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "keyword_caption",
+				position: "lower-safe",
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan schema is invalid.",
+		});
+	});
+
 	test("rejects arbitrary caption style fields", () => {
 		const plan = {
 			...validPlan(),
@@ -433,7 +476,8 @@ describe("validateEditPlan", () => {
 
 		expect(result).toEqual({
 			success: false,
-			message: "EditPlan bgm assetId was not found in the project media library.",
+			message:
+				"EditPlan bgm assetId was not found in the project media library.",
 			path: "audio.bgm.assetId",
 		});
 	});
@@ -479,7 +523,8 @@ describe("validateEditPlan", () => {
 
 		expect(result).toEqual({
 			success: false,
-			message: "EditPlan sfx startTime exceeds the generated timeline duration.",
+			message:
+				"EditPlan sfx startTime exceeds the generated timeline duration.",
 			path: "audio.sfx[0].startTime",
 		});
 	});
@@ -566,7 +611,8 @@ describe("validateEditPlan", () => {
 
 		expect(result).toEqual({
 			success: false,
-			message: "EditPlan transition duration exceeds neighboring clip duration.",
+			message:
+				"EditPlan transition duration exceeds neighboring clip duration.",
 			path: "transitions[0].duration",
 		});
 	});

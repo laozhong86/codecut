@@ -149,7 +149,7 @@ Codex sends exactly one editing plan format to Codecut:
     }>
   }>,
   captionStyle?: {
-    preset: "short-form-bold" | "black-bar" | "bold_caption" | "keyword_caption",
+    preset: "short-form-bold" | "black-bar",
     position: "lower-safe" | "center"
   },
   audio?: {
@@ -191,9 +191,9 @@ Codecut validates and executes this plan. If validation fails, Codecut returns a
 When `captions` contains one or more items, Codex must include
 `captionStyle`. When `captions` is empty or omitted, `captionStyle` must be
 omitted. Caption styling is intentionally limited to top-level local presets:
-`short-form-bold`, `black-bar`, `bold_caption`, and `keyword_caption`. Codecut
-does not accept arbitrary CSS, per-caption style objects, or `keyword-highlight`
-in this P0 contract.
+`short-form-bold` and `black-bar`. Codecut does not accept arbitrary CSS,
+per-caption style objects, `bold_caption`, `keyword_caption`, or
+`keyword-highlight` in this P0 contract.
 
 `title.stylePreset` is optional. If omitted, Codecut keeps the existing default
 text behavior. If present, it must be `hook_title` or `lower_title`.

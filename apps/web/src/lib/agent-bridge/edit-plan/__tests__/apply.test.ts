@@ -205,7 +205,7 @@ function fakeEditor({
 								...track,
 								elements: [...track.elements, elementWithId],
 							} as TimelineTrack)
-					: track,
+						: track,
 				);
 			},
 			addTransition: ({
@@ -304,9 +304,9 @@ describe("applyEditPlanToEditor", () => {
 			editor,
 		});
 
-		const textElements = editor.timeline.getTracks().flatMap((track) =>
-			track.type === "text" ? track.elements : [],
-		);
+		const textElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "text" ? track.elements : []));
 
 		expect(textElements).toMatchObject([
 			{
@@ -334,9 +334,9 @@ describe("applyEditPlanToEditor", () => {
 			editor,
 		});
 
-		const textElements = editor.timeline.getTracks().flatMap((track) =>
-			track.type === "text" ? track.elements : [],
-		);
+		const textElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "text" ? track.elements : []));
 
 		expect(textElements[0]).toMatchObject({
 			content: "The key insight",
@@ -379,9 +379,9 @@ describe("applyEditPlanToEditor", () => {
 			editor,
 		});
 
-		const textElements = editor.timeline.getTracks().flatMap((track) =>
-			track.type === "text" ? track.elements : [],
-		);
+		const textElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "text" ? track.elements : []));
 
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
@@ -423,9 +423,9 @@ describe("applyEditPlanToEditor", () => {
 			editor,
 		});
 
-		const textElements = editor.timeline.getTracks().flatMap((track) =>
-			track.type === "text" ? track.elements : [],
-		);
+		const textElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "text" ? track.elements : []));
 
 		expect(textElements[0]).toMatchObject({
 			content: "Stop wasting effort",
@@ -487,9 +487,9 @@ describe("applyEditPlanToEditor", () => {
 			editor,
 		});
 
-		const textElements = editor.timeline.getTracks().flatMap((track) =>
-			track.type === "text" ? track.elements : [],
-		);
+		const textElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "text" ? track.elements : []));
 
 		expect(textElements).toMatchObject([
 			{
@@ -511,7 +511,7 @@ describe("applyEditPlanToEditor", () => {
 		]);
 	});
 
-	test("applies keyword caption style through the top-level captionStyle", () => {
+	test("rejects keyword_caption without mutating the timeline", () => {
 		const editor = fakeEditor();
 		const plan = {
 			...validPlan(),
@@ -519,34 +519,20 @@ describe("applyEditPlanToEditor", () => {
 				preset: "keyword_caption",
 				position: "lower-safe",
 			},
-		};
+		} as unknown as EditPlan;
 
-		applyEditPlanToEditor({
+		const result = applyEditPlanToEditor({
 			plan,
 			projectId: "project-1",
 			replaceExisting: true,
 			editor,
 		});
 
-		const textElements = editor.timeline.getTracks().flatMap((track) =>
-			track.type === "text" ? track.elements : [],
-		);
-
-		expect(textElements[1]).toMatchObject({
-			content: "This is the key insight.",
-			fontFamily: "Inter",
-			fontSize: 6,
-			fontWeight: "bold",
-			color: "#ffd84d",
-			stroke: { color: "#000000", width: 3 },
-			backgroundColor: "transparent",
-			boxWidth: 42,
-			transform: {
-				scale: 1,
-				position: { x: 0, y: 300 },
-				rotate: 0,
-			},
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan schema is invalid.",
 		});
+		expect(editor.timeline.getTracks()).toEqual([videoTrack()]);
 	});
 
 	test("loops bgm audio to cover the generated timeline", () => {
@@ -641,9 +627,9 @@ describe("applyEditPlanToEditor", () => {
 			editor,
 		});
 
-		const audioElements = editor.timeline.getTracks().flatMap((track) =>
-			track.type === "audio" ? track.elements : [],
-		);
+		const audioElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "audio" ? track.elements : []));
 
 		expect(audioElements).toMatchObject([
 			{

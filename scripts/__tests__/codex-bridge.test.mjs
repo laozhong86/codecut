@@ -197,7 +197,7 @@ describe("codex bridge CLI helpers", () => {
 				},
 			],
 			captionStyle: {
-				preset: "keyword_caption",
+				preset: "black-bar",
 				position: "lower-safe",
 			},
 			audio: {
