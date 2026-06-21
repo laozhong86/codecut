@@ -14,10 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEditor } from "@/hooks/use-editor";
 import { useProjectsStore } from "./store";
-import type {
-	TProjectMetadata,
-	TProjectSortOption,
-} from "@/types/project";
+import type { TProjectMetadata, TProjectSortOption } from "@/types/project";
 import { formatTimeCode } from "@/lib/time";
 import { formatDate } from "@/utils/date";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -56,6 +53,7 @@ import { ProjectInfoDialog } from "@/components/editor/dialogs/project-info-dial
 import { RenameProjectDialog } from "@/components/editor/dialogs/rename-project-dialog";
 import { cn } from "@/utils/ui";
 import { StorageIndicator } from "./storage-indicator";
+import { createProjectFromName } from "./create-project";
 
 const formatProjectDuration = ({
 	duration,
@@ -262,9 +260,7 @@ function ProjectsToolbar({ projectIds }: { projectIds: string[] }) {
 						}
 					}}
 					aria-label={t(
-						sortOrder === "asc"
-							? "Sort ascending"
-							: "Sort descending",
+						sortOrder === "asc" ? "Sort ascending" : "Sort descending",
 					)}
 				>
 					<HugeiconsIcon
@@ -507,23 +503,44 @@ function NewProjectButton() {
 	const { t } = useTranslation();
 	const editor = useEditor();
 	const router = useRouter();
+	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
-	const handleCreateProject = async () => {
-		const projectId = await editor.project.createNewProject({
-			name: t("New project"),
-		});
-		router.push(`/editor/${projectId}`);
+	const handleCreateProject = async (name: string) => {
+		try {
+			await createProjectFromName({ editor, router, name });
+			setIsCreateDialogOpen(false);
+		} catch (error) {
+			toast.error(t("Failed to create project"), {
+				description:
+					error instanceof Error ? error.message : t("Please try again"),
+			});
+		}
 	};
 
 	return (
-		<Button
-			size="lg"
-			className="flex px-5 md:px-6"
-			onClick={handleCreateProject}
-		>
-			<span className="text-sm font-medium hidden md:block">{t("New project")}</span>
-			<span className="text-sm font-medium block md:hidden">{t("New")}</span>
-		</Button>
+		<>
+			<Button
+				size="lg"
+				className="flex px-5 md:px-6"
+				onClick={() => setIsCreateDialogOpen(true)}
+			>
+				<span className="text-sm font-medium hidden md:block">
+					{t("New project")}
+				</span>
+				<span className="text-sm font-medium block md:hidden">{t("New")}</span>
+			</Button>
+			<RenameProjectDialog
+				isOpen={isCreateDialogOpen}
+				onOpenChange={setIsCreateDialogOpen}
+				projectName=""
+				title={t("Name project")}
+				description={t("Enter a project name before creating it.")}
+				nameLabel={t("Project name")}
+				placeholder={t("Launch ad cut")}
+				confirmLabel={t("Create")}
+				onConfirm={handleCreateProject}
+			/>
+		</>
 	);
 }
 
@@ -594,7 +611,11 @@ function ProjectItem({
 				</h3>
 				<div className="text-muted-foreground flex items-center gap-1.5 text-sm">
 					<HugeiconsIcon icon={Calendar04Icon} className="size-4" />
-					<span>{t("Created {{date}}", { date: formatDate({ date: project.createdAt }) })}</span>
+					<span>
+						{t("Created {{date}}", {
+							date: formatDate({ date: project.createdAt }),
+						})}
+					</span>
 				</div>
 			</CardContent>
 		</Card>
@@ -890,13 +911,12 @@ function EmptyState() {
 	const router = useRouter();
 	const editor = useEditor();
 	const savedProjects = editor.project.getSavedProjects();
+	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
-	const handleCreateProject = async () => {
+	const handleCreateProject = async (name: string) => {
 		try {
-			const projectId = await editor.project.createNewProject({
-				name: t("New project"),
-			});
-			router.push(`/editor/${projectId}`);
+			await createProjectFromName({ editor, router, name });
+			setIsCreateDialogOpen(false);
 		} catch (error) {
 			toast.error(t("Failed to create project"), {
 				description:
@@ -949,10 +969,25 @@ function EmptyState() {
 					)}
 				</p>
 			</div>
-			<Button size="lg" className="gap-2" onClick={handleCreateProject}>
+			<Button
+				size="lg"
+				className="gap-2"
+				onClick={() => setIsCreateDialogOpen(true)}
+			>
 				<HugeiconsIcon icon={PlusSignIcon} />
 				{t("Create your first project")}
 			</Button>
+			<RenameProjectDialog
+				isOpen={isCreateDialogOpen}
+				onOpenChange={setIsCreateDialogOpen}
+				projectName=""
+				title={t("Name project")}
+				description={t("Enter a project name before creating it.")}
+				nameLabel={t("Project name")}
+				placeholder={t("Launch ad cut")}
+				confirmLabel={t("Create")}
+				onConfirm={handleCreateProject}
+			/>
 		</div>
 	);
 }

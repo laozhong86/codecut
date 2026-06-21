@@ -3,12 +3,13 @@ import {
 	Dialog,
 	DialogBody,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 
@@ -17,14 +18,36 @@ export function RenameProjectDialog({
 	onOpenChange,
 	onConfirm,
 	projectName,
+	title,
+	description,
+	nameLabel,
+	confirmLabel,
+	placeholder,
 }: {
 	isOpen: boolean;
 	onOpenChange: (open: boolean) => void;
 	onConfirm: (newName: string) => void;
 	projectName: string;
+	title?: string;
+	description?: string;
+	nameLabel?: string;
+	confirmLabel?: string;
+	placeholder?: string;
 }) {
 	const { t } = useTranslation();
 	const [name, setName] = useState(projectName);
+	const trimmedName = name.trim();
+
+	useEffect(() => {
+		if (isOpen) {
+			setName(projectName);
+		}
+	}, [isOpen, projectName]);
+
+	const handleConfirm = () => {
+		if (!trimmedName) return;
+		onConfirm(trimmedName);
+	};
 
 	const handleOpenChange = (open: boolean) => {
 		if (open) {
@@ -37,21 +60,24 @@ export function RenameProjectDialog({
 		<Dialog open={isOpen} onOpenChange={handleOpenChange}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>{t('Rename project')}</DialogTitle>
+					<DialogTitle>{title ?? t("Rename project")}</DialogTitle>
+					<DialogDescription className="sr-only">
+						{description ?? t("Enter the project name to save.")}
+					</DialogDescription>
 				</DialogHeader>
 
 				<DialogBody className="gap-3">
-					<Label>{t('New name')}</Label>
+					<Label>{nameLabel ?? t("New name")}</Label>
 					<Input
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						onKeyDown={(e) => {
 							if (e.key === "Enter") {
 								e.preventDefault();
-								onConfirm(name);
+								handleConfirm();
 							}
 						}}
-						placeholder={t('Enter a new name')}
+						placeholder={placeholder ?? t("Enter a new name")}
 					/>
 				</DialogBody>
 
@@ -64,9 +90,11 @@ export function RenameProjectDialog({
 							onOpenChange(false);
 						}}
 					>
-						{t('Cancel')}
+						{t("Cancel")}
 					</Button>
-					<Button onClick={() => onConfirm(name)}>{t('Rename')}</Button>
+					<Button disabled={!trimmedName} onClick={handleConfirm}>
+						{confirmLabel ?? t("Rename")}
+					</Button>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
