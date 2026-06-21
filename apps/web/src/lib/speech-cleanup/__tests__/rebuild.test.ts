@@ -142,8 +142,13 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 			text: "嗯平台红利不等于个人实力",
 		};
 		plan.decisions[2] = {
-			...plan.decisions[2],
+			id: "seg-3",
+			text: "啊这个地方很关键",
+			sourceStart: 4.2,
+			sourceEnd: 5.4,
+			action: "drop",
 			dropReason: "pause",
+			reason: "Pause.",
 		};
 
 		const result = rebuildTimelineFromSpeechCleanup({
