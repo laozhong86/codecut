@@ -1006,7 +1006,11 @@ describe("codex executor", () => {
 				inspectedRanges.push({ startSeconds, endSeconds });
 				expect(mediaAsset.id).toBe(mediaId);
 				expect(frameCount).toBe(4);
-				expect(outputDirectory).toContain(`/projects/${projectId}/inspect`);
+				expect(outputDirectory.split(/[\\/]+/).slice(-3)).toEqual([
+					"projects",
+					projectId,
+					"inspect",
+				]);
 				return {
 					mediaId,
 					sourceRange: {
