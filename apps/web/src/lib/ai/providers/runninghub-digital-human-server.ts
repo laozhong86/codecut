@@ -83,7 +83,7 @@ async function parseRunningHubJson({
 	if (!response.ok) {
 		throw new Error(message || `RunningHub request failed: ${response.status}`);
 	}
-	const code = payload.code;
+	const code = payload.code ?? payload.errorCode ?? payload.statusCode;
 	if (
 		code !== undefined &&
 		code !== 0 &&
