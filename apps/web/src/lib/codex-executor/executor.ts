@@ -7,6 +7,7 @@ import {
 	type ProbeAudio,
 	buildVideoContextWithTranscriber,
 } from "@/lib/codex-executor/video-context";
+import { inspectVideoRange as inspectVideoRangeWithNodeRuntime } from "@/lib/codex-executor/video-range-inspection";
 import {
 	type ExecutorTranscribeMedia,
 	type ExecutorTranscribeMediaRange,
@@ -50,6 +51,7 @@ type ExecutorToolName =
 	| "import_media_file"
 	| "transcribe_media"
 	| "build_video_context"
+	| "inspect_video_range"
 	| "build_post_cut_captions"
 	| "apply_edit_plan"
 	| "apply_narrated_remix_plan"
@@ -114,6 +116,7 @@ const commandSchema = z
 			"import_media_file",
 			"transcribe_media",
 			"build_video_context",
+			"inspect_video_range",
 			"build_post_cut_captions",
 			"apply_edit_plan",
 			"apply_narrated_remix_plan",
@@ -183,6 +186,15 @@ const buildVideoContextArgsSchema = z
 		mediaId: z.string().min(1),
 		language: z.unknown(),
 		modelId: z.unknown(),
+	})
+	.strict();
+
+const inspectVideoRangeArgsSchema = z
+	.object({
+		mediaId: z.string().min(1),
+		startSeconds: z.number(),
+		endSeconds: z.number(),
+		frameCount: z.number().int().optional(),
 	})
 	.strict();
 
@@ -1036,6 +1048,59 @@ async function runBuildVideoContext({
 	};
 }
 
+type InspectVideoRange = typeof inspectVideoRangeWithNodeRuntime;
+
+async function runInspectVideoRange({
+	state,
+	args,
+	inspectVideoRange,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	inspectVideoRange: InspectVideoRange;
+}) {
+	const parsed = inspectVideoRangeArgsSchema.parse(args);
+	const mediaAsset = state.mediaAssets.find(
+		(asset) => asset.id === parsed.mediaId,
+	);
+
+	if (!mediaAsset) {
+		return {
+			success: false,
+			message: `Media asset '${parsed.mediaId}' not found`,
+		};
+	}
+	if (mediaAsset.type !== "video") {
+		return {
+			success: false,
+			message: `Media asset '${mediaAsset.name}' is type '${mediaAsset.type}', expected video`,
+		};
+	}
+
+	const result = await inspectVideoRange({
+		mediaAsset: {
+			id: mediaAsset.id,
+			name: mediaAsset.name,
+			type: mediaAsset.type,
+			durationSeconds: mediaAsset.duration,
+			path: mediaAsset.path,
+		},
+		startSeconds: parsed.startSeconds,
+		endSeconds: parsed.endSeconds,
+		frameCount: parsed.frameCount,
+		outputDirectory: join(
+			projectDirectory({ projectId: state.project.id }),
+			"inspect",
+		),
+	});
+
+	return {
+		success: true,
+		message: `Inspected video range for '${mediaAsset.name}'`,
+		data: result,
+	};
+}
+
 function roundTimelineSeconds(value: number): number {
 	return Math.round(value * 1000) / 1000;
 }
@@ -1188,12 +1253,14 @@ async function executeCommand({
 	transcribeMedia,
 	probeAudio,
 	transcribeMediaRange,
+	inspectVideoRange,
 }: {
 	state: ExecutorProjectState;
 	command: ExecutorCommand;
 	transcribeMedia: ExecutorTranscribeMedia;
 	probeAudio: ProbeAudio;
 	transcribeMediaRange: ExecutorTranscribeMediaRange;
+	inspectVideoRange: InspectVideoRange;
 }) {
 	if (command.tool === "get_project_info") {
 		return runGetProjectInfo({ state });
@@ -1220,6 +1287,13 @@ async function executeCommand({
 			args: command.args,
 			probeAudio,
 			transcribeMediaRange,
+		});
+	}
+	if (command.tool === "inspect_video_range") {
+		return runInspectVideoRange({
+			state,
+			args: command.args,
+			inspectVideoRange,
 		});
 	}
 	if (command.tool === "build_post_cut_captions") {
@@ -1268,11 +1342,13 @@ export async function executeCodexExecutorEnvelope({
 	transcribeMedia = transcribeMediaWithNodeRuntime,
 	probeAudio = defaultBuildVideoContextProbeAudio,
 	transcribeMediaRange = transcribeMediaRangeWithNodeRuntime,
+	inspectVideoRange = inspectVideoRangeWithNodeRuntime,
 }: {
 	envelope: unknown;
 	transcribeMedia?: ExecutorTranscribeMedia;
 	probeAudio?: ProbeAudio;
 	transcribeMediaRange?: ExecutorTranscribeMediaRange;
+	inspectVideoRange?: InspectVideoRange;
 }) {
 	const parsedEnvelope = envelopeSchema.parse(envelope);
 	const state = await loadProjectState({ projectId: parsedEnvelope.projectId });
@@ -1294,6 +1370,7 @@ export async function executeCodexExecutorEnvelope({
 				transcribeMedia,
 				probeAudio,
 				transcribeMediaRange,
+				inspectVideoRange,
 			});
 			const success = result.success !== false;
 			const message =

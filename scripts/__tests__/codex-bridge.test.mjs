@@ -7,6 +7,7 @@ import {
 	buildCommandEnvelope,
 	buildExportEnvelope,
 	buildImportMediaEnvelope,
+	buildInspectVideoRangeEnvelope,
 	buildPostCutCaptionsEnvelope,
 	buildTranscribeEnvelope,
 	buildVideoContextEnvelope,
@@ -124,6 +125,62 @@ describe("codex bridge CLI helpers", () => {
 				},
 			],
 		});
+	});
+
+	test("buildInspectVideoRangeEnvelope creates an inspect_video_range command", () => {
+		expect(
+			buildInspectVideoRangeEnvelope({
+				projectId: "project-1",
+				mediaId: "media-1",
+				startSeconds: 12.5,
+				endSeconds: 18,
+				frameCount: 8,
+			}),
+		).toEqual({
+			version: 1,
+			projectId: "project-1",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "inspect_video_range",
+					args: {
+						mediaId: "media-1",
+						startSeconds: 12.5,
+						endSeconds: 18,
+						frameCount: 8,
+					},
+				},
+			],
+		});
+	});
+
+	test("buildInspectVideoRangeEnvelope rejects invalid inspect range flags", () => {
+		expect(() =>
+			buildInspectVideoRangeEnvelope({
+				projectId: "project-1",
+				mediaId: "media-1",
+				startSeconds: Number.NaN,
+				endSeconds: 18,
+			}),
+		).toThrow("--start-seconds must be a finite non-negative number");
+		expect(() =>
+			buildInspectVideoRangeEnvelope({
+				projectId: "project-1",
+				mediaId: "media-1",
+				startSeconds: 12.5,
+				endSeconds: 12.5,
+			}),
+		).toThrow("--end-seconds must be greater than --start-seconds");
+		expect(() =>
+			buildInspectVideoRangeEnvelope({
+				projectId: "project-1",
+				mediaId: "media-1",
+				startSeconds: 12.5,
+				endSeconds: 18,
+				frameCount: 17,
+			}),
+		).toThrow("--frame-count must be an integer from 1 to 16");
 	});
 
 	test("buildPostCutCaptionsEnvelope creates a post-cut caption command", () => {

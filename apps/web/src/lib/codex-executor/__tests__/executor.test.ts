@@ -24,6 +24,7 @@ function envelope({
 		| "import_media_file"
 		| "transcribe_media"
 		| "build_video_context"
+		| "inspect_video_range"
 		| "build_post_cut_captions"
 		| "apply_edit_plan"
 		| "apply_narrated_remix_plan"
@@ -788,6 +789,185 @@ describe("codex executor", () => {
 			success: false,
 			message:
 				"Media asset 'cover.png' is type 'image', expected video or audio",
+		});
+	});
+
+	test("inspects a video range through the local executor without mutating project state", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 120,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		const before = await getExecutorProjectState({ projectId });
+		const inspectedRanges: Array<{ startSeconds: number; endSeconds: number }> = [];
+
+		const inspectResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "inspect_video_range",
+				args: {
+					mediaId,
+					startSeconds: 12.5,
+					endSeconds: 18,
+					frameCount: 4,
+				},
+			}),
+			inspectVideoRange: async ({
+				mediaAsset,
+				startSeconds,
+				endSeconds,
+				frameCount,
+				outputDirectory,
+			}) => {
+				inspectedRanges.push({ startSeconds, endSeconds });
+				expect(mediaAsset.id).toBe(mediaId);
+				expect(frameCount).toBe(4);
+				expect(outputDirectory).toContain(`/projects/${projectId}/inspect`);
+				return {
+					mediaId,
+					sourceRange: {
+						startSeconds,
+						endSeconds,
+						durationSeconds: endSeconds - startSeconds,
+					},
+					artifact: {
+						kind: "video_range_contact_sheet",
+						path: "/tmp/source-range.png",
+						mimeType: "image/png",
+						width: 1280,
+						height: 360,
+					},
+					frames: [
+						{ timeSeconds: 12.5 },
+						{ timeSeconds: 14.333 },
+						{ timeSeconds: 16.167 },
+						{ timeSeconds: 18 },
+					],
+					audio: {
+						hasAudio: true,
+						waveformSamples: [0.1, 0.5, 0.2],
+						silenceRanges: [
+							{
+								startSeconds: 15,
+								endSeconds: 16,
+								durationSeconds: 1,
+							},
+						],
+					},
+					warnings: [],
+				};
+			},
+		});
+
+		expect(inspectedRanges).toEqual([
+			{ startSeconds: 12.5, endSeconds: 18 },
+		]);
+		expect(inspectResult.results[0]).toMatchObject({
+			tool: "inspect_video_range",
+			success: true,
+			message: "Inspected video range for 'source.mp4'",
+			data: {
+				artifact: {
+					kind: "video_range_contact_sheet",
+					path: "/tmp/source-range.png",
+					mimeType: "image/png",
+				},
+				frames: [
+					{ timeSeconds: 12.5 },
+					{ timeSeconds: 14.333 },
+					{ timeSeconds: 16.167 },
+					{ timeSeconds: 18 },
+				],
+				audio: {
+					hasAudio: true,
+					waveformSamples: [0.1, 0.5, 0.2],
+				},
+				warnings: [],
+			},
+		});
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
+	test("inspect_video_range rejects missing media before invoking inspector", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+
+		const inspectResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "inspect_video_range",
+				args: {
+					mediaId: "missing-media",
+					startSeconds: 1,
+					endSeconds: 2,
+				},
+			}),
+			inspectVideoRange: async () => {
+				throw new Error("inspectVideoRange should not run for missing media");
+			},
+		});
+
+		expect(inspectResult.results[0]).toMatchObject({
+			tool: "inspect_video_range",
+			success: false,
+			message: "Media asset 'missing-media' not found",
+		});
+		expect(await getExecutorStatus({ projectId })).toMatchObject({
+			status: "failed",
+			tool: "inspect_video_range",
+			message: "Media asset 'missing-media' not found",
+		});
+	});
+
+	test("inspect_video_range rejects image media before invoking inspector", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "cover.png",
+					mimeType: "image/png",
+					base64: Buffer.from("image").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					width: 1000,
+					height: 1000,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+
+		const inspectResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "inspect_video_range",
+				args: {
+					mediaId,
+					startSeconds: 1,
+					endSeconds: 2,
+				},
+			}),
+			inspectVideoRange: async () => {
+				throw new Error("inspectVideoRange should not run for image media");
+			},
+		});
+
+		expect(inspectResult.results[0]).toMatchObject({
+			tool: "inspect_video_range",
+			success: false,
+			message: "Media asset 'cover.png' is type 'image', expected video",
 		});
 	});
 

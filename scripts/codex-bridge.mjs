@@ -26,6 +26,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
 		"  node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
+		"  node scripts/codex-bridge.mjs inspect-video-range --project-id <id> --media-id <id> --start-seconds <seconds> --end-seconds <seconds> [--frame-count <1..16>]",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>",
 		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --download <true|false>",
@@ -635,6 +636,44 @@ export function buildVideoContextEnvelope({
 	});
 }
 
+export function buildInspectVideoRangeEnvelope({
+	projectId,
+	mediaId,
+	startSeconds,
+	endSeconds,
+	frameCount,
+}) {
+	if (!mediaId) {
+		throw new Error("--media-id is required");
+	}
+	if (!Number.isFinite(startSeconds) || startSeconds < 0) {
+		throw new Error("--start-seconds must be a finite non-negative number");
+	}
+	if (!Number.isFinite(endSeconds)) {
+		throw new Error("--end-seconds must be a finite number");
+	}
+	if (endSeconds <= startSeconds) {
+		throw new Error("--end-seconds must be greater than --start-seconds");
+	}
+	if (
+		frameCount !== undefined &&
+		(!Number.isInteger(frameCount) || frameCount < 1 || frameCount > 16)
+	) {
+		throw new Error("--frame-count must be an integer from 1 to 16");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "inspect_video_range",
+		args: {
+			mediaId,
+			startSeconds,
+			endSeconds,
+			...(frameCount === undefined ? {} : { frameCount }),
+		},
+	});
+}
+
 export function buildPostCutCaptionsEnvelope({ projectId, language, modelId }) {
 	if (!language) {
 		throw new Error("--language is required");
@@ -939,6 +978,15 @@ export async function runCli({
 			mediaId: flags.mediaId,
 			language: flags.language,
 			modelId: flags.modelId,
+		});
+	} else if (command === "inspect-video-range") {
+		envelope = buildInspectVideoRangeEnvelope({
+			projectId: flags.projectId,
+			mediaId: flags.mediaId,
+			startSeconds: Number(flags.startSeconds),
+			endSeconds: Number(flags.endSeconds),
+			frameCount:
+				flags.frameCount === undefined ? undefined : Number(flags.frameCount),
 		});
 	} else if (command === "build-post-cut-captions") {
 		envelope = buildPostCutCaptionsEnvelope({
