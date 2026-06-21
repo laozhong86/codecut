@@ -15,6 +15,8 @@ const EXCLUDES = [
 	".turbo/",
 	".playwright-cli/",
 	".worktrees/",
+	".codecut-executor/",
+	"outputs/",
 	"tmp/",
 	".env.local",
 ];
