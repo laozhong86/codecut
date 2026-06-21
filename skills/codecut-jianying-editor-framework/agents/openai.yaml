@@ -1,4 +1,4 @@
 interface:
   display_name: Codecut Jianying Editor Framework
   short_description: Routes Codecut editing jobs through requirement intake, material ingest, executor apply, and timeline verification.
-  default_prompt: Use $codecut-jianying-editor-framework as the router. For any new creative editing job or remote URL, use $codecut-requirement-intake before Codecut executor mutation commands. Open human preview through the Codex in-app browser when needed. Verify execution with get_timeline_state before reporting completion.
+  default_prompt: Use $codecut-jianying-editor-framework as the router. Open the local preview in the Codex in-app browser for human review when needed, but use local executor commands for agent execution. For any new creative editing job or remote URL, use $codecut-requirement-intake before Codecut executor mutation commands. Verify execution with get_timeline_state before reporting completion.

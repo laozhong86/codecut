@@ -18,21 +18,26 @@ Implemented bridge tools relevant to Codex-driven editing:
 | `build_video_context` | Build local L2 transcript context for one imported audio/video asset; media longer than 300 seconds is analyzed in fixed 5-minute chunks and returned with source-video timestamps. |
 | `inspect_video_range` | Build local L3-on-demand visual/audio evidence for one video source range as a PNG contact sheet plus frame, waveform, and silence metadata. This is not OCR or scene detection. |
 | `build_post_cut_captions` | Transcribe the current edited video clip ranges and return caption items offset into output timeline time. |
+| `validate_edit_plan` | Validate an implemented EditPlan v1 without mutating timeline state. |
+| `preview_edit_plan` | Return EditPlan summary, clip list, caption/audio/transition counts, and replacement warning without mutating timeline state. |
 | `apply_edit_plan` | Validate and apply the implemented EditPlan v1 to the timeline. |
 | `apply_narrated_remix_plan` | Validate and apply the implemented NarratedRemixPlan v1 for existing narration audio plus muted video B-roll and captions. |
 | `create_text_background_effect` | Replace the timeline with source video, text, and masked foreground layers using an existing person-mask derived asset. |
 | `create_human_pip_effect` | Replace the timeline with muted background video and masked talking-head foreground using an existing person-mask derived asset. |
+| `verify_timeline` | Compare current timeline metrics against explicit verification JSON and return field-level mismatches. |
 | `get_timeline_state` | Verify timeline tracks and elements after mutation. |
-| `export_project` | Legacy/browser-mounted export path only. Local executor export is not implemented yet. |
+| `export_project` | Executor-native local export contract. It writes one explicit local output file when a Node-compatible renderer is available; otherwise it fails fast with a runtime gap. It must not trigger browser download. |
 
-Do not claim the current MVP has `getProjectState`, `buildVideoContext`, `validateEditPlan`, `previewEditPlan`, `applyEditPlan`, or `verifyEditorState` as bridge tools. Those names are product-direction concepts unless and until they are implemented.
+Do not claim the current MVP has camelCase bridge tools such as
+`getProjectState`, `validateEditPlan`, `previewEditPlan`, `applyEditPlan`, or
+`verifyEditorState`. Use the implemented snake_case executor tools.
 
 ## Current One Path Rule
 
 Codex should use one path for generated edits:
 
 ```text
-get_project_info -> optional update_project_settings -> list_media_assets -> optional import_media_file -> transcribe_media -> build_video_context -> optional inspect_video_range for ambiguous or reframe-sensitive ranges -> Codex writes clip-first EditPlan -> apply_edit_plan -> optional build_post_cut_captions -> Codex writes final EditPlan -> apply_edit_plan -> get_timeline_state
+get_project_info -> optional update_project_settings -> list_media_assets -> optional import_media_file -> transcribe_media -> build_video_context -> optional inspect_video_range for ambiguous or reframe-sensitive ranges -> Codex writes clip-first EditPlan -> validate_edit_plan -> preview_edit_plan -> apply_edit_plan -> optional build_post_cut_captions -> Codex writes final EditPlan -> validate_edit_plan -> preview_edit_plan -> apply_edit_plan -> verify_timeline -> get_timeline_state -> optional export_project
 ```
 
 Codecut validates and executes. Codex does all LLM reasoning and plan repair.
@@ -62,7 +67,9 @@ These actions require an existing `person-mask` derived asset. They do not
 generate masks, infer missing media, call an LLM, or use low-level timeline
 mutation tools as a fallback.
 
-Do not call `export_project` through the local executor until executor export is implemented and tested.
+Do not use browser download as a substitute for `export_project`. If the local
+executor returns the Node-compatible renderer runtime gap, report the blocker
+and stop the export step.
 
 Current `apply_edit_plan` behavior:
 
@@ -81,17 +88,18 @@ Current `apply_narrated_remix_plan` behavior:
 - requires `narration.mediaId` to be an existing audio asset
 - requires every `visualBeats[].mediaId` to be an existing video asset
 
-## Future Product Direction
+## Product Direction
 
 ## One Path Rule
 
-The aspirational product loop remains:
+The product loop maps to the implemented snake_case executor tools:
 
 ```text
-read -> plan -> validate -> preview -> apply -> verify
+read -> plan -> validate_edit_plan -> preview_edit_plan -> apply_edit_plan -> verify_timeline
 ```
 
-Treat this as a future migration direction, not the current installed plugin capability.
+Future work can improve preview richness and verification depth, but must keep
+the same one-path editing rule.
 
 ## Tool Set
 

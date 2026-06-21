@@ -63,6 +63,40 @@ Allowed before requirement intake passes:
 - Run `doctor-install` and `doctor` before business executor commands.
 - Do not depend on browser-mounted heartbeat for command execution.
 - Do not use FFmpeg, shell scripts, or overlay rendering as the Codecut editing path for cuts or subtitle burn-in.
+- Before creating a project, define a business project name. Use `create-project --project-id <id> --name "<business project name>"`. Do not create projects with generic names such as `New project`, `Untitled Project`, or `Codex cut`.
+
+## Human Preview
+
+Browser is not the Agent runtime. The local executor draft and
+`get_timeline_state` are the agent proof; the Codex in-app browser is only for
+human preview.
+
+Use `setupBrowserRuntime` through the current Codex browser API:
+
+```ts
+const browser = await agent.browsers.get("iab");
+await browser.capabilities.get("visibility");
+const tab = await browser.tabs.selected();
+```
+
+Preview URLs:
+
+- `http://127.0.0.1:4100/en/projects`
+- `http://127.0.0.1:4100/en/editor/<projectId>`
+
+Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview URL.
+
+## Visual And Caption Gates
+
+For horizontal source media converted to vertical shorts, run visual preflight
+before final EditPlan authoring. If burned-in subtitles or face-safe crop risk
+exists, use `vertical_face_safe_crop_above_burned_captions` as the documented
+reframe policy and verify it with `inspect_video_range`.
+
+Do not use `black-bar` as a subtitle mask. It is a caption style only, not a
+way to hide old burned-in captions.
+
+Caption timing must declare a post-cut caption source. Prefer edited audio transcription through `build-post-cut-captions` after a clip-first EditPlan is applied. Use source transcript remap only when edited audio transcription is not available and every source transcript segment maps cleanly into selected clips.
 
 ## Cross-Stage Editing Rules
 

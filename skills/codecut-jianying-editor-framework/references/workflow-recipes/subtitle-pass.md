@@ -52,7 +52,61 @@ confirms a translation overlay or duplicate-language caption.
 6. Select the caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` as the fallback.
 7. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`.
 8. Generate or update an implemented EditPlan v1 with `captions`.
-9. Apply and verify with `get_timeline_state`.
+9. Validate, preview, apply, and verify the final EditPlan.
+
+## Executor Recipe
+
+Use this recipe when captions must be generated from edited audio, not source
+timestamps:
+
+```bash
+node scripts/codex-bridge.mjs apply-plan \
+  --project-id <id> \
+  --plan-json-file /absolute/path/clip-first-edit-plan.json \
+  --replace-existing true
+```
+
+```bash
+node scripts/codex-bridge.mjs build-post-cut-captions \
+  --project-id <id> \
+  --language zh \
+  --model-id whisper-base
+```
+
+Codex then merges the returned `captions[]` and `captionStyle` into a final
+EditPlan file. The fixture
+`workflow-recipes/fixtures/post-cut-captions-final-edit-plan.json` shows the
+shape of that final plan.
+
+```bash
+node scripts/codex-bridge.mjs validate-edit-plan \
+  --project-id <id> \
+  --plan-json-file /absolute/path/final-edit-plan.json
+```
+
+```bash
+node scripts/codex-bridge.mjs preview-edit-plan \
+  --project-id <id> \
+  --plan-json-file /absolute/path/final-edit-plan.json
+```
+
+```bash
+node scripts/codex-bridge.mjs apply-plan \
+  --project-id <id> \
+  --plan-json-file /absolute/path/final-edit-plan.json \
+  --replace-existing true
+```
+
+```bash
+node scripts/codex-bridge.mjs send \
+  --project-id <id> \
+  --tool get_timeline_state \
+  --args-json '{}'
+```
+
+Do not add a hidden one-step caption mutation command. A future convenience
+command may be named `caption-edit-plan`, but it must output a final EditPlan
+file and leave timeline mutation to `apply-plan`.
 
 ## Boundary
 
