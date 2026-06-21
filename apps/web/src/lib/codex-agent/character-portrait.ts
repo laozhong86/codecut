@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { posix, win32 } from "node:path";
 import {
 	runCodexExec,
 	validateModelConfig,
@@ -18,6 +19,15 @@ import {
 } from "@/types/character";
 
 const ACTION_NAME = "generate_character_portrait";
+
+function isCodexGeneratedPngPath(value: string): boolean {
+	const normalized = value.replaceAll("\\", "/");
+	return (
+		(posix.isAbsolute(value) || win32.isAbsolute(value)) &&
+		normalized.includes("/.codex/generated_images/") &&
+		normalized.endsWith(".png")
+	);
+}
 
 const characterPortraitInputSchema = z
 	.object({
@@ -45,10 +55,7 @@ const codexPortraitAnswerSchema = z
 			.string()
 			.min(1)
 			.refine(
-				(value) =>
-					value.startsWith("/") &&
-					value.includes("/.codex/generated_images/") &&
-					value.endsWith(".png"),
+				(value) => isCodexGeneratedPngPath(value),
 				"Codex did not return a generated image path under ~/.codex/generated_images",
 			),
 		highestRiskAssumption: z.string().min(1),
@@ -101,9 +108,7 @@ export function buildCharacterPortraitImagePrompt({
 		gender ? `Gender: ${gender}` : null,
 		age ? `Age range: ${age}` : null,
 		`Character description: ${description.trim()}`,
-		styleDescription?.trim()
-			? `Style lock: ${styleDescription.trim()}`
-			: null,
+		styleDescription?.trim() ? `Style lock: ${styleDescription.trim()}` : null,
 	];
 
 	return parts.filter(Boolean).join("\n");

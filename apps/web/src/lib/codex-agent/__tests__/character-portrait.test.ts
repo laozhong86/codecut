@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { describe, expect, test } from "bun:test";
 import {
 	buildCharacterPortraitCodexPrompt,
@@ -21,10 +21,7 @@ const validInput = {
 	description: "young woman, blonde hair, white tank top",
 	styleDescription: "photorealistic, soft warm indoor light",
 } satisfies CharacterPortraitInput;
-const middlewarePath = join(
-	process.cwd(),
-	"apps/web/src/middleware.ts",
-);
+const middlewarePath = join(process.cwd(), "apps/web/src/middleware.ts");
 
 describe("character portrait Codex action", () => {
 	test("builds the image prompt from the master prompt, description, and style lock", () => {
@@ -57,6 +54,27 @@ describe("character portrait Codex action", () => {
 		);
 
 		expect(parsed.imagePath).toEndWith("portrait.png");
+	});
+
+	test("parses Windows Codex generated image paths", () => {
+		const imagePath = win32.join(
+			"C:\\",
+			"Users",
+			"runneradmin",
+			".codex",
+			"generated_images",
+			"run",
+			"portrait.png",
+		);
+		const parsed = parseCharacterPortraitCodexAnswer(
+			JSON.stringify({
+				status: "generated",
+				imagePath,
+				highestRiskAssumption: "The visual description is enough.",
+			}),
+		);
+
+		expect(parsed.imagePath).toBe(imagePath);
 	});
 
 	test("rejects placeholder image paths from Codex", () => {
@@ -132,13 +150,16 @@ describe("character portrait Codex action", () => {
 		await writeFile(
 			generatedImagePath,
 			Buffer.from([
-				0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-				0x00, 0x00, 0x00, 0x0d,
+				0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
 			]),
 		);
 
 		let capturedPrompt = "";
-		const runner: CodexExecRunner = async ({ prompt, model, reasoningEffort }) => {
+		const runner: CodexExecRunner = async ({
+			prompt,
+			model,
+			reasoningEffort,
+		}) => {
 			capturedPrompt = prompt;
 			expect(model).toBe("gpt-5.4-mini");
 			expect(reasoningEffort).toBe("low");
@@ -176,7 +197,8 @@ describe("character portrait Codex action", () => {
 			reasoningEffort: "low",
 			assets: [{ type: "image", url: "/generated/codex/portrait.png" }],
 		});
-		if (!result.body.ok) throw new Error("Expected portrait generation to pass");
+		if (!result.body.ok)
+			throw new Error("Expected portrait generation to pass");
 		expect(result.body.prompt).toContain("young woman, blonde hair");
 		expect(capturedPrompt).toContain("photorealistic");
 	});
