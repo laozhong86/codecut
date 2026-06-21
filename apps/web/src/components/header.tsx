@@ -34,7 +34,6 @@ export function Header() {
 						<Image
 							src={DEFAULT_LOGO_URL}
 							alt="Codecut Logo"
-							className="dark:invert"
 							width={28}
 							height={28}
 						/>
@@ -71,12 +70,8 @@ export function Header() {
 						<LanguageToggle />
 						<ThemeToggle />
 						<Link href="/projects">
-							<Button
-								variant="foreground"
-								type="button"
-								className="text-sm"
-							>
-								{t('Open Editor')}
+							<Button variant="foreground" type="button" className="text-sm">
+								{t("Open Editor")}
 								<ArrowRight className="size-3.5" />
 							</Button>
 						</Link>
@@ -150,7 +145,7 @@ export function Header() {
 										size="lg"
 										className="mt-4 w-full text-base"
 									>
-										{t('Open Editor')}
+										{t("Open Editor")}
 										<ArrowRight className="size-4" />
 									</Button>
 								</Link>

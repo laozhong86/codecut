@@ -27,7 +27,6 @@ export function Footer() {
 							alt="Codecut"
 							width={20}
 							height={20}
-							className="dark:invert"
 						/>
 						<span className="text-sm font-semibold">Codecut</span>
 					</Link>
@@ -58,7 +57,7 @@ export function Footer() {
 						className="text-muted-foreground hover:text-foreground transition-colors"
 						target="_blank"
 						rel="noopener noreferrer"
-						aria-label={t('GitHub')}
+						aria-label={t("GitHub")}
 					>
 						<FaGithub className="size-4" />
 					</a>

@@ -1,0 +1,11 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="codecut-title codecut-desc">
+	<title id="codecut-title">Codecut</title>
+	<desc id="codecut-desc">A command slash cutting through timeline blocks for the Codecut video editor.</desc>
+	<rect width="512" height="512" rx="118" fill="#0B0F14"/>
+	<path d="M137 151H321C336.464 151 349 163.536 349 179V197C349 212.464 336.464 225 321 225H137C121.536 225 109 212.464 109 197V179C109 163.536 121.536 151 137 151Z" fill="#F8FAFC"/>
+	<path d="M191 287H375C390.464 287 403 299.536 403 315V333C403 348.464 390.464 361 375 361H191C175.536 361 163 348.464 163 333V315C163 299.536 175.536 287 191 287Z" fill="#F8FAFC"/>
+	<path d="M332.1 104H389L179.9 408H123L332.1 104Z" fill="#22D3EE"/>
+	<path d="M351.9 104H389L179.9 408H142.8L351.9 104Z" fill="#7DD3FC"/>
+	<path d="M212 225H268L225.4 287H169.4L212 225Z" fill="#0B0F14"/>
+	<path d="M288.3 225H344.3L301.7 287H245.7L288.3 225Z" fill="#0B0F14"/>
+</svg>

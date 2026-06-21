@@ -1,8 +1,10 @@
 # Codecut
 
+[中文](README.zh-CN.md)
+
 <p>
-  Privacy-first, open-source video editing.<br />
-  Build, trim, layer, and export directly from your browser.
+  Codex plugin version of a CapCut-style local AI editor.<br />
+  Turn Agent reasoning into a visible, editable video timeline.
 </p>
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -12,24 +14,94 @@
 
 ## At a Glance
 
-Codecut is designed for creators who want a clean editing workflow without subscriptions, tracking, or watermark traps.
+Codecut is a local Agent-driven video editor for AI-native creators. It starts
+as a Codex plugin and gives Codex / Claude a visual editing surface: the Agent
+understands the creator's intent, generates or selects assets, writes an
+explicit edit plan, and Codecut applies that plan to a local timeline for
+preview, manual adjustment, and export.
 
-- Local-first editing mindset
-- Timeline-based multi-track workflow
-- Real-time preview while editing
-- Open-source and contribution-friendly
+The first positioning is narrow:
+
+> Codecut is a Codex plugin + CapCut Pro AI workflow alternative for self-media creators.
+>
+> 中文定位：Codecut = Codex 插件 + CapCut / 剪映平替，自媒体 AI 剪辑工具。
+
+It is not trying to replace every CapCut template, mobile workflow, or stock
+asset library. The wedge is the paid AI workflow: scripts, captions, covers,
+image assets, B-roll suggestions, timeline edits, and short-video drafts that
+can be produced with the user's existing Agent subscription instead of a stack
+of extra AI editing subscriptions or third-party API keys.
 
 ## Why Codecut Exists
 
-Most lightweight editors are either too limited or progressively locked behind paywalls.  
-Codecut focuses on a simple idea: powerful basics should stay accessible.
+Self-media creators are already using AI for ideation, copywriting, image
+generation, and content planning, but the final video workflow is still broken:
+
+- Pure Agents can write scripts and generate images, but they have no visual
+  timeline, no preview surface, and no reliable video export path.
+- Pure video editors have a timeline, but they do not understand the creator's
+  content intent and usually do not expose an Agent-native editing contract.
+- CapCut / Jianying-style tools are familiar and powerful, but frequent
+  creators can hit paid AI features, premium templates, cloud storage,
+  collaboration, or asset paywalls.
+- Third-party AI video APIs add another cost layer, require API keys, and make
+  simple creator workflows feel like engineering projects.
+
+Codecut connects the two missing halves: Agent intelligence plus visual local
+editing.
+
+The product bet is simple: creators should be able to use Codex / Claude to
+think, generate, and plan, then use Codecut to inspect, adjust, and export a
+real timeline.
+
+## Target Users
+
+Codecut is built first for AI-native self-media workers:
+
+- Knowledge creators, AI tool creators, independent developers, consultants,
+  course makers, and founder-led media operators.
+- Creators who already pay for Codex, Claude, or ChatGPT and want that
+  subscription to do more of their video workflow.
+- People who produce short videos every week and care about speed, cost,
+  repeatable style, and human review.
+- Users who want a local tool they can inspect and control, not a black-box
+  cloud renderer.
+
+It is not the best first product for casual template users, professional film
+post-production teams, or agencies that mainly need multi-user review,
+approval, and cloud asset management.
 
 ## What You Can Do
 
-- Arrange clips in a timeline
-- Layer video, text, audio, and stickers
-- Preview changes in real time
-- Export without watermark pressure
+- Import local media into a project.
+- Let Codex inspect transcript and media context through local executor tools.
+- Ask the Agent to cut a talking-head, course, interview, or demo video into a
+  short-form draft.
+- Generate an explicit EditPlan that explains selected clips, captions, titles,
+  and target format.
+- Apply the plan to a visible timeline instead of receiving a black-box mp4.
+- Preview, adjust, and export locally.
+
+The early flagship workflow is:
+
+> Give Codecut a local talking-head video and ask Codex to make a 30-90 second vertical short with cleaned speech, captions, a hook title, and optional generated visual assets.
+
+## Product Principles
+
+- **Reuse existing Agent subscriptions.** Codecut should make Codex / Claude
+  more useful for video work instead of forcing creators into another AI API
+  stack. Image generation availability and usage limits depend on the user's
+  Agent account and plan.
+- **Local-first execution.** Media, transcript processing, timeline mutation,
+  preview, and export should stay local whenever possible.
+- **Visible timeline over black-box output.** The Agent can draft, but the
+  creator must be able to see and change the result.
+- **One explicit editing path.** Agent reasoning becomes a validated EditPlan;
+  Codecut applies that plan. No silent fallbacks, magic defaults, or hidden
+  auto-repair.
+- **CapCut Pro AI workflow alternative, not full CapCut clone.** The first
+  product does not compete on template volume. It competes on Agent-native
+  control, lower repeated AI-tool cost, and explainable local editing.
 
 ## Stack Snapshot
 
@@ -48,7 +120,7 @@ bun install
 bun dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:4100`.
 
 ## Full Local Setup (With Services)
 
@@ -120,7 +192,7 @@ Run the full application with Docker:
 docker compose up --build
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:4100`.
 
 This starts Redis and the web app. To enable authentication, uncomment the PostgreSQL service and related env vars in `docker-compose.yaml`.
 

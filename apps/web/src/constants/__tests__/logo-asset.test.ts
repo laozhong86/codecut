@@ -16,7 +16,7 @@ const publicLogo512Path = resolve(
 	"apps/web/public/logos/codecut/png/logo-512.png",
 );
 const appIconPath = resolve(rootDir, "apps/web/src/app/icon.png");
-const legacyPublicSvgPath = resolve(
+const publicSvgPath = resolve(
 	rootDir,
 	"apps/web/public/logos/codecut/svg/logo.svg",
 );
@@ -36,7 +36,9 @@ const comparisonTablePath = resolve(
 );
 const authServerPath = resolve(rootDir, "apps/web/src/lib/auth/server.ts");
 
-const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const pngSignature = Buffer.from([
+	0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
 
 function getPngSize(buffer: Buffer) {
 	expect(buffer.subarray(0, pngSignature.length)).toEqual(pngSignature);
@@ -67,7 +69,10 @@ describe("Codecut brand assets", () => {
 			expect(statSync(asset.path).size).toBeLessThan(asset.maxBytes);
 		}
 
-		expect(existsSync(legacyPublicSvgPath)).toBe(false);
+		const svg = readFileSync(publicSvgPath, "utf8");
+		expect(svg).toContain("<title");
+		expect(svg).toContain("Codecut");
+		expect(svg).toContain("#22D3EE");
 		expect(existsSync(legacyAppSvgPath)).toBe(false);
 	});
 
@@ -83,8 +88,12 @@ describe("Codecut brand assets", () => {
 
 		expect(siteConstants).toContain('title: "Codecut"');
 		expect(siteConstants).toContain('openGraphImage: "/icon.png"');
-		expect(siteConstants).toContain('favicon: "/logos/codecut/png/logo-64.png"');
-		expect(siteConstants).toContain('DEFAULT_LOGO_URL = "/logos/codecut/png/logo-64.png"');
+		expect(siteConstants).toContain(
+			'favicon: "/logos/codecut/png/logo-64.png"',
+		);
+		expect(siteConstants).toContain(
+			'DEFAULT_LOGO_URL = "/logos/codecut/png/logo-64.png"',
+		);
 		expect(manifest).toContain('"name": "Codecut"');
 		expect(manifest).toContain('"/logos/codecut/png/logo-192.png"');
 		expect(manifest).toContain('"/logos/codecut/png/logo-512.png"');
@@ -92,7 +101,9 @@ describe("Codecut brand assets", () => {
 		expect(metadata).not.toContain("/logos/codecut/svg/logo.svg");
 		expect(middleware).toContain("icon.png");
 		expect(header).toContain("Codecut");
+		expect(header).not.toContain("dark:invert");
 		expect(footer).toContain("Codecut");
+		expect(footer).not.toContain("dark:invert");
 		expect(comparisonTable).toContain("Codecut");
 		expect(comparisonTable).not.toContain("CodeCut");
 		expect(authServer).toContain('appName: "Codecut"');
