@@ -13,6 +13,7 @@ export {
 } from "./schema";
 
 export {
+	assertSpeechCleanupVerification,
 	rebuildTimelineFromSpeechCleanup,
 	type SpeechCleanupResult,
 } from "./rebuild";

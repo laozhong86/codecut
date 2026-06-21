@@ -1,7 +1,10 @@
 import { validateEditPlan } from "@/lib/agent-bridge/edit-plan/validate";
 import type { MediaAsset } from "@/types/assets";
 import { describe, expect, test } from "bun:test";
-import { rebuildTimelineFromSpeechCleanup } from "../rebuild";
+import {
+	assertSpeechCleanupVerification,
+	rebuildTimelineFromSpeechCleanup,
+} from "../rebuild";
 import type { SpeechCleanupDecision, SpeechCleanupPlan } from "../schema";
 
 function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
@@ -132,6 +135,26 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		});
 	});
 
+	test("counts filler removals only from dropped filler decisions", () => {
+		const plan = speechCleanupPlan();
+		plan.decisions[1] = {
+			...plan.decisions[1],
+			text: "嗯平台红利不等于个人实力",
+		};
+		plan.decisions[2] = {
+			...plan.decisions[2],
+			dropReason: "pause",
+		};
+
+		const result = rebuildTimelineFromSpeechCleanup({
+			plan,
+			sourceDuration: 20,
+		});
+
+		expect(result.stats.dropReasons.filler).toBeUndefined();
+		expect(result.stats.dropReasons.pause).toBe(1);
+	});
+
 	test("projects to a current EditPlan v1 shape accepted by validateEditPlan", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan: speechCleanupPlan(),
@@ -205,5 +228,16 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		expect(() =>
 			rebuildTimelineFromSpeechCleanup({ plan, sourceDuration: 20 }),
 		).toThrow("SpeechCleanup decisions must not overlap.");
+	});
+
+	test("fails fast when verification is false", () => {
+		expect(() =>
+			assertSpeechCleanupVerification({
+				timelineContiguous: false,
+				captionsWithinTimeline: true,
+				sourceTraceAvailable: true,
+				warnings: [],
+			}),
+		).toThrow("SpeechCleanup verification failed: timelineContiguous.");
 	});
 });

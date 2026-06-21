@@ -125,6 +125,26 @@ function verifyResult({
 	};
 }
 
+export function assertSpeechCleanupVerification(
+	verification: SpeechCleanupVerification,
+) {
+	const failedChecks: string[] = [];
+	if (!verification.timelineContiguous) {
+		failedChecks.push("timelineContiguous");
+	}
+	if (!verification.captionsWithinTimeline) {
+		failedChecks.push("captionsWithinTimeline");
+	}
+	if (!verification.sourceTraceAvailable) {
+		failedChecks.push("sourceTraceAvailable");
+	}
+	if (failedChecks.length > 0) {
+		throw new Error(
+			`SpeechCleanup verification failed: ${failedChecks.join(", ")}.`,
+		);
+	}
+}
+
 export function rebuildTimelineFromSpeechCleanup({
 	plan,
 	sourceDuration,
@@ -179,6 +199,7 @@ export function rebuildTimelineFromSpeechCleanup({
 
 	const stats = buildStats({ decisions: parsed.decisions });
 	const verification = verifyResult({ clips, rebuiltCaptions });
+	assertSpeechCleanupVerification(verification);
 	const editPlan: EditPlan = {
 		version: 1,
 		projectId: parsed.projectId,
