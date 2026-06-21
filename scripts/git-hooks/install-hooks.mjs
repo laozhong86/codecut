@@ -49,6 +49,7 @@ export async function installMainCheckoutGuard({
 	);
 	const guardTargetPath = join(hooksPath, "main-checkout-guard.mjs");
 	const postCheckoutPath = join(hooksPath, "post-checkout");
+	const nodeExecutable = process.execPath;
 
 	await mkdir(hooksPath, { recursive: true });
 	await copyFile(guardSourcePath, guardTargetPath);
@@ -57,7 +58,7 @@ export async function installMainCheckoutGuard({
 		postCheckoutPath,
 		[
 			"#!/usr/bin/env sh",
-			`exec node "${guardTargetPath}" "$@"`,
+			`exec "${nodeExecutable}" "${guardTargetPath}" "$@"`,
 			"",
 		].join("\n"),
 	);
