@@ -28,7 +28,7 @@ export const FONT_OPTIONS: FontOption[] = [
 		hasClassName: false,
 	},
 
-	// Google Fonts (loaded in layout.tsx)
+	// Social caption fonts
 	{
 		value: "Inter",
 		label: "Inter",
@@ -42,6 +42,27 @@ export const FONT_OPTIONS: FontOption[] = [
 		category: "google",
 		weights: [400, 700],
 		hasClassName: true,
+	},
+	{
+		value: "Poppins",
+		label: "Poppins",
+		category: "google",
+		weights: [400, 700],
+		hasClassName: false,
+	},
+	{
+		value: "Montserrat",
+		label: "Montserrat",
+		category: "google",
+		weights: [400, 700],
+		hasClassName: false,
+	},
+	{
+		value: "Oswald",
+		label: "Oswald",
+		category: "google",
+		weights: [400, 700],
+		hasClassName: false,
 	},
 	{
 		value: "Open Sans",
@@ -59,6 +80,41 @@ export const FONT_OPTIONS: FontOption[] = [
 		value: "Comic Neue",
 		label: "Comic Neue",
 		category: "google",
+		hasClassName: false,
+	},
+	{
+		value: "Noto Sans SC",
+		label: "Noto Sans SC",
+		category: "google",
+		weights: [400, 700],
+		hasClassName: false,
+	},
+	{
+		value: "Noto Serif SC",
+		label: "Noto Serif SC",
+		category: "google",
+		weights: [400, 700],
+		hasClassName: false,
+	},
+	{
+		value: "LXGW WenKai",
+		label: "LXGW WenKai",
+		category: "custom",
+		weights: [400, 700],
+		hasClassName: false,
+	},
+	{
+		value: "Smiley Sans",
+		label: "Smiley Sans",
+		category: "custom",
+		weights: [400, 700],
+		hasClassName: false,
+	},
+	{
+		value: "ZCOOL KuaiLe",
+		label: "ZCOOL KuaiLe",
+		category: "google",
+		weights: [400],
 		hasClassName: false,
 	},
 ] as const;

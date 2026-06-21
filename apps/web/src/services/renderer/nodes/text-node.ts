@@ -53,7 +53,34 @@ function getRunFont({
 	const fontStyle =
 		runStyle.fontStyle ?? (params.fontStyle === "italic" ? "italic" : "normal");
 	const fontSize = scaledFontSize * (runStyle.fontScale ?? 1);
-	return `${fontStyle} ${fontWeight} ${fontSize}px ${params.fontFamily}`;
+	return buildCanvasFont({
+		fontStyle,
+		fontWeight,
+		fontSize,
+		fontFamily: params.fontFamily,
+	});
+}
+
+export function buildCanvasFont({
+	fontStyle,
+	fontWeight,
+	fontSize,
+	fontFamily,
+}: {
+	fontStyle: "normal" | "italic";
+	fontWeight: "normal" | "bold";
+	fontSize: number;
+	fontFamily: string;
+}): string {
+	const trimmedFontFamily = fontFamily.trim();
+	const canvasFontFamily =
+		trimmedFontFamily.includes(",") ||
+		/^["'].*["']$/.test(trimmedFontFamily) ||
+		!/\s/.test(trimmedFontFamily)
+			? trimmedFontFamily
+			: JSON.stringify(trimmedFontFamily);
+
+	return `${fontStyle} ${fontWeight} ${fontSize}px ${canvasFontFamily}`;
 }
 
 function resetShadow({ context }: { context: RenderContext }) {

@@ -377,7 +377,7 @@ describe("applyEditPlanToEditor", () => {
 		});
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: "Inter",
+			fontFamily: "Poppins",
 			fontSize: 6,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -416,7 +416,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: "Inter",
+			fontFamily: "Roboto",
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -458,7 +458,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: "Inter",
+			fontFamily: "Montserrat",
 			fontSize: 7,
 			fontWeight: "bold",
 			color: "#fff3b0",
@@ -520,6 +520,137 @@ describe("applyEditPlanToEditor", () => {
 			fontSize: 6,
 			stroke: { color: "#000000", width: 3 },
 		});
+	});
+
+	test("applies expanded social caption presets with matching font treatments", () => {
+		const cases = [
+			{
+				preset: "short-form-bold",
+				expected: {
+					fontFamily: "Poppins",
+					fontSize: 6,
+					fontWeight: "bold",
+					color: "#ffffff",
+					stroke: { color: "#000000", width: 3 },
+					backgroundColor: "transparent",
+				},
+			},
+			{
+				preset: "black-bar",
+				expected: {
+					fontFamily: "Roboto",
+					fontSize: 5,
+					fontWeight: "bold",
+					color: "#ffffff",
+					backgroundColor: "#000000",
+					backgroundOpacity: 0.78,
+				},
+			},
+			{
+				preset: "talking-head-pop",
+				expected: {
+					fontFamily: "Montserrat",
+					fontSize: 7,
+					fontWeight: "bold",
+					color: "#fff3b0",
+					stroke: { color: "#101010", width: 4 },
+					backgroundColor: "transparent",
+				},
+			},
+			{
+				preset: "tutorial-clean",
+				expected: {
+					fontFamily: "Inter",
+					fontSize: 5,
+					fontWeight: "normal",
+					color: "#ffffff",
+					backgroundColor: "#111827",
+					backgroundOpacity: 0.68,
+				},
+			},
+			{
+				preset: "documentary-soft",
+				expected: {
+					fontFamily: "Noto Serif SC",
+					fontSize: 5,
+					fontWeight: "bold",
+					color: "#f8fafc",
+					stroke: { color: "#0f172a", width: 2 },
+					backgroundColor: "transparent",
+				},
+			},
+			{
+				preset: "product-punch",
+				expected: {
+					fontFamily: "Smiley Sans",
+					fontSize: 7,
+					fontWeight: "bold",
+					color: "#ffe45c",
+					stroke: { color: "#111111", width: 4 },
+					backgroundColor: "transparent",
+				},
+			},
+			{
+				preset: "lifestyle-warm",
+				expected: {
+					fontFamily: "LXGW WenKai",
+					fontSize: 6,
+					fontWeight: "bold",
+					color: "#fff7ed",
+					backgroundColor: "#7c2d12",
+					backgroundOpacity: 0.62,
+				},
+			},
+			{
+				preset: "cinematic-serif",
+				expected: {
+					fontFamily: "Noto Serif SC",
+					fontSize: 5,
+					fontWeight: "bold",
+					color: "#f8fafc",
+					stroke: { color: "#111827", width: 2 },
+					fontStyle: "italic",
+					backgroundColor: "transparent",
+				},
+			},
+		];
+
+		expect(cases).toHaveLength(8);
+
+		for (const captionCase of cases) {
+			const editor = fakeEditor();
+			const plan = {
+				...validPlan(),
+				captionStyle: {
+					preset: captionCase.preset,
+					position: "lower-safe",
+				},
+			} as unknown as EditPlan;
+
+			const result = applyEditPlanToEditor({
+				plan,
+				projectId: "project-1",
+				replaceExisting: true,
+				editor,
+			});
+
+			expect(result).toMatchObject({ success: true });
+
+			const textElements = editor.timeline
+				.getTracks()
+				.flatMap((track) => (track.type === "text" ? track.elements : []));
+
+			expect(textElements[1]).toMatchObject({
+				content: "This is the key insight.",
+				boxWidth: 42,
+				transform: {
+					scale: 1,
+					position: { x: 0, y: 300 },
+					rotate: 0,
+				},
+				...captionCase.expected,
+			});
+		}
 	});
 
 	test("applies richSpans from title and captions", () => {

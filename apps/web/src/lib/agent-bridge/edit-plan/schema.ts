@@ -8,6 +8,9 @@ export const EditPlanCaptionStylePresetSchema = z.enum([
 	"talking-head-pop",
 	"tutorial-clean",
 	"documentary-soft",
+	"product-punch",
+	"lifestyle-warm",
+	"cinematic-serif",
 ]);
 
 export const EditPlanCaptionPositionSchema = z.enum(["lower-safe", "center"]);

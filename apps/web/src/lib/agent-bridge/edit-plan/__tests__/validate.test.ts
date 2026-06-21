@@ -303,13 +303,20 @@ describe("validateEditPlan", () => {
 	});
 
 	test("accepts implemented caption style presets for different video types", () => {
-		for (const preset of [
+		const presets = [
 			"short-form-bold",
 			"black-bar",
 			"talking-head-pop",
 			"tutorial-clean",
 			"documentary-soft",
-		]) {
+			"product-punch",
+			"lifestyle-warm",
+			"cinematic-serif",
+		];
+
+		expect(presets).toHaveLength(8);
+
+		for (const preset of presets) {
 			const result = validateEditPlan({
 				plan: {
 					...validPlan(),

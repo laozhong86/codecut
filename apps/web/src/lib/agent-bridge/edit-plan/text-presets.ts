@@ -90,7 +90,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "black-bar") {
 		return {
-			fontFamily: "Inter",
+			fontFamily: "Roboto",
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -106,7 +106,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "talking-head-pop") {
 		return {
-			fontFamily: "Inter",
+			fontFamily: "Montserrat",
 			fontSize: 7,
 			fontWeight: "bold",
 			color: "#fff3b0",
@@ -136,7 +136,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "documentary-soft") {
 		return {
-			fontFamily: "Inter",
+			fontFamily: "Noto Serif SC",
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#f8fafc",
@@ -148,15 +148,65 @@ export function resolveCaptionStylePreset({
 		};
 	}
 
-	return {
-		fontFamily: "Inter",
-		fontSize: 6,
-		fontWeight: "bold",
-		color: "#ffffff",
-		backgroundColor: "transparent",
-		stroke: { color: "#000000", width: 3 },
-		shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
-		boxWidth,
-		transform,
-	};
+	if (captionStyle.preset === "product-punch") {
+		return {
+			fontFamily: "Smiley Sans",
+			fontSize: 7,
+			fontWeight: "bold",
+			color: "#ffe45c",
+			stroke: { color: "#111111", width: 4 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 3, blur: 6 },
+			backgroundColor: "transparent",
+			boxWidth,
+			transform,
+		};
+	}
+
+	if (captionStyle.preset === "lifestyle-warm") {
+		return {
+			fontFamily: "LXGW WenKai",
+			fontSize: 6,
+			fontWeight: "bold",
+			color: "#fff7ed",
+			backgroundColor: "#7c2d12",
+			backgroundOpacity: 0.62,
+			backgroundPaddingX: 20,
+			backgroundPaddingY: 10,
+			backgroundBorderRadius: 8,
+			boxWidth,
+			transform,
+		};
+	}
+
+	if (captionStyle.preset === "cinematic-serif") {
+		return {
+			fontFamily: "Noto Serif SC",
+			fontSize: 5,
+			fontWeight: "bold",
+			fontStyle: "italic",
+			color: "#f8fafc",
+			stroke: { color: "#111827", width: 2 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 5 },
+			backgroundColor: "transparent",
+			boxWidth,
+			transform,
+		};
+	}
+
+	if (captionStyle.preset === "short-form-bold") {
+		return {
+			fontFamily: "Poppins",
+			fontSize: 6,
+			fontWeight: "bold",
+			color: "#ffffff",
+			backgroundColor: "transparent",
+			stroke: { color: "#000000", width: 3 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
+			boxWidth,
+			transform,
+		};
+	}
+
+	const exhaustivePreset: never = captionStyle.preset;
+	throw new Error(`Unsupported caption style preset: ${exhaustivePreset}`);
 }
