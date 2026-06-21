@@ -402,6 +402,7 @@ describe("codex executor", () => {
 								sourceStart: 0,
 								sourceEnd: 5,
 								timelineStart: 0,
+								fit: "cover",
 								reason: "Hook",
 							},
 							{
@@ -496,12 +497,26 @@ describe("codex executor", () => {
 					{
 						type: "video",
 						elements: [
-							{ type: "video", mediaId: videoId, trimStart: 0, trimEnd: 5 },
+							{
+								type: "video",
+								mediaId: videoId,
+								trimStart: 0,
+								trimEnd: 5,
+								visual: {
+									transform: {
+										position: { x: 0, y: 0 },
+										scale: 3.160493827160494,
+									},
+								},
+							},
 							{
 								type: "video",
 								mediaId: videoId,
 								trimStart: 20,
 								trimEnd: 25,
+								visual: {
+									transform: { position: { x: 0, y: 0 }, scale: 1 },
+								},
 							},
 						],
 						transitions: [

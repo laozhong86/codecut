@@ -146,6 +146,29 @@ export function validateEditPlan({
 		});
 	}
 
+	const hasCoverFit = normalizedPlan.clips.some((clip) => clip.fit === "cover");
+	if (hasCoverFit && sourceMedia.type !== "video") {
+		const index = normalizedPlan.clips.findIndex(
+			(clip) => clip.fit === "cover",
+		);
+		return fail({
+			message: "EditPlan cover fit requires video source media.",
+			path: `clips[${index}].fit`,
+		});
+	}
+	if (
+		hasCoverFit &&
+		(typeof sourceMedia.width !== "number" ||
+			sourceMedia.width <= 0 ||
+			typeof sourceMedia.height !== "number" ||
+			sourceMedia.height <= 0)
+	) {
+		return fail({
+			message: "EditPlan cover fit requires source media dimensions.",
+			path: "sourceMediaId",
+		});
+	}
+
 	let clipDurationTotal = 0;
 	const clipIds = new Set<string>();
 	for (let index = 0; index < normalizedPlan.clips.length; index += 1) {

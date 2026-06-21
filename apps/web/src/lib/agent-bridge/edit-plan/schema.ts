@@ -31,6 +31,8 @@ export const EditPlanTransitionTypeSchema = z.enum([
 	"zoom-out",
 ]);
 
+export const EditPlanClipFitSchema = z.enum(["cover"]);
+
 export const EditPlanTextRichSpanSchema = z
 	.object({
 		start: z.number().int().min(0),
@@ -62,6 +64,7 @@ export const EditPlanClipSchema = z
 		sourceStart: z.number().min(0),
 		sourceEnd: z.number().min(0),
 		timelineStart: z.number().min(0),
+		fit: EditPlanClipFitSchema.optional(),
 		reason: z.string().min(1),
 	})
 	.strict();
@@ -146,3 +149,4 @@ export type EditPlanTextStylePreset = z.infer<
 export type EditPlanAudio = z.infer<typeof EditPlanAudioSchema>;
 export type EditPlanTransition = z.infer<typeof EditPlanTransitionSchema>;
 export type EditPlanTextRichSpan = z.infer<typeof EditPlanTextRichSpanSchema>;
+export type EditPlanClipFit = z.infer<typeof EditPlanClipFitSchema>;

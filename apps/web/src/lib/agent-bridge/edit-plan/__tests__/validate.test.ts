@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { MediaAsset } from "@/types/assets";
-import { EditPlanSchema } from "../schema";
+import { EditPlanSchema, type EditPlan } from "../schema";
 import { validateEditPlan } from "../validate";
 
 function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
@@ -16,7 +16,7 @@ function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	};
 }
 
-function validPlan() {
+function validPlan(): EditPlan {
 	return {
 		version: 1,
 		projectId: "project-1",
@@ -86,6 +86,75 @@ describe("validateEditPlan", () => {
 				projectId: "project-1",
 				sourceMediaId: "media-1",
 			},
+		});
+	});
+
+	test("accepts cover fit clips for video source media with dimensions", () => {
+		const plan = validPlan();
+		plan.clips[0] = {
+			...plan.clips[0],
+			fit: "cover",
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.normalizedPlan.clips[0]?.fit).toBe("cover");
+	});
+
+	test("rejects cover fit when source video dimensions are missing", () => {
+		const plan = validPlan();
+		plan.clips[0] = {
+			...plan.clips[0],
+			fit: "cover",
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset({ width: undefined, height: undefined })],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan cover fit requires source media dimensions.",
+			path: "sourceMediaId",
+		});
+	});
+
+	test("rejects cover fit for audio source media", () => {
+		const plan = {
+			...validPlan(),
+			sourceMediaId: "audio-1",
+			clips: [
+				{
+					id: "clip-1",
+					sourceStart: 0,
+					sourceEnd: 30,
+					timelineStart: 0,
+					fit: "cover",
+					reason: "Audio excerpt.",
+				},
+			],
+			captions: undefined,
+			captionStyle: undefined,
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [audioAsset({ duration: 120 })],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan cover fit requires video source media.",
+			path: "clips[0].fit",
 		});
 	});
 

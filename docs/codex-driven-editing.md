@@ -125,6 +125,7 @@ Codex sends exactly one editing plan format to Codecut:
     sourceStart: number,
     sourceEnd: number,
     timelineStart: number,
+    fit?: "cover",
     reason: string
   }>,
   title?: {
@@ -223,6 +224,12 @@ timeline second and is truncated at the timeline end if needed.
 The two clips must be adjacent within `0.05s`, and the transition duration must
 not exceed either neighboring clip duration. Invalid transitions fail the plan;
 Codecut does not move clips to make them valid.
+
+`clips[].fit` currently supports only `cover`. Use it when a horizontal source
+must fill a vertical or square canvas without letterboxing. Cover fit requires a
+video source with known `width` and `height`; invalid or dimensionless sources
+fail validation. Codecut converts `cover` into a deterministic centered
+`visual.transform.scale` that is readable through `get_timeline_state`.
 
 ## Speech Cleanup Contract
 

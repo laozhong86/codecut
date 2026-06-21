@@ -1,6 +1,7 @@
 import type { MediaAsset } from "@/types/assets";
 import type {
 	CreateTimelineElement,
+	Transform,
 	TimelineTrack,
 	TrackType,
 	TrackTransition,
@@ -149,6 +150,48 @@ function getTimelineDuration({ plan }: { plan: EditPlan }): number {
 	return duration;
 }
 
+function getAspectRatioDimensions({
+	aspectRatio,
+}: {
+	aspectRatio: EditPlan["target"]["aspectRatio"];
+}): { width: number; height: number } {
+	if (aspectRatio === "9:16") return { width: 9, height: 16 };
+	if (aspectRatio === "1:1") return { width: 1, height: 1 };
+	return { width: 16, height: 9 };
+}
+
+function getCoverTransform({
+	sourceMedia,
+	aspectRatio,
+}: {
+	sourceMedia: MediaAsset;
+	aspectRatio: EditPlan["target"]["aspectRatio"];
+}): Transform {
+	if (
+		typeof sourceMedia.width !== "number" ||
+		sourceMedia.width <= 0 ||
+		typeof sourceMedia.height !== "number" ||
+		sourceMedia.height <= 0
+	) {
+		throw new Error("EditPlan cover fit requires source media dimensions.");
+	}
+
+	const target = getAspectRatioDimensions({ aspectRatio });
+	const containScale = Math.min(
+		target.width / sourceMedia.width,
+		target.height / sourceMedia.height,
+	);
+	const coverScale = Math.max(
+		target.width / sourceMedia.width,
+		target.height / sourceMedia.height,
+	);
+	return {
+		scale: coverScale / containScale,
+		position: { x: 0, y: 0 },
+		rotate: 0,
+	};
+}
+
 function createClipElement({
 	plan,
 	sourceMedia,
@@ -179,6 +222,14 @@ function createClipElement({
 			duration,
 			startTime: clip.timelineStart,
 		}),
+		...(clip.fit === "cover"
+			? {
+					transform: getCoverTransform({
+						sourceMedia,
+						aspectRatio: plan.target.aspectRatio,
+					}),
+				}
+			: {}),
 		trimStart: clip.sourceStart,
 		trimEnd: clip.sourceEnd,
 	};
@@ -447,7 +498,11 @@ export function applyEditPlanToEditor({
 			}
 		}
 
-		for (let index = 0; index < (normalizedPlan.audio.sfx ?? []).length; index += 1) {
+		for (
+			let index = 0;
+			index < (normalizedPlan.audio.sfx ?? []).length;
+			index += 1
+		) {
 			const sfx = normalizedPlan.audio.sfx?.[index];
 			if (!sfx) continue;
 			const sfxAsset = mediaAssets.find((asset) => asset.id === sfx.assetId);

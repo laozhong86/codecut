@@ -294,6 +294,37 @@ describe("applyEditPlanToEditor", () => {
 		]);
 	});
 
+	test("applies cover fit as a deterministic video transform", () => {
+		const editor = fakeEditor();
+		const plan = validPlan();
+		plan.clips[0] = {
+			...plan.clips[0],
+			fit: "cover",
+		};
+
+		const result = applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const videoElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "video" ? track.elements : []));
+
+		expect(result).toMatchObject({ success: true });
+		expect(videoElements[0]).toMatchObject({
+			type: "video",
+			transform: {
+				position: { x: 0, y: 0 },
+				rotate: 0,
+			},
+		});
+		expect(videoElements[0]?.transform.scale).toBeCloseTo(3.16049, 4);
+		expect(videoElements[1]?.transform.scale).toBe(1);
+	});
+
 	test("inserts title and captions on a text track", () => {
 		const editor = fakeEditor();
 

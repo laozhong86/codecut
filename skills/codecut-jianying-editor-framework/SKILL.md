@@ -100,7 +100,7 @@ Do not stop at framework analysis. Execute the workflow.
 4. Load bridge env from `apps/web/.env.local` when present, without printing the token:
    `set -a; source apps/web/.env.local; set +a`.
 5. Run `create-project`, then `doctor-install`, then `doctor`.
-6. If the target is vertical or square, call `update_project_settings` before applying the EditPlan.
+6. If the target is vertical or square, call `update_project_settings` before applying the EditPlan. When a horizontal source must fill that canvas without black bars, set `fit: "cover"` on the relevant EditPlan clips.
 7. Run `import-media` with the absolute file path.
 8. Run `list_media_assets`, select the imported audio/video asset, then run `transcribe`.
 9. Run `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
@@ -202,7 +202,7 @@ When the user wants Codex to edit through Codecut:
 8. If no media exists and no local media path is available, ask the user to import media in Codecut or provide an absolute local file path.
 9. Use `node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language auto --model-id <model>` when transcript-first editing is needed.
 10. Use `node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language auto --model-id <model>` when long-video or transcript-first planning needs merged source-timestamped context. This analyzes videos longer than 300 seconds in fixed 5-minute chunks without creating temporary media assets.
-11. If platform output requires a concrete canvas or FPS, call `update_project_settings` explicitly before applying the EditPlan. `EditPlan.target.aspectRatio` is a planning field and does not mutate project settings by itself.
+11. If platform output requires a concrete canvas or FPS, call `update_project_settings` explicitly before applying the EditPlan. `EditPlan.target.aspectRatio` is a planning field and does not mutate project settings by itself. Use `clips[].fit: "cover"` for video clips that must fill the target canvas without letterboxing.
 12. For talking-head cleanup or filler removal, generate a strict SpeechCleanupPlan v2 and project it with `rebuildTimelineFromSpeechCleanup()` before applying. SpeechCleanup decisions must be sorted, non-overlapping, and exhaustive over the transcript segments Codex chooses to classify; `drop` requires `dropReason`, and `keep` must omit `dropReason`.
 13. Generate the strict implemented EditPlan v1 in Codex for single-source clip plans. Use only fields supported by `apps/web/src/lib/agent-bridge/edit-plan/schema.ts`.
 14. For existing narration audio plus video B-roll, generate strict NarratedRemixPlan v1 instead. Use only fields supported by `apps/web/src/lib/agent-bridge/narrated-remix/schema.ts`; do not include TTS, BGM, SFX, image B-roll, or generated audio fields.
@@ -249,6 +249,7 @@ Current known MVP gaps:
 - There is no separate `preview_edit_plan` bridge tool yet.
 - The current `apply_edit_plan` path validates and mutates in one bridge command.
 - `EditPlan.target.aspectRatio` does not apply project canvas settings by itself; use `update_project_settings` when vertical or square output is required.
+- `clips[].fit: "cover"` is the only implemented clip fit value. It creates a centered cover transform for video clips with known dimensions and is readable through `get_timeline_state`.
 - Undo/redo transaction hardening is a future implementation task.
 - Local executor export is not implemented yet; treat export as a separate follow-up migration, not a default Codex command.
 - Bridge-exposed speech generation is not part of the current MVP. Existing audio assets can be placed on audio tracks through the implemented audio timeline tool.

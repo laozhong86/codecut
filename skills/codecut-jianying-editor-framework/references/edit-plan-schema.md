@@ -20,6 +20,7 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
     sourceStart: number,
     sourceEnd: number,
     timelineStart: number,
+    fit?: "cover",
     reason: string
   }>,
   title?: {
@@ -96,6 +97,8 @@ Current validation fail-fast checks include:
 - media duration must be known.
 - every clip must have `sourceEnd > sourceStart`.
 - every clip range must fit inside source media duration.
+- `clips[].fit` only accepts `cover`, requires video source media, and requires
+  known source `width` and `height`.
 - total clip duration must stay within the target tolerance.
 - title and captions must fit inside the generated timeline.
 - captions must use top-level `captionStyle`; per-caption style objects are not
@@ -113,10 +116,14 @@ Current validation fail-fast checks include:
 
 `target.aspectRatio` is a planning field in the current implemented schema. It does not update the project canvas by itself. When the user outcome requires vertical, square, or specific FPS output, call the implemented project settings path and verify the result through `get_project_info`.
 
+`clips[].fit: "cover"` creates a centered cover crop by converting source and
+target aspect ratios into `visual.transform.scale`. It is the only implemented
+clip fit value and is readable through `get_timeline_state`.
+
 Do not include `intent`, `strategy`, `overlays`, `acceptanceChecks`, `speed`,
-`fit`, `anchor`, arbitrary style objects, external audio URLs, or automatic
-asset-download instructions in a plan sent to the current `apply_edit_plan`
-tool. Those fields belong to a future schema migration.
+`anchor`, arbitrary transform objects, arbitrary style objects, external audio
+URLs, or automatic asset-download instructions in a plan sent to the current
+`apply_edit_plan` tool. Those fields belong to a future schema migration.
 
 Masked visual effects are not part of EditPlan v1. Use the explicit
 `create_text_background_effect` or `create_human_pip_effect` bridge action only
