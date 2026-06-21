@@ -365,7 +365,8 @@ describe("codex executor", () => {
 
 		expect(transcribeResult.results[0]).toMatchObject({
 			success: false,
-			message: "Media asset 'cover.png' is type 'image', expected video or audio",
+			message:
+				"Media asset 'cover.png' is type 'image', expected video or audio",
 		});
 	});
 
@@ -465,7 +466,8 @@ describe("codex executor", () => {
 
 		expect(contextResult.results[0]).toMatchObject({
 			success: false,
-			message: "Media asset 'cover.png' is type 'image', expected video or audio",
+			message:
+				"Media asset 'cover.png' is type 'image', expected video or audio",
 		});
 	});
 
@@ -593,8 +595,8 @@ describe("codex executor", () => {
 		});
 		const videoIds = videoImports.map(
 			(result) =>
-				resultData<{ assets: Array<{ id: string }> }>(result.results[0]).assets[0]
-					.id,
+				resultData<{ assets: Array<{ id: string }> }>(result.results[0])
+					.assets[0].id,
 		);
 		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
 			narrationImport.results[0],
@@ -749,7 +751,9 @@ describe("codex executor", () => {
 			alphaImport.results[0],
 		).assets[0].id;
 		const state = await getExecutorProjectState({ projectId });
-		state.derivedAssets = [personMask({ sourceMediaId: sourceId, alphaMediaId: alphaId })];
+		state.derivedAssets = [
+			personMask({ sourceMediaId: sourceId, alphaMediaId: alphaId }),
+		];
 		await writeFile(
 			join(stateDir, "projects", projectId, "project.json"),
 			`${JSON.stringify(state, null, 2)}\n`,

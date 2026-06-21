@@ -62,7 +62,9 @@ export function parseExecutorTranscriptionLanguage(
 	) {
 		return value as TranscriptionLanguage;
 	}
-	throw new Error("language must be auto or a supported transcription language");
+	throw new Error(
+		"language must be auto or a supported transcription language",
+	);
 }
 
 export function parseExecutorTranscriptionModelId(
@@ -148,7 +150,9 @@ async function extractAudioSamples({
 		ffmpeg.stdout.on("data", (chunk: Buffer) => {
 			totalBytes += chunk.byteLength;
 			if (totalBytes > MAX_AUDIO_BYTES) {
-				fail(new Error("Extracted audio is too large for local transcription."));
+				fail(
+					new Error("Extracted audio is too large for local transcription."),
+				);
 				return;
 			}
 			chunks.push(chunk);
@@ -208,7 +212,9 @@ function readProcessStdout({
 		});
 		child.on("error", (error) => {
 			fail(
-				new Error(`Failed to start ${child.spawnfile ?? "process"}: ${error.message}`),
+				new Error(
+					`Failed to start ${child.spawnfile ?? "process"}: ${error.message}`,
+				),
 			);
 		});
 		child.on("close", (code) => {

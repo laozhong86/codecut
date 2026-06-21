@@ -356,8 +356,12 @@ function addTransition({
 	const track = state.tracks.find((candidate) => candidate.id === trackId);
 	if (track?.type !== "video") return null;
 
-	const fromElement = track.elements.find((element) => element.id === fromElementId);
-	const toElement = track.elements.find((element) => element.id === toElementId);
+	const fromElement = track.elements.find(
+		(element) => element.id === fromElementId,
+	);
+	const toElement = track.elements.find(
+		(element) => element.id === toElementId,
+	);
 	if (!fromElement || !toElement) return null;
 	if (!areElementsAdjacent({ elementA: fromElement, elementB: toElement })) {
 		return null;
@@ -690,30 +694,30 @@ async function runApplyEditPlan({
 					state.tracks = tracks;
 				},
 				addTrack: ({ type, index }) => addTrack({ state, type, index }),
-					insertElement: ({ element, placement }) => {
-						if (placement.mode !== "explicit") {
-							throw new Error("Executor requires explicit track placement.");
-						}
-						insertElement({ state, element, trackId: placement.trackId });
-					},
-					addTransition: ({
+				insertElement: ({ element, placement }) => {
+					if (placement.mode !== "explicit") {
+						throw new Error("Executor requires explicit track placement.");
+					}
+					insertElement({ state, element, trackId: placement.trackId });
+				},
+				addTransition: ({
+					trackId,
+					fromElementId,
+					toElementId,
+					type,
+					duration,
+				}) =>
+					addTransition({
+						state,
 						trackId,
 						fromElementId,
 						toElementId,
 						type,
 						duration,
-					}) =>
-						addTransition({
-							state,
-							trackId,
-							fromElementId,
-							toElementId,
-							type,
-							duration,
-						}),
-				},
+					}),
 			},
-		});
+		},
+	});
 	if (result.success) {
 		await saveProjectState({ state });
 	}
@@ -856,7 +860,10 @@ async function runCreateHumanPipEffect({
 	state.tracks = result.tracks;
 	await saveProjectState({ state });
 
-	const summary = summarizeEffect({ effect: "human-pip", tracks: result.tracks });
+	const summary = summarizeEffect({
+		effect: "human-pip",
+		tracks: result.tracks,
+	});
 	return {
 		success: true,
 		message: `Created human-pip effect with ${summary.trackCount} track(s).`,
@@ -881,7 +888,10 @@ async function runTranscribeMedia({
 	);
 
 	if (!mediaAsset) {
-		return { success: false, message: `Media asset '${parsed.mediaId}' not found` };
+		return {
+			success: false,
+			message: `Media asset '${parsed.mediaId}' not found`,
+		};
 	}
 	if (mediaAsset.type !== "video" && mediaAsset.type !== "audio") {
 		return {
@@ -923,7 +933,10 @@ async function runBuildVideoContext({
 	);
 
 	if (!mediaAsset) {
-		return { success: false, message: `Media asset '${parsed.mediaId}' not found` };
+		return {
+			success: false,
+			message: `Media asset '${parsed.mediaId}' not found`,
+		};
 	}
 	if (mediaAsset.type !== "video" && mediaAsset.type !== "audio") {
 		return {
@@ -1065,7 +1078,9 @@ async function executeCommand({
 	throw new Error(`Unsupported executor tool: ${command.tool}`);
 }
 
-const defaultBuildVideoContextProbeAudio: ProbeAudio = async ({ mediaAsset }) => {
+const defaultBuildVideoContextProbeAudio: ProbeAudio = async ({
+	mediaAsset,
+}) => {
 	if (!("path" in mediaAsset) || typeof mediaAsset.path !== "string") {
 		throw new Error("VideoContext probe requires a media asset path.");
 	}

@@ -14,16 +14,22 @@ describe("video context", () => {
 	});
 
 	test("transcribeMediaRangeWithNodeRuntime requires range at runtime", async () => {
+		const missingRangeInput: unknown = {
+			mediaAsset: {
+				id: "media-1",
+				name: "source.mp4",
+				path: "/tmp/source.mp4",
+			},
+			language: "zh",
+			modelId: "whisper-large-v3-turbo",
+		};
+
 		await expect(
-			transcribeMediaRangeWithNodeRuntime({
-				mediaAsset: {
-					id: "media-1",
-					name: "source.mp4",
-					path: "/tmp/source.mp4",
-				},
-				language: "zh",
-				modelId: "whisper-large-v3-turbo",
-			} as any),
+			transcribeMediaRangeWithNodeRuntime(
+				missingRangeInput as Parameters<
+					typeof transcribeMediaRangeWithNodeRuntime
+				>[0],
+			),
 		).rejects.toThrow("Transcription range is required.");
 	});
 
@@ -196,8 +202,20 @@ describe("video context", () => {
 			],
 			analysisChunks: [
 				{ index: 1, start: 0, end: 300, status: "succeeded", segmentCount: 1 },
-				{ index: 2, start: 300, end: 600, status: "succeeded", segmentCount: 1 },
-				{ index: 3, start: 600, end: 725, status: "succeeded", segmentCount: 1 },
+				{
+					index: 2,
+					start: 300,
+					end: 600,
+					status: "succeeded",
+					segmentCount: 1,
+				},
+				{
+					index: 3,
+					start: 600,
+					end: 725,
+					status: "succeeded",
+					segmentCount: 1,
+				},
 			],
 		});
 		expect(videoContext.warnings).toContain("visual analysis not run");

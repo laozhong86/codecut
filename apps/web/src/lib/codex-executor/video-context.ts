@@ -22,9 +22,7 @@ export interface CompletedAnalysisChunk extends AnalysisChunk {
 	segmentCount: number;
 }
 
-export type VideoContextAssetTypeGuess =
-	| "oral_candidate"
-	| "mixed_or_unknown";
+export type VideoContextAssetTypeGuess = "oral_candidate" | "mixed_or_unknown";
 
 export interface VideoContext {
 	version: 1;
@@ -150,7 +148,10 @@ export async function buildVideoContextWithTranscriber({
 	if (mediaAsset.type !== "video" && mediaAsset.type !== "audio") {
 		throw new Error("VideoContext only supports video or audio media.");
 	}
-	if (!Number.isFinite(mediaAsset.durationSeconds) || !mediaAsset.durationSeconds) {
+	if (
+		!Number.isFinite(mediaAsset.durationSeconds) ||
+		!mediaAsset.durationSeconds
+	) {
 		throw new Error("VideoContext requires media duration.");
 	}
 
