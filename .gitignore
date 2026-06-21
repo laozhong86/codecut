@@ -9,7 +9,9 @@ node_modules
 .turbo
 *.tsbuildinfo
 .playwright-cli/
+.codecut-workspace/
 apps/web/.codecut-executor/
+outputs/
 tmp/
 
 .env*
