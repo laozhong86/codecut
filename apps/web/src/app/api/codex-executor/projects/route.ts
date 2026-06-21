@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateExecutorToken } from "@/lib/codex-executor/auth";
-import { createExecutorProject } from "@/lib/codex-executor/executor";
+import {
+	createExecutorProject,
+	listExecutorProjects,
+} from "@/lib/codex-executor/executor";
 
 const createProjectBodySchema = z
 	.object({
@@ -33,4 +36,11 @@ export async function POST(request: NextRequest) {
 		revision: state.revision,
 		editorUrl: `http://127.0.0.1:4100/en/editor/${state.project.id}`,
 	});
+}
+
+export async function GET(request: NextRequest) {
+	const tokenError = validateExecutorToken(request);
+	if (tokenError) return tokenError;
+
+	return NextResponse.json(await listExecutorProjects());
 }

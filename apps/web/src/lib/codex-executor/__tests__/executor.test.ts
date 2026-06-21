@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DerivedAsset } from "@/types/project";
@@ -26,11 +26,15 @@ function envelope({
 		| "build_video_context"
 		| "inspect_video_range"
 		| "build_post_cut_captions"
+		| "validate_edit_plan"
+		| "preview_edit_plan"
 		| "apply_edit_plan"
 		| "apply_narrated_remix_plan"
 		| "create_text_background_effect"
 		| "create_human_pip_effect"
 		| "generate_digital_human"
+		| "export_project"
+		| "verify_timeline"
 		| "get_timeline_state";
 	args: Record<string, unknown>;
 }) {
@@ -443,6 +447,293 @@ describe("codex executor", () => {
 			message: "Timeline has 2 track(s), total duration: 12.00s",
 		});
 		expect(state.revision).toBeGreaterThan(1);
+	});
+
+	test("validate and preview EditPlan do not mutate project revision", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 120,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		const before = await getExecutorProjectState({ projectId });
+		const plan = {
+			version: 1,
+			projectId,
+			sourceMediaId: mediaId,
+			target: { durationSec: 12, aspectRatio: "9:16" },
+			clips: [
+				{
+					id: "clip-1",
+					sourceStart: 10,
+					sourceEnd: 22,
+					timelineStart: 0,
+					reason: "Hook",
+				},
+			],
+			captions: [{ text: "Main claim", startTime: 0, duration: 2 }],
+			captionStyle: { preset: "black-bar", position: "lower-safe" },
+			rationale: "Short cut",
+		};
+
+		const validateResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "validate_edit_plan",
+				args: { plan },
+			}),
+		});
+		const previewResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "preview_edit_plan",
+				args: { plan },
+			}),
+		});
+		const after = await getExecutorProjectState({ projectId });
+
+		expect(validateResult.results[0]).toMatchObject({
+			tool: "validate_edit_plan",
+			success: true,
+			data: {
+				valid: true,
+				revision: before.revision,
+			},
+		});
+		expect(previewResult.results[0]).toMatchObject({
+			tool: "preview_edit_plan",
+			success: true,
+			data: {
+				summary: {
+					clipCount: 1,
+					captionCount: 1,
+					audioCount: 0,
+					transitionCount: 0,
+					willReplaceTimeline: true,
+				},
+				clips: [
+					{
+						id: "clip-1",
+						sourceStart: 10,
+						sourceEnd: 22,
+						timelineStart: 0,
+						duration: 12,
+					},
+				],
+			},
+		});
+		expect(after.revision).toBe(before.revision);
+		expect(after.tracks).toEqual([]);
+	});
+
+	test("exports an applied timeline to an explicit local file", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 120,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 12, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 10,
+								sourceEnd: 22,
+								timelineStart: 0,
+								reason: "Hook",
+							},
+						],
+						rationale: "Short cut",
+					},
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const outputFile = join(stateDir, "out.mp4");
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_project",
+				args: {
+					format: "mp4",
+					quality: "high",
+					includeAudio: true,
+					outputFile,
+					overwrite: false,
+				},
+			}),
+			exportProject: async ({ state: exportState, format, quality, includeAudio }) => {
+				expect(exportState.project.id).toBe(projectId);
+				expect(format).toBe("mp4");
+				expect(quality).toBe("high");
+				expect(includeAudio).toBe(true);
+				return Buffer.from("mp4-bytes");
+			},
+		});
+
+		expect(await readFile(outputFile, "utf8")).toBe("mp4-bytes");
+		expect(result.results[0]).toMatchObject({
+			tool: "export_project",
+			success: true,
+			data: {
+				outputFile,
+				byteLength: 9,
+				format: "mp4",
+				includeAudio: true,
+				revision: state.revision,
+				totalDuration: 12,
+			},
+		});
+	});
+
+	test("export fails fast for unsafe local export inputs", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const existingOutputFile = join(stateDir, "existing.mp4");
+		await writeFile(existingOutputFile, "existing");
+
+		const emptyTimeline = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_project",
+				args: {
+					format: "mp4",
+					quality: "high",
+					includeAudio: true,
+					outputFile: join(stateDir, "empty.mp4"),
+					overwrite: false,
+				},
+			}),
+			exportProject: async () => {
+				throw new Error("should not run");
+			},
+		});
+		const relativeOutput = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_project",
+				args: {
+					format: "mp4",
+					quality: "high",
+					includeAudio: true,
+					outputFile: "relative.mp4",
+					overwrite: false,
+				},
+			}),
+			exportProject: async () => {
+				throw new Error("should not run");
+			},
+		});
+		const existingOutput = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_project",
+				args: {
+					format: "mp4",
+					quality: "high",
+					includeAudio: true,
+					outputFile: existingOutputFile,
+					overwrite: false,
+				},
+			}),
+			exportProject: async () => {
+				throw new Error("should not run");
+			},
+		});
+		const unsupportedFormat = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_project",
+				args: {
+					format: "gif",
+					quality: "high",
+					includeAudio: true,
+					outputFile: join(stateDir, "out.gif"),
+					overwrite: false,
+				},
+			}),
+			exportProject: async () => {
+				throw new Error("should not run");
+			},
+		});
+
+		expect(emptyTimeline.results[0]).toMatchObject({
+			success: false,
+			message: "Cannot export an empty timeline.",
+		});
+		expect(relativeOutput.results[0]).toMatchObject({
+			success: false,
+			message: "--output-file must be an absolute path",
+		});
+		expect(existingOutput.results[0]).toMatchObject({
+			success: false,
+			message: "Output file already exists. Set overwrite=true to replace it.",
+		});
+		expect(unsupportedFormat.results[0]).toMatchObject({
+			success: false,
+			message: "--format must be mp4 or webm",
+		});
+	});
+
+	test("verify_timeline returns explicit mismatch fields", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "verify_timeline",
+				args: {
+					verification: {
+						totalDuration: 10,
+						trackCount: 1,
+						clipCount: 1,
+						captionCount: 0,
+						audioCount: 0,
+						mediaIds: ["media-1"],
+					},
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "verify_timeline",
+			success: false,
+			data: {
+				failures: [
+					{ field: "totalDuration", expected: 10, actual: 0 },
+					{ field: "trackCount", expected: 1, actual: 0 },
+					{ field: "clipCount", expected: 1, actual: 0 },
+					{ field: "mediaIds", expected: ["media-1"], actual: [] },
+				],
+			},
+		});
 	});
 
 	test("apply_edit_plan fails before mutating when executor media file is empty", async () => {

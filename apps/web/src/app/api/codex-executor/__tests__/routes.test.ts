@@ -5,8 +5,12 @@ import { join } from "node:path";
 import { NextRequest } from "next/server";
 import { POST as postCommands } from "../commands/route";
 import { GET as getMedia } from "../media/route";
-import { GET as getProject } from "../project/route";
-import { POST as postProjects } from "../projects/route";
+import {
+	DELETE as deleteProject,
+	GET as getProject,
+	PATCH as patchProject,
+} from "../project/route";
+import { GET as getProjects, POST as postProjects } from "../projects/route";
 import { GET as getStatus } from "../status/route";
 
 const origin = "http://localhost:4100";
@@ -19,7 +23,7 @@ function request({
 	body,
 }: {
 	url: string;
-	method?: "GET" | "POST";
+	method?: "GET" | "POST" | "PATCH" | "DELETE";
 	headers?: Record<string, string>;
 	body?: unknown;
 }) {
@@ -172,6 +176,67 @@ describe("codex executor API routes", () => {
 		expect(mediaResponse.status).toBe(200);
 		expect(mediaResponse.headers.get("content-type")).toBe("video/mp4");
 		expect(await mediaResponse.text()).toBe("video bytes");
+	});
+
+	test("lists renames and deletes executor projects", async () => {
+		await postProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: { projectId: "project-1", name: "Codex cut" },
+			}),
+		);
+
+		const listBeforeResponse = await getProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				headers: { authorization: `Bearer ${token}` },
+			}),
+		);
+		const renameResponse = await patchProject(
+			request({
+				url: `${origin}/api/codex-executor/project`,
+				method: "PATCH",
+				headers: { authorization: `Bearer ${token}` },
+				body: { projectId: "project-1", name: "Renamed cut" },
+			}),
+		);
+		const renamedResponse = await getProject(
+			request({
+				url: `${origin}/api/codex-executor/project?projectId=project-1`,
+			}),
+		);
+		const deleteResponse = await deleteProject(
+			request({
+				url: `${origin}/api/codex-executor/project`,
+				method: "DELETE",
+				headers: { authorization: `Bearer ${token}` },
+				body: { projectId: "project-1" },
+			}),
+		);
+		const listAfterResponse = await getProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				headers: { authorization: `Bearer ${token}` },
+			}),
+		);
+
+		expect(listBeforeResponse.status).toBe(200);
+		expect(await listBeforeResponse.json()).toMatchObject({
+			projects: [{ projectId: "project-1", name: "Codex cut" }],
+		});
+		expect(renameResponse.status).toBe(200);
+		expect(await renameResponse.json()).toMatchObject({
+			projectId: "project-1",
+			name: "Renamed cut",
+		});
+		expect(await renamedResponse.json()).toMatchObject({
+			project: { id: "project-1", name: "Renamed cut" },
+		});
+		expect(deleteResponse.status).toBe(200);
+		expect(await deleteResponse.json()).toEqual({ projectId: "project-1" });
+		expect(await listAfterResponse.json()).toEqual({ projects: [] });
 	});
 
 	test("rejects command execution without the local bridge token", async () => {
