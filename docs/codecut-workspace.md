@@ -77,7 +77,9 @@ documents for variants that share the same source pack.
 3. Initialize the workspace.
 4. Save and classify all provided local materials.
 5. Run ffprobe inventory for video/audio assets.
-6. Ask clarification questions with choices and one recommended option.
+6. Ask the next missing blocking field only, with choices and one recommended
+   option. Use Codex `request_user_input` when available; otherwise ask one
+   conversational question and stop.
 7. Write route and planning documents.
 8. Create the Codecut executor project only when editing execution begins.
 

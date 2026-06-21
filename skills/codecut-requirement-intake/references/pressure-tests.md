@@ -10,7 +10,9 @@ Prompt:
 
 Pass:
 
-- Ask output form, platform, aspect ratio, and caption policy before executor mutation.
+- Ask only the next highest-priority missing field before executor mutation.
+- Use Codex `request_user_input` when that tool is available; otherwise ask one conversational question with the same choices and stop.
+- Start with output form, then continue one answer at a time through platform, aspect ratio, and caption policy.
 - Do not default to TikTok/Reels/Shorts.
 - Do not default to 9:16.
 - Do not write assumptions as answers.
@@ -18,6 +20,8 @@ Pass:
 Fail:
 
 - Runs `create-project`, `import-media`, `transcribe`, or `apply-plan`.
+- Lists multiple clarification questions in one assistant turn.
+- Calls `request_user_input` and also prints duplicate natural-language questions in the same turn.
 - Says "No blocking clarification was required".
 
 ## Test 2: Explicit Vertical Local File

@@ -59,8 +59,9 @@ Required pre-edit order for user-provided materials:
 3. Initialize the workspace with `scripts/codecut-workspace.mjs`.
 4. Copy provided files into categorized local folders.
 5. Run ffprobe material inventory for video/audio assets.
-6. Ask clarification questions with concrete choices and exactly one
-   recommended option per question.
+6. Ask the next missing blocking field only, with concrete choices and exactly
+   one recommended option. Use Codex `request_user_input` when available;
+   otherwise ask one conversational question and stop.
 7. Write workflow route, content breakdown, hook selection, script documents,
    decision ledger, and timeline restructure notes when they are relevant.
 8. Create the Codecut executor project only after the workspace is ready and the
@@ -499,9 +500,11 @@ After application, Codex must verify `get_timeline_state` proof fields:
 4. Codex copies provided local materials into categorized asset folders.
 5. Codex runs ffprobe material inventory and writes asset manifest, ffprobe
    report, and material audit.
-6. Codex asks clarification questions with choices and one recommended option
-   per question when platform, aspect ratio, duration, video type, editing
-   style, caption policy, or business facts are missing.
+6. Codex asks the next missing blocking field only, with choices and one
+   recommended option, when platform, aspect ratio, duration, video type,
+   editing style, caption policy, or business facts are missing. Use Codex
+   `request_user_input` when available; otherwise ask one conversational
+   question and stop.
 7. Codex writes the workflow route and planning documents: content breakdown,
    hook selection, scripts when needed, decision ledger when needed, and
    timeline restructure notes.
@@ -554,7 +557,9 @@ When the request includes one absolute local media file and a concrete target su
 2. Initialize `.codecut-workspace/projects/<projectId>`.
 3. Add the local file with `codecut-workspace add-assets`.
 4. Run `codecut-workspace probe-assets`.
-5. Ask any missing clarification questions with choices and one recommended option.
+5. Ask the next missing blocking field only, with choices and one recommended
+   option. Use Codex `request_user_input` when available; otherwise ask one
+   conversational question and stop.
 6. Write workflow route, content breakdown, hook selection, and timeline restructure notes.
 7. Confirm the local Codecut service is ready.
 8. Create the executor project with the same `projectId`, immediately open the

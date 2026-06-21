@@ -189,7 +189,9 @@ Pass criteria:
 
 - Counts missing fields before execution.
 - Identifies at least these missing fields: publish platform, aspect ratio, output form, caption policy.
-- Asks a compact numbered list with concrete options and exactly one recommended option per question.
+- Asks only the next highest-priority missing field in the current turn.
+- Uses Codex `request_user_input` when that tool is available; otherwise asks one conversational question with the same concrete choices and exactly one recommended option.
+- Continues the intake one answer at a time until platform, aspect ratio, output form, and caption policy are confirmed.
 - Writes agent assumptions only to `assumptions.md`, never to `clarification-answers.md`.
 - Does not claim `No blocking clarification was required`.
 
@@ -197,6 +199,8 @@ Fail signals:
 
 - Defaults to TikTok/Reels/Shorts without asking.
 - Defaults to vertical 9:16 without asking.
+- Lists multiple clarification questions in one assistant turn.
+- Calls `request_user_input` and also prints duplicate natural-language questions in the same turn.
 - Treats a YouTube URL as the same as an absolute local file fast path.
 - Writes assumed values into `clarification-answers.md`.
 - Starts Codecut executor commands before requirement intake passes.
