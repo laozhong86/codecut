@@ -165,6 +165,86 @@ describe("RunningHub digital human provider", () => {
 		).rejects.toThrow("submit failed");
 	});
 
+	test("submits the digital human AI App through the webapp run contract", async () => {
+		const request = {
+			imageMediaId: "image-1",
+			audioMediaId: "audio-1",
+			scriptText: "欢迎来到今天的口播",
+			motionPrompt: "女人自然点头微笑",
+			width: 1280,
+			height: 720,
+			fps: 25,
+		};
+		const calls: Array<{ url: string; init?: RequestInit }> = [];
+
+		const result = await submitRunningHubDigitalHumanTask({
+			apiKey: "rh-key",
+			imageFileName: "portrait.png",
+			audioFileName: "voice.mp3",
+			request,
+			fetchImpl: async (url, init) => {
+				calls.push({ url: String(url), init });
+				return new Response(
+					JSON.stringify({
+						code: 0,
+						msg: "success",
+						data: {
+							taskId: "task-1",
+							taskStatus: "RUNNING",
+						},
+					}),
+				);
+			},
+		});
+
+		expect(calls).toHaveLength(1);
+		expect(calls[0].url).toBe(
+			"https://www.runninghub.cn/task/openapi/ai-app/run",
+		);
+		expect(calls[0].init?.headers).toMatchObject({
+			Authorization: "Bearer rh-key",
+			"Content-Type": "application/json",
+		});
+		const body = JSON.parse(String(calls[0].init?.body));
+		expect(body).toMatchObject({
+			webappId: "2052014238952108033",
+			instanceType: "default",
+			usePersonalQueue: "false",
+		});
+		expect(body.nodeInfoList).toEqual(
+			buildRunningHubDigitalHumanSubmitBody({
+				imageFileName: "portrait.png",
+				audioFileName: "voice.mp3",
+				scriptText: request.scriptText,
+				motionPrompt: request.motionPrompt,
+				width: request.width,
+				height: request.height,
+				fps: request.fps,
+			}).nodeInfoList,
+		);
+		expect(result).toEqual({
+			taskId: "task-1",
+			status: "running",
+		});
+	});
+
+	test("fails fast when RunningHub query returns an app-level error", async () => {
+		await expect(
+			queryRunningHubDigitalHumanTask({
+				apiKey: "rh-key",
+				taskId: "task-1",
+				fetchImpl: async () =>
+					new Response(
+						JSON.stringify({
+							code: 804,
+							msg: "task not found",
+							data: null,
+						}),
+					),
+			}),
+		).rejects.toThrow("task not found");
+	});
+
 	test("fails fast when RunningHub query succeeds without an mp4 result", async () => {
 		await expect(
 			queryRunningHubDigitalHumanTask({
@@ -197,6 +277,21 @@ describe("RunningHub digital human provider", () => {
 
 		await expect(
 			downloadRunningHubVideo({
+				videoUrl: "https://www.runninghub.cn/output/result.mp4",
+				fetchImpl: async () => new Response("video", { status: 200 }),
+			}),
+		).rejects.toThrow("RunningHub result URL host is not allowed");
+
+		await expect(
+			downloadRunningHubVideo({
+				videoUrl:
+					"https://rh-images-attacker.cos.ap-beijing.myqcloud.com/output/result.mp4",
+				fetchImpl: async () => new Response("video", { status: 200 }),
+			}),
+		).rejects.toThrow("RunningHub result URL host is not allowed");
+
+		await expect(
+			downloadRunningHubVideo({
 				videoUrl:
 					"https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.mp4",
 				fetchImpl: async () =>
@@ -209,7 +304,8 @@ describe("RunningHub digital human provider", () => {
 
 		await expect(
 			downloadRunningHubVideo({
-				videoUrl: "https://www.runninghub.cn/output/result.mp4",
+				videoUrl:
+					"https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.mp4",
 				fetchImpl: async () =>
 					new Response("not-video", {
 						headers: { "content-type": "text/plain" },
@@ -219,7 +315,8 @@ describe("RunningHub digital human provider", () => {
 
 		await expect(
 			downloadRunningHubVideo({
-				videoUrl: "https://www.runninghub.cn/output/result.mp4",
+				videoUrl:
+					"https://rh-images-1252422369.cos.ap-beijing.myqcloud.com/output/result.mp4",
 				fetchImpl: async () =>
 					new Response("video", {
 						headers: {

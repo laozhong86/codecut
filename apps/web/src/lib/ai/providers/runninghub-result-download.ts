@@ -1,7 +1,3 @@
-const ALLOWED_RUNNINGHUB_RESULT_HOST_SUFFIXES = [
-	".runninghub.cn",
-	".runninghub.ai",
-];
 const RUNNINGHUB_DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_RUNNINGHUB_VIDEO_BYTES = 512 * 1024 * 1024;
 const MAX_RUNNINGHUB_AUDIO_BYTES = 100 * 1024 * 1024;
@@ -13,8 +9,7 @@ type FetchLike = (
 
 function isRunningHubCosHost({ hostname }: { hostname: string }): boolean {
 	return (
-		hostname.startsWith("rh-images-") &&
-		hostname.includes(".cos.") &&
+		hostname.startsWith("rh-images-1252422369.cos.") &&
 		hostname.endsWith(".myqcloud.com")
 	);
 }
@@ -28,11 +23,7 @@ export function assertAllowedRunningHubResultUrl({
 	if (parsed.protocol !== "https:") {
 		throw new Error("RunningHub result URL must use HTTPS");
 	}
-	const allowed =
-		ALLOWED_RUNNINGHUB_RESULT_HOST_SUFFIXES.some((suffix) =>
-			parsed.hostname.endsWith(suffix),
-		) || isRunningHubCosHost({ hostname: parsed.hostname });
-	if (!allowed) {
+	if (!isRunningHubCosHost({ hostname: parsed.hostname })) {
 		throw new Error("RunningHub result URL host is not allowed");
 	}
 	return parsed;

@@ -32,8 +32,8 @@ function normalizeBaseUrl(baseUrl) {
 	return normalized.replace(/\/+$/, "");
 }
 
-function aiAppEndpoint({ baseUrl, appId }) {
-	return `${normalizeBaseUrl(baseUrl)}/openapi/v2/run/ai-app/${appId}`;
+function aiAppEndpoint({ baseUrl }) {
+	return `${normalizeBaseUrl(baseUrl)}/task/openapi/ai-app/run`;
 }
 
 export function redactSecret(value) {
@@ -50,12 +50,12 @@ export function buildRunningHubHealthContract({
 		queryEndpoint: `${normalizeBaseUrl(baseUrl)}/openapi/v2/query`,
 		digitalHuman: {
 			appId: DIGITAL_HUMAN_APP_ID,
-			endpoint: aiAppEndpoint({ baseUrl, appId: DIGITAL_HUMAN_APP_ID }),
+			endpoint: aiAppEndpoint({ baseUrl }),
 			nodeInfoList: DIGITAL_HUMAN_NODES,
 		},
 		voiceDesign: {
 			appId: VOICE_DESIGN_APP_ID,
-			endpoint: aiAppEndpoint({ baseUrl, appId: VOICE_DESIGN_APP_ID }),
+			endpoint: aiAppEndpoint({ baseUrl }),
 			nodeInfoList: VOICE_DESIGN_NODES,
 		},
 	};
