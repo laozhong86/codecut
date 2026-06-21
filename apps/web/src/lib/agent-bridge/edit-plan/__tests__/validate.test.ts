@@ -420,6 +420,68 @@ describe("validateEditPlan", () => {
 		expect(result.success).toBe(false);
 	});
 
+	test("schema rejects top-level style objects", () => {
+		const plan = {
+			...validPlan(),
+			style: {
+				preset: "short-form-bold",
+			},
+		};
+
+		const result = EditPlanSchema.safeParse(plan);
+
+		expect(result.success).toBe(false);
+	});
+
+	test("schema rejects top-level css strings", () => {
+		const plan = {
+			...validPlan(),
+			css: "font-size: 48px",
+		};
+
+		const result = EditPlanSchema.safeParse(plan);
+
+		expect(result.success).toBe(false);
+	});
+
+	test("schema rejects per-caption style objects", () => {
+		const plan = {
+			...validPlan(),
+			captions: [
+				{
+					text: "This caption should use the top-level captionStyle.",
+					startTime: 0,
+					duration: 2,
+					style: {
+						preset: "short-form-bold",
+					},
+				},
+			],
+		};
+
+		const result = EditPlanSchema.safeParse(plan);
+
+		expect(result.success).toBe(false);
+	});
+
+	test("schema rejects per-caption css strings", () => {
+		const plan = {
+			...validPlan(),
+			captions: [
+				{
+					text: "This caption should use the top-level captionStyle.",
+					startTime: 0,
+					duration: 2,
+					css: "font-size: 48px",
+				},
+			],
+		};
+
+		const result = EditPlanSchema.safeParse(plan);
+
+		expect(result.success).toBe(false);
+	});
+
 	test("accepts imported audio assets and adjacent transitions", () => {
 		const plan = {
 			...validPlan(),
