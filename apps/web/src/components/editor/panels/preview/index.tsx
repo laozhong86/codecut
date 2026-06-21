@@ -13,6 +13,7 @@ import { buildScene } from "@/services/renderer/scene-builder";
 import { formatTimeCode, getLastFrameTime } from "@/lib/time";
 import { PreviewInteractionOverlay } from "./preview-interaction-overlay";
 import { EditableTimecode } from "@/components/editable-timecode";
+import { ProjectAspectRatioMenu } from "@/components/editor/project-aspect-ratio-menu";
 import { invokeAction } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -291,6 +292,7 @@ function PreviewToolbar({
 			</Button>
 
 			<div className="flex items-center gap-1 justify-self-end">
+				<ProjectAspectRatioMenu />
 				<Button
 					variant="text"
 					size="icon"
