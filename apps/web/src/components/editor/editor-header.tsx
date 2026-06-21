@@ -15,7 +15,10 @@ import { useRouter } from "@/lib/navigation";
 import { ExportButton } from "./export-button";
 import { ThemeToggle } from "../theme-toggle";
 import { LanguageToggle } from "../language-toggle";
-import { DEFAULT_LOGO_URL } from "@/constants/site-constants";
+import {
+	DEFAULT_LOGO_URL,
+	GITHUB_COMMUNITY_URL,
+} from "@/constants/site-constants";
 import { toast } from "sonner";
 import { useEditor } from "@/hooks/use-editor";
 import {
@@ -23,7 +26,6 @@ import {
 	BubbleChatIcon,
 	CommandIcon,
 } from "@hugeicons/core-free-icons";
-import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ShortcutsDialog } from "./dialogs/shortcuts-dialog";
 import Image from "next/image";
@@ -49,17 +51,21 @@ export function EditorHeader() {
 						editor={editor}
 					/>
 				) : null}
-				<FeedbackTrigger>
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon"
-						aria-label={t("Feedback")}
-						title={t("Feedback")}
+				<Button
+					asChild
+					variant="ghost"
+					size="icon"
+					aria-label={t("GitHub community")}
+					title={t("GitHub community")}
+				>
+					<a
+						href={GITHUB_COMMUNITY_URL}
+						target="_blank"
+						rel="noopener noreferrer"
 					>
 						<HugeiconsIcon icon={BubbleChatIcon} className="size-4" />
-					</Button>
-				</FeedbackTrigger>
+					</a>
+				</Button>
 				<LanguageToggle />
 				<ThemeToggle />
 				<ExportButton />

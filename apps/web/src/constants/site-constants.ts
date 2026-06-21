@@ -23,6 +23,8 @@ export const DEFAULT_LOGO_URL = "/logos/codecut/png/logo-64.png";
 
 export const SOCIAL_LINKS = {
 	x: "https://x.com/moonrailgun",
-	github: "https://github.com/msgbyte/codecut",
+	github: "https://github.com/msgbyte/cutia",
 	discord: "",
 };
+
+export const GITHUB_COMMUNITY_URL = `${SOCIAL_LINKS.github}/issues`;
