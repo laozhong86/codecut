@@ -6,8 +6,13 @@ import {
 	offsetTranscriptSegments,
 	shouldSuggestTrimFillers,
 } from "../video-context";
+import { transcribeMediaRangeWithNodeRuntime } from "../transcription";
 
 describe("video context", () => {
+	test("exports a range-aware transcription runtime", () => {
+		expect(typeof transcribeMediaRangeWithNodeRuntime).toBe("function");
+	});
+
 	test("buildAnalysisChunks splits long media into 300 second chunks", () => {
 		expect(buildAnalysisChunks({ durationSeconds: 725 })).toEqual([
 			{ index: 1, start: 0, end: 300 },
