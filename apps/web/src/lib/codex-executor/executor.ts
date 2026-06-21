@@ -932,19 +932,25 @@ async function runBuildVideoContext({
 		};
 	}
 
+	const videoContextMediaAsset = {
+		id: mediaAsset.id,
+		name: mediaAsset.name,
+		type: mediaAsset.type,
+		durationSeconds: mediaAsset.duration,
+		width: mediaAsset.width,
+		height: mediaAsset.height,
+		path: mediaAsset.path,
+	};
+
 	const context = await buildVideoContextWithTranscriber({
-		mediaAsset: {
-			id: mediaAsset.id,
-			name: mediaAsset.name,
-			type: mediaAsset.type,
-			durationSeconds: mediaAsset.duration,
-			width: mediaAsset.width,
-			height: mediaAsset.height,
-			path: mediaAsset.path,
-		},
+		mediaAsset: videoContextMediaAsset,
 		probeAudio,
-		transcribeRange: async ({ mediaAsset: targetMediaAsset, startSeconds, endSeconds }) =>
-			transcribeMediaRange({
+		transcribeRange: async ({
+			mediaAsset: targetMediaAsset,
+			startSeconds,
+			endSeconds,
+		}) => {
+			const result = await transcribeMediaRange({
 				mediaAsset: {
 					id: targetMediaAsset.id,
 					name: targetMediaAsset.name,
@@ -954,7 +960,15 @@ async function runBuildVideoContext({
 				language,
 				modelId,
 				range: { start: startSeconds, end: endSeconds },
-			}),
+			});
+
+			return {
+				text: result.text,
+				language: result.language,
+				modelId: result.modelId ?? modelId,
+				segments: result.segments,
+			};
+		},
 	});
 
 	return {
@@ -1051,10 +1065,24 @@ async function executeCommand({
 	throw new Error(`Unsupported executor tool: ${command.tool}`);
 }
 
+const defaultBuildVideoContextProbeAudio: ProbeAudio = async ({ mediaAsset }) => {
+	if (!("path" in mediaAsset) || typeof mediaAsset.path !== "string") {
+		throw new Error("VideoContext probe requires a media asset path.");
+	}
+
+	return probeMediaAudioWithFfprobe({
+		mediaAsset: {
+			id: mediaAsset.id,
+			name: mediaAsset.name,
+			path: mediaAsset.path,
+		},
+	});
+};
+
 export async function executeCodexExecutorEnvelope({
 	envelope,
 	transcribeMedia = transcribeMediaWithNodeRuntime,
-	probeAudio = probeMediaAudioWithFfprobe,
+	probeAudio = defaultBuildVideoContextProbeAudio,
 	transcribeMediaRange = transcribeMediaRangeWithNodeRuntime,
 }: {
 	envelope: unknown;
