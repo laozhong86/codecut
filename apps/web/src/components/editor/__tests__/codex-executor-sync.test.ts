@@ -149,6 +149,7 @@ describe("getExecutorStatusDotState", () => {
 		});
 
 		expect(EXECUTOR_STATUS_DOT_CLASS).toContain("size-1.5");
+		expect(EXECUTOR_STATUS_DOT_CLASS).not.toContain("fixed");
 		expect(EXECUTOR_STATUS_DOT_CLASS).not.toContain("size-7");
 		expect(EXECUTOR_STATUS_DOT_CLASS).not.toContain("bg-background");
 		expect(state.ariaLabel).toBe("Codex executor succeeded");

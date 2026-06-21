@@ -53,7 +53,7 @@ type ExecutorSnapshotSummary = {
 };
 
 export const EXECUTOR_STATUS_DOT_CLASS =
-	"fixed top-[1.55rem] right-48 z-50 size-1.5 rounded-full";
+	"block size-1.5 shrink-0 rounded-full";
 
 export function getExecutorStatusDotState({
 	status,

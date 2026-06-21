@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import {
 	applyCodexExecutorSnapshot,
-	CodexExecutorSync,
 	loadCodexExecutorSnapshot,
 } from "@/components/editor/codex-executor-sync";
 import { AgentBridgeProvider } from "@/components/providers/agent-bridge-provider";
@@ -76,9 +75,6 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [executorRevision, setExecutorRevision] = useState<number | undefined>(
-		undefined,
-	);
 	const { disableKeybindings, enableKeybindings } = useKeybindingDisabler();
 	const activeProject = editor.project.getActiveOrNull();
 
@@ -96,14 +92,12 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		const loadProject = async () => {
 			try {
 				setIsLoading(true);
-				setExecutorRevision(undefined);
 				const result = await loadEditorProviderProject({ projectId, editor });
 				if (cancelled) return;
 				if (result.redirectProjectId) {
 					router.replace(`/editor/${result.redirectProjectId}`);
 					return;
 				}
-				setExecutorRevision(result.executorRevision);
 				setIsLoading(false);
 			} catch (err) {
 				if (cancelled) return;
@@ -155,13 +149,6 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		<>
 			<EditorRuntimeBindings />
 			<AgentBridgeProvider projectId={projectId} />
-			{executorRevision !== undefined ? (
-				<CodexExecutorSync
-					projectId={projectId}
-					editor={editor}
-					initialRevision={executorRevision}
-				/>
-			) : null}
 			{children}
 		</>
 	);

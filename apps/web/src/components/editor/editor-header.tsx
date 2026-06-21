@@ -29,9 +29,13 @@ import { ShortcutsDialog } from "./dialogs/shortcuts-dialog";
 import Image from "next/image";
 import { cn } from "@/utils/ui";
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
+import { CodexExecutorSync } from "./codex-executor-sync";
 
 export function EditorHeader() {
 	const { t } = useTranslation();
+	const editor = useEditor();
+	const activeProject = editor.project.getActiveOrNull();
+
 	return (
 		<header className="bg-background flex h-[3.4rem] items-center justify-between px-3 pt-0.5">
 			<div className="flex items-center gap-1">
@@ -39,6 +43,12 @@ export function EditorHeader() {
 				<EditableProjectName />
 			</div>
 			<nav className="flex items-center gap-2">
+				{activeProject ? (
+					<CodexExecutorSync
+						projectId={activeProject.metadata.id}
+						editor={editor}
+					/>
+				) : null}
 				<FeedbackTrigger>
 					<Button
 						type="button"
