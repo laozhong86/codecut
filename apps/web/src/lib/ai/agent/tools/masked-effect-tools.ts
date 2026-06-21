@@ -2,7 +2,7 @@ import { EditorCore } from "@/core";
 import {
 	createHumanPipEffect,
 	createTextBackgroundEffect,
-	type HumanPipPlacement,
+	requireHumanPipPlacement,
 } from "@/lib/derived-assets/masked-effects";
 import { calculateTotalDuration } from "@/lib/timeline";
 import type { MediaAsset } from "@/types/assets";
@@ -165,10 +165,12 @@ export function executeCreateHumanPipEffectTool({
 				value: args.derivedAssetId,
 				label: "derivedAssetId",
 			}),
-			placement: requireString({
-				value: args.placement,
-				label: "placement",
-			}) as HumanPipPlacement,
+			placement: requireHumanPipPlacement(
+				requireString({
+					value: args.placement,
+					label: "placement",
+				}),
+			),
 			scale: requireNumber({ value: args.scale, label: "scale" }),
 			startTime: requireNumber({ value: args.startTime, label: "startTime" }),
 			duration: requireNumber({ value: args.duration, label: "duration" }),
@@ -177,7 +179,10 @@ export function executeCreateHumanPipEffectTool({
 		});
 
 		editor.timeline.updateTracks(result.tracks);
-		const summary = summarizeEffect({ effect: "human-pip", tracks: result.tracks });
+		const summary = summarizeEffect({
+			effect: "human-pip",
+			tracks: result.tracks,
+		});
 		return {
 			success: true,
 			message: `Created human-pip effect with ${summary.trackCount} track(s).`,

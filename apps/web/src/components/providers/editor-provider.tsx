@@ -65,7 +65,7 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 						const snapshot = await loadCodexExecutorSnapshot({ projectId });
 						if (cancelled) return;
 						if (snapshot) {
-							applyCodexExecutorSnapshot({ editor, snapshot });
+							await applyCodexExecutorSnapshot({ editor, snapshot });
 							setExecutorRevision(snapshot.revision);
 							setIsLoading(false);
 							return;

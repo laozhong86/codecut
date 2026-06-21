@@ -14,6 +14,7 @@ import { storageService } from "@/services/storage/service";
 import { toast } from "sonner";
 import { generateUUID } from "@/utils/id";
 import { UpdateProjectSettingsCommand } from "@/lib/commands/project";
+import { validatePersonMaskMetadata } from "@/lib/derived-assets/person-mask";
 import {
 	DEFAULT_FPS,
 	DEFAULT_CANVAS_SIZE,
@@ -550,6 +551,7 @@ export class ProjectManager {
 		if (active.derivedAssets.some((asset) => asset.id === derivedAsset.id)) {
 			throw new Error("Derived asset already exists.");
 		}
+		validatePersonMaskMetadata({ personMask: derivedAsset });
 
 		this.active = {
 			...active,

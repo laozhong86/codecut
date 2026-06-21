@@ -46,8 +46,11 @@ export class MaskedVideoNode extends VideoNode {
 			}),
 		]);
 
-		if (!sourceFrame || !alphaFrame) {
-			return;
+		if (!sourceFrame) {
+			throw new Error("Masked video source frame is missing.");
+		}
+		if (!alphaFrame) {
+			throw new Error("Masked video alpha frame is missing.");
 		}
 
 		const maskCanvas = createCanvas({

@@ -1,8 +1,13 @@
 import { DEFAULT_TEXT_ELEMENT } from "@/constants/text-constants";
 import type { MediaAsset } from "@/types/assets";
 import type { DerivedAsset } from "@/types/project";
-import type { TextElement, TimelineTrack, VideoElement } from "@/types/timeline";
+import type {
+	TextElement,
+	TimelineTrack,
+	VideoElement,
+} from "@/types/timeline";
 import { generateUUID } from "@/utils/id";
+import { validatePersonMaskBinding } from "./person-mask";
 
 type RequiredVideoMediaAsset = MediaAsset & {
 	type: "video";
@@ -26,6 +31,23 @@ export type HumanPipPlacement =
 	| "left_down"
 	| "left_up"
 	| "center";
+
+export const HUMAN_PIP_PLACEMENTS: HumanPipPlacement[] = [
+	"right_down",
+	"right_up",
+	"left_down",
+	"left_up",
+	"center",
+];
+
+export function requireHumanPipPlacement(value: string): HumanPipPlacement {
+	if (HUMAN_PIP_PLACEMENTS.includes(value as HumanPipPlacement)) {
+		return value as HumanPipPlacement;
+	}
+	throw new Error(
+		`placement must be one of ${HUMAN_PIP_PLACEMENTS.join(", ")}.`,
+	);
+}
 
 export interface HumanPipEffectParams {
 	foregroundMediaId: string;
@@ -158,13 +180,15 @@ export function createTextBackgroundEffect({
 	});
 	const personMask = requirePersonMask({ derivedAssetId, derivedAssets });
 
-	if (personMask.sourceMediaId !== sourceMediaId) {
-		throw new Error("Person mask does not belong to the source media.");
-	}
-	requireVideoAsset({
+	const alphaMedia = requireVideoAsset({
 		mediaId: personMask.alphaMediaId,
 		mediaAssets,
 		label: "Person mask alpha",
+	});
+	validatePersonMaskBinding({
+		personMask,
+		sourceMedia,
+		alphaMedia,
 	});
 	validateRange({
 		startTime,
@@ -264,6 +288,7 @@ export function createHumanPipEffect({
 	if (scale < 0.1 || scale > 1) {
 		throw new Error("Human PIP scale must be between 0.1 and 1.");
 	}
+	requireHumanPipPlacement(placement);
 
 	const foregroundMedia = requireVideoAsset({
 		mediaId: foregroundMediaId,
@@ -277,14 +302,26 @@ export function createHumanPipEffect({
 	});
 	const personMask = requirePersonMask({ derivedAssetId, derivedAssets });
 
-	if (personMask.sourceMediaId !== foregroundMediaId) {
-		throw new Error("Person mask does not belong to the foreground media.");
-	}
-	requireVideoAsset({
+	const alphaMedia = requireVideoAsset({
 		mediaId: personMask.alphaMediaId,
 		mediaAssets,
 		label: "Person mask alpha",
 	});
+	try {
+		validatePersonMaskBinding({
+			personMask,
+			sourceMedia: foregroundMedia,
+			alphaMedia,
+		});
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			error.message === "Person mask does not belong to the source media."
+		) {
+			throw new Error("Person mask does not belong to the foreground media.");
+		}
+		throw error;
+	}
 	validateRange({
 		startTime,
 		duration,

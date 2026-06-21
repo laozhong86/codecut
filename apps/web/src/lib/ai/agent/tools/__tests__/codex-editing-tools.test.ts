@@ -6,7 +6,10 @@ import { BridgeToolNameSchema } from "@/lib/agent-bridge/schema";
 import { getToolByName } from "../index";
 import { executeApplyEditPlanTool } from "../edit-plan-tools";
 import { executeImportMediaFileTool } from "../media-tools";
-import { executeCreateTextBackgroundEffectTool } from "../masked-effect-tools";
+import {
+	executeCreateHumanPipEffectTool,
+	executeCreateTextBackgroundEffectTool,
+} from "../masked-effect-tools";
 import { executeApplyNarratedRemixPlanTool } from "../narrated-remix-tools";
 import { executeTranscribeMediaTool } from "../transcription-tools";
 
@@ -90,16 +93,18 @@ describe("Codex deterministic editing tools", () => {
 		expect(BridgeToolNameSchema.safeParse("transcribe_media").success).toBe(
 			true,
 		);
-		expect(BridgeToolNameSchema.safeParse("apply_edit_plan").success).toBe(true);
+		expect(BridgeToolNameSchema.safeParse("apply_edit_plan").success).toBe(
+			true,
+		);
 		expect(
 			BridgeToolNameSchema.safeParse("create_text_background_effect").success,
 		).toBe(true);
-		expect(BridgeToolNameSchema.safeParse("create_human_pip_effect").success).toBe(
-			true,
-		);
-		expect(BridgeToolNameSchema.safeParse("apply_narrated_remix_plan").success).toBe(
-			true,
-		);
+		expect(
+			BridgeToolNameSchema.safeParse("create_human_pip_effect").success,
+		).toBe(true);
+		expect(
+			BridgeToolNameSchema.safeParse("apply_narrated_remix_plan").success,
+		).toBe(true);
 	});
 
 	test("apply_edit_plan returns validation failures without mutating the timeline", () => {
@@ -110,12 +115,12 @@ describe("Codex deterministic editing tools", () => {
 				getTracks: () => [],
 				updateTracks: () => {
 					updateCount += 1;
-					},
-					addTrack: () => "track-1",
-					insertElement: () => undefined,
-					addTransition: () => null,
 				},
-			};
+				addTrack: () => "track-1",
+				insertElement: () => undefined,
+				addTransition: () => null,
+			},
+		};
 
 		const result = executeApplyEditPlanTool({
 			args: {
@@ -150,8 +155,10 @@ describe("Codex deterministic editing tools", () => {
 	});
 
 	test("import_media_file decodes a local file payload and adds it to the media library", async () => {
-		const addedAssets: Array<{ projectId: string; asset: Omit<MediaAsset, "id"> }> =
-			[];
+		const addedAssets: Array<{
+			projectId: string;
+			asset: Omit<MediaAsset, "id">;
+		}> = [];
 		const editor = {
 			project: {
 				getActive: () => ({ metadata: { id: "project-123" } }),
@@ -359,6 +366,45 @@ describe("Codex deterministic editing tools", () => {
 		expect(updateCount).toBe(0);
 	});
 
+	test("create_human_pip_effect rejects unsupported placement before mutating timeline", () => {
+		let updateCount = 0;
+		const result = executeCreateHumanPipEffectTool({
+			args: {
+				foregroundMediaId: "media-1",
+				backgroundMediaId: "background-1",
+				derivedAssetId: "mask-1",
+				placement: "bottom_right",
+				scale: 0.35,
+				startTime: 2,
+				duration: 6,
+				replaceExisting: true,
+			},
+			editor: {
+				...editorWithMedia({
+					mediaAssets: [
+						mediaAsset(),
+						mediaAsset({ id: "alpha-1", name: "Mask alpha.webm" }),
+						mediaAsset({ id: "background-1", name: "Background.mp4" }),
+					],
+					derivedAssets: [personMask()],
+				}),
+				timeline: {
+					getTracks: () => [],
+					updateTracks: () => {
+						updateCount += 1;
+					},
+				},
+			},
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message:
+				"placement must be one of right_down, right_up, left_down, left_up, center.",
+		});
+		expect(updateCount).toBe(0);
+	});
+
 	test("apply_narrated_remix_plan returns validation failures without mutating the timeline", () => {
 		let updateCount = 0;
 		const result = executeApplyNarratedRemixPlanTool({
@@ -450,7 +496,8 @@ describe("Codex deterministic editing tools", () => {
 
 		expect(result).toEqual({
 			success: false,
-			message: "Media asset 'Long interview.mp4' is type 'image', expected video or audio",
+			message:
+				"Media asset 'Long interview.mp4' is type 'image', expected video or audio",
 		});
 	});
 });

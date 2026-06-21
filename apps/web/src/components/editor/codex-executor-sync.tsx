@@ -59,6 +59,36 @@ type ExecutorSnapshotSummary = {
 	syncedAt: string;
 };
 
+function appendRevision({ url, revision }: { url: string; revision: number }) {
+	const separator = url.includes("?") ? "&" : "?";
+	return `${url}${separator}revision=${encodeURIComponent(String(revision))}`;
+}
+
+async function loadExecutorMediaFile({
+	asset,
+	revision,
+}: {
+	asset: ExecutorSnapshot["mediaAssets"][number];
+	revision: number;
+}) {
+	const url = appendRevision({ url: asset.url, revision });
+	const response = await fetch(url, { cache: "no-store" });
+	if (!response.ok) {
+		throw new Error(`Failed to load executor media asset ${asset.id}.`);
+	}
+	const blob = await response.blob();
+	if (blob.size !== asset.size) {
+		throw new Error(`Executor media asset size mismatch for ${asset.id}.`);
+	}
+	return {
+		file: new File([blob], asset.name, {
+			type: asset.mimeType,
+			lastModified: asset.lastModified,
+		}),
+		url,
+	};
+}
+
 export async function loadCodexExecutorSnapshot({
 	projectId,
 }: {
@@ -76,6 +106,16 @@ export async function loadCodexExecutorSnapshot({
 }
 
 export function applyCodexExecutorSnapshot({
+	editor,
+	snapshot,
+}: {
+	editor: EditorCore;
+	snapshot: ExecutorSnapshot;
+}) {
+	return applyCodexExecutorSnapshotAsync({ editor, snapshot });
+}
+
+async function applyCodexExecutorSnapshotAsync({
 	editor,
 	snapshot,
 }: {
@@ -107,19 +147,24 @@ export function applyCodexExecutorSnapshot({
 		version: CURRENT_PROJECT_VERSION,
 		derivedAssets: snapshot.derivedAssets,
 	};
-	const mediaAssets: MediaAsset[] = snapshot.mediaAssets.map((asset) => ({
-		id: asset.id,
-		name: asset.name,
-		type: asset.type,
-		duration: asset.duration,
-		width: asset.width,
-		height: asset.height,
-		file: new File([], asset.name, {
-			type: asset.mimeType,
-			lastModified: asset.lastModified,
+	const mediaAssets: MediaAsset[] = await Promise.all(
+		snapshot.mediaAssets.map(async (asset) => {
+			const mediaFile = await loadExecutorMediaFile({
+				asset,
+				revision: snapshot.revision,
+			});
+			return {
+				id: asset.id,
+				name: asset.name,
+				type: asset.type,
+				duration: asset.duration,
+				width: asset.width,
+				height: asset.height,
+				file: mediaFile.file,
+				url: mediaFile.url,
+			};
 		}),
-		url: `${asset.url}&revision=${snapshot.revision}`,
-	}));
+	);
 
 	editor.save.pause();
 	try {
@@ -154,7 +199,7 @@ export function CodexExecutorSync({
 		try {
 			const snapshot = await loadCodexExecutorSnapshot({ projectId });
 			if (!snapshot) return;
-			applyCodexExecutorSnapshot({ editor, snapshot });
+			await applyCodexExecutorSnapshot({ editor, snapshot });
 			appliedRevisionRef.current = snapshot.revision;
 			setSummary({
 				revision: snapshot.revision,
@@ -275,7 +320,9 @@ export function CodexExecutorSync({
 				) : null}
 				{status?.updatedAt ? (
 					<div className="text-muted-foreground/80 mt-1">
-						{new Date(summary?.syncedAt ?? status.updatedAt).toLocaleTimeString()}
+						{new Date(
+							summary?.syncedAt ?? status.updatedAt,
+						).toLocaleTimeString()}
 					</div>
 				) : null}
 			</div>

@@ -79,4 +79,25 @@ describe("ProjectManager derived assets", () => {
 			editor.project.addDerivedAsset({ derivedAsset: personMask() }),
 		).toThrow("Derived asset already exists.");
 	});
+
+	test("rejects invalid person-mask derived asset metadata", () => {
+		const editor = EditorCore.getInstance();
+		editor.project.setActiveProject({ project: projectFixture() });
+
+		expect(() =>
+			editor.project.addDerivedAsset({
+				derivedAsset: personMask({ duration: 0 }),
+			}),
+		).toThrow("Person mask duration must be positive.");
+		expect(() =>
+			editor.project.addDerivedAsset({
+				derivedAsset: personMask({ width: 0 }),
+			}),
+		).toThrow("Person mask width must be positive.");
+		expect(() =>
+			editor.project.addDerivedAsset({
+				derivedAsset: personMask({ confidence: -0.1 }),
+			}),
+		).toThrow("Person mask confidence must be between 0 and 1.");
+	});
 });

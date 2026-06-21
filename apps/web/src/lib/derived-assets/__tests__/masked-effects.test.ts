@@ -126,6 +126,63 @@ describe("createTextBackgroundEffect", () => {
 			}),
 		).toThrow("Effect time range exceeds source media duration.");
 	});
+
+	test("rejects alpha masks whose duration does not match the source media", () => {
+		expect(() =>
+			createTextBackgroundEffect({
+				sourceMediaId: "video-1",
+				derivedAssetId: "mask-1",
+				content: "KEEP THE CORE",
+				startTime: 0,
+				duration: 4,
+				mediaAssets: [videoAsset(), videoAsset({ id: "alpha-1", duration: 8 })],
+				derivedAssets: [personMask({ duration: 8 })],
+			}),
+		).toThrow("Person mask duration must match the source media duration.");
+	});
+
+	test("rejects alpha masks whose dimensions do not match the source media", () => {
+		expect(() =>
+			createTextBackgroundEffect({
+				sourceMediaId: "video-1",
+				derivedAssetId: "mask-1",
+				content: "KEEP THE CORE",
+				startTime: 0,
+				duration: 4,
+				mediaAssets: [
+					videoAsset(),
+					videoAsset({ id: "alpha-1", width: 1280, height: 720 }),
+				],
+				derivedAssets: [personMask({ width: 1280, height: 720 })],
+			}),
+		).toThrow("Person mask dimensions must match the source media dimensions.");
+	});
+
+	test("rejects alpha masks with invalid fps or confidence", () => {
+		expect(() =>
+			createTextBackgroundEffect({
+				sourceMediaId: "video-1",
+				derivedAssetId: "mask-1",
+				content: "KEEP THE CORE",
+				startTime: 0,
+				duration: 4,
+				mediaAssets: [videoAsset(), videoAsset({ id: "alpha-1" })],
+				derivedAssets: [personMask({ fps: 0 })],
+			}),
+		).toThrow("Person mask fps must be positive.");
+
+		expect(() =>
+			createTextBackgroundEffect({
+				sourceMediaId: "video-1",
+				derivedAssetId: "mask-1",
+				content: "KEEP THE CORE",
+				startTime: 0,
+				duration: 4,
+				mediaAssets: [videoAsset(), videoAsset({ id: "alpha-1" })],
+				derivedAssets: [personMask({ confidence: 1.2 })],
+			}),
+		).toThrow("Person mask confidence must be between 0 and 1.");
+	});
 });
 
 describe("createHumanPipEffect", () => {
