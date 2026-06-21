@@ -111,7 +111,9 @@ describe("applyCodexExecutorSnapshot", () => {
 
 	test("fails before syncing when an executor media blob is empty", async () => {
 		globalThis.fetch = (async () =>
-			new Response(new Blob([], { type: "video/mp4" }))) as unknown as typeof fetch;
+			new Response(
+				new Blob([], { type: "video/mp4" }),
+			)) as unknown as typeof fetch;
 		const capturedAssets: MediaAsset[][] = [];
 		const snapshot = executorSnapshot();
 		snapshot.mediaAssets[0].size = 0;
