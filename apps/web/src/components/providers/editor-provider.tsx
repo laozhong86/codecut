@@ -21,6 +21,61 @@ interface EditorProviderProps {
 	children: React.ReactNode;
 }
 
+type LoadExecutorSnapshot = typeof loadCodexExecutorSnapshot;
+type ApplyExecutorSnapshot = typeof applyCodexExecutorSnapshot;
+
+interface LoadEditorProviderProjectParams {
+	projectId: string;
+	editor: ReturnType<typeof useEditor>;
+	loadSnapshot?: LoadExecutorSnapshot;
+	applySnapshot?: ApplyExecutorSnapshot;
+	createProject?: () => Promise<string>;
+}
+
+function isProjectNotFoundError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		(error.message.includes("not found") ||
+			error.message.includes("does not exist"))
+	);
+}
+
+export async function loadEditorProviderProject({
+	projectId,
+	editor,
+	loadSnapshot = loadCodexExecutorSnapshot,
+	applySnapshot = applyCodexExecutorSnapshot,
+	createProject = () =>
+		editor.project.createNewProject({
+			name: "Untitled Project",
+		}),
+}: LoadEditorProviderProjectParams): Promise<{
+	executorRevision?: number;
+	redirectProjectId?: string;
+}> {
+	try {
+		await editor.project.loadProject({ id: projectId });
+		const snapshot = await loadSnapshot({ projectId });
+		if (snapshot) {
+			await applySnapshot({ editor, snapshot });
+			return { executorRevision: snapshot.revision };
+		}
+		return {};
+	} catch (error) {
+		if (!isProjectNotFoundError(error)) {
+			throw error;
+		}
+
+		const snapshot = await loadSnapshot({ projectId });
+		if (snapshot) {
+			await applySnapshot({ editor, snapshot });
+			return { executorRevision: snapshot.revision };
+		}
+
+		return { redirectProjectId: await createProject() };
+	}
+}
+
 export function EditorProvider({ projectId, children }: EditorProviderProps) {
 	const editor = useEditor();
 	const router = useRouter();
@@ -47,44 +102,18 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 			try {
 				setIsLoading(true);
 				setExecutorRevision(undefined);
-				await editor.project.loadProject({ id: projectId });
-
+				const result = await loadEditorProviderProject({ projectId, editor });
 				if (cancelled) return;
-
+				if (result.redirectProjectId) {
+					router.replace(`/editor/${result.redirectProjectId}`);
+					return;
+				}
+				setExecutorRevision(result.executorRevision);
 				setIsLoading(false);
 			} catch (err) {
 				if (cancelled) return;
-
-				const isNotFound =
-					err instanceof Error &&
-					(err.message.includes("not found") ||
-						err.message.includes("does not exist"));
-
-				if (isNotFound) {
-					try {
-						const snapshot = await loadCodexExecutorSnapshot({ projectId });
-						if (cancelled) return;
-						if (snapshot) {
-							await applyCodexExecutorSnapshot({ editor, snapshot });
-							setExecutorRevision(snapshot.revision);
-							setIsLoading(false);
-							return;
-						}
-
-						const newProjectId = await editor.project.createNewProject({
-							name: "Untitled Project",
-						});
-						router.replace(`/editor/${newProjectId}`);
-					} catch (_createErr) {
-						setError("Failed to create project");
-						setIsLoading(false);
-					}
-				} else {
-					setError(
-						err instanceof Error ? err.message : "Failed to load project",
-					);
-					setIsLoading(false);
-				}
+				setError(err instanceof Error ? err.message : "Failed to load project");
+				setIsLoading(false);
 			}
 		};
 
