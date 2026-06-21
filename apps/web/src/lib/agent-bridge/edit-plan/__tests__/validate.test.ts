@@ -692,6 +692,64 @@ describe("validateEditPlan", () => {
 		});
 	});
 
+	test("rejects transitions across a 0.05 second timeline gap", () => {
+		const plan = validPlan();
+		plan.target = { ...plan.target, durationSec: 20 };
+		plan.clips[0] = {
+			...plan.clips[0],
+			sourceStart: 10,
+			sourceEnd: 15,
+			timelineStart: 0,
+		};
+		plan.clips[1] = {
+			...plan.clips[1],
+			timelineStart: 5.05,
+		};
+		const planWithTransition = {
+			...plan,
+			transitions: [
+				{
+					fromClipId: "clip-1",
+					toClipId: "clip-2",
+					type: "fade",
+					duration: 0.5,
+				},
+			],
+		};
+
+		const result = validateEditPlan({
+			plan: planWithTransition,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan transition clips must be adjacent on the timeline.",
+			path: "transitions[0]",
+		});
+	});
+
+	test("rejects duplicate clip ids", () => {
+		const plan = validPlan();
+		plan.clips[1] = {
+			...plan.clips[1],
+			id: "clip-1",
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan clip ids must be unique.",
+			path: "clips[1].id",
+		});
+	});
+
 	test("rejects transition durations longer than neighboring clips", () => {
 		const plan = {
 			...validPlan(),

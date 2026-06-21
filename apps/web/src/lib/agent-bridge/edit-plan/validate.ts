@@ -142,8 +142,16 @@ export function validateEditPlan({
 	}
 
 	let clipDurationTotal = 0;
+	const clipIds = new Set<string>();
 	for (let index = 0; index < normalizedPlan.clips.length; index += 1) {
 		const clip = normalizedPlan.clips[index];
+		if (clipIds.has(clip.id)) {
+			return fail({
+				message: "EditPlan clip ids must be unique.",
+				path: `clips[${index}].id`,
+			});
+		}
+		clipIds.add(clip.id);
 		if (clip.sourceEnd <= clip.sourceStart) {
 			return fail({
 				message: "EditPlan clip sourceEnd must be greater than sourceStart.",
@@ -278,7 +286,7 @@ export function validateEditPlan({
 	const clipsById = new Map(
 		normalizedPlan.clips.map((clip) => [clip.id, clip] as const),
 	);
-	const adjacencyTolerance = 0.05;
+	const adjacencyTolerance = 0.001;
 	for (
 		let index = 0;
 		index < (normalizedPlan.transitions ?? []).length;

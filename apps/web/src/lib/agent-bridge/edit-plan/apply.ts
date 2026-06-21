@@ -99,6 +99,25 @@ function getNewElementIds({
 	return ids;
 }
 
+function failAndRestore({
+	editor,
+	tracks,
+	message,
+	path,
+}: {
+	editor: EditPlanEditor;
+	tracks: TimelineTrack[];
+	message: string;
+	path?: string;
+}): ApplyEditPlanResult {
+	editor.timeline.updateTracks(tracks);
+	return {
+		success: false,
+		message,
+		...(path ? { path } : {}),
+	};
+}
+
 function insertElementAndCollectIds({
 	editor,
 	element,
@@ -237,6 +256,7 @@ export function applyEditPlanToEditor({
 
 	const normalizedPlan = validation.normalizedPlan;
 	const existingTracks = editor.timeline.getTracks();
+	const originalTracks = structuredClone(existingTracks) as TimelineTrack[];
 	if (hasTimelineElements({ tracks: existingTracks }) && !replaceExisting) {
 		return {
 			success: false,
@@ -253,12 +273,13 @@ export function applyEditPlanToEditor({
 		(asset) => asset.id === normalizedPlan.sourceMediaId,
 	);
 	if (!sourceMedia) {
-		return {
-			success: false,
+		return failAndRestore({
+			editor,
+			tracks: originalTracks,
 			message:
 				"EditPlan sourceMediaId was not found in the project media library.",
 			path: "sourceMediaId",
-		};
+		});
 	}
 
 	const mainTrackId = editor.timeline.addTrack({
@@ -299,11 +320,12 @@ export function applyEditPlanToEditor({
 		const fromElementId = planClipElementIds.get(transition.fromClipId);
 		const toElementId = planClipElementIds.get(transition.toClipId);
 		if (!fromElementId || !toElementId) {
-			return {
-				success: false,
+			return failAndRestore({
+				editor,
+				tracks: originalTracks,
 				message: "EditPlan transition references a clip that was not inserted.",
 				path: `transitions[${index}]`,
-			};
+			});
 		}
 		const createdTransition = editor.timeline.addTransition({
 			trackId: mainTrackId,
@@ -313,11 +335,12 @@ export function applyEditPlanToEditor({
 			duration: transition.duration,
 		});
 		if (!createdTransition) {
-			return {
-				success: false,
+			return failAndRestore({
+				editor,
+				tracks: originalTracks,
 				message: "EditPlan transition could not be applied.",
 				path: `transitions[${index}]`,
-			};
+			});
 		}
 		transitionCount += 1;
 	}
@@ -384,12 +407,13 @@ export function applyEditPlanToEditor({
 				(asset) => asset.id === normalizedPlan.audio?.bgm?.assetId,
 			);
 			if (!bgmAsset || typeof bgmAsset.duration !== "number") {
-				return {
-					success: false,
+				return failAndRestore({
+					editor,
+					tracks: originalTracks,
 					message:
 						"EditPlan bgm assetId was not found in the project media library.",
 					path: "audio.bgm.assetId",
-				};
+				});
 			}
 
 			let segmentIndex = 0;
@@ -409,11 +433,12 @@ export function applyEditPlanToEditor({
 					}),
 				});
 				if (insertedIds.length === 0) {
-					return {
-						success: false,
+					return failAndRestore({
+						editor,
+						tracks: originalTracks,
 						message: "EditPlan bgm audio insert did not create an element.",
 						path: "audio.bgm",
-					};
+					});
 				}
 				appliedElementIds.push(...insertedIds);
 				audioElementCount += insertedIds.length;
@@ -427,23 +452,25 @@ export function applyEditPlanToEditor({
 			if (!sfx) continue;
 			const sfxAsset = mediaAssets.find((asset) => asset.id === sfx.assetId);
 			if (!sfxAsset || typeof sfxAsset.duration !== "number") {
-				return {
-					success: false,
+				return failAndRestore({
+					editor,
+					tracks: originalTracks,
 					message:
 						"EditPlan sfx assetId was not found in the project media library.",
 					path: `audio.sfx[${index}].assetId`,
-				};
+				});
 			}
 			const duration = Math.min(
 				sfxAsset.duration,
 				timelineDuration - sfx.startTime,
 			);
 			if (duration <= 0) {
-				return {
-					success: false,
+				return failAndRestore({
+					editor,
+					tracks: originalTracks,
 					message: "EditPlan sfx duration must overlap the generated timeline.",
 					path: `audio.sfx[${index}]`,
-				};
+				});
 			}
 			const insertedIds = insertElementAndCollectIds({
 				editor,
@@ -457,11 +484,12 @@ export function applyEditPlanToEditor({
 				}),
 			});
 			if (insertedIds.length === 0) {
-				return {
-					success: false,
+				return failAndRestore({
+					editor,
+					tracks: originalTracks,
 					message: "EditPlan sfx audio insert did not create an element.",
 					path: `audio.sfx[${index}]`,
-				};
+				});
 			}
 			appliedElementIds.push(...insertedIds);
 			audioElementCount += insertedIds.length;

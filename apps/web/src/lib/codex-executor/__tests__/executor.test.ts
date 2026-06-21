@@ -272,6 +272,229 @@ describe("codex executor", () => {
 		expect(state.revision).toBeGreaterThan(1);
 	});
 
+	test("readbacks EditPlan video text audio and transitions through timeline state", async () => {
+		await createExecutorProject({ projectId, name: "Polished short" });
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 120,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const bgmImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "bed.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("bgm").toString("base64"),
+					size: 3,
+					lastModified: 1,
+					duration: 3,
+				},
+			}),
+		});
+		const sfxImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "hit.wav",
+					mimeType: "audio/wav",
+					base64: Buffer.from("sfx").toString("base64"),
+					size: 3,
+					lastModified: 1,
+					duration: 1.25,
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const bgmId = resultData<{ assets: Array<{ id: string }> }>(
+			bgmImport.results[0],
+		).assets[0].id;
+		const sfxId = resultData<{ assets: Array<{ id: string }> }>(
+			sfxImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: videoId,
+						target: { durationSec: 10, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 5,
+								timelineStart: 0,
+								reason: "Hook",
+							},
+							{
+								id: "clip-2",
+								sourceStart: 20,
+								sourceEnd: 25,
+								timelineStart: 5,
+								reason: "Proof",
+							},
+						],
+						title: {
+							text: "Main claim",
+							startTime: 0,
+							duration: 3,
+							stylePreset: "hook_title",
+						},
+						captions: [
+							{
+								text: "资源不等于能力",
+								startTime: 0,
+								duration: 2,
+							},
+						],
+						captionStyle: {
+							preset: "black-bar",
+							position: "lower-safe",
+						},
+						audio: {
+							bgm: {
+								assetId: bgmId,
+								volume: 0.35,
+								mode: "loop_to_timeline",
+							},
+							sfx: [{ assetId: sfxId, startTime: 0, volume: 0.8 }],
+						},
+						transitions: [
+							{
+								fromClipId: "clip-1",
+								toClipId: "clip-2",
+								type: "fade",
+								duration: 0.5,
+							},
+						],
+						rationale: "Polished state readback",
+					},
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			success: true,
+			summary: {
+				clipCount: 2,
+				textElementCount: 2,
+				audioElementCount: 5,
+				transitionCount: 1,
+			},
+		});
+		expect(timelineResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				totalDuration: 10,
+				tracks: [
+					{
+						type: "text",
+						elements: [
+							{
+								type: "text",
+								content: "Main claim",
+								style: {
+									fontWeight: "bold",
+									backgroundColor: "#000000",
+									backgroundOpacity: 0.72,
+								},
+							},
+							{
+								type: "text",
+								content: "资源不等于能力",
+								style: {
+									fontWeight: "bold",
+									backgroundColor: "#000000",
+									backgroundOpacity: 0.78,
+									backgroundPaddingX: 24,
+									backgroundPaddingY: 12,
+								},
+							},
+						],
+					},
+					{
+						type: "video",
+						elements: [
+							{ type: "video", mediaId: videoId, trimStart: 0, trimEnd: 5 },
+							{
+								type: "video",
+								mediaId: videoId,
+								trimStart: 20,
+								trimEnd: 25,
+							},
+						],
+						transitions: [
+							{
+								type: "fade",
+								duration: 0.5,
+							},
+						],
+					},
+					{
+						type: "audio",
+						elements: [
+							{
+								type: "audio",
+								mediaId: bgmId,
+								startTime: 0,
+								duration: 3,
+								audio: { mediaId: bgmId, volume: 0.35 },
+							},
+							{
+								type: "audio",
+								mediaId: bgmId,
+								startTime: 3,
+								duration: 3,
+								audio: { mediaId: bgmId, volume: 0.35 },
+							},
+							{
+								type: "audio",
+								mediaId: bgmId,
+								startTime: 6,
+								duration: 3,
+								audio: { mediaId: bgmId, volume: 0.35 },
+							},
+							{
+								type: "audio",
+								mediaId: bgmId,
+								startTime: 9,
+								duration: 1,
+								audio: { mediaId: bgmId, volume: 0.35 },
+							},
+							{
+								type: "audio",
+								mediaId: sfxId,
+								startTime: 0,
+								duration: 1.25,
+								audio: { mediaId: sfxId, volume: 0.8 },
+							},
+						],
+					},
+				],
+			},
+		});
+	});
+
 	test("transcribes imported media through the local executor runtime", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 		const importResult = await executeCodexExecutorEnvelope({

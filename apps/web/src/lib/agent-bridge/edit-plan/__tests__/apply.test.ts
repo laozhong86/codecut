@@ -686,6 +686,37 @@ describe("applyEditPlanToEditor", () => {
 		]);
 	});
 
+	test("does not modify the timeline when transition insertion fails during apply", () => {
+		const originalTracks = [videoTrack()];
+		const editor = fakeEditor({ tracks: originalTracks });
+		editor.timeline.addTransition = () => null;
+		const plan = {
+			...shortVideoPlan(),
+			transitions: [
+				{
+					fromClipId: "clip-1",
+					toClipId: "clip-2",
+					type: "fade",
+					duration: 0.5,
+				},
+			],
+		};
+
+		const result = applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan transition could not be applied.",
+			path: "transitions[0]",
+		});
+		expect(editor.timeline.getTracks()).toEqual(originalTracks);
+	});
+
 	test("does not modify a non-empty timeline unless replaceExisting is true", () => {
 		const existingElement = {
 			id: "existing-element",
