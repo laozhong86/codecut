@@ -65,4 +65,25 @@ describe("Codecut plugin startup guidance", () => {
 		expect(skill).not.toContain("osascript");
 		expect(skill).not.toContain("View -> Open Browser Tab");
 	});
+
+	test("documents apps/web env loading for bridge commands", async () => {
+		const skill = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut-jianying-editor-framework",
+				"SKILL.md",
+			),
+			"utf8",
+		);
+		const workflowDocs = await readFile(
+			join(pluginRoot, "docs", "codex-driven-editing.md"),
+			"utf8",
+		);
+
+		for (const content of [skill, workflowDocs]) {
+			expect(content).toContain("apps/web/.env.local");
+			expect(content).toContain("source apps/web/.env.local");
+		}
+	});
 });

@@ -29,6 +29,14 @@ Browser is the human interface, not the Agent runtime. Opening the browser is on
 
 The Codex bridge CLI reads bridge access only from local environment variables:
 
+From the plugin root, load the local bridge env before running CLI commands:
+
+```bash
+set -a
+source apps/web/.env.local
+set +a
+```
+
 ```bash
 export CODECUT_AGENT_BRIDGE_URL="http://localhost:4100"
 export CODECUT_AGENT_BRIDGE_TOKEN="<local bridge token>"
@@ -36,7 +44,7 @@ export CODECUT_AGENT_BRIDGE_TIMEOUT_MS="120000"
 export CODECUT_AGENT_BRIDGE_INTERVAL_MS="1000"
 ```
 
-Do not pass the token as a CLI flag. Do not commit local tokens or `.env` files. `CODECUT_AGENT_BRIDGE_*` is the only supported prefix; missing keys must fail fast instead of being inferred from legacy names.
+Do not pass the token as a CLI flag. Do not commit local tokens or `.env` files. `apps/web/.env.local` is the supported local env file for this repo; do not infer bridge settings from the shell alone or from a repository-root `.env.local`. `CODECUT_AGENT_BRIDGE_*` is the only supported prefix; missing keys must fail fast instead of being inferred from legacy names.
 
 ## Local Web Service Gate
 

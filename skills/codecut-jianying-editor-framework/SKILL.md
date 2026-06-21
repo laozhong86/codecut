@@ -26,7 +26,7 @@ Historical Jianying and OpusClip notes are research material only. Do not instal
 
 - Treat `CODECUT_AGENT_BRIDGE_*` as the only supported bridge environment prefix.
 - Do not map, infer, or revive legacy `CUTIA_AGENT_BRIDGE_*` variables inside commands.
-- If a required `CODECUT_AGENT_BRIDGE_*` key is missing, stop at P0 and report the exact missing key.
+- If a required `CODECUT_AGENT_BRIDGE_*` key is missing, first load `apps/web/.env.local` from the plugin root with `set -a; source apps/web/.env.local; set +a`, then retry the env check without printing token values. If the key is still missing, stop at P0 and report the exact missing key.
 - Keep progress updates about the business run: service gate, project ID, media ID, transcription, EditPlan validation, timeline verification.
 - Do not narrate plugin cache paths, framework provenance, or reference-file audits unless a command fails because of that layer.
 - Do not continue after `doctor-install`, `doctor`, `import-media`, `transcribe`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
@@ -97,7 +97,8 @@ Do not stop at framework analysis. Execute the workflow.
    - whether export is requested now or only preview is requested
 2. If the user did not provide a project ID, create a new local executor project. Use a project ID that is unique and readable, for example `codex-<yyyymmdd-hhmmss>-<short-slug>`.
 3. Complete the P0 CLI Runtime Gate.
-4. Load bridge env from local `.env.local` when present, without printing the token.
+4. Load bridge env from `apps/web/.env.local` when present, without printing the token:
+   `set -a; source apps/web/.env.local; set +a`.
 5. Run `create-project`, then `doctor-install`, then `doctor`.
 6. If the target is vertical or square, call `update_project_settings` before applying the EditPlan.
 7. Run `import-media` with the absolute file path.
@@ -192,7 +193,7 @@ node scripts/codex-bridge.mjs doctor --project-id <id>
 When the user wants Codex to edit through Codecut:
 
 1. Complete the P0 CLI Runtime Gate above and state the concrete project ID.
-2. Confirm the bridge env exists locally: `CODECUT_AGENT_BRIDGE_URL`, `CODECUT_AGENT_BRIDGE_TOKEN`, `CODECUT_AGENT_BRIDGE_TIMEOUT_MS`, `CODECUT_AGENT_BRIDGE_INTERVAL_MS`.
+2. From the plugin root, load `apps/web/.env.local` with `set -a; source apps/web/.env.local; set +a`, then confirm the bridge env exists locally: `CODECUT_AGENT_BRIDGE_URL`, `CODECUT_AGENT_BRIDGE_TOKEN`, `CODECUT_AGENT_BRIDGE_TIMEOUT_MS`, `CODECUT_AGENT_BRIDGE_INTERVAL_MS`.
 3. Use `node scripts/codex-bridge.mjs doctor-install --project-id <id>` to verify source, cache, source-to-cache sync, env, 4100 service, and executor project.
 4. Use the CLI executor readiness check. If the check still requires a browser-mounted heartbeat, treat it as a known implementation gap.
 5. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool get_project_info --args-json '{}'` to confirm the active project.
