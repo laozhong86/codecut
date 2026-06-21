@@ -138,6 +138,7 @@ Implemented for MVP:
 - fixed 300-second analysis chunking for long media
 - source-video timestamp normalization across chunks
 - deterministic transcript-based `assetTypeGuess` and `editingHints`
+- `suggestTrimFillers` is a hint triggered by at least two different filler marker classes; it is not a deletion count.
 
 ## Failure Conditions And Warnings
 
