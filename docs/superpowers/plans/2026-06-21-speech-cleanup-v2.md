@@ -747,7 +747,14 @@ Rules:
 - Use seconds for all source and timeline fields.
 - Mark every transcript segment as `keep` or `drop`.
 - Every `drop` decision must include `dropReason`.
+- `keep` decisions must not include `dropReason`.
+- Source ranges must be sorted, non-overlapping, and have
+  `sourceEnd > sourceStart`.
+- Do not auto-fix overlapping, reversed, or unlabeled decisions.
 - Do not use audio VAD as a semantic deletion substitute.
+- Count filler removal only from explicit `drop` decisions with
+  `dropReason: "filler"`. Do not infer filler counts from words such as
+  "um", "uh", "嗯", or "额" inside kept text.
 - Do not claim word-level precision unless the selected transcription model
   supports word timestamps.
 - Apply only the generated EditPlan v1 projection through `apply_edit_plan`.

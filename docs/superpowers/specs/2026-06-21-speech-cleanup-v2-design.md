@@ -120,15 +120,24 @@ export type SpeechCleanupDropReason =
 	| "pause"
 	| "other";
 
-export interface SpeechCleanupDecision {
-	id: string;
-	text: string;
-	sourceStart: number;
-	sourceEnd: number;
-	action: SpeechCleanupAction;
-	dropReason?: SpeechCleanupDropReason;
-	reason: string;
-}
+export type SpeechCleanupDecision =
+	| {
+			id: string;
+			text: string;
+			sourceStart: number;
+			sourceEnd: number;
+			action: "keep";
+			reason: string;
+	  }
+	| {
+			id: string;
+			text: string;
+			sourceStart: number;
+			sourceEnd: number;
+			action: "drop";
+			dropReason: SpeechCleanupDropReason;
+			reason: string;
+	  };
 
 export interface RebuiltSpeechCaption {
 	id: string;
@@ -154,18 +163,28 @@ export interface SpeechCleanupVerification {
 }
 ```
 
+Contract rules:
+
+- `drop` decisions require `dropReason`.
+- `keep` decisions must not include `dropReason`.
+- Source ranges must be sorted and non-overlapping.
+- Filler counts are derived only from dropped segments with
+  `dropReason: "filler"`. Marker words inside kept text are not filler
+  removals.
+
 ## Rebuild Rules
 
 1. Reject empty decision arrays.
 2. Reject any decision with `sourceEnd <= sourceStart`.
 3. Reject `drop` decisions without a `dropReason`.
-4. Ignore `dropReason` on `keep` decisions.
+4. Reject `keep` decisions with `dropReason`.
 5. Preserve source order from the decision list.
-6. Keep only `action: "keep"` decisions in the output timeline.
-7. Rebuild `timelineStart` by cumulative kept duration from `0`.
-8. Captions use output timeline time, plus `sourceStart/sourceEnd` provenance.
-9. Return stats and verification alongside the EditPlan projection.
-10. Fail if every decision is dropped, because the executor cannot build an
+6. Reject overlapping source ranges.
+7. Keep only `action: "keep"` decisions in the output timeline.
+8. Rebuild `timelineStart` by cumulative kept duration from `0`.
+9. Captions use output timeline time, plus `sourceStart/sourceEnd` provenance.
+10. Return stats and verification alongside the EditPlan projection.
+11. Fail if every decision is dropped, because the executor cannot build an
     empty EditPlan v1.
 
 ## Verification Rules
@@ -187,7 +206,8 @@ Follow one path and fail fast.
 - Do not silently drop invalid decisions.
 - Do not auto-fix overlapping or reversed ranges.
 - Do not fallback to audio VAD when semantic decisions are missing.
-- Do not claim filler removal when the result only removes silence.
+- Do not claim filler removal when the result only removes silence or when
+  filler marker words remain in kept text.
 
 ## Cutia Mapping
 
