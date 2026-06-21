@@ -180,12 +180,13 @@ When the user wants Codex to edit through Codecut:
 7. Select one existing audio/video asset. If none exists and the user has provided an absolute local media path, use `node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file`, then call `list_media_assets` again.
 8. If no media exists and no local media path is available, ask the user to import media in Codecut or provide an absolute local file path.
 9. Use `node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language auto --model-id <model>` when transcript-first editing is needed.
-10. If platform output requires a concrete canvas or FPS, call `update_project_settings` explicitly before applying the EditPlan. `EditPlan.target.aspectRatio` is a planning field and does not mutate project settings by itself.
-11. Generate the strict implemented EditPlan v1 in Codex for single-source clip plans. Use only fields supported by `apps/web/src/lib/agent-bridge/edit-plan/schema.ts`.
-12. For existing narration audio plus video B-roll, generate strict NarratedRemixPlan v1 instead. Use only fields supported by `apps/web/src/lib/agent-bridge/narrated-remix/schema.ts`; do not include TTS, BGM, SFX, image B-roll, or generated audio fields.
-13. Write the plan to a local JSON file. Use `node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>` for EditPlan. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool apply_narrated_remix_plan --args-json '{"plan":<json>,"replaceExisting":true}'` for NarratedRemixPlan.
-14. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool get_timeline_state --args-json '{}'` to verify the applied timeline.
-15. Provide the editor URL for human preview and manual adjustment. Do not run export through the local executor until executor export is implemented and the user confirms.
+10. Use `node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language auto --model-id <model>` when long-video or transcript-first planning needs merged source-timestamped context. This analyzes videos longer than 300 seconds in fixed 5-minute chunks without creating temporary media assets.
+11. If platform output requires a concrete canvas or FPS, call `update_project_settings` explicitly before applying the EditPlan. `EditPlan.target.aspectRatio` is a planning field and does not mutate project settings by itself.
+12. Generate the strict implemented EditPlan v1 in Codex for single-source clip plans. Use only fields supported by `apps/web/src/lib/agent-bridge/edit-plan/schema.ts`.
+13. For existing narration audio plus video B-roll, generate strict NarratedRemixPlan v1 instead. Use only fields supported by `apps/web/src/lib/agent-bridge/narrated-remix/schema.ts`; do not include TTS, BGM, SFX, image B-roll, or generated audio fields.
+14. Write the plan to a local JSON file. Use `node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>` for EditPlan. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool apply_narrated_remix_plan --args-json '{"plan":<json>,"replaceExisting":true}'` for NarratedRemixPlan.
+15. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool get_timeline_state --args-json '{}'` to verify the applied timeline.
+16. Provide the editor URL for human preview and manual adjustment. Do not run export through the local executor until executor export is implemented and the user confirms.
 
 When the user asks to extend Codecut implementation code:
 

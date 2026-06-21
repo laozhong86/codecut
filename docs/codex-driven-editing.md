@@ -303,12 +303,14 @@ After application, Codex must verify `get_timeline_state` proof fields:
 6. Codex calls `list_media_assets` to inspect available media.
 7. Codex selects the target media asset for editing.
 8. Codex calls `transcribe_media` for that media asset.
-9. Codex uses its own context to choose clips and write an EditPlan JSON file.
-10. Codex calls `apply_edit_plan` with that EditPlan.
-11. Codex calls `get_timeline_state` to verify clips, text style, audio source
+9. Codex calls `build_video_context` for transcript-first planning when a long
+   source video needs structured context.
+10. Codex uses its own context to choose clips and write an EditPlan JSON file.
+11. Codex calls `apply_edit_plan` with that EditPlan.
+12. Codex calls `get_timeline_state` to verify clips, text style, audio source
     and volume, and video transitions.
-12. Codex provides the editor URL so the user can preview the result or ask for another revision.
-13. Export is a separate follow-up until local executor export is implemented and tested.
+13. Codex provides the editor URL so the user can preview the result or ask for another revision.
+14. Export is a separate follow-up until local executor export is implemented and tested.
 
 ## Fast Path: Local File To Short
 
@@ -359,6 +361,16 @@ node scripts/codex-bridge.mjs transcribe \
 ```
 
 `transcribe_media` runs in the local executor. It extracts 16 kHz mono audio with `ffmpeg` and runs the selected Transformers.js Whisper model in Node. It does not require a visible browser tab or a page-mounted command consumer.
+
+Build merged transcript context for long-video or transcript-first planning:
+
+```bash
+node scripts/codex-bridge.mjs build-video-context \
+  --project-id <id> \
+  --media-id <id> \
+  --language auto \
+  --model-id whisper-tiny
+```
 
 Apply a local EditPlan file:
 
