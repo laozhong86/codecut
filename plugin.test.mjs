@@ -156,6 +156,7 @@ describe("Codecut plugin startup guidance", () => {
 			expect(content).toContain("post-cut caption source");
 			expect(content).toContain("source transcript remap");
 			expect(content).toContain("edited audio transcription");
+			expect(content).toContain("build-post-cut-captions");
 		}
 
 		for (const content of [platformPresets, editPlanSchema, workflow]) {

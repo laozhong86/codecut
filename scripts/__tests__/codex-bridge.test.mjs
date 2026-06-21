@@ -7,6 +7,7 @@ import {
 	buildCommandEnvelope,
 	buildExportEnvelope,
 	buildImportMediaEnvelope,
+	buildPostCutCaptionsEnvelope,
 	buildTranscribeEnvelope,
 	buildVideoContextEnvelope,
 	parseBoolean,
@@ -119,6 +120,30 @@ describe("codex bridge CLI helpers", () => {
 						mediaId: "media-1",
 						language: "auto",
 						modelId: "whisper-tiny",
+					},
+				},
+			],
+		});
+	});
+
+	test("buildPostCutCaptionsEnvelope creates a post-cut caption command", () => {
+		expect(
+			buildPostCutCaptionsEnvelope({
+				projectId: "project-1",
+				language: "zh",
+				modelId: "whisper-base",
+			}),
+		).toEqual({
+			version: 1,
+			projectId: "project-1",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "build_post_cut_captions",
+					args: {
+						language: "zh",
+						modelId: "whisper-base",
 					},
 				},
 			],

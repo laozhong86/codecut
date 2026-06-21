@@ -5,7 +5,7 @@ Use this recipe when the user asks for subtitles, caption cleanup, subtitle timi
 ## Success Criteria
 
 - Captions are derived from transcript or user-supplied timed text.
-- Captions use a declared post-cut caption source: edited audio transcription or source transcript remap.
+- Captions use a declared post-cut caption source: edited audio transcription through `build-post-cut-captions` or source transcript remap.
 - Captions fit inside the generated timeline.
 - Text stays on text tracks.
 - `get_timeline_state` confirms caption element count and timing bounds.
@@ -22,7 +22,7 @@ Use this recipe when the user asks for subtitles, caption cleanup, subtitle timi
 2. Inspect project and media state.
 3. If timed captions are missing, transcribe the selected media first.
 4. Choose the caption timing source after the cut is stable:
-   - Use edited audio transcription when a final timeline audio transcription path exists.
+   - Use edited audio transcription through `build-post-cut-captions` after a clip-first EditPlan is applied.
    - Use source transcript remap when only source transcript segments exist: convert each kept source segment into output timeline time with `timelineStart + segment.start - clip.sourceStart`.
    - Do not place source transcript timestamps directly on the edited timeline.
    - If a transcript segment crosses a clip boundary, stop and either regenerate captions from edited audio or choose transcript-aligned cuts.
@@ -30,8 +30,9 @@ Use this recipe when the user asks for subtitles, caption cleanup, subtitle timi
    - Chinese: short phrases, usually 10-18 characters.
    - English: short phrase groups, usually 3-7 words.
 6. Select the caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or demos, `documentary-soft` for calm narrative edits, and `short-form-bold` as the fallback.
-7. Generate an implemented EditPlan v1 with `captions`.
-8. Apply and verify with `get_timeline_state`.
+7. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`.
+8. Generate or update an implemented EditPlan v1 with `captions`.
+9. Apply and verify with `get_timeline_state`.
 
 ## Boundary
 

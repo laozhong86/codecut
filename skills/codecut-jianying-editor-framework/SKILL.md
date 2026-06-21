@@ -29,7 +29,7 @@ Historical Jianying and OpusClip notes are research material only. Do not instal
 - If a required `CODECUT_AGENT_BRIDGE_*` key is missing, first load `apps/web/.env.local` from the plugin root with `set -a; source apps/web/.env.local; set +a`, then retry the env check without printing token values. If the key is still missing, stop at P0 and report the exact missing key.
 - Keep progress updates about the business run: service gate, project ID, media ID, transcription, EditPlan validation, timeline verification.
 - Do not narrate plugin cache paths, framework provenance, or reference-file audits unless a command fails because of that layer.
-- Do not continue after `doctor-install`, `doctor`, `import-media`, `transcribe`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
+- Do not continue after `doctor-install`, `doctor`, `import-media`, `transcribe`, `build-post-cut-captions`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
 
 ## Read First
 
@@ -108,12 +108,13 @@ Do not stop at framework analysis. Execute the workflow.
 8. Run `list_media_assets`, select the imported audio/video asset, then run `transcribe`.
 9. Run `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
 10. For talking-head cleanup or filler removal, generate a strict SpeechCleanupPlan first, then project it through `rebuildTimelineFromSpeechCleanup()` into the implemented EditPlan v1. Do not skip directly to hand-written clips when the user asks to remove filler, restarts, repeated setup, or dead air.
-11. Choose the post-cut caption source after the clip sequence is stable. Prefer edited audio transcription when a final timeline audio transcription path is available. Otherwise use source transcript remap from transcript segments into the edited timeline; never copy source transcript timestamps directly into `captions[].startTime`.
+11. Choose the post-cut caption source after the clip sequence is stable. Prefer edited audio transcription from edited clip ranges: apply a clip-first EditPlan, run `node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>`, then copy the returned captions into the final EditPlan. Otherwise use source transcript remap from transcript segments into the edited timeline; never copy source transcript timestamps directly into `captions[].startTime`.
 12. Select a caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or step-by-step demos, `documentary-soft` for calmer narrative edits, and `short-form-bold` as the default short-form fallback.
-13. Generate one strict EditPlan v1 and write it to a temporary local JSON file.
+13. Generate a strict clip-first EditPlan v1 and write it to a temporary local JSON file.
 14. Run `apply-plan --replace-existing true` for the newly created empty project.
-15. Run `get_timeline_state` and report the verified duration, track count, clip count, caption count, project ID, and editor URL.
-16. Do not export unless the user explicitly asks for export after preview and an implemented export path is available.
+15. Run `build-post-cut-captions` when captions should follow the edited audio. Then write the final EditPlan v1 with those captions and run `apply-plan --replace-existing true` again.
+16. Run `get_timeline_state` and report the verified duration, track count, clip count, caption count, project ID, and editor URL.
+17. Do not export unless the user explicitly asks for export after preview and an implemented export path is available.
 
 For this path, keep progress updates operational. Avoid long meta commentary about plugin location, cache paths, or framework provenance unless a command fails.
 
@@ -209,12 +210,13 @@ When the user wants Codex to edit through Codecut:
 10. Use `node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language auto --model-id <model>` when long-video or transcript-first planning needs merged source-timestamped context. This analyzes videos longer than 300 seconds in fixed 5-minute chunks without creating temporary media assets.
 11. If platform output requires a concrete canvas or FPS, call `update_project_settings` explicitly before applying the EditPlan. `EditPlan.target.aspectRatio` is a planning field and does not mutate project settings by itself. Use `clips[].fit: "cover"` for video clips that must fill the target canvas without letterboxing only after visual preflight proves the subject and existing text remain safe. For horizontal talking-head sources with bottom burned-in captions, route through `vertical_face_safe_crop_above_burned_captions` or stop on the missing source-crop runtime gap. Do not use `black-bar` as a subtitle mask for old captions.
 12. For talking-head cleanup or filler removal, generate a strict SpeechCleanupPlan v2 and project it with `rebuildTimelineFromSpeechCleanup()` before applying. SpeechCleanup decisions must be sorted, non-overlapping, and exhaustive over the transcript segments Codex chooses to classify; `drop` requires `dropReason`, and `keep` must omit `dropReason`.
-13. Choose the post-cut caption source after clip selection is stable. Use edited audio transcription when the workflow has a final timeline audio transcription path; otherwise use source transcript remap by converting source transcript segment times into output timeline times through the selected `clips[]`. Do not use source-video transcript timestamps directly as output subtitle timestamps.
+13. Choose the post-cut caption source after clip selection is stable. Use edited audio transcription from edited clip ranges with `node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>` after applying a clip-first EditPlan; then copy the returned captions into the final EditPlan. Otherwise use source transcript remap by converting source transcript segment times into output timeline times through the selected `clips[]`. Do not use source-video transcript timestamps directly as output subtitle timestamps.
 14. Generate the strict implemented EditPlan v1 in Codex for single-source clip plans. Use only fields supported by `apps/web/src/lib/agent-bridge/edit-plan/schema.ts`.
 15. For existing narration audio plus video B-roll, generate strict NarratedRemixPlan v1 instead. Use only fields supported by `apps/web/src/lib/agent-bridge/narrated-remix/schema.ts`; do not include TTS, BGM, SFX, image B-roll, or generated audio fields.
 16. Write the plan to a local JSON file. Use `node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>` for EditPlan. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool apply_narrated_remix_plan --args-json '{"plan":<json>,"replaceExisting":true}'` for NarratedRemixPlan.
-17. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool get_timeline_state --args-json '{}'` to verify the applied timeline.
-18. Provide the editor URL for human preview and manual adjustment. Do not run export through the local executor until executor export is implemented and the user confirms.
+17. If `build-post-cut-captions` was used, write a final EditPlan JSON with the returned captions and apply it with `replace-existing true`.
+18. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool get_timeline_state --args-json '{}'` to verify the applied timeline.
+19. Provide the editor URL for human preview and manual adjustment. Do not run export through the local executor until executor export is implemented and the user confirms.
 
 When the user asks to extend Codecut implementation code:
 
@@ -247,7 +249,7 @@ For every editing operation through the current MVP, verify the user-visible res
 - `get_timeline_state` confirms the expected element count, timing, duration, and media source.
 - Audio stays on audio tracks, text stays on text tracks, and visual media stays on video or sticker tracks.
 - Narration audio and subtitles remain aligned through existing imported audio assets only; bridge-exposed speech generation is not part of the current MVP.
-- Captions must declare a reliable post-cut caption source: edited audio transcription or source transcript remap. A source transcript timestamp is not valid unless remapped through the selected clips.
+- Captions must declare a reliable post-cut caption source: `build-post-cut-captions` edited audio transcription from edited clip ranges or source transcript remap. A source transcript timestamp is not valid unless remapped through the selected clips.
 - Browser proof is for human preview only; executor state proof comes from CLI results and `get_timeline_state`.
 - Tests, lint, or focused validation are run for the touched surface.
 

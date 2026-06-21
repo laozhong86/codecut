@@ -24,6 +24,7 @@ function envelope({
 		| "import_media_file"
 		| "transcribe_media"
 		| "build_video_context"
+		| "build_post_cut_captions"
 		| "apply_edit_plan"
 		| "apply_narrated_remix_plan"
 		| "create_text_background_effect"
@@ -787,6 +788,127 @@ describe("codex executor", () => {
 			success: false,
 			message:
 				"Media asset 'cover.png' is type 'image', expected video or audio",
+		});
+	});
+
+	test("builds post-cut captions by transcribing edited video clip audio ranges", async () => {
+		await createExecutorProject({ projectId, name: "Captioned short" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 120,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 10, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 10,
+								sourceEnd: 15,
+								timelineStart: 0,
+								reason: "Hook",
+							},
+							{
+								id: "clip-2",
+								sourceStart: 30,
+								sourceEnd: 35,
+								timelineStart: 5,
+								reason: "Proof",
+							},
+						],
+						rationale: "Caption timing proof",
+					},
+				},
+			}),
+		});
+		const ranges: Array<{ start: number; end: number }> = [];
+
+		const captionsResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_post_cut_captions",
+				args: {
+					language: "zh",
+					modelId: "whisper-base",
+				},
+			}),
+			transcribeMediaRange: async ({ range, language, modelId }) => {
+				ranges.push(range);
+				if (range.start === 10) {
+					return {
+						text: "first caption",
+						language,
+						modelId,
+						segments: [{ text: "第一句", start: 1, end: 2.25 }],
+					};
+				}
+				return {
+					text: "second caption",
+					language,
+					modelId,
+					segments: [{ text: "第二句", start: 0.5, end: 1.75 }],
+				};
+			},
+		});
+
+		expect(ranges).toEqual([
+			{ start: 10, end: 15 },
+			{ start: 30, end: 35 },
+		]);
+		expect(captionsResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "build_post_cut_captions",
+			success: true,
+			message: "Built 2 post-cut caption(s) from 2 video clip(s).",
+			data: {
+				source: "edited_video_clip_audio",
+				language: "zh",
+				modelId: "whisper-base",
+				captionStyle: {
+					preset: "talking-head-pop",
+					position: "lower-safe",
+				},
+				captions: [
+					{ text: "第一句", startTime: 1, duration: 1.25 },
+					{ text: "第二句", startTime: 5.5, duration: 1.25 },
+				],
+				trace: [
+					{
+						mediaId,
+						timelineStart: 0,
+						sourceStart: 10,
+						sourceEnd: 15,
+						captionCount: 1,
+					},
+					{
+						mediaId,
+						timelineStart: 5,
+						sourceStart: 30,
+						sourceEnd: 35,
+						captionCount: 1,
+					},
+				],
+			},
 		});
 	});
 

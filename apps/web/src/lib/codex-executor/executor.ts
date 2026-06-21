@@ -38,6 +38,7 @@ import type {
 	TrackType,
 	TrackTransition,
 	TransitionType,
+	VideoElement,
 	VideoTrack,
 } from "@/types/timeline";
 import { generateUUID } from "@/utils/id";
@@ -49,6 +50,7 @@ type ExecutorToolName =
 	| "import_media_file"
 	| "transcribe_media"
 	| "build_video_context"
+	| "build_post_cut_captions"
 	| "apply_edit_plan"
 	| "apply_narrated_remix_plan"
 	| "create_text_background_effect"
@@ -112,6 +114,7 @@ const commandSchema = z
 			"import_media_file",
 			"transcribe_media",
 			"build_video_context",
+			"build_post_cut_captions",
 			"apply_edit_plan",
 			"apply_narrated_remix_plan",
 			"create_text_background_effect",
@@ -178,6 +181,13 @@ const transcribeMediaArgsSchema = z
 const buildVideoContextArgsSchema = z
 	.object({
 		mediaId: z.string().min(1),
+		language: z.unknown(),
+		modelId: z.unknown(),
+	})
+	.strict();
+
+const buildPostCutCaptionsArgsSchema = z
+	.object({
 		language: z.unknown(),
 		modelId: z.unknown(),
 	})
@@ -1026,6 +1036,139 @@ async function runBuildVideoContext({
 	};
 }
 
+function roundTimelineSeconds(value: number): number {
+	return Math.round(value * 1000) / 1000;
+}
+
+function isVisibleVideoElement(element: TimelineElement): element is VideoElement {
+	return (
+		element.type === "video" &&
+		!(
+			("muted" in element && element.muted) ||
+			("hidden" in element && element.hidden)
+		)
+	);
+}
+
+async function runBuildPostCutCaptions({
+	state,
+	args,
+	transcribeMediaRange,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	transcribeMediaRange: ExecutorTranscribeMediaRange;
+}) {
+	const parsed = buildPostCutCaptionsArgsSchema.parse(args);
+	const language = parseExecutorTranscriptionLanguage(parsed.language);
+	const modelId = parseExecutorTranscriptionModelId(parsed.modelId);
+	const clips = state.tracks
+		.filter(
+			(track) =>
+				track.type === "video" &&
+				!("muted" in track && track.muted) &&
+				!("hidden" in track && track.hidden),
+		)
+		.flatMap((track) =>
+			track.elements
+				.filter(isVisibleVideoElement)
+				.map((element) => ({ element, trackId: track.id })),
+		)
+		.sort((left, right) => left.element.startTime - right.element.startTime);
+
+	if (clips.length === 0) {
+		return {
+			success: false,
+			message:
+				"No unmuted edited video clips were found for post-cut caption transcription.",
+		};
+	}
+
+	const captions: Array<{
+		text: string;
+		startTime: number;
+		duration: number;
+	}> = [];
+	const trace: Array<{
+		mediaId: string;
+		timelineStart: number;
+		sourceStart: number;
+		sourceEnd: number;
+		captionCount: number;
+	}> = [];
+
+	for (const { element } of clips) {
+		const mediaId = element.mediaId;
+		const mediaAsset = state.mediaAssets.find((asset) => asset.id === mediaId);
+		if (!mediaAsset) {
+			return {
+				success: false,
+				message: `Media asset '${mediaId}' not found`,
+			};
+		}
+		if (mediaAsset.type !== "video" && mediaAsset.type !== "audio") {
+			return {
+				success: false,
+				message: `Media asset '${mediaAsset.name}' is type '${mediaAsset.type}', expected video or audio`,
+			};
+		}
+		if (element.trimEnd <= element.trimStart) {
+			return {
+				success: false,
+				message: `Timeline video element '${element.id}' has an invalid trim range.`,
+			};
+		}
+
+		const beforeCount = captions.length;
+		const result = await transcribeMediaRange({
+			mediaAsset: {
+				id: mediaAsset.id,
+				name: mediaAsset.name,
+				path: mediaAsset.path,
+				duration: mediaAsset.duration,
+			},
+			language,
+			modelId,
+			range: { start: element.trimStart, end: element.trimEnd },
+		});
+
+		for (const segment of result.segments) {
+			const text = segment.text.trim();
+			const duration = roundTimelineSeconds(segment.end - segment.start);
+			if (!text || duration <= 0) continue;
+			captions.push({
+				text,
+				startTime: roundTimelineSeconds(element.startTime + segment.start),
+				duration,
+			});
+		}
+
+		trace.push({
+			mediaId,
+			timelineStart: element.startTime,
+			sourceStart: element.trimStart,
+			sourceEnd: element.trimEnd,
+			captionCount: captions.length - beforeCount,
+		});
+	}
+
+	return {
+		success: true,
+		message: `Built ${captions.length} post-cut caption(s) from ${clips.length} video clip(s).`,
+		data: {
+			source: "edited_video_clip_audio",
+			language,
+			modelId,
+			captionStyle: {
+				preset: "talking-head-pop",
+				position: "lower-safe",
+			},
+			captions,
+			trace,
+		},
+	};
+}
+
 function runGetTimelineState({ state }: { state: ExecutorProjectState }) {
 	const duration = calculateTotalDuration({ tracks: state.tracks });
 	return {
@@ -1076,6 +1219,13 @@ async function executeCommand({
 			state,
 			args: command.args,
 			probeAudio,
+			transcribeMediaRange,
+		});
+	}
+	if (command.tool === "build_post_cut_captions") {
+		return runBuildPostCutCaptions({
+			state,
+			args: command.args,
 			transcribeMediaRange,
 		});
 	}

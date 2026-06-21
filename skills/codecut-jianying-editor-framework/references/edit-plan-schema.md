@@ -124,7 +124,13 @@ Current validation fail-fast checks include:
 
 `target.aspectRatio` is a planning field in the current implemented schema. It does not update the project canvas by itself. When the user outcome requires vertical, square, or specific FPS output, call the implemented project settings path and verify the result through `get_project_info`.
 
-Caption timing must use a post-cut caption source. Prefer edited audio transcription when a final timeline audio transcription path exists. Otherwise use source transcript remap: convert source transcript segment timestamps into output timeline timestamps through the selected `clips[]`. Do not copy source transcript timestamps directly into `captions[].startTime`.
+Caption timing must use a post-cut caption source. Prefer edited clip audio
+transcription through `build-post-cut-captions`: apply a clip-first EditPlan,
+run the command, copy the returned captions into the final EditPlan, then apply
+the final plan. Otherwise use source transcript remap: convert source transcript
+segment timestamps into output timeline timestamps through the selected
+`clips[]`. Do not copy source transcript timestamps directly into
+`captions[].startTime`.
 
 `clips[].fit: "cover"` creates a centered cover crop by converting source and
 target aspect ratios into `visual.transform.scale`. It is the only implemented

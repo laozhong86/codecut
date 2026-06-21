@@ -210,7 +210,13 @@ omitted. Caption styling is intentionally limited to top-level local presets:
 objects, `bold_caption`, `keyword_caption`, or `keyword-highlight` in this
 contract.
 
-Caption timing must declare a post-cut caption source. Prefer edited audio transcription when a final timeline audio transcription path exists. Otherwise use source transcript remap: convert source transcript segment timestamps into output timeline timestamps through the selected `clips[]`. Do not copy source transcript timestamps directly into `captions[].startTime`.
+Caption timing must declare a post-cut caption source. Prefer edited audio
+transcription from edited clip ranges through `build-post-cut-captions`: apply a clip-only EditPlan
+first, run `build-post-cut-captions`, copy the returned captions into the final
+EditPlan with `captionStyle`, then apply the final EditPlan. If that path is
+not available, use source transcript remap: convert source transcript segment
+timestamps into output timeline timestamps through the selected `clips[]`. Do
+not copy source transcript timestamps directly into `captions[].startTime`.
 
 Caption preset routing:
 
@@ -374,12 +380,13 @@ After application, Codex must verify `get_timeline_state` proof fields:
 9. Codex calls `build_video_context` for transcript-first planning when a long
    source video needs structured context.
 10. Codex uses its own context to choose clips and write an EditPlan JSON file.
-11. Codex chooses the post-cut caption source: edited audio transcription when available, otherwise source transcript remap through the chosen clips.
-12. Codex calls `apply_edit_plan` with that EditPlan.
-13. Codex calls `get_timeline_state` to verify clips, text style, audio source
+11. Codex calls `apply_edit_plan` with a stable clip-first EditPlan when edited audio transcription from edited clip ranges is required.
+12. Codex runs `build-post-cut-captions`, then writes those returned captions into the final EditPlan with the matching `captionStyle`.
+13. Codex calls `apply_edit_plan` with the final EditPlan.
+14. Codex calls `get_timeline_state` to verify clips, text style, audio source
     and volume, and video transitions.
-14. Codex provides the editor URL so the user can preview the result or ask for another revision.
-15. Export is a separate follow-up until local executor export is implemented and tested.
+15. Codex provides the editor URL so the user can preview the result or ask for another revision.
+16. Export is a separate follow-up until local executor export is implemented and tested.
 
 ## Fast Path: Local File To Short
 
@@ -392,9 +399,10 @@ When the request includes one absolute local media file and a concrete target su
 5. List media and select the imported audio/video asset.
 6. Transcribe through the local executor.
 7. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
-8. Generate and apply one EditPlan v1.
-9. Verify with `get_timeline_state`.
-10. Provide the editor URL for human preview.
+8. Generate and apply a clip-first EditPlan v1.
+9. Run `build-post-cut-captions`, then apply the final EditPlan v1 with captions.
+10. Verify with `get_timeline_state`.
+11. Provide the editor URL for human preview.
 
 Do not spend the first turn auditing all skill references. Read only the workflow document and the matching recipe unless an implementation or validation failure requires deeper reference lookup.
 
@@ -441,6 +449,21 @@ node scripts/codex-bridge.mjs build-video-context \
   --language auto \
   --model-id whisper-tiny
 ```
+
+Build captions from the already edited video clip audio ranges:
+
+```bash
+node scripts/codex-bridge.mjs build-post-cut-captions \
+  --project-id <id> \
+  --language zh \
+  --model-id whisper-base
+```
+
+`build-post-cut-captions` reads the current timeline, transcribes each unmuted
+edited video clip range from `trimStart` to `trimEnd`, and offsets the returned
+segments into output timeline time. It returns caption items and a recommended
+captionStyle; it does not mutate the timeline. Codex must copy those captions
+into the final EditPlan and apply that plan.
 
 Apply a local EditPlan file:
 

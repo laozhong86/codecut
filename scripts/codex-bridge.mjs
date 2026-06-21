@@ -26,6 +26,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
 		"  node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
+		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>",
 		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --download <true|false>",
 		"",
@@ -634,6 +635,24 @@ export function buildVideoContextEnvelope({
 	});
 }
 
+export function buildPostCutCaptionsEnvelope({ projectId, language, modelId }) {
+	if (!language) {
+		throw new Error("--language is required");
+	}
+	if (!modelId) {
+		throw new Error("--model-id is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "build_post_cut_captions",
+		args: {
+			language,
+			modelId,
+		},
+	});
+}
+
 const extensionMimeTypes = new Map([
 	[".jpg", "image/jpeg"],
 	[".jpeg", "image/jpeg"],
@@ -918,6 +937,12 @@ export async function runCli({
 		envelope = buildVideoContextEnvelope({
 			projectId: flags.projectId,
 			mediaId: flags.mediaId,
+			language: flags.language,
+			modelId: flags.modelId,
+		});
+	} else if (command === "build-post-cut-captions") {
+		envelope = buildPostCutCaptionsEnvelope({
+			projectId: flags.projectId,
 			language: flags.language,
 			modelId: flags.modelId,
 		});
