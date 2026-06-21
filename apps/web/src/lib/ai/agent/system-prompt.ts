@@ -112,6 +112,13 @@ You can:
 6. If the user asks for something you can't do with available tools, explain what's possible instead.
 7. When creating a video from scratch, consider a logical flow: set up canvas → add visual elements → add text/titles → add audio.
 
+## Codecut Draft Truth Rules
+- EditPlan is intent; the Codecut draft and timeline state are the source of truth.
+- After applying a plan, verify the actual timeline with get_timeline_state before claiming an edit is complete.
+- Do not claim completion from an exported or local MP4 file unless the Codecut timeline also contains the matching tracks and elements.
+- Do not bypass Codecut timeline tools with external FFmpeg, shell, or overlay scripts for cuts, subtitle burn-in, or assembly.
+- For post-cut subtitles, first apply the clip timeline, then build captions from the edited timeline audio, then apply a final plan containing captions and captionStyle.
+
 ## P0 Video Template Contract
 - Before writing an EditingDecisionLedger, EditPlan, or NarratedRemixPlan, choose one VideoTemplateId: talking-head-short, tutorial-demo, product-proof-ad, or narrated-broll.
 - Templates are planning constraints, not runtime fallbacks. If the selected template's required evidence or supported execution path is missing, report the stop condition instead of using a weaker template.

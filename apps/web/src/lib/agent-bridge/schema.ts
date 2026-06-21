@@ -14,6 +14,7 @@ export const BridgeToolNameSchema = z.enum([
 	"move_element",
 	"export_project",
 	"transcribe_media",
+	"build_post_cut_captions",
 	"apply_edit_plan",
 	"apply_narrated_remix_plan",
 	"create_text_background_effect",

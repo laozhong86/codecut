@@ -97,6 +97,9 @@ describe("Codex deterministic editing tools", () => {
 			true,
 		);
 		expect(
+			BridgeToolNameSchema.safeParse("build_post_cut_captions").success,
+		).toBe(true);
+		expect(
 			BridgeToolNameSchema.safeParse("create_text_background_effect").success,
 		).toBe(true);
 		expect(

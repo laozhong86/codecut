@@ -64,30 +64,34 @@ export function getExecutorStatusDotState({
 	error: string | null;
 	isSyncing: boolean;
 }) {
+	const revisionSuffix =
+		typeof status?.revision === "number"
+			? ` Revision ${status.revision}${isSyncing ? " is syncing." : " is synced."}`
+			: "";
 	if (error || status?.status === "failed") {
 		return {
 			ariaLabel: "Codex executor failed",
-			title: "Codex executor failed.",
+			title: `Codex executor failed.${revisionSuffix}`,
 			dotClassName: "bg-destructive",
 		};
 	}
 	if (isSyncing || status?.status === "running") {
 		return {
 			ariaLabel: "Codex executor running",
-			title: "Codex executor running.",
+			title: `Codex executor running.${revisionSuffix}`,
 			dotClassName: "animate-pulse bg-sky-400",
 		};
 	}
 	if (status?.status === "succeeded") {
 		return {
 			ariaLabel: "Codex executor succeeded",
-			title: "Codex executor succeeded.",
+			title: `Codex executor succeeded.${revisionSuffix}`,
 			dotClassName: "bg-emerald-500",
 		};
 	}
 	return {
 		ariaLabel: "Codex executor idle",
-		title: "Codex executor idle. Click to sync.",
+		title: `Codex executor idle.${revisionSuffix}`,
 		dotClassName: "bg-muted-foreground",
 	};
 }
@@ -95,6 +99,16 @@ export function getExecutorStatusDotState({
 function appendRevision({ url, revision }: { url: string; revision: number }) {
 	const separator = url.includes("?") ? "&" : "?";
 	return `${url}${separator}revision=${encodeURIComponent(String(revision))}`;
+}
+
+export function shouldSyncExecutorRevision({
+	nextRevision,
+	appliedRevision,
+}: {
+	nextRevision: number;
+	appliedRevision: number;
+}) {
+	return nextRevision > appliedRevision;
 }
 
 async function loadExecutorMediaFile({
@@ -273,7 +287,12 @@ export function CodexExecutorSync({
 			setError(null);
 
 			const nextRevision = nextStatus.revision ?? 0;
-			if (nextRevision > appliedRevisionRef.current) {
+			if (
+				shouldSyncExecutorRevision({
+					nextRevision,
+					appliedRevision: appliedRevisionRef.current,
+				})
+			) {
 				await syncSnapshot();
 			}
 		}

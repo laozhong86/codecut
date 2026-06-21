@@ -80,7 +80,7 @@ interface ExecutorMediaAsset {
 	path: string;
 }
 
-interface ExecutorProjectState {
+export interface CodecutDraftV1 {
 	version: 1;
 	revision: number;
 	project: {
@@ -98,6 +98,8 @@ interface ExecutorProjectState {
 	derivedAssets: DerivedAsset[];
 	tracks: TimelineTrack[];
 }
+
+type ExecutorProjectState = CodecutDraftV1;
 
 export interface ExecutorStatus {
 	projectId: string;
@@ -469,6 +471,28 @@ async function setStatus(status: ExecutorStatus) {
 	});
 }
 
+async function readProjectStatusOrNull({
+	projectId,
+}: {
+	projectId: string;
+}): Promise<ExecutorStatus | null> {
+	try {
+		return await readJson<ExecutorStatus>({
+			path: projectStatusPath({ projectId }),
+		});
+	} catch (error) {
+		if (
+			typeof error === "object" &&
+			error !== null &&
+			"code" in error &&
+			error.code === "ENOENT"
+		) {
+			return null;
+		}
+		throw error;
+	}
+}
+
 async function loadProjectState({
 	projectId,
 }: {
@@ -652,17 +676,36 @@ async function runImportMedia({
 	};
 }
 
-function runGetProjectInfo({ state }: { state: ExecutorProjectState }) {
+async function runGetProjectInfo({
+	state,
+	lastStatus,
+}: {
+	state: ExecutorProjectState;
+	lastStatus?: ExecutorStatus | null;
+}) {
 	const duration = calculateTotalDuration({ tracks: state.tracks });
+	const elementCount = state.tracks.reduce(
+		(total, track) => total + track.elements.length,
+		0,
+	);
 	return {
 		success: true,
 		message: "Project info retrieved",
 		data: {
+			revision: state.revision,
 			name: state.project.name,
 			canvasSize: state.project.settings.canvasSize,
 			fps: state.project.settings.fps,
 			background: state.project.settings.background,
 			duration,
+			draft: {
+				version: state.version,
+				revision: state.revision,
+				mediaCount: state.mediaAssets.length,
+				trackCount: state.tracks.length,
+				elementCount,
+				updatedAt: state.project.updatedAt,
+			},
 			tracks: state.tracks.map((track) => ({
 				id: track.id,
 				type: track.type,
@@ -679,6 +722,17 @@ function runGetProjectInfo({ state }: { state: ExecutorProjectState }) {
 				height: asset.height,
 			})),
 			derivedAssets: state.derivedAssets,
+			...(lastStatus
+				? {
+						lastStatus: {
+							status: lastStatus.status,
+							tool: lastStatus.tool,
+							message: lastStatus.message,
+							updatedAt: lastStatus.updatedAt,
+							revision: lastStatus.revision,
+						},
+					}
+				: {}),
 		},
 	};
 }
@@ -1336,11 +1390,15 @@ async function runBuildPostCutCaptions({
 
 		for (const segment of result.segments) {
 			const text = segment.text.trim();
-			const duration = roundTimelineSeconds(segment.end - segment.start);
+			const relativeStart = Math.max(0, segment.start);
+			const relativeEnd = Math.min(element.duration, segment.end);
+			const startTime = roundTimelineSeconds(element.startTime + relativeStart);
+			const endTime = roundTimelineSeconds(element.startTime + relativeEnd);
+			const duration = roundTimelineSeconds(endTime - startTime);
 			if (!text || duration <= 0) continue;
 			captions.push({
 				text,
-				startTime: roundTimelineSeconds(element.startTime + segment.start),
+				startTime,
 				duration,
 			});
 		}
@@ -1377,6 +1435,7 @@ function runGetTimelineState({ state }: { state: ExecutorProjectState }) {
 		success: true,
 		message: `Timeline has ${state.tracks.length} track(s), total duration: ${duration.toFixed(2)}s`,
 		data: {
+			revision: state.revision,
 			tracks: state.tracks.map(serializeTrack),
 			totalDuration: duration,
 			derivedAssets: state.derivedAssets,
@@ -1387,6 +1446,7 @@ function runGetTimelineState({ state }: { state: ExecutorProjectState }) {
 async function executeCommand({
 	state,
 	command,
+	lastStatus,
 	transcribeMedia,
 	probeAudio,
 	transcribeMediaRange,
@@ -1396,6 +1456,7 @@ async function executeCommand({
 }: {
 	state: ExecutorProjectState;
 	command: ExecutorCommand;
+	lastStatus?: ExecutorStatus | null;
 	transcribeMedia: ExecutorTranscribeMedia;
 	probeAudio: ProbeAudio;
 	transcribeMediaRange: ExecutorTranscribeMediaRange;
@@ -1404,7 +1465,7 @@ async function executeCommand({
 	generateDigitalHuman: ExecutorGenerateDigitalHuman;
 }) {
 	if (command.tool === "get_project_info") {
-		return runGetProjectInfo({ state });
+		return runGetProjectInfo({ state, lastStatus });
 	}
 	if (command.tool === "update_project_settings") {
 		return runUpdateProjectSettings({ state, args: command.args });
@@ -1521,6 +1582,9 @@ export async function executeCodexExecutorEnvelope({
 	const results = [];
 
 	for (const command of parsedEnvelope.commands) {
+		const previousStatus = await readProjectStatusOrNull({
+			projectId: parsedEnvelope.projectId,
+		});
 		await setStatus({
 			projectId: parsedEnvelope.projectId,
 			status: "running",
@@ -1533,6 +1597,7 @@ export async function executeCodexExecutorEnvelope({
 			const result = await executeCommand({
 				state,
 				command,
+				lastStatus: previousStatus,
 				transcribeMedia,
 				probeAudio,
 				transcribeMediaRange,

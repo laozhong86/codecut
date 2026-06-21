@@ -403,6 +403,7 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
+				revision: state.revision,
 				totalDuration: 12,
 				tracks: [
 					{
@@ -441,13 +442,106 @@ describe("codex executor", () => {
 			status: "succeeded",
 			tool: "get_timeline_state",
 			message: "Timeline has 2 track(s), total duration: 12.00s",
+			revision: state.revision,
 		});
 		expect(state.revision).toBeGreaterThan(1);
+	});
+
+	test("project info exposes draft revision summary and last executor status", async () => {
+		await createExecutorProject({ projectId, name: "Draft truth" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 120,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 8, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 8,
+								timelineStart: 0,
+								reason: "Hook",
+							},
+						],
+						captions: [
+							{
+								text: "这是字幕",
+								startTime: 0.5,
+								duration: 2,
+							},
+						],
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+						},
+						rationale: "Draft truth proof",
+					},
+				},
+			}),
+		});
+		const infoResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_project_info", args: {} }),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(infoResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				revision: state.revision,
+				draft: {
+					version: 1,
+					revision: state.revision,
+					mediaCount: 1,
+					trackCount: 2,
+					elementCount: 2,
+				},
+				tracks: [
+					{
+						type: "text",
+						elementCount: 1,
+					},
+					{
+						type: "video",
+						elementCount: 1,
+					},
+				],
+				lastStatus: {
+					status: "succeeded",
+					tool: "apply_edit_plan",
+					revision: state.revision,
+				},
+			},
+		});
 	});
 
 	test("apply_edit_plan fails before mutating when executor media file is empty", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 		const state = await getExecutorProjectState({ projectId });
+		const beforeRevision = state.revision;
 		const mediaPath = join(stateDir, "projects", projectId, "media", "empty");
 		await mkdir(join(stateDir, "projects", projectId, "media"), {
 			recursive: true,
@@ -504,6 +598,7 @@ describe("codex executor", () => {
 			message: "Executor media asset empty-video is empty.",
 		});
 		expect(after.tracks).toEqual([]);
+		expect(after.revision).toBe(beforeRevision);
 	});
 
 	test("readbacks EditPlan video text audio and transitions through timeline state", async () => {
@@ -1214,7 +1309,11 @@ describe("codex executor", () => {
 						text: "first caption",
 						language,
 						modelId,
-						segments: [{ text: "第一句", start: 1, end: 2.25 }],
+						segments: [
+							{ text: "第一句", start: 1, end: 2.25 },
+							{ text: "截断句", start: 4.8, end: 5.4 },
+							{ text: "越界句", start: 5.1, end: 5.4 },
+						],
 					};
 				}
 				return {
@@ -1234,7 +1333,7 @@ describe("codex executor", () => {
 			commandId: "cmd-1",
 			tool: "build_post_cut_captions",
 			success: true,
-			message: "Built 2 post-cut caption(s) from 2 video clip(s).",
+			message: "Built 3 post-cut caption(s) from 2 video clip(s).",
 			data: {
 				source: "edited_video_clip_audio",
 				language: "zh",
@@ -1245,6 +1344,7 @@ describe("codex executor", () => {
 				},
 				captions: [
 					{ text: "第一句", startTime: 1, duration: 1.25 },
+					{ text: "截断句", startTime: 4.8, duration: 0.2 },
 					{ text: "第二句", startTime: 5.5, duration: 1.25 },
 				],
 				trace: [
@@ -1253,7 +1353,7 @@ describe("codex executor", () => {
 						timelineStart: 0,
 						sourceStart: 10,
 						sourceEnd: 15,
-						captionCount: 1,
+						captionCount: 2,
 					},
 					{
 						mediaId,

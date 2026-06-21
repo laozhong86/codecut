@@ -6,6 +6,7 @@ import {
 	applyCodexExecutorSnapshot,
 	EXECUTOR_STATUS_DOT_CLASS,
 	getExecutorStatusDotState,
+	shouldSyncExecutorRevision,
 } from "../codex-executor-sync";
 
 const originalFetch = globalThis.fetch;
@@ -35,6 +36,43 @@ function editorStub({ capturedAssets }: { capturedAssets: MediaAsset[][] }) {
 	} as unknown as EditorCore;
 }
 
+function editorCaptureStub({
+	capturedAssets,
+	capturedProjects,
+	capturedTracks,
+}: {
+	capturedAssets: MediaAsset[][];
+	capturedProjects: TProject[];
+	capturedTracks: unknown[];
+}) {
+	return {
+		save: {
+			pause: () => undefined,
+			resume: () => undefined,
+		},
+		media: {
+			clearAllAssets: () => undefined,
+			setAssets: ({ assets }: { assets: MediaAsset[] }) => {
+				capturedAssets.push(assets);
+			},
+		},
+		scenes: {
+			clearScenes: () => undefined,
+			setScenes: () => undefined,
+		},
+		project: {
+			setActiveProject: ({ project }: { project: TProject }) => {
+				capturedProjects.push(project);
+			},
+		},
+		timeline: {
+			updateTracks: (tracks: unknown[]) => {
+				capturedTracks.push(tracks);
+			},
+		},
+	} as unknown as EditorCore;
+}
+
 function executorSnapshot() {
 	return {
 		project: {
@@ -51,7 +89,17 @@ function executorSnapshot() {
 		},
 		revision: 7,
 		duration: 3,
-		tracks: [],
+		tracks: [
+			{
+				id: "video-track-1",
+				type: "video" as const,
+				name: "Video Track",
+				isMain: true,
+				muted: false,
+				hidden: false,
+				elements: [],
+			},
+		],
 		derivedAssets: [],
 		mediaAssets: [
 			{
@@ -98,6 +146,31 @@ describe("applyCodexExecutorSnapshot", () => {
 		);
 	});
 
+	test("syncs project media and timeline from the executor draft snapshot", async () => {
+		globalThis.fetch = (async () =>
+			new Response(
+				new Blob(["video-bytes"], { type: "video/mp4" }),
+			)) as unknown as typeof fetch;
+		const capturedAssets: MediaAsset[][] = [];
+		const capturedProjects: TProject[] = [];
+		const capturedTracks: unknown[] = [];
+		const snapshot = executorSnapshot();
+
+		await applyCodexExecutorSnapshot({
+			editor: editorCaptureStub({
+				capturedAssets,
+				capturedProjects,
+				capturedTracks,
+			}),
+			snapshot,
+		});
+
+		expect(capturedProjects[0].metadata.id).toBe("project-1");
+		expect(capturedProjects[0].metadata.duration).toBe(snapshot.duration);
+		expect(capturedAssets[0]).toHaveLength(1);
+		expect(capturedTracks[0]).toEqual(snapshot.tracks);
+	});
+
 	test("fails before syncing when an executor media blob cannot be loaded", async () => {
 		globalThis.fetch = (async () =>
 			new Response("missing", { status: 404 })) as unknown as typeof fetch;
@@ -134,7 +207,7 @@ describe("applyCodexExecutorSnapshot", () => {
 });
 
 describe("getExecutorStatusDotState", () => {
-	test("models a compact top-right indicator without persistent details", () => {
+	test("models a compact top-right indicator with revision sync context", () => {
 		const state = getExecutorStatusDotState({
 			status: {
 				projectId: "project-1",
@@ -153,8 +226,22 @@ describe("getExecutorStatusDotState", () => {
 		expect(EXECUTOR_STATUS_DOT_CLASS).not.toContain("size-7");
 		expect(EXECUTOR_STATUS_DOT_CLASS).not.toContain("bg-background");
 		expect(state.ariaLabel).toBe("Codex executor succeeded");
-		expect(state.title).toBe("Codex executor succeeded.");
-		expect(JSON.stringify(state)).not.toContain("get_timeline_state");
-		expect(JSON.stringify(state)).not.toContain("Timeline has 1 track");
+		expect(state.title).toBe(
+			"Codex executor succeeded. Revision 4 is synced.",
+		);
+	});
+});
+
+describe("shouldSyncExecutorRevision", () => {
+	test("syncs only when executor revision is newer than the applied draft", () => {
+		expect(
+			shouldSyncExecutorRevision({ nextRevision: 8, appliedRevision: 7 }),
+		).toBe(true);
+		expect(
+			shouldSyncExecutorRevision({ nextRevision: 7, appliedRevision: 7 }),
+		).toBe(false);
+		expect(
+			shouldSyncExecutorRevision({ nextRevision: 0, appliedRevision: 7 }),
+		).toBe(false);
 	});
 });

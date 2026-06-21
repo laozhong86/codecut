@@ -119,3 +119,11 @@ Each command extends `Command` from `@/lib/commands/base-command` and implements
 - `undo()` - restores the saved state
 
 Actions and commands work together: actions are "what triggered this", commands are "how to do it (and undo it)".
+
+## Branch Merge Workflow
+
+When merging a branch, treat remote `origin/main` as the source of truth:
+
+1. Merge the branch into the remote `main` branch first, using the remote PR or merge flow.
+2. After the remote merge succeeds, sync local `main` from `origin/main`.
+3. If local `main` cannot fast-forward from `origin/main`, stop and report the branch drift before making further changes.

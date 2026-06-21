@@ -32,6 +32,41 @@ project state, or added to the EditPlan v1 schema.
 
 Browser is the human interface, not the Agent runtime. Opening the browser is only a convenience for the user to inspect the project URL and manually adjust the result. Codex command execution must not depend on a visible browser tab, screenshots, DOM control, or a page-mounted heartbeat.
 
+## Pre-Edit Workspace
+
+When the user provides source materials, Codecut editing starts with a local
+creative workspace before any executor project is created. This separates
+business understanding and material planning from timeline mutation.
+
+Workspace root:
+
+```text
+.codecut-workspace/projects/<projectId>
+```
+
+One `projectId` represents one creative job: user brief, source assets, material
+inventory, clarification answers, planning documents, execution files,
+verification notes, and later the Codecut executor project. Variants can be
+subfolders or documents inside the same workspace when they share the same
+source pack; unrelated jobs should get separate project IDs.
+
+Required pre-edit order for user-provided materials:
+
+1. Understand the user message and write intent analysis.
+2. Reserve a concrete `projectId` and business project name.
+3. Initialize the workspace with `scripts/codecut-workspace.mjs`.
+4. Copy provided files into categorized local folders.
+5. Run ffprobe material inventory for video/audio assets.
+6. Ask clarification questions with concrete choices and exactly one
+   recommended option per question.
+7. Write workflow route, content breakdown, hook selection, script documents,
+   decision ledger, and timeline restructure notes when they are relevant.
+8. Create the Codecut executor project only after the workspace is ready and the
+   user-facing editing direction is clear.
+
+Workspace files are local evidence and planning artifacts. They are not Codecut
+timeline state and are excluded from git and plugin-cache sync.
+
 ## Video Template Manifest
 
 P0 video templates live in `apps/web/src/lib/video-templates/registry.ts` and are validated by `apps/web/src/lib/video-templates/schema.ts`. They are Agent planning constraints, not a runtime template marketplace, automatic repair layer, or silent fallback.
@@ -111,7 +146,33 @@ Do not ask the user to open the Browser, import media, inspect bridge env, or se
 
 Codecut editing commands should be consumed by a local CLI/executor process that reads and writes the project state directly. The browser page subscribes to project state and displays progress/results for the human user.
 
-Opening a browser page is not a startup gate for Codex. When a project exists, Codex should provide the editor URL:
+## Draft Truth Contract
+
+The local executor draft is the shared source of truth for Codex and the GUI:
+
+```text
+apps/web/.codecut-executor/projects/<projectId>/project.json
+```
+
+Codex must treat an EditPlan as an intent, not as proof of completion. The
+executor validates the intent, writes the draft, increments `revision`, and the
+browser editor syncs from the draft snapshot. Codex must read the current draft
+state back through `get_project_info`, `get_timeline_state`, or the project
+snapshot before reporting completion or doing another edit.
+
+Codex must not directly edit `project.json`. Codex also must not use FFmpeg,
+Pillow, shell scripts, or external MP4 post-processing as the editing path for
+cuts, subtitle burn-in, or final assembly. FFmpeg is allowed only as an internal
+executor dependency for transcription, media inspection, or a future verified
+Codecut export runtime.
+
+Completion means the Codecut draft contains the requested timeline state. A
+local MP4 file without matching draft tracks is not a completed Codecut edit.
+
+Opening a browser page is not a startup gate for Codex. After the service is
+ready, Codex should actively open the local projects page in the Codex in-app
+browser. After `create-project` succeeds, Codex must immediately open the
+created project's editor URL:
 
 ```text
 http://127.0.0.1:4100/en/editor/<projectId>
@@ -131,6 +192,9 @@ The editing target must be explicit before Codex sends bridge commands:
 - Use the project ID from the user's request, a local project listing, or the CLI response that created the project.
 - Before creating a new executor project, define a business project name from the user's brief or ask for one when the brief does not contain enough context.
 - Create projects with `node scripts/codex-bridge.mjs create-project --project-id <id> --name "<business project name>"`.
+- Immediately open the returned `editorUrl` in the Codex in-app browser. If the
+  response omits `editorUrl`, construct and open
+  `http://127.0.0.1:4100/en/editor/<projectId>`.
 - Do not create projects with generic names such as `New project`, `Untitled Project`, or `Codex cut`.
 - Do not reuse a stale project ID from a previous run.
 - The CLI `--project-id` must match the local project store entry being modified.
@@ -260,13 +324,16 @@ omitted. Caption styling is intentionally limited to top-level local presets:
 objects, `bold_caption`, `keyword_caption`, or `keyword-highlight` in this
 contract.
 
-Caption timing must declare a post-cut caption source. Prefer edited audio
-transcription from edited clip ranges through `build-post-cut-captions`: apply a clip-only EditPlan
-first, run `build-post-cut-captions`, copy the returned captions into the final
-EditPlan with `captionStyle`, then apply the final EditPlan. If that path is
-not available, use source transcript remap: convert source transcript segment
-timestamps into output timeline timestamps through the selected `clips[]`. Do
-not copy source transcript timestamps directly into `captions[].startTime`.
+Caption timing must declare a post-cut caption source. Prefer edited audio transcription
+from edited clip ranges through `build-post-cut-captions`: apply a clip-only
+EditPlan first, run `build-post-cut-captions`, copy the returned captions into
+the final EditPlan with `captionStyle`, then apply the final EditPlan. If that
+path is not available, use source transcript remap: convert source transcript
+segment timestamps into output timeline timestamps through the selected
+`clips[]`. Do not copy source transcript timestamps directly into
+`captions[].startTime`.
+Do not replace this flow with rewritten summary captions or external subtitle
+burn-in. The final proof must be text elements in the Codecut timeline.
 
 Caption preset routing:
 
@@ -422,56 +489,127 @@ After application, Codex must verify `get_timeline_state` proof fields:
 
 ## End-to-End Workflow
 
-1. Codex confirms the local Codecut service is ready.
-2. Codex creates or confirms one concrete project ID and business project name through CLI/local project state.
-3. Codex calls `doctor` to confirm the local executor is ready.
-4. The user imports a long video into the active project, or Codex imports a local media file with `import-media`.
-5. Codex calls `get_project_info` to confirm the active project.
-6. Codex calls `list_media_assets` to inspect available media.
-7. Codex selects the target media asset for editing.
-8. Codex calls `transcribe_media` for that media asset when the selected outcome needs transcript evidence.
-9. Codex audits material facts: transcript, visual proof, product facts, existing narration audio, and video B-roll.
-10. Codex resolves one P0 video template or reports why no implemented template can satisfy the request.
-11. Codex calls `build_video_context` for transcript-first planning when a long
+1. Codex reads the user message and writes intent analysis before creating a
+   Codecut executor project.
+2. Codex reserves one concrete `projectId` and business project name for the
+   creative job.
+3. Codex initializes `.codecut-workspace/projects/<projectId>`.
+4. Codex copies provided local materials into categorized asset folders.
+5. Codex runs ffprobe material inventory and writes asset manifest, ffprobe
+   report, and material audit.
+6. Codex asks clarification questions with choices and one recommended option
+   per question when platform, aspect ratio, duration, video type, editing
+   style, caption policy, or business facts are missing.
+7. Codex writes the workflow route and planning documents: content breakdown,
+   hook selection, scripts when needed, decision ledger when needed, and
+   timeline restructure notes.
+8. Codex confirms the local Codecut service is ready.
+9. Codex creates the Codecut executor project with the same `projectId` and
+   business project name, then immediately opens the returned `editorUrl` in the
+   Codex in-app browser.
+10. Codex calls `doctor-install` and `doctor` to confirm the local executor is
+    ready.
+11. The user imports a long video into the active project, or Codex imports a
+    local media file with `import-media`.
+12. Codex calls `get_project_info` to confirm the active project.
+13. Codex calls `list_media_assets` to inspect available media.
+14. Codex selects the target media asset for editing.
+15. Codex calls `transcribe_media` for that media asset when the selected outcome needs transcript evidence.
+16. Codex audits material facts: transcript, visual proof, product facts, existing narration audio, and video B-roll.
+17. Codex resolves one P0 video template or reports why no implemented template can satisfy the request.
+18. Codex calls `build_video_context` for transcript-first planning when a long
    source video needs structured context.
-12. Codex calls `inspect-video-range` for source ranges where visual continuity,
+19. Codex calls `inspect-video-range` for source ranges where visual continuity,
     waveform shape, silence gaps, caption overlap, or reframe risk affects the
     EditPlan decision.
-13. Codex writes an EditingDecisionLedger for EditPlan templates, or a strict NarratedRemixPlan for `narrated-broll`.
-14. Codex projects the selected structure into an implemented EditPlan v1 JSON
-    file only, or keeps `narrated-broll` inside NarratedRemixPlan v1 only.
-15. Codex calls `apply_edit_plan` with a stable clip-first EditPlan when edited audio transcription from edited clip ranges is required.
-16. Codex runs `build-post-cut-captions`, then writes those returned captions into the final EditPlan with the matching `captionStyle`.
-17. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the strict plan.
-18. Codex calls `get_timeline_state` to verify clips, text style, audio source
+20. Codex updates the EditingDecisionLedger for EditPlan templates, or writes a strict NarratedRemixPlan for `narrated-broll`.
+21. Codex projects the selected structure into an implemented EditPlan v1 JSON
+    file under `05-execution/`, or keeps `narrated-broll` inside NarratedRemixPlan v1 only.
+22. For EditPlan templates, Codex calls `apply_edit_plan` with a stable
+    clip-first EditPlan when edited audio transcription from edited clip ranges
+    is required.
+23. For EditPlan templates with captions, Codex runs
+    `build-post-cut-captions`, then writes those returned captions into the
+    final EditPlan with the matching `captionStyle`.
+24. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the final
+    strict plan.
+25. Codex calls `get_timeline_state` to verify clips, text style, audio source
     and volume, and video transitions.
-19. Codex provides the editor URL so the user can preview the result or ask for another revision.
-20. Export is a separate follow-up until local executor export is implemented and tested.
+    This readback must include the expected video track clip count, text track
+    caption count, timeline duration, and clip trim ranges before the edit can
+    be reported as complete.
+26. Codex writes verification notes under `06-verification/`.
+27. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
+28. Export is a separate follow-up until local executor export is implemented and tested.
 
 ## Fast Path: Local File To Short
 
 When the request includes one absolute local media file and a concrete target such as "1 minute vertical short", Codex should execute directly:
 
-1. Create a new executor project if no project ID is provided, using `create-project --project-id <id> --name "<business project name>"`.
-2. Run `doctor`.
-3. Apply explicit project settings for vertical/square output.
-4. Import the local file.
-5. List media and select the imported audio/video asset.
-6. Transcribe through the local executor.
-7. Audit material facts and resolve one P0 video template.
-8. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
-9. Inspect ambiguous or reframe-sensitive source ranges with
+1. Reserve a readable `projectId` and business project name.
+2. Initialize `.codecut-workspace/projects/<projectId>`.
+3. Add the local file with `codecut-workspace add-assets`.
+4. Run `codecut-workspace probe-assets`.
+5. Ask any missing clarification questions with choices and one recommended option.
+6. Write workflow route, content breakdown, hook selection, and timeline restructure notes.
+7. Confirm the local Codecut service is ready.
+8. Create the executor project with the same `projectId`, immediately open the
+   returned `editorUrl` in the Codex in-app browser, then run `doctor-install`
+   and `doctor`.
+9. Apply explicit project settings for vertical/square output.
+10. Import the local file.
+11. List media and select the imported audio/video asset.
+12. Transcribe through the local executor when the selected outcome needs transcript evidence.
+13. Audit material facts and resolve one P0 video template.
+14. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
+15. Inspect ambiguous or reframe-sensitive source ranges with
    `inspect-video-range` before writing the EditPlan.
-10. Write an EditingDecisionLedger for conversion, product, tutorial, highlight,
-   or broad short-form requests.
-11. Generate and apply a clip-first EditPlan v1.
-12. Run `build-post-cut-captions`, then apply the final EditPlan v1 with captions.
-13. Verify with `get_timeline_state`.
-14. Provide the editor URL for human preview.
+16. Write an EditingDecisionLedger for EditPlan templates, or a strict NarratedRemixPlan for `narrated-broll`.
+17. For EditPlan templates, generate and apply a clip-first EditPlan v1 when
+    edited audio captions are required.
+18. For EditPlan templates with captions, run `build-post-cut-captions`, then
+    apply the final EditPlan v1 with captions.
+19. For `narrated-broll`, apply the final strict NarratedRemixPlan v1.
+20. Verify with `get_timeline_state`.
+21. Keep the opened editor URL available for human preview.
 
 Do not spend the first turn auditing all skill references. Read only the workflow document and the matching recipe unless an implementation or validation failure requires deeper reference lookup.
 
 ## CLI Commands
+
+Initialize the local pre-edit workspace before creating a Codecut executor
+project:
+
+```bash
+node scripts/codecut-workspace.mjs init \
+  --project-id <id> \
+  --name "<business project name>" \
+  --user-message "<original user request>"
+```
+
+Copy and classify local materials:
+
+```bash
+node scripts/codecut-workspace.mjs add-assets \
+  --project-id <id> \
+  --file /absolute/path/source.mp4 \
+  --file /absolute/path/brief.pdf
+```
+
+Run ffprobe material inventory for video/audio assets:
+
+```bash
+node scripts/codecut-workspace.mjs probe-assets --project-id <id>
+```
+
+Write a planning document after intent analysis or clarification:
+
+```bash
+node scripts/codecut-workspace.mjs write-doc \
+  --project-id <id> \
+  --kind workflow-route \
+  --content-file /absolute/path/workflow-route.md
+```
 
 Check that the local executor is ready before sending business commands:
 

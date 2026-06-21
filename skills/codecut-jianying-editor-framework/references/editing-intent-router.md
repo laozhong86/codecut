@@ -8,6 +8,8 @@ Do not make the router a hard runtime enum. It is a planning tool for Codex and 
 
 Pick the narrowest workflow that satisfies the user outcome. If the user asks for "make this video better", classify by the business result, not by the available code path.
 
+When the user provides local materials for a new creative job, route only after the pre-edit workspace has intent analysis and material inventory. The order is: user intent -> `.codecut-workspace` init -> asset filing -> ffprobe material audit -> clarification with choices and one recommended option -> workflow route -> Codecut executor project.
+
 After classifying the request, read the matching workflow recipe before generating an EditPlan or sending bridge commands. Recipes are execution guidance for the current Codecut MVP; they do not imply new bridge tools.
 
 Before writing an EditingDecisionLedger, EditPlan, or NarratedRemixPlan, resolve a P0 video template when the request matches one of the implemented manifests in `apps/web/src/lib/video-templates/registry.ts`. The template is a planning constraint, not a runtime fallback. If required evidence is missing, stop and report the template stop condition instead of choosing a weaker template.
@@ -169,6 +171,8 @@ Ask before proceeding only when the answer changes the product result:
 - target length is unknown and source is long
 - user asks for claims/offers without providing business facts
 - user wants auto-publish or export side effects
+
+For new jobs with provided materials, ask these questions after the material audit, not before it. Every clarification question must include concrete choices and exactly one recommended option.
 
 Do not ask when a safe MVP assumption is enough:
 
