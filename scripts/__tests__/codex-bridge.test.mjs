@@ -216,7 +216,8 @@ describe("codex bridge CLI helpers", () => {
 					duration: 0.5,
 				},
 			],
-			rationale: "Short vertical cut with deterministic post-production assets.",
+			rationale:
+				"Short vertical cut with deterministic post-production assets.",
 		};
 		await writeFile(planPath, JSON.stringify(plan), "utf8");
 
