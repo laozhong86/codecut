@@ -53,23 +53,18 @@ export async function loadEditorProviderProject({
 	executorRevision?: number;
 	redirectProjectId?: string;
 }> {
+	const snapshot = await loadSnapshot({ projectId });
+	if (snapshot) {
+		await applySnapshot({ editor, snapshot });
+		return { executorRevision: snapshot.revision };
+	}
+
 	try {
 		await editor.project.loadProject({ id: projectId });
-		const snapshot = await loadSnapshot({ projectId });
-		if (snapshot) {
-			await applySnapshot({ editor, snapshot });
-			return { executorRevision: snapshot.revision };
-		}
 		return {};
 	} catch (error) {
 		if (!isProjectNotFoundError(error)) {
 			throw error;
-		}
-
-		const snapshot = await loadSnapshot({ projectId });
-		if (snapshot) {
-			await applySnapshot({ editor, snapshot });
-			return { executorRevision: snapshot.revision };
 		}
 
 		return { redirectProjectId: await createProject() };

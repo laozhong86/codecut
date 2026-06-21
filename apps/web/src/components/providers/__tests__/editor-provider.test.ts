@@ -21,7 +21,36 @@ function editorStub({
 }
 
 describe("loadEditorProviderProject", () => {
-	test("applies executor snapshot when a local browser project already exists", async () => {
+	test("loads executor snapshot before local browser storage", async () => {
+		const calls: string[] = [];
+		const snapshot = { revision: 7 } as ExecutorSnapshot;
+
+		const result = await loadEditorProviderProject({
+			projectId: "executor-only-project",
+			editor: editorStub({
+				loadProject: async () => {
+					calls.push("load-local-project");
+					throw new Error("Project with id executor-only-project not found");
+				},
+			}),
+			loadSnapshot: async () => {
+				calls.push("load-executor-snapshot");
+				return snapshot;
+			},
+			applySnapshot: async () => {
+				calls.push("apply-executor-snapshot");
+			},
+			createProject: async () => "new-project",
+		});
+
+		expect(calls).toEqual([
+			"load-executor-snapshot",
+			"apply-executor-snapshot",
+		]);
+		expect(result).toEqual({ executorRevision: 7 });
+	});
+
+	test("prefers executor snapshot when a local browser project also exists", async () => {
 		const calls: string[] = [];
 		const snapshot = { revision: 6 } as ExecutorSnapshot;
 
@@ -43,7 +72,6 @@ describe("loadEditorProviderProject", () => {
 		});
 
 		expect(calls).toEqual([
-			"load-local-project",
 			"load-executor-snapshot",
 			"apply-executor-snapshot",
 		]);
