@@ -245,6 +245,26 @@ describe("RunningHub digital human provider", () => {
 		).rejects.toThrow("task not found");
 	});
 
+	test("fails fast when RunningHub query returns an errorCode payload", async () => {
+		await expect(
+			queryRunningHubDigitalHumanTask({
+				apiKey: "rh-key",
+				taskId: "expired-task",
+				fetchImpl: async () =>
+					new Response(
+						JSON.stringify({
+							taskId: "expired-task",
+							status: null,
+							errorCode: 804,
+							errorMessage: "Task not found",
+							failedReason: "",
+							results: [],
+						}),
+					),
+			}),
+		).rejects.toThrow("Task not found");
+	});
+
 	test("fails fast when RunningHub query succeeds without an mp4 result", async () => {
 		await expect(
 			queryRunningHubDigitalHumanTask({
