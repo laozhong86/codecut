@@ -277,7 +277,9 @@ describe("Codecut workspace CLI helpers", () => {
 				content: "第一句先说结果。",
 			});
 
-			expect(result.path.endsWith("03-content/talking-script.md")).toBe(true);
+			expect(result.path.endsWith(join("03-content", "talking-script.md"))).toBe(
+				true,
+			);
 			expect(await readFile(result.path, "utf8")).toContain("第一句先说结果。");
 		} finally {
 			await rm(sourceRoot, { recursive: true, force: true });
