@@ -127,8 +127,12 @@ Use this workflow for code changes that should be published or reviewed. Read-on
 ### Before Writing
 
 - Run `git status -sb` and identify the current branch before editing tracked files.
+- Install the local checkout guard with `bun run git-hooks:install` before PR-bound work. It records the current main-checkout branch in `codecut.mainCheckoutBranch` and blocks branch switching in the main repository directory.
+- Treat the main repository directory as a protected `main` checkout. Do not switch branches or edit files there unless the user explicitly authorizes it for maintenance.
+- Do not run `git checkout <branch>`, `git switch <branch>`, `git checkout -b <branch>`, or `git switch -c <branch>` in the main repository directory. Create or switch branches only inside a linked worktree.
 - If the working tree already contains unrelated modifications, keep the change scoped and do not rewrite, stage, or clean up those files.
-- For non-trivial code changes or PR-bound work, use an isolated feature branch or git worktree before editing. This repo does not define Gxgen's `npm run worktree:*` helpers; do not cite or run those commands unless this repo adds equivalents.
+- For non-trivial code changes or PR-bound work, use `bun run worktree:create -- <topic> [base-ref] --skip-install` before editing tracked files. Omit `--skip-install` only when dependency initialization is required.
+- Use `bun run worktree:init -- --skip-install` inside an existing worktree when initialization metadata is enough; run without `--skip-install` only when a fresh dependency install is required.
 - In one session, keep tracked-file writes anchored to one branch or worktree. Do not spread one task across multiple worktrees without explicit user approval.
 
 ### PR And Review
@@ -142,4 +146,4 @@ Use this workflow for code changes that should be published or reviewed. Read-on
 - Merge through the remote PR or remote merge flow first; treat GitHub PR state, merge commit, and `origin/main` as the merge truth.
 - If a local merge command fails after the remote reports merged, re-check GitHub truth before assuming the merge failed.
 - After remote merge succeeds, fast-forward local `main` from `origin/main`. If it cannot fast-forward, stop and report drift.
-- Remove temporary worktrees or local feature branches only after merge truth is verified. Preserve remote branches unless the user explicitly asks to delete them.
+- Remove temporary worktrees or local feature branches only after merge truth is verified. Use `bun run worktree:teardown -- <worktree-path>` for an explicit path, or `bun run worktree:cleanup -- <topic>` for `.worktrees/<topic>`. Preserve remote branches unless the user explicitly asks to delete them.

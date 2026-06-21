@@ -11,6 +11,12 @@
     "lint:web": "biome lint apps/web/src --max-diagnostics=1000",
     "lint:web:fix": "biome lint apps/web/src --write --max-diagnostics=1000",
     "format:web": "biome format apps/web/src/services/renderer --write --max-diagnostics=1000",
+    "git-hooks:install": "node scripts/git-hooks/install-hooks.mjs",
+    "worktree:create": "node scripts/worktree-manager.mjs create",
+    "worktree:init": "node scripts/worktree-manager.mjs init",
+    "worktree:list": "node scripts/worktree-manager.mjs list",
+    "worktree:cleanup": "node scripts/worktree-manager.mjs cleanup",
+    "worktree:teardown": "node scripts/worktree-manager.mjs teardown",
     "test": "bun test"
   },
   "dependencies": {

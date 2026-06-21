@@ -5,6 +5,7 @@
 
 node_modules
 .worktrees
+.codecut-worktree.json
 .cursorignore
 .turbo
 *.tsbuildinfo
