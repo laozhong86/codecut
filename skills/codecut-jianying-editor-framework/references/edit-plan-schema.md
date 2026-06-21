@@ -58,7 +58,10 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
       | "black-bar"
       | "talking-head-pop"
       | "tutorial-clean"
-      | "documentary-soft",
+      | "documentary-soft"
+      | "product-punch"
+      | "lifestyle-warm"
+      | "cinematic-serif",
     position: "lower-safe" | "center"
   },
   audio?: {
@@ -109,8 +112,9 @@ Current validation fail-fast checks include:
 - captions must use top-level `captionStyle`; per-caption style objects are not
   accepted.
 - captionStyle preset must be one of the implemented local presets:
-  `short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`, or
-  `documentary-soft`.
+  `short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`,
+  `documentary-soft`, `product-punch`, `lifestyle-warm`, or
+  `cinematic-serif`.
 - `richSpans` must use integer `[start, end)` code point indexes, must be
   ordered and non-overlapping, and must stay inside the corresponding title or
   caption text.

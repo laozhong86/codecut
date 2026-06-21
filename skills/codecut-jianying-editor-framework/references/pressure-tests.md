@@ -139,3 +139,33 @@ Fail signals:
 - Mutates the timeline during inspection.
 - Exports immediately.
 - Gives visual confidence without `get_timeline_state` evidence.
+
+## Test 6: Conversion Short Requires Decision Ledger
+
+Prompt:
+
+```text
+把这个长视频剪成转化型短视频，保留最能促成下单的结构：/absolute/path/source.mp4
+```
+
+Expected route:
+
+- Intent: `UGC/product ad` or `TikTok/Reels/Shorts` depending on product context
+- Recipe: `workflow-recipes/long-to-short.md`
+- Required pre-EditPlan artifact: Codex-side EditingDecisionLedger with `materialAudit`, `storyBeats`, `candidateClips`, `selectedStructure`, and `qaChecklist`
+- Verification exit: `apply_edit_plan` success plus `get_timeline_state`, with the report mapping the applied timeline back to the selected structure
+
+Pass criteria:
+
+- Audits source media, transcript availability, visual proof, product facts, and missing evidence before choosing clips.
+- Selects candidate clips by role such as hook, pain, proof, demo/process, value, trust, objection, CTA, or loop-back.
+- Produces the EditingDecisionLedger before generating EditPlan v1.
+- Keeps ledger fields out of EditPlan v1 and uses only implemented schema fields for `apply_edit_plan`.
+- Stops or clearly limits claims when product facts, proof shots, transcript, or visual context are missing.
+
+Fail signals:
+
+- Jumps directly from transcript to EditPlan without a decision ledger.
+- Treats transcript highlights as conversion proof when visual or product evidence is missing.
+- Adds `materialAudit`, `storyBeats`, `candidateClips`, `selectedStructure`, `qaChecklist`, `intent`, or `strategy` fields to EditPlan v1.
+- Invents price, guarantee, shipping, platform, or product performance claims.

@@ -13,14 +13,16 @@ Applies to TikTok, Reels, Shorts, and similar feeds.
 | FPS | 30 |
 | Duration | 15-45 seconds |
 | Structure | hook -> proof/demo -> value beat -> CTA or loop |
-| Captions | `talking-head-pop` for opinion/talking-head, `short-form-bold` fallback |
+| Captions | `talking-head-pop` for opinion/talking-head, `product-punch` for product hooks, `short-form-bold` fallback |
 | BGM with voice | 0.08-0.14 |
 | BGM without voice | 0.18-0.28 |
+| Decision ledger | Required before EditPlan when the request is a platform cut, highlight, or broad short-form improvement |
 
 Rules:
 
 - First frame should show a result, product, action, or visual payoff.
 - First 1-3 seconds need a reason to keep watching.
+- The EditingDecisionLedger must name hook candidates, proof/value beats, selected structure, and first-3-second QA before EditPlan generation.
 - Avoid bottom-right overlays because platform UI often covers them.
 - Use `cover` only when subject stays safe in vertical crop; otherwise use `blur-bg` or `contain`.
 - Landscape source requires visual preflight before `cover`; verify subject safe area, burned-in captions, and where new captions will sit.
@@ -36,7 +38,7 @@ Rules:
 | FPS | source or 30 |
 | Duration | user-defined |
 | Structure | intro promise -> chapters -> payoff/summary |
-| Captions | optional, `documentary-soft` lower third |
+| Captions | optional, `documentary-soft` or `cinematic-serif` lower third |
 
 Rules:
 
@@ -52,7 +54,7 @@ Rules:
 | Resolution | 1080x1080 |
 | Duration | 15-60 seconds |
 | Structure | result/hook -> supporting proof -> CTA |
-| Captions | center-lower, compact |
+| Captions | center-lower, compact; use `lifestyle-warm` for lifestyle content |
 
 Rules:
 
@@ -82,12 +84,14 @@ Rules:
 | Aspect ratio | 9:16 |
 | Duration | 15-35 seconds |
 | Structure | hook -> pain/proof -> demo/process -> CTA |
-| Captions | claim-focused and short |
+| Captions | `product-punch`, claim-focused and short |
 | Visual priority | proof shots over explanation |
+| Decision ledger | Required before EditPlan |
 
 Rules:
 
 - Do not invent price, shipping time, guarantee, or platform claims.
+- The EditingDecisionLedger must map each claim, proof beat, and CTA to transcript or visual evidence when available.
 - Prefer visible proof: product close-up, comparison, order page, packaging, shipping, QC.
 - End with one CTA or loop-back; do not stack multiple actions.
 
@@ -139,6 +143,9 @@ Use implemented caption presets only:
 - `talking-head-pop`: vertical opinion, creator talking-head, high-retention claim clips.
 - `tutorial-clean`: screen recording, product walkthrough, step-by-step demo.
 - `documentary-soft`: calmer essay, interview, narrative explanation, horizontal YouTube-style edit.
+- `product-punch`: product proof, UGC ad, deal hook, comparison demo, before/after.
+- `lifestyle-warm`: vlog, Xiaohongshu-style lifestyle, food, travel, daily routine, soft recommendation.
+- `cinematic-serif`: brand story, fashion, emotional montage, premium product film.
 - `short-form-bold`: generic short-form fallback when no stronger type signal exists.
 - `black-bar`: only when the user explicitly wants a boxed subtitle look; Do not use it to mask burned-in captions.
 
@@ -150,7 +157,11 @@ If user says:
 - "YouTube", "横屏", "长视频" -> YouTube Horizontal unless the user asks for Shorts.
 - "教程", "demo", "演示" -> Tutorial / Demo.
 - "带货", "商品", "广告", "UGC" -> UGC / Product Ad.
+- "试吃", "试喝", "探店", "vlog", "小红书", "生活方式" -> lifestyle-warm caption route unless the business goal is a hard product ad.
+- "品牌片", "情绪片", "高级感", "电影感" -> cinematic-serif caption route.
 - "口播", "去废话", "精剪" -> Talking-Head Polish.
 - "AI 视频", "二创", "修一下" -> AI Video Re-Edit.
 
 When multiple presets apply, choose the business goal first and platform second. For example, "TikTok 商品广告" uses UGC / Product Ad with Short-Form Vertical output settings.
+
+Decision ledger fields are planning defaults only. Keep `materialAudit`, `storyBeats`, `candidateClips`, `selectedStructure`, and `qaChecklist` outside EditPlan v1.

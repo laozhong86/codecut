@@ -2,7 +2,7 @@
 
 VideoContext is the source of truth Codex uses before creating an EditPlan. Codex should not infer video content from file names, project names, or user guesses when structured context is available.
 
-Current MVP boundary: local `build_video_context` is implemented for L2 transcript context on one imported audio/video asset. It builds merged source-timestamped transcript context from deterministic local transcription, splitting media longer than 300 seconds into fixed 5-minute analysis chunks without creating temporary media assets. Durable `VideoContext` storage and richer visual/audio analysis remain future work.
+Current MVP boundary: local `build_video_context` is implemented for L2 transcript context on one imported audio/video asset. It builds merged source-timestamped transcript context from deterministic local transcription, splitting media longer than 300 seconds into fixed 5-minute analysis chunks without creating temporary media assets. Local `inspect_video_range` is implemented as L3-on-demand evidence for a chosen video source range. Durable `VideoContext` storage, OCR, scene detection, and full visual preflight remain future work.
 
 ## Principle
 
@@ -54,6 +54,7 @@ Do not ask Codex to "watch an MP4" directly. Convert media into searchable, time
 | width/height | yes | Choose aspect-ratio strategy |
 | audio availability | yes | Decide transcript feasibility |
 | transcript segments | yes for talking video | Select meaning-bearing clips |
+| range contact sheet | required for ambiguous or reframe-sensitive ranges | Verify visual continuity, waveform shape, silence gaps, and caption/reframe risk before an EditPlan decision |
 | scenes/keyframes | optional for MVP | Visual validation later |
 | visual preflight | required when landscape source becomes vertical and source text may affect framing | Choose crop/caption policy before EditPlan |
 | audio events | optional for MVP | Silence/dead-air trimming later |
@@ -134,7 +135,7 @@ OCR helps tutorial/demo edits and product proof. If OCR is missing, Codex should
 | --- | --- | --- |
 | L1 Metadata only | duration, dimensions | basic placement, manual user-provided cuts |
 | L2 Transcript | metadata + transcript | long-to-short, talking-head polish, captions |
-| L3 Visual | transcript + scenes/keyframes/OCR + visual preflight | tutorials, UGC/product proof, AI artifact checks, landscape-to-vertical reframe |
+| L3 Visual | transcript + on-demand range contact sheet, with scenes/keyframes/OCR and visual preflight still future | tutorials, UGC/product proof, AI artifact checks, landscape-to-vertical reframe |
 | L4 Full analysis | visual + audio events + business notes | platform-ready short-form edit |
 
 MVP should target L2 for long-to-short talking videos.
@@ -142,6 +143,7 @@ MVP should target L2 for long-to-short talking videos.
 Implemented for MVP:
 
 - L2 transcript context through local `build_video_context`
+- L3-on-demand video range inspection through local `inspect_video_range`
 - fixed 300-second analysis chunking for long media
 - source-video timestamp normalization across chunks
 - deterministic transcript-based `assetTypeGuess` and `editingHints`
@@ -163,6 +165,8 @@ VideoContext warnings are for optional context that is incomplete but does not b
 
 Warnings should influence the plan. For example, if visual analysis was not run, Codex should not claim it selected the strongest visual moment.
 
+`inspect_video_range` reduces this gap for specific source ranges by returning a local PNG artifact plus frame timestamps, normalized waveform samples, and silence ranges. It does not perform OCR, scene detection, face tracking, or automatic reframe policy extraction.
+
 If visual preflight was not run for a landscape-to-vertical talking-head source, Codex must not claim that the face-safe crop, burned-in caption removal, or new caption position is verified. It may still produce a transcript-first cut, but it must report the missing reframe proof.
 
 ## Codecut Mapping
@@ -172,14 +176,15 @@ Existing Codecut capabilities already cover part of this contract:
 - media metadata from media processing
 - audio extraction from timeline/media utilities
 - L2 transcript context from the local `build_video_context` executor, which reuses the transcription service
+- L3-on-demand contact sheet, waveform, and silence evidence from the local `inspect_video_range` executor
 - captions from caption chunk builder
 
 Missing or future capabilities:
 
 - scene detection
-- keyframe/contact sheet generation as first-class context
+- keyframe/contact sheet generation as durable first-class context
 - OCR
-- audio-event detection
+- timeline-wide audio-event detection
 - explicit VideoContext storage and retrieval
 - visual preflight extraction of `burnedCaptionRegion`, `subjectSafeArea`, `recommendedReframeTemplate`, and `captionPolicy`
 - source-crop and face-anchor execution fields for templates such as `vertical_face_safe_crop_above_burned_captions`

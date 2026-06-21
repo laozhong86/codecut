@@ -165,4 +165,24 @@ describe("Codecut plugin startup guidance", () => {
 			expect(content).toContain("documentary-soft");
 		}
 	});
+
+	test("requires an explicit policy when the source already has subtitles", async () => {
+		const subtitlePass = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut-jianying-editor-framework",
+				"references",
+				"workflow-recipes",
+				"subtitle-pass.md",
+			),
+			"utf8",
+		);
+
+		expect(subtitlePass).toContain("Existing Subtitle Policy");
+		expect(subtitlePass).toContain("editable caption/text track");
+		expect(subtitlePass).toContain("burned-in source subtitles");
+		expect(subtitlePass).toContain("preserve, replace, translation overlay, or avoid");
+		expect(subtitlePass).toContain("Do not stack new captions");
+	});
 });

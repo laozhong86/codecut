@@ -9,7 +9,7 @@ description: "Use when operating or extending the Codex-only Codecut editing MVP
 
 This is the main Codex skill for the current Codex-only Codecut editing MVP. Codecut is a local deterministic executor plus a browser-side visual preview surface. Codex is the only LLM and agent layer.
 
-Current implemented scope: use the local executor API and `scripts/codex-bridge.mjs` CLI to create or inspect a project, update explicit project settings when needed, import local media, list media, transcribe one existing audio/video asset, generate an EditPlan or NarratedRemixPlan in Codex, apply that plan through Codecut validation, apply explicit masked visual effect actions when an existing person-mask derived asset is available, verify timeline state, and provide a browser URL for human preview.
+Current implemented scope: use the local executor API and `scripts/codex-bridge.mjs` CLI to create or inspect a project, update explicit project settings when needed, import local media, list media, transcribe one existing audio/video asset, build a Codex-side EditingDecisionLedger when clip selection needs business or story reasoning, generate an EditPlan or NarratedRemixPlan in Codex, apply that plan through Codecut validation, apply explicit masked visual effect actions when an existing person-mask derived asset is available, verify timeline state, and provide a browser URL for human preview.
 
 Historical Jianying and OpusClip notes are research material only. Do not install them into Codecut, do not copy their runtimes into the app, and do not treat them as the current tool contract.
 
@@ -61,6 +61,7 @@ Do not read every reference file before execution. The remaining references are 
 | Preview/render behavior | `apps/web/src/services/renderer/`, `apps/web/src/components/editor/panels/preview/` |
 | TTS, audio, AI generation | `apps/web/src/lib/tts/`, `apps/web/src/app/api/tts/`, `apps/web/src/app/api/ai/`, `apps/web/src/stores/sounds-store.ts` |
 | Editing request classification | `references/editing-intent-router.md` |
+| Codex-side selection reasoning | EditingDecisionLedger in this skill and `references/workflow-recipes/long-to-short.md` |
 | Structured editing plan | `references/edit-plan-schema.md` |
 | Video analysis context | `references/video-context-contract.md` |
 | Social platform output rules | `references/platform-presets.md` |
@@ -96,10 +97,11 @@ Do not stop at framework analysis. Execute the workflow.
    - target aspect ratio or platform
    - whether export is requested now or only preview is requested
 2. If the user did not provide a project ID, create a new local executor project. Use a project ID that is unique and readable, for example `codex-<yyyymmdd-hhmmss>-<short-slug>`.
+   Define a business project name from the user's brief before creating the project. If the brief does not contain enough context for a clear name, ask for one. Do not create projects with generic names such as `New project`, `Untitled Project`, or `Codex cut`.
 3. Complete the P0 CLI Runtime Gate.
 4. Load bridge env from `apps/web/.env.local` when present, without printing the token:
    `set -a; source apps/web/.env.local; set +a`.
-5. Run `create-project`, then `doctor-install`, then `doctor`.
+5. Run `create-project --project-id <id> --name "<business project name>"`, then `doctor-install`, then `doctor`.
 6. If the target is vertical or square, call `update_project_settings` before applying the EditPlan. When a horizontal source must fill that canvas, run visual preflight before choosing `fit: "cover"` so the plan accounts for subject safe area, existing burned-in captions, and caption placement.
    - For horizontal talking-head sources with bottom burned-in captions, classify the layout before writing the EditPlan. Prefer the planning template `vertical_face_safe_crop_above_burned_captions` when the face and torso can stay large while cropping away the old subtitle band.
    - Do not use `black-bar` as a subtitle mask to hide old burned-in captions. That hides a source-layout problem behind a text style and makes preview/export quality unreliable.
@@ -107,16 +109,33 @@ Do not stop at framework analysis. Execute the workflow.
 7. Run `import-media` with the absolute file path.
 8. Run `list_media_assets`, select the imported audio/video asset, then run `transcribe`.
 9. Run `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
-10. For talking-head cleanup or filler removal, generate a strict SpeechCleanupPlan first, then project it through `rebuildTimelineFromSpeechCleanup()` into the implemented EditPlan v1. Do not skip directly to hand-written clips when the user asks to remove filler, restarts, repeated setup, or dead air.
-11. Choose the post-cut caption source after the clip sequence is stable. Prefer edited audio transcription from edited clip ranges: apply a clip-first EditPlan, run `node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>`, then copy the returned captions into the final EditPlan. Otherwise use source transcript remap from transcript segments into the edited timeline; never copy source transcript timestamps directly into `captions[].startTime`.
-12. Select a caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or step-by-step demos, `documentary-soft` for calmer narrative edits, and `short-form-bold` as the default short-form fallback.
-13. Generate a strict clip-first EditPlan v1 and write it to a temporary local JSON file.
-14. Run `apply-plan --replace-existing true` for the newly created empty project.
-15. Run `build-post-cut-captions` when captions should follow the edited audio. Then write the final EditPlan v1 with those captions and run `apply-plan --replace-existing true` again.
-16. Run `get_timeline_state` and report the verified duration, track count, clip count, caption count, project ID, and editor URL.
-17. Do not export unless the user explicitly asks for export after preview and an implemented export path is available.
+10. For conversion, product, short-form, highlight, tutorial, or broad "make this better" requests, write a narrow Codex-side EditingDecisionLedger before generating the EditPlan. The ledger must include `materialAudit`, `storyBeats`, `candidateClips`, `selectedStructure`, and `qaChecklist`. It is a reasoning artifact only; do not send it to `apply_edit_plan` or add its fields to EditPlan v1.
+11. For talking-head cleanup or filler removal, generate a strict SpeechCleanupPlan first, then project it through `rebuildTimelineFromSpeechCleanup()` into the implemented EditPlan v1. Do not skip directly to hand-written clips when the user asks to remove filler, restarts, repeated setup, or dead air.
+12. Choose the post-cut caption source after the clip sequence is stable. Prefer edited audio transcription from edited clip ranges: apply a clip-first EditPlan, run `node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>`, then copy the returned captions into the final EditPlan. Otherwise use source transcript remap from transcript segments into the edited timeline; never copy source transcript timestamps directly into `captions[].startTime`.
+13. Select a caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or step-by-step demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calmer narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` as the default short-form fallback.
+14. Generate a strict clip-first EditPlan v1 and write it to a temporary local JSON file.
+15. Run `apply-plan --replace-existing true` for the newly created empty project.
+16. Run `build-post-cut-captions` when captions should follow the edited audio. Then write the final EditPlan v1 with those captions and run `apply-plan --replace-existing true` again.
+17. Run `get_timeline_state` and report the verified duration, track count, clip count, caption count, project ID, editor URL, and the ledger's selected structure summary when a ledger was used.
+18. Do not export unless the user explicitly asks for export after preview and an implemented export path is available.
 
 For this path, keep progress updates operational. Avoid long meta commentary about plugin location, cache paths, or framework provenance unless a command fails.
+
+## EditingDecisionLedger
+
+EditingDecisionLedger is the narrow Codex-side decision record between VideoContext and EditPlan. Use it when selection quality depends on business, story, conversion, or tutorial structure. It keeps the "why this cut" reasoning checkable without expanding Codecut's runtime schema.
+
+The ledger is not a Codecut tool, not project storage, and not part of `apply_edit_plan`. Never add `materialAudit`, `storyBeats`, `candidateClips`, `selectedStructure`, `qaChecklist`, `intent`, `strategy`, or acceptance fields to EditPlan v1.
+
+Minimum fields:
+
+- `materialAudit`: source asset id, duration, dimensions, audio/transcript availability, visual-preflight status, and missing proof or context.
+- `storyBeats`: ordered source observations such as hook, pain, proof, process, value, objection, trust, and CTA. Each beat needs transcript or visual evidence when available.
+- `candidateClips`: candidate source ranges with role, reason, evidence, risk, and keep/drop decision.
+- `selectedStructure`: the final output order, for example hook -> pain/proof -> solution/demo -> trust -> CTA, mapped to candidate clip ids.
+- `qaChecklist`: pre-EditPlan checks for first 1-3 seconds, claim support, source-range validity, caption policy, reframe safety, and unsupported requested fields.
+
+For UGC, product, ad, conversion, or "转化型短视频" requests, produce this ledger before the EditPlan. If required product facts, proof shots, transcript, or visual evidence are missing, stop or state the limitation before making claims.
 
 ## P0 CLI Runtime Gate
 

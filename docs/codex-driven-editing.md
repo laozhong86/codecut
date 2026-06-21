@@ -23,6 +23,13 @@ Codecut does not:
 
 Codex is the only LLM and Agent layer. Codecut is the visual executor and validator.
 
+When clip selection requires business, story, conversion, or tutorial judgment,
+Codex should create an EditingDecisionLedger after VideoContext and before
+EditPlan. The ledger is a Codex-side reasoning artifact with five narrow fields:
+`materialAudit`, `storyBeats`, `candidateClips`, `selectedStructure`, and
+`qaChecklist`. It must not be sent to `apply_edit_plan`, persisted as Codecut
+project state, or added to the EditPlan v1 schema.
+
 Browser is the human interface, not the Agent runtime. Opening the browser is only a convenience for the user to inspect the project URL and manually adjust the result. Codex command execution must not depend on a visible browser tab, screenshots, DOM control, or a page-mounted heartbeat.
 
 ## Required Local Environment
@@ -86,6 +93,9 @@ Current implementation gap:
 The editing target must be explicit before Codex sends bridge commands:
 
 - Use the project ID from the user's request, a local project listing, or the CLI response that created the project.
+- Before creating a new executor project, define a business project name from the user's brief or ask for one when the brief does not contain enough context.
+- Create projects with `node scripts/codex-bridge.mjs create-project --project-id <id> --name "<business project name>"`.
+- Do not create projects with generic names such as `New project`, `Untitled Project`, or `Codex cut`.
 - Do not reuse a stale project ID from a previous run.
 - The CLI `--project-id` must match the local project store entry being modified.
 
@@ -163,7 +173,10 @@ Codex sends exactly one editing plan format to Codecut:
       | "black-bar"
       | "talking-head-pop"
       | "tutorial-clean"
-      | "documentary-soft",
+      | "documentary-soft"
+      | "product-punch"
+      | "lifestyle-warm"
+      | "cinematic-serif",
     position: "lower-safe" | "center"
   },
   audio?: {
@@ -205,8 +218,9 @@ Codecut validates and executes this plan. If validation fails, Codecut returns a
 When `captions` contains one or more items, Codex must include
 `captionStyle`. When `captions` is empty or omitted, `captionStyle` must be
 omitted. Caption styling is intentionally limited to top-level local presets:
-`short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`, and
-`documentary-soft`. Codecut does not accept arbitrary CSS, per-caption style
+`short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`,
+`documentary-soft`, `product-punch`, `lifestyle-warm`, and
+`cinematic-serif`. Codecut does not accept arbitrary CSS, per-caption style
 objects, `bold_caption`, `keyword_caption`, or `keyword-highlight` in this
 contract.
 
@@ -223,6 +237,9 @@ Caption preset routing:
 - `talking-head-pop`: vertical opinion or creator talking-head clips.
 - `tutorial-clean`: screen recording, tutorial, product walkthrough, or demo.
 - `documentary-soft`: calmer narrative, interview, essay, or YouTube-style edit.
+- `product-punch`: product proof, UGC ad, deal hook, or comparison demo.
+- `lifestyle-warm`: vlog, Xiaohongshu-style lifestyle, travel, food, or daily routine.
+- `cinematic-serif`: brand story, fashion, emotional montage, or premium product film.
 - `short-form-bold`: generic short-form fallback.
 - `black-bar`: explicit boxed subtitle look only; not a mask for old burned-in captions.
 
@@ -370,7 +387,7 @@ After application, Codex must verify `get_timeline_state` proof fields:
 ## End-to-End Workflow
 
 1. Codex confirms the local Codecut service is ready.
-2. Codex creates or confirms one concrete project ID through CLI/local project state.
+2. Codex creates or confirms one concrete project ID and business project name through CLI/local project state.
 3. Codex calls `doctor` to confirm the local executor is ready.
 4. The user imports a long video into the active project, or Codex imports a local media file with `import-media`.
 5. Codex calls `get_project_info` to confirm the active project.
@@ -379,36 +396,54 @@ After application, Codex must verify `get_timeline_state` proof fields:
 8. Codex calls `transcribe_media` for that media asset.
 9. Codex calls `build_video_context` for transcript-first planning when a long
    source video needs structured context.
-10. Codex uses its own context to choose clips and write an EditPlan JSON file.
-11. Codex calls `apply_edit_plan` with a stable clip-first EditPlan when edited audio transcription from edited clip ranges is required.
-12. Codex runs `build-post-cut-captions`, then writes those returned captions into the final EditPlan with the matching `captionStyle`.
-13. Codex calls `apply_edit_plan` with the final EditPlan.
-14. Codex calls `get_timeline_state` to verify clips, text style, audio source
+10. Codex calls `inspect-video-range` for source ranges where visual continuity,
+    waveform shape, silence gaps, caption overlap, or reframe risk affects the
+    EditPlan decision.
+11. Codex writes an EditingDecisionLedger when clip selection depends on story,
+    business, conversion, proof, or tutorial structure.
+12. Codex projects the selected structure into an implemented EditPlan v1 JSON
+    file only.
+13. Codex calls `apply_edit_plan` with a stable clip-first EditPlan when edited audio transcription from edited clip ranges is required.
+14. Codex runs `build-post-cut-captions`, then writes those returned captions into the final EditPlan with the matching `captionStyle`.
+15. Codex calls `apply_edit_plan` with the final EditPlan.
+16. Codex calls `get_timeline_state` to verify clips, text style, audio source
     and volume, and video transitions.
-15. Codex provides the editor URL so the user can preview the result or ask for another revision.
-16. Export is a separate follow-up until local executor export is implemented and tested.
+17. Codex provides the editor URL so the user can preview the result or ask for another revision.
+18. Export is a separate follow-up until local executor export is implemented and tested.
 
 ## Fast Path: Local File To Short
 
 When the request includes one absolute local media file and a concrete target such as "1 minute vertical short", Codex should execute directly:
 
-1. Create a new executor project if no project ID is provided.
+1. Create a new executor project if no project ID is provided, using `create-project --project-id <id> --name "<business project name>"`.
 2. Run `doctor`.
 3. Apply explicit project settings for vertical/square output.
 4. Import the local file.
 5. List media and select the imported audio/video asset.
 6. Transcribe through the local executor.
 7. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
-8. Generate and apply a clip-first EditPlan v1.
-9. Run `build-post-cut-captions`, then apply the final EditPlan v1 with captions.
-10. Verify with `get_timeline_state`.
-11. Provide the editor URL for human preview.
+8. Inspect ambiguous or reframe-sensitive source ranges with
+   `inspect-video-range` before writing the EditPlan.
+9. Write an EditingDecisionLedger for conversion, product, tutorial, highlight,
+   or broad short-form requests.
+10. Generate and apply a clip-first EditPlan v1.
+11. Run `build-post-cut-captions`, then apply the final EditPlan v1 with captions.
+12. Verify with `get_timeline_state`.
+13. Provide the editor URL for human preview.
 
 Do not spend the first turn auditing all skill references. Read only the workflow document and the matching recipe unless an implementation or validation failure requires deeper reference lookup.
 
 ## CLI Commands
 
 Check that the local executor is ready before sending business commands:
+
+Create the executor project with a concrete business project name:
+
+```bash
+node scripts/codex-bridge.mjs create-project --project-id <id> --name "<business project name>"
+```
+
+Do not create projects with generic names such as `New project`, `Untitled Project`, or `Codex cut`.
 
 ```bash
 node scripts/codex-bridge.mjs doctor-install --project-id <id>
@@ -449,6 +484,22 @@ node scripts/codex-bridge.mjs build-video-context \
   --language auto \
   --model-id whisper-tiny
 ```
+
+Inspect one video source range with local visual and audio evidence:
+
+```bash
+node scripts/codex-bridge.mjs inspect-video-range \
+  --project-id <id> \
+  --media-id <id> \
+  --start-seconds 12.5 \
+  --end-seconds 18.0 \
+  --frame-count 8
+```
+
+`inspect-video-range` returns a local PNG contact sheet path plus frame
+timestamps, waveform samples, silence ranges, and warnings. It is read-only and
+does not mutate media assets, derived assets, project settings, tracks, or the
+timeline.
 
 Build captions from the already edited video clip audio ranges:
 

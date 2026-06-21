@@ -16,6 +16,26 @@ Use this recipe when the user asks for subtitles, caption cleanup, subtitle timi
 - Current timeline duration if editing an existing project.
 - Target language only when translation is explicitly requested.
 
+## Existing Subtitle Policy
+
+When the source already appears to have subtitles, do not treat "add subtitles"
+as approval to stack another caption layer. First classify the existing subtitle
+surface:
+
+- editable caption/text track in the current timeline: confirm whether the user
+  wants to preserve, replace, restyle, or translate the existing timed text. If
+  the next plan uses `replaceExisting=true`, confirm that deleting the existing
+  text track is intentional.
+- burned-in source subtitles inside the video pixels: treat them as a visual
+  layout constraint, not an editable caption source. Use `inspect_video_range` or
+  visual preflight when placement is uncertain, then confirm the policy choice:
+  preserve, replace, translation overlay, or avoid the old subtitle region.
+- Unclear subtitle source: stop and ask for confirmation before generating new
+  captions.
+
+Do not stack new captions over existing subtitles unless the user explicitly
+confirms a translation overlay or duplicate-language caption.
+
 ## Execution Path
 
 1. Complete the main P0 CLI Runtime Gate and executor readiness check.
@@ -29,7 +49,7 @@ Use this recipe when the user asks for subtitles, caption cleanup, subtitle timi
 5. Normalize caption text for readability:
    - Chinese: short phrases, usually 10-18 characters.
    - English: short phrase groups, usually 3-7 words.
-6. Select the caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or demos, `documentary-soft` for calm narrative edits, and `short-form-bold` as the fallback.
+6. Select the caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` as the fallback.
 7. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`.
 8. Generate or update an implemented EditPlan v1 with `captions`.
 9. Apply and verify with `get_timeline_state`.

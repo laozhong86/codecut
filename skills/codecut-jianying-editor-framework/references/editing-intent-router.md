@@ -14,11 +14,11 @@ After classifying the request, read the matching workflow recipe before generati
 
 | Intent | User wording | Primary value | Required context | Recipe | Current status |
 | --- | --- | --- | --- | --- | --- |
-| Long-to-short | "把长视频剪成短视频", "提炼精华", "剪成 45 秒" | Compression | transcript, source duration, optional scenes | [long-to-short](workflow-recipes/long-to-short.md) | Implemented through EditPlan v1 |
+| Long-to-short | "把长视频剪成短视频", "提炼精华", "剪成 45 秒" | Compression | transcript, source duration, optional scenes | [long-to-short](workflow-recipes/long-to-short.md) | Implemented through EditingDecisionLedger plus EditPlan v1 |
 | Talking-head polish | "去废话", "剪紧凑", "口播精剪" | Pace and clarity | transcript, optional silence spans, source duration | [talking-head-polish](workflow-recipes/talking-head-polish.md) | Codex transcript-first planning is implemented; word-boundary enforcement is not automatic |
-| TikTok/Reels/Shorts | "TikTok 版", "9:16", "爆款开头" | Platform fit | transcript, aspect ratio, optional scenes | [long-to-short](workflow-recipes/long-to-short.md) | Implemented as long-to-short plus explicit project settings; EditPlan aspectRatio does not mutate canvas |
+| TikTok/Reels/Shorts | "TikTok 版", "9:16", "爆款开头" | Platform fit | transcript, aspect ratio, optional scenes | [long-to-short](workflow-recipes/long-to-short.md) | Implemented as long-to-short plus EditingDecisionLedger and explicit project settings; EditPlan aspectRatio does not mutate canvas |
 | Tutorial/demo | "教程", "软件演示", "步骤讲清楚" | Comprehension | transcript, OCR/UI text, scene steps | [long-to-short](workflow-recipes/long-to-short.md) plus visual-context warnings | Gated when OCR/scene context is missing |
-| UGC/product ad | "商品短视频", "带货", "广告", "转化" | Proof and conversion | visual proof, transcript claims, product context | [long-to-short](workflow-recipes/long-to-short.md) plus claim guardrails | Gated when proof or offer facts are missing |
+| UGC/product ad | "商品短视频", "带货", "广告", "转化", "转化型短视频" | Proof and conversion | visual proof, transcript claims, product context | [long-to-short](workflow-recipes/long-to-short.md) plus claim guardrails | Requires EditingDecisionLedger; gated when proof or offer facts are missing |
 | AI video re-edit | "AI 视频二创", "AI 成片修一下" | Remove artifacts and tighten story | keyframes/contact sheet, transcript if any | [timeline-inspection](workflow-recipes/timeline-inspection.md) before any edit | Gated until visual context exists |
 | Subtitle/caption pass | "加字幕", "字幕好看点", "翻译字幕" | Readability | transcript or supplied captions | [subtitle-pass](workflow-recipes/subtitle-pass.md) | Implemented within EditPlan v1 caption limits |
 | Voiceover/narration | "配音", "旁白", "讲解" | Narrative clarity | script, existing audio path, target duration | [voiceover-remix](workflow-recipes/voiceover-remix.md) | Existing audio insertion is implemented; bridge-exposed speech generation and multi-source remix are gated |
@@ -48,9 +48,10 @@ Read [long-to-short](workflow-recipes/long-to-short.md) before executing.
 
 1. Identify target length and platform.
 2. Build planning context from transcript and duration.
-3. Select source segments with rationale.
-4. Generate a short-form EditPlan.
-5. Validate source ranges and final duration.
+3. Write an EditingDecisionLedger when selection depends on story, platform, conversion, proof, or tutorial structure.
+4. Select source segments with rationale.
+5. Generate a short-form EditPlan.
+6. Validate source ranges and final duration.
 
 Default for MVP: 30-60 seconds, transcript-first, no visual highlighter required.
 
@@ -70,9 +71,10 @@ Acceptance: transcript evidence supports the cut boundaries, subtitle timing is 
 Route to [long-to-short](workflow-recipes/long-to-short.md), then apply platform preset guidance.
 
 1. Apply explicit project settings first when a concrete canvas or FPS is required.
-2. First 1-3 seconds must show a result, proof, claim, pain point, or curiosity gap.
-3. Use short captions and safe zones.
-4. Prefer 15-45 seconds unless the user asks otherwise.
+2. Write an EditingDecisionLedger that identifies hook candidates, proof/value beats, and the selected structure before generating EditPlan.
+3. First 1-3 seconds must show a result, proof, claim, pain point, or curiosity gap.
+4. Use short captions and safe zones.
+5. Prefer 15-45 seconds unless the user asks otherwise.
 
 Acceptance: project settings reflect the requested vertical target, hook exists, and subtitles avoid UI-covered zones. `EditPlan.target.aspectRatio` alone is not canvas proof.
 
@@ -92,11 +94,12 @@ Acceptance: viewer can follow what happened without reading the whole transcript
 Route to [long-to-short](workflow-recipes/long-to-short.md) only when product facts and proof are available. Otherwise ask for the missing business facts before generating claims.
 
 1. Identify audience, product, offer, and proof.
-2. Prefer proof shots over abstract claims.
-3. Structure: hook -> problem/proof -> process/demo -> CTA.
-4. Do not invent prices, shipping times, guarantees, or claims.
+2. Write an EditingDecisionLedger with material audit, story beats, candidate clips, selected structure, and QA checklist before generating EditPlan.
+3. Prefer proof shots over abstract claims.
+4. Structure: hook -> problem/proof -> process/demo -> CTA.
+5. Do not invent prices, shipping times, guarantees, or claims.
 
-Acceptance: first 2 seconds contain a concrete promise or question, and every claim has a visible or spoken source.
+Acceptance: first 2 seconds contain a concrete promise or question, every claim has a visible or spoken source, and the applied timeline matches the ledger's selected structure.
 
 ### AI video re-edit
 
@@ -161,6 +164,8 @@ Do not ask when a safe MVP assumption is enough:
 - Treating every request as TikTok when the user needs a tutorial or archive.
 - Letting the model produce prose instead of a structured EditPlan.
 - Selecting only transcript highlights when the business goal needs visual proof.
+- Skipping EditingDecisionLedger for conversion, product, platform short, tutorial, or broad highlight requests.
+- Adding ledger fields such as `materialAudit`, `selectedStructure`, or `qaChecklist` to EditPlan v1 instead of keeping them as Codex-side reasoning.
 - Adding style before the core cut is validated.
 - Hiding missing transcript, OCR, or visual context behind a confident plan.
 - Reading multiple recipes and merging them into a broad, unverifiable workflow.
