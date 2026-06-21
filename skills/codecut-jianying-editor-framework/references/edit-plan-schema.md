@@ -53,7 +53,12 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
     }>
   }>,
   captionStyle?: {
-    preset: "short-form-bold" | "black-bar",
+    preset:
+      | "short-form-bold"
+      | "black-bar"
+      | "talking-head-pop"
+      | "tutorial-clean"
+      | "documentary-soft",
     position: "lower-safe" | "center"
   },
   audio?: {
@@ -103,6 +108,9 @@ Current validation fail-fast checks include:
 - title and captions must fit inside the generated timeline.
 - captions must use top-level `captionStyle`; per-caption style objects are not
   accepted.
+- captionStyle preset must be one of the implemented local presets:
+  `short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`, or
+  `documentary-soft`.
 - `richSpans` must use integer `[start, end)` code point indexes, must be
   ordered and non-overlapping, and must stay inside the corresponding title or
   caption text.
@@ -115,6 +123,8 @@ Current validation fail-fast checks include:
   clip duration.
 
 `target.aspectRatio` is a planning field in the current implemented schema. It does not update the project canvas by itself. When the user outcome requires vertical, square, or specific FPS output, call the implemented project settings path and verify the result through `get_project_info`.
+
+Caption timing must use a post-cut caption source. Prefer edited audio transcription when a final timeline audio transcription path exists. Otherwise use source transcript remap: convert source transcript segment timestamps into output timeline timestamps through the selected `clips[]`. Do not copy source transcript timestamps directly into `captions[].startTime`.
 
 `clips[].fit: "cover"` creates a centered cover crop by converting source and
 target aspect ratios into `visual.transform.scale`. It is the only implemented

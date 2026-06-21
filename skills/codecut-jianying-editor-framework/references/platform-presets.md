@@ -13,7 +13,7 @@ Applies to TikTok, Reels, Shorts, and similar feeds.
 | FPS | 30 |
 | Duration | 15-45 seconds |
 | Structure | hook -> proof/demo -> value beat -> CTA or loop |
-| Captions | large, short, middle-lower safe zone |
+| Captions | `talking-head-pop` for opinion/talking-head, `short-form-bold` fallback |
 | BGM with voice | 0.08-0.14 |
 | BGM without voice | 0.18-0.28 |
 
@@ -36,7 +36,7 @@ Rules:
 | FPS | source or 30 |
 | Duration | user-defined |
 | Structure | intro promise -> chapters -> payoff/summary |
-| Captions | optional, lower third |
+| Captions | optional, `documentary-soft` lower third |
 
 Rules:
 
@@ -66,7 +66,7 @@ Rules:
 | Aspect ratio | source aspect or requested platform |
 | Duration | 45-180 seconds for MVP |
 | Structure | problem -> step 1 -> step 2 -> result |
-| Captions | step labels and concise explanations |
+| Captions | `tutorial-clean` captions, step labels, and concise explanations |
 | Visual context | OCR and scene boundaries preferred |
 
 Rules:
@@ -98,7 +98,7 @@ Rules:
 | Aspect ratio | source or target platform |
 | Duration | user goal |
 | Structure | strongest statement first, then supporting beats |
-| Captions | transcript-derived |
+| Captions | transcript-derived with `talking-head-pop` for vertical opinion clips |
 
 Rules:
 
@@ -131,6 +131,16 @@ For short-form vertical planning:
 - CTA: center or top safe zone.
 - Avoid bottom edge and right rail.
 - After visual preflight finds burned-in captions, place new captions away from that region or choose a reframe policy that removes it.
+
+## Caption Preset Routing
+
+Use implemented caption presets only:
+
+- `talking-head-pop`: vertical opinion, creator talking-head, high-retention claim clips.
+- `tutorial-clean`: screen recording, product walkthrough, step-by-step demo.
+- `documentary-soft`: calmer essay, interview, narrative explanation, horizontal YouTube-style edit.
+- `short-form-bold`: generic short-form fallback when no stronger type signal exists.
+- `black-bar`: only when the user explicitly wants a boxed subtitle look; Do not use it to mask burned-in captions.
 
 ## Preset Selection
 

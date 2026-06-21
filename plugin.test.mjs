@@ -127,4 +127,41 @@ describe("Codecut plugin startup guidance", () => {
 			"stop and report the runtime gap instead of hiding the problem with captions",
 		);
 	});
+
+	test("requires post-cut caption timing and video-type caption preset routing", async () => {
+		const skillRoot = join(
+			pluginRoot,
+			"skills",
+			"codecut-jianying-editor-framework",
+		);
+		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
+		const subtitlePass = await readFile(
+			join(skillRoot, "references", "workflow-recipes", "subtitle-pass.md"),
+			"utf8",
+		);
+		const platformPresets = await readFile(
+			join(skillRoot, "references", "platform-presets.md"),
+			"utf8",
+		);
+		const editPlanSchema = await readFile(
+			join(skillRoot, "references", "edit-plan-schema.md"),
+			"utf8",
+		);
+		const workflow = await readFile(
+			join(pluginRoot, "docs", "codex-driven-editing.md"),
+			"utf8",
+		);
+
+		for (const content of [skill, subtitlePass, workflow]) {
+			expect(content).toContain("post-cut caption source");
+			expect(content).toContain("source transcript remap");
+			expect(content).toContain("edited audio transcription");
+		}
+
+		for (const content of [platformPresets, editPlanSchema, workflow]) {
+			expect(content).toContain("talking-head-pop");
+			expect(content).toContain("tutorial-clean");
+			expect(content).toContain("documentary-soft");
+		}
+	});
 });

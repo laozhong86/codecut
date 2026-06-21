@@ -435,6 +435,45 @@ describe("applyEditPlanToEditor", () => {
 		});
 	});
 
+	test("applies talking-head-pop caption style for vertical opinion clips", () => {
+		const editor = fakeEditor();
+		const plan: EditPlan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "talking-head-pop",
+				position: "lower-safe",
+			},
+		};
+
+		applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const textElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "text" ? track.elements : []));
+
+		expect(textElements[1]).toMatchObject({
+			content: "This is the key insight.",
+			fontFamily: "Inter",
+			fontSize: 7,
+			fontWeight: "bold",
+			color: "#fff3b0",
+			stroke: { color: "#101010", width: 4 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 3, blur: 6 },
+			backgroundColor: "transparent",
+			boxWidth: 42,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: 300 },
+				rotate: 0,
+			},
+		});
+	});
+
 	test("applies hook title preset without changing caption style", () => {
 		const editor = fakeEditor();
 		const plan = {

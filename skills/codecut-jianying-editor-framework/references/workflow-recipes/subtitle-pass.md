@@ -5,6 +5,7 @@ Use this recipe when the user asks for subtitles, caption cleanup, subtitle timi
 ## Success Criteria
 
 - Captions are derived from transcript or user-supplied timed text.
+- Captions use a declared post-cut caption source: edited audio transcription or source transcript remap.
 - Captions fit inside the generated timeline.
 - Text stays on text tracks.
 - `get_timeline_state` confirms caption element count and timing bounds.
@@ -20,12 +21,17 @@ Use this recipe when the user asks for subtitles, caption cleanup, subtitle timi
 1. Complete the main P0 CLI Runtime Gate and executor readiness check.
 2. Inspect project and media state.
 3. If timed captions are missing, transcribe the selected media first.
-4. Normalize caption text for readability:
+4. Choose the caption timing source after the cut is stable:
+   - Use edited audio transcription when a final timeline audio transcription path exists.
+   - Use source transcript remap when only source transcript segments exist: convert each kept source segment into output timeline time with `timelineStart + segment.start - clip.sourceStart`.
+   - Do not place source transcript timestamps directly on the edited timeline.
+   - If a transcript segment crosses a clip boundary, stop and either regenerate captions from edited audio or choose transcript-aligned cuts.
+5. Normalize caption text for readability:
    - Chinese: short phrases, usually 10-18 characters.
    - English: short phrase groups, usually 3-7 words.
-5. Keep caption timing tied to source or output timeline, depending on whether the cut has already been applied.
-6. Generate an implemented EditPlan v1 with `captions`.
-7. Apply and verify with `get_timeline_state`.
+6. Select the caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or demos, `documentary-soft` for calm narrative edits, and `short-form-bold` as the fallback.
+7. Generate an implemented EditPlan v1 with `captions`.
+8. Apply and verify with `get_timeline_state`.
 
 ## Boundary
 
@@ -34,6 +40,7 @@ Do not route simple fixed title text, labels, badges, or stickers into this reci
 ## Stop Conditions
 
 - No transcript or timed caption source exists.
+- Captions cannot be tied to edited audio transcription or source transcript remap.
 - The user requests animated subtitle templates, karaoke words, or styling not represented in current EditPlan v1.
 - Translation is requested but no translation source/tool is available in the current workflow.
 

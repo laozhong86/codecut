@@ -302,6 +302,30 @@ describe("validateEditPlan", () => {
 		});
 	});
 
+	test("accepts implemented caption style presets for different video types", () => {
+		for (const preset of [
+			"short-form-bold",
+			"black-bar",
+			"talking-head-pop",
+			"tutorial-clean",
+			"documentary-soft",
+		]) {
+			const result = validateEditPlan({
+				plan: {
+					...validPlan(),
+					captionStyle: {
+						preset,
+						position: "lower-safe",
+					},
+				},
+				projectId: "project-1",
+				mediaAssets: [mediaAsset()],
+			});
+
+			expect(result.success).toBe(true);
+		}
+	});
+
 	test("rejects captions without captionStyle", () => {
 		const { captionStyle: _captionStyle, ...plan } = validPlan();
 

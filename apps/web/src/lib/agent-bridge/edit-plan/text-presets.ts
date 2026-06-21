@@ -104,6 +104,50 @@ export function resolveCaptionStylePreset({
 		};
 	}
 
+	if (captionStyle.preset === "talking-head-pop") {
+		return {
+			fontFamily: "Inter",
+			fontSize: 7,
+			fontWeight: "bold",
+			color: "#fff3b0",
+			stroke: { color: "#101010", width: 4 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 3, blur: 6 },
+			backgroundColor: "transparent",
+			boxWidth,
+			transform,
+		};
+	}
+
+	if (captionStyle.preset === "tutorial-clean") {
+		return {
+			fontFamily: "Inter",
+			fontSize: 5,
+			fontWeight: "normal",
+			color: "#ffffff",
+			backgroundColor: "#111827",
+			backgroundOpacity: 0.68,
+			backgroundPaddingX: 18,
+			backgroundPaddingY: 10,
+			backgroundBorderRadius: 6,
+			boxWidth,
+			transform,
+		};
+	}
+
+	if (captionStyle.preset === "documentary-soft") {
+		return {
+			fontFamily: "Inter",
+			fontSize: 5,
+			fontWeight: "bold",
+			color: "#f8fafc",
+			stroke: { color: "#0f172a", width: 2 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 5 },
+			backgroundColor: "transparent",
+			boxWidth,
+			transform,
+		};
+	}
+
 	return {
 		fontFamily: "Inter",
 		fontSize: 6,

@@ -158,7 +158,12 @@ Codex sends exactly one editing plan format to Codecut:
     }>
   }>,
   captionStyle?: {
-    preset: "short-form-bold" | "black-bar",
+    preset:
+      | "short-form-bold"
+      | "black-bar"
+      | "talking-head-pop"
+      | "tutorial-clean"
+      | "documentary-soft",
     position: "lower-safe" | "center"
   },
   audio?: {
@@ -200,9 +205,20 @@ Codecut validates and executes this plan. If validation fails, Codecut returns a
 When `captions` contains one or more items, Codex must include
 `captionStyle`. When `captions` is empty or omitted, `captionStyle` must be
 omitted. Caption styling is intentionally limited to top-level local presets:
-`short-form-bold` and `black-bar`. Codecut does not accept arbitrary CSS,
-per-caption style objects, `bold_caption`, `keyword_caption`, or
-`keyword-highlight` in this P0 contract.
+`short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`, and
+`documentary-soft`. Codecut does not accept arbitrary CSS, per-caption style
+objects, `bold_caption`, `keyword_caption`, or `keyword-highlight` in this
+contract.
+
+Caption timing must declare a post-cut caption source. Prefer edited audio transcription when a final timeline audio transcription path exists. Otherwise use source transcript remap: convert source transcript segment timestamps into output timeline timestamps through the selected `clips[]`. Do not copy source transcript timestamps directly into `captions[].startTime`.
+
+Caption preset routing:
+
+- `talking-head-pop`: vertical opinion or creator talking-head clips.
+- `tutorial-clean`: screen recording, tutorial, product walkthrough, or demo.
+- `documentary-soft`: calmer narrative, interview, essay, or YouTube-style edit.
+- `short-form-bold`: generic short-form fallback.
+- `black-bar`: explicit boxed subtitle look only; not a mask for old burned-in captions.
 
 `title.stylePreset` is optional. If omitted, Codecut keeps the existing default
 text behavior. If present, it must be `hook_title` or `lower_title`.
@@ -358,11 +374,12 @@ After application, Codex must verify `get_timeline_state` proof fields:
 9. Codex calls `build_video_context` for transcript-first planning when a long
    source video needs structured context.
 10. Codex uses its own context to choose clips and write an EditPlan JSON file.
-11. Codex calls `apply_edit_plan` with that EditPlan.
-12. Codex calls `get_timeline_state` to verify clips, text style, audio source
+11. Codex chooses the post-cut caption source: edited audio transcription when available, otherwise source transcript remap through the chosen clips.
+12. Codex calls `apply_edit_plan` with that EditPlan.
+13. Codex calls `get_timeline_state` to verify clips, text style, audio source
     and volume, and video transitions.
-13. Codex provides the editor URL so the user can preview the result or ask for another revision.
-14. Export is a separate follow-up until local executor export is implemented and tested.
+14. Codex provides the editor URL so the user can preview the result or ask for another revision.
+15. Export is a separate follow-up until local executor export is implemented and tested.
 
 ## Fast Path: Local File To Short
 
