@@ -200,3 +200,107 @@ Fail signals:
 - Treats a YouTube URL as the same as an absolute local file fast path.
 - Writes assumed values into `clarification-answers.md`.
 - Starts Codecut executor commands before requirement intake passes.
+
+## Test 8: Talking-Head Template Requires Transcript
+
+Prompt:
+
+```text
+把这个口播素材剪成 30 秒精剪短视频，去废话，字幕要有节奏。
+```
+
+Expected route:
+
+- Template ID: `talking-head-short`.
+- Required evidence: transcript.
+- Verification exit: blocked before EditPlan if transcript timestamps are unavailable.
+
+Pass criteria:
+
+- Selects `talking-head-short` before writing an EditingDecisionLedger or EditPlan.
+- Stops on missing transcript instead of switching to a generic short-form template.
+- States that `talking-head-pop` is the template caption preset only after transcript-backed captions exist.
+
+Fail signals:
+
+- Generates clip ranges without transcript timestamps.
+- Uses platform preset defaults as a Magic Default replacement for missing transcript evidence.
+- Promises automatic filler removal without transcript or silence evidence.
+
+## Test 9: Product Template Requires Product Facts And Visual Proof
+
+Prompt:
+
+```text
+帮我把这个视频剪成带货广告，重点是让人下单，开头要有证明。
+```
+
+Expected route:
+
+- Template ID: `product-proof-ad`.
+- Required evidence: product facts and visual proof.
+- Verification exit: blocked before EditPlan until proof shots, product facts, and claim sources are known.
+
+Pass criteria:
+
+- Selects `product-proof-ad` because conversion intent outranks generic short-form intent.
+- Audits product facts, visual proof, transcript claims, and missing offer details before writing claims.
+- Stops when proof or product facts are missing instead of inventing benefits, guarantees, prices, or results.
+
+Fail signals:
+
+- Treats transcript highlights as product proof without visual or supplied product evidence.
+- Creates a CTA or product claim that cannot be traced to source material.
+- Downgrades to `talking-head-short` because product proof is missing.
+
+## Test 10: Narrated B-Roll Template Requires Existing Narration Audio
+
+Prompt:
+
+```text
+把这些 B-roll 混剪成一个有旁白的品牌短片，先自动配一段旁白再剪。
+```
+
+Expected route:
+
+- Template ID: `narrated-broll` only if existing narration audio and imported video B-roll are available.
+- Required evidence: existing narration audio and video B-roll.
+- Verification exit: blocked because TTS is not supported by NarratedRemixPlan v1.
+
+Pass criteria:
+
+- Identifies `narrated-broll` as the only P0 narrated remix path.
+- Stops on missing existing narration audio instead of generating speech or switching to EditPlan v1.
+- Reports that current NarratedRemixPlan v1 does not support TTS, BGM, SFX, image B-roll, effects, or append mode.
+
+Fail signals:
+
+- Invents a voice ID, generated narration asset, BGM, or SFX.
+- Applies a visual-only remix and reports a complete narrated result.
+- Uses `captionStyle` in NarratedRemixPlan v1.
+
+## Test 11: Animated Subtitle Is Not A Template Capability
+
+Prompt:
+
+```text
+套一个网感模板，字幕要逐字弹跳、有动画高亮，像 CapCut 热门模板。
+```
+
+Expected route:
+
+- Template ID: none unless the request can be expressed by a P0 manifest and EditPlan v1 fields.
+- Required evidence: transcript or supplied captions if a caption pass is still requested.
+- Verification exit: blocked for animated subtitle/template effect capability.
+
+Pass criteria:
+
+- States that P0 templates are planning constraints, not CapCut-style template effects.
+- Refuses animated subtitle, karaoke, and arbitrary template styling unless represented by current EditPlan v1 fields.
+- Offers the supported caption preset boundary without claiming animation.
+
+Fail signals:
+
+- Treats `SUBTITLE_TEMPLATES` or UI presets as an Agent execution contract.
+- Adds arbitrary CSS, animation fields, or unsupported subtitle template fields to EditPlan v1.
+- Reports template application success without `apply_edit_plan` or `apply_narrated_remix_plan` validation.

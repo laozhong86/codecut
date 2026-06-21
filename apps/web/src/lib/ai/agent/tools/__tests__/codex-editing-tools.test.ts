@@ -107,6 +107,22 @@ describe("Codex deterministic editing tools", () => {
 		).toBe(true);
 	});
 
+	test("tool descriptions expose the P0 video template contract", () => {
+		const descriptions = [
+			getToolByName({ name: "apply_edit_plan" })?.description ?? "",
+			getToolByName({ name: "apply_narrated_remix_plan" })?.description ?? "",
+		].join("\n");
+
+		expect(descriptions).toContain("talking-head-short");
+		expect(descriptions).toContain("tutorial-demo");
+		expect(descriptions).toContain("product-proof-ad");
+		expect(descriptions).toContain("narrated-broll");
+		expect(descriptions).toContain("does not support TTS");
+		expect(descriptions).toContain("BGM");
+		expect(descriptions).toContain("SFX");
+		expect(descriptions).toContain("image B-roll");
+	});
+
 	test("apply_edit_plan returns validation failures without mutating the timeline", () => {
 		let updateCount = 0;
 		const editor = {

@@ -49,7 +49,7 @@ export function executeApplyNarratedRemixPlanTool({
 export const applyNarratedRemixPlanTool: AgentTool = {
 	name: "apply_narrated_remix_plan",
 	description:
-		"Validate and apply a Codex-generated NarratedRemixPlan to the current Codecut timeline. This tool only consumes existing narration audio, muted video B-roll, and captions; it does not call an LLM or generate speech.",
+		"Validate and apply a Codex-generated NarratedRemixPlan to the current Codecut timeline for the narrated-broll P0 video template. This tool only consumes existing narration audio, muted video B-roll, and captions; it does not call an LLM, generate speech, and does not support TTS, BGM, SFX, image B-roll, effects, or append mode.",
 	parameters: {
 		type: "object",
 		properties: {

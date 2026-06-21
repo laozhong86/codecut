@@ -32,6 +32,42 @@ project state, or added to the EditPlan v1 schema.
 
 Browser is the human interface, not the Agent runtime. Opening the browser is only a convenience for the user to inspect the project URL and manually adjust the result. Codex command execution must not depend on a visible browser tab, screenshots, DOM control, or a page-mounted heartbeat.
 
+## Video Template Manifest
+
+P0 video templates live in `apps/web/src/lib/video-templates/registry.ts` and are validated by `apps/web/src/lib/video-templates/schema.ts`. They are Agent planning constraints, not a runtime template marketplace, automatic repair layer, or silent fallback.
+
+Every manifest declares:
+
+- `intent`: what business or editing outcome the template serves.
+- `requiredEvidence`: material facts that must exist before planning.
+- `defaultStructure`: the required story or sequence shape.
+- `captionPreset`: an implemented EditPlan caption preset when the execution path supports one.
+- `executionPath`: `edit-plan-v1`, `speech-cleanup-to-edit-plan-v1`, or `narrated-remix-v1`.
+- `stopConditions`: unsupported requests that must stop before mutation.
+- `verification`: the readback proof expected after apply.
+
+P0 template ids:
+
+| Template ID | Use case | Required evidence | Execution path |
+| --- | --- | --- | --- |
+| `talking-head-short` | Talking-head cleanup, filler removal, short-form polish | transcript | `speech-cleanup-to-edit-plan-v1` |
+| `tutorial-demo` | Tutorial, software demo, step-by-step explanation | transcript, visual proof | `edit-plan-v1` |
+| `product-proof-ad` | UGC/product ad and conversion edit | transcript, visual proof, product facts | `edit-plan-v1` |
+| `narrated-broll` | Existing narration audio plus video B-roll remix | existing narration audio, video B-roll | `narrated-remix-v1` |
+
+Selection order:
+
+```text
+material audit
+  -> template resolve
+  -> EditingDecisionLedger or NarratedRemixPlan
+  -> strict EditPlan v1 or NarratedRemixPlan v1
+  -> apply_edit_plan or apply_narrated_remix_plan
+  -> get_timeline_state readback
+```
+
+If required evidence is missing, Codex must report the selected template and the missing evidence. It must not use another template as a downgrade path. Unsupported capabilities such as TTS, image B-roll, animated subtitle templates, arbitrary CSS, smart face crop, BGM/SFX inside narrated remix, and template effects must fail fast unless the current plan contract supports them.
+
 ## Required Local Environment
 
 The Codex bridge CLI reads bridge access only from local environment variables:
@@ -393,23 +429,24 @@ After application, Codex must verify `get_timeline_state` proof fields:
 5. Codex calls `get_project_info` to confirm the active project.
 6. Codex calls `list_media_assets` to inspect available media.
 7. Codex selects the target media asset for editing.
-8. Codex calls `transcribe_media` for that media asset.
-9. Codex calls `build_video_context` for transcript-first planning when a long
+8. Codex calls `transcribe_media` for that media asset when the selected outcome needs transcript evidence.
+9. Codex audits material facts: transcript, visual proof, product facts, existing narration audio, and video B-roll.
+10. Codex resolves one P0 video template or reports why no implemented template can satisfy the request.
+11. Codex calls `build_video_context` for transcript-first planning when a long
    source video needs structured context.
-10. Codex calls `inspect-video-range` for source ranges where visual continuity,
+12. Codex calls `inspect-video-range` for source ranges where visual continuity,
     waveform shape, silence gaps, caption overlap, or reframe risk affects the
     EditPlan decision.
-11. Codex writes an EditingDecisionLedger when clip selection depends on story,
-    business, conversion, proof, or tutorial structure.
-12. Codex projects the selected structure into an implemented EditPlan v1 JSON
-    file only.
-13. Codex calls `apply_edit_plan` with a stable clip-first EditPlan when edited audio transcription from edited clip ranges is required.
-14. Codex runs `build-post-cut-captions`, then writes those returned captions into the final EditPlan with the matching `captionStyle`.
-15. Codex calls `apply_edit_plan` with the final EditPlan.
-16. Codex calls `get_timeline_state` to verify clips, text style, audio source
+13. Codex writes an EditingDecisionLedger for EditPlan templates, or a strict NarratedRemixPlan for `narrated-broll`.
+14. Codex projects the selected structure into an implemented EditPlan v1 JSON
+    file only, or keeps `narrated-broll` inside NarratedRemixPlan v1 only.
+15. Codex calls `apply_edit_plan` with a stable clip-first EditPlan when edited audio transcription from edited clip ranges is required.
+16. Codex runs `build-post-cut-captions`, then writes those returned captions into the final EditPlan with the matching `captionStyle`.
+17. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the strict plan.
+18. Codex calls `get_timeline_state` to verify clips, text style, audio source
     and volume, and video transitions.
-17. Codex provides the editor URL so the user can preview the result or ask for another revision.
-18. Export is a separate follow-up until local executor export is implemented and tested.
+19. Codex provides the editor URL so the user can preview the result or ask for another revision.
+20. Export is a separate follow-up until local executor export is implemented and tested.
 
 ## Fast Path: Local File To Short
 
@@ -421,15 +458,16 @@ When the request includes one absolute local media file and a concrete target su
 4. Import the local file.
 5. List media and select the imported audio/video asset.
 6. Transcribe through the local executor.
-7. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
-8. Inspect ambiguous or reframe-sensitive source ranges with
+7. Audit material facts and resolve one P0 video template.
+8. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
+9. Inspect ambiguous or reframe-sensitive source ranges with
    `inspect-video-range` before writing the EditPlan.
-9. Write an EditingDecisionLedger for conversion, product, tutorial, highlight,
+10. Write an EditingDecisionLedger for conversion, product, tutorial, highlight,
    or broad short-form requests.
-10. Generate and apply a clip-first EditPlan v1.
-11. Run `build-post-cut-captions`, then apply the final EditPlan v1 with captions.
-12. Verify with `get_timeline_state`.
-13. Provide the editor URL for human preview.
+11. Generate and apply a clip-first EditPlan v1.
+12. Run `build-post-cut-captions`, then apply the final EditPlan v1 with captions.
+13. Verify with `get_timeline_state`.
+14. Provide the editor URL for human preview.
 
 Do not spend the first turn auditing all skill references. Read only the workflow document and the matching recipe unless an implementation or validation failure requires deeper reference lookup.
 
