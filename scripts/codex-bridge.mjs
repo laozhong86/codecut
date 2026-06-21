@@ -26,6 +26,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
 		"  node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
+		"  node scripts/codex-bridge.mjs build-visual-context --project-id <id> --media-id <id> --target-aspect-ratio <9:16|16:9|1:1>",
 		"  node scripts/codex-bridge.mjs inspect-video-range --project-id <id> --media-id <id> --start-seconds <seconds> --end-seconds <seconds> [--frame-count <1..16>]",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text \"...\" --motion-prompt \"...\" --width 1280 --height 720 --fps 25",
@@ -650,6 +651,31 @@ export function buildVideoContextEnvelope({
 	});
 }
 
+export function buildVisualContextEnvelope({
+	projectId,
+	mediaId,
+	targetAspectRatio,
+}) {
+	if (!mediaId) {
+		throw new Error("--media-id is required");
+	}
+	if (!targetAspectRatio) {
+		throw new Error("--target-aspect-ratio is required");
+	}
+	if (!["9:16", "16:9", "1:1"].includes(targetAspectRatio)) {
+		throw new Error("--target-aspect-ratio must be one of 9:16, 16:9, 1:1");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "build_visual_context",
+		args: {
+			mediaId,
+			targetAspectRatio,
+		},
+	});
+}
+
 export function buildInspectVideoRangeEnvelope({
 	projectId,
 	mediaId,
@@ -1205,6 +1231,12 @@ export async function runCli({
 			mediaId: flags.mediaId,
 			language: flags.language,
 			modelId: flags.modelId,
+		});
+	} else if (command === "build-visual-context") {
+		envelope = buildVisualContextEnvelope({
+			projectId: flags.projectId,
+			mediaId: flags.mediaId,
+			targetAspectRatio: flags.targetAspectRatio,
 		});
 	} else if (command === "inspect-video-range") {
 		envelope = buildInspectVideoRangeEnvelope({

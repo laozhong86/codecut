@@ -14,6 +14,7 @@ import {
 	buildTranscribeEnvelope,
 	buildValidateEditPlanEnvelope,
 	buildVideoContextEnvelope,
+	buildVisualContextEnvelope,
 	buildVerifyTimelineEnvelope,
 	parseBoolean,
 	requireRuntimeConfig,
@@ -154,6 +155,54 @@ describe("codex bridge CLI helpers", () => {
 				},
 			],
 		});
+	});
+
+	test("buildVisualContextEnvelope creates a build_visual_context command", () => {
+		expect(
+			buildVisualContextEnvelope({
+				projectId: "project-1",
+				mediaId: "media-1",
+				targetAspectRatio: "9:16",
+			}),
+		).toEqual({
+			version: 1,
+			projectId: "project-1",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "build_visual_context",
+					args: {
+						mediaId: "media-1",
+						targetAspectRatio: "9:16",
+					},
+				},
+			],
+		});
+	});
+
+	test("buildVisualContextEnvelope requires explicit inputs", () => {
+		expect(() =>
+			buildVisualContextEnvelope({
+				projectId: "project-1",
+				mediaId: "",
+				targetAspectRatio: "9:16",
+			}),
+		).toThrow("--media-id is required");
+		expect(() =>
+			buildVisualContextEnvelope({
+				projectId: "project-1",
+				mediaId: "media-1",
+				targetAspectRatio: undefined,
+			}),
+		).toThrow("--target-aspect-ratio is required");
+		expect(() =>
+			buildVisualContextEnvelope({
+				projectId: "project-1",
+				mediaId: "media-1",
+				targetAspectRatio: "4:5",
+			}),
+		).toThrow("--target-aspect-ratio must be one of 9:16, 16:9, 1:1");
 	});
 
 	test("buildInspectVideoRangeEnvelope creates an inspect_video_range command", () => {

@@ -24,6 +24,7 @@ function envelope({
 		| "import_media_file"
 		| "transcribe_media"
 		| "build_video_context"
+		| "build_visual_context"
 		| "inspect_video_range"
 		| "build_post_cut_captions"
 		| "validate_edit_plan"
@@ -1346,6 +1347,169 @@ describe("codex executor", () => {
 			message:
 				"Media asset 'cover.png' is type 'image', expected video or audio",
 		});
+	});
+
+	test("builds visual context through the local executor without mutating project state", async () => {
+		await createExecutorProject({ projectId, name: "Visual proof short" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 128.4,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		const before = await getExecutorProjectState({ projectId });
+		const inspectedRanges: Array<{ startSeconds: number; endSeconds: number }> =
+			[];
+
+		const visualResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_visual_context",
+				args: {
+					mediaId,
+					targetAspectRatio: "9:16",
+				},
+			}),
+			inspectVideoRange: async ({
+				startSeconds,
+				endSeconds,
+				frameCount,
+				outputDirectory,
+			}) => {
+				inspectedRanges.push({ startSeconds, endSeconds });
+				expect(frameCount).toBe(6);
+				expect(outputDirectory.split(/[\\/]+/).slice(-3)).toEqual([
+					"projects",
+					projectId,
+					"visual-context",
+				]);
+				return {
+					mediaId,
+					sourceRange: {
+						startSeconds,
+						endSeconds,
+						durationSeconds: endSeconds - startSeconds,
+					},
+					artifact: {
+						kind: "video_range_contact_sheet",
+						path: `/tmp/${startSeconds}-${endSeconds}.png`,
+						mimeType: "image/png",
+						width: 1936,
+						height: 520,
+					},
+					frames: [{ timeSeconds: startSeconds }, { timeSeconds: endSeconds }],
+					audio: {
+						hasAudio: true,
+						waveformSamples: [0.1, 0.4],
+						silenceRanges: [],
+					},
+					warnings: [],
+				};
+			},
+		});
+
+		expect(inspectedRanges).toEqual([
+			{ startSeconds: 0, endSeconds: 60 },
+			{ startSeconds: 60, endSeconds: 120 },
+			{ startSeconds: 120, endSeconds: 128.4 },
+		]);
+		expect(visualResult.results[0]).toMatchObject({
+			tool: "build_visual_context",
+			success: true,
+			message: "Built VisualContext for 'source.mp4'",
+			data: {
+				qualityLevel: "L3_visual_evidence",
+				target: { aspectRatio: "9:16" },
+				metadata: {
+					durationSeconds: 128.4,
+					width: 1920,
+					height: 1080,
+					sourceOrientation: "landscape",
+				},
+				visualPreflight: {
+					requiresReframe: true,
+					reframeRisk: "needs_review",
+				},
+				analysisWindows: [
+					{ index: 1, startSeconds: 0, endSeconds: 60 },
+					{ index: 2, startSeconds: 60, endSeconds: 120 },
+					{ index: 3, startSeconds: 120, endSeconds: 128.4 },
+				],
+			},
+		});
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
+	test("build_visual_context rejects image media before invoking inspection", async () => {
+		await createExecutorProject({ projectId, name: "Visual proof short" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "cover.png",
+					mimeType: "image/png",
+					base64: Buffer.from("image").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					width: 1000,
+					height: 1000,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+
+		const visualResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_visual_context",
+				args: {
+					mediaId,
+					targetAspectRatio: "9:16",
+				},
+			}),
+			inspectVideoRange: async () => {
+				throw new Error("inspectVideoRange should not run for image media");
+			},
+		});
+
+		expect(visualResult.results[0]).toMatchObject({
+			tool: "build_visual_context",
+			success: false,
+			message: "Media asset 'cover.png' is type 'image', expected video",
+		});
+	});
+
+	test("build_visual_context rejects missing target aspect ratio", async () => {
+		await createExecutorProject({ projectId, name: "Visual proof short" });
+
+		const visualResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_visual_context",
+				args: {
+					mediaId: "missing-media",
+				},
+			}),
+		});
+
+		expect(visualResult.results[0]).toMatchObject({
+			tool: "build_visual_context",
+			success: false,
+		});
+		expect(String(visualResult.results[0].message)).toContain(
+			"targetAspectRatio",
+		);
 	});
 
 	test("inspects a video range through the local executor without mutating project state", async () => {

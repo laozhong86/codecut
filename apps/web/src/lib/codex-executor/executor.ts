@@ -9,6 +9,7 @@ import {
 	type ProbeAudio,
 	buildVideoContextWithTranscriber,
 } from "@/lib/codex-executor/video-context";
+import { buildVisualContextWithInspector } from "@/lib/codex-executor/visual-context";
 import { inspectVideoRange as inspectVideoRangeWithNodeRuntime } from "@/lib/codex-executor/video-range-inspection";
 import {
 	type ExecutorTranscribeMedia,
@@ -60,6 +61,7 @@ type ExecutorToolName =
 	| "import_media_file"
 	| "transcribe_media"
 	| "build_video_context"
+	| "build_visual_context"
 	| "inspect_video_range"
 	| "build_post_cut_captions"
 	| "validate_edit_plan"
@@ -132,6 +134,7 @@ const commandSchema = z
 			"import_media_file",
 			"transcribe_media",
 			"build_video_context",
+			"build_visual_context",
 			"inspect_video_range",
 			"build_post_cut_captions",
 			"validate_edit_plan",
@@ -213,6 +216,13 @@ const buildVideoContextArgsSchema = z
 		mediaId: z.string().min(1),
 		language: z.unknown(),
 		modelId: z.unknown(),
+	})
+	.strict();
+
+const buildVisualContextArgsSchema = z
+	.object({
+		mediaId: z.string().min(1),
+		targetAspectRatio: z.enum(["9:16", "16:9", "1:1"]),
 	})
 	.strict();
 
@@ -1632,6 +1642,58 @@ async function runBuildVideoContext({
 
 type InspectVideoRange = typeof inspectVideoRangeWithNodeRuntime;
 
+async function runBuildVisualContext({
+	state,
+	args,
+	inspectVideoRange,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	inspectVideoRange: InspectVideoRange;
+}) {
+	const parsed = buildVisualContextArgsSchema.parse(args);
+	const mediaAsset = state.mediaAssets.find(
+		(asset) => asset.id === parsed.mediaId,
+	);
+
+	if (!mediaAsset) {
+		return {
+			success: false,
+			message: `Media asset '${parsed.mediaId}' not found`,
+		};
+	}
+	if (mediaAsset.type !== "video") {
+		return {
+			success: false,
+			message: `Media asset '${mediaAsset.name}' is type '${mediaAsset.type}', expected video`,
+		};
+	}
+
+	const context = await buildVisualContextWithInspector({
+		mediaAsset: {
+			id: mediaAsset.id,
+			name: mediaAsset.name,
+			type: mediaAsset.type,
+			durationSeconds: mediaAsset.duration,
+			width: mediaAsset.width,
+			height: mediaAsset.height,
+			path: mediaAsset.path,
+		},
+		targetAspectRatio: parsed.targetAspectRatio,
+		outputDirectory: join(
+			projectDirectory({ projectId: state.project.id }),
+			"visual-context",
+		),
+		inspectRange: inspectVideoRange,
+	});
+
+	return {
+		success: true,
+		message: `Built VisualContext for '${mediaAsset.name}'`,
+		data: context,
+	};
+}
+
 async function runInspectVideoRange({
 	state,
 	args,
@@ -1882,6 +1944,13 @@ async function executeCommand({
 			args: command.args,
 			probeAudio,
 			transcribeMediaRange,
+		});
+	}
+	if (command.tool === "build_visual_context") {
+		return runBuildVisualContext({
+			state,
+			args: command.args,
+			inspectVideoRange,
 		});
 	}
 	if (command.tool === "inspect_video_range") {
