@@ -23,6 +23,7 @@ function envelope({
 		| "list_media_assets"
 		| "import_media_file"
 		| "transcribe_media"
+		| "build_video_context"
 		| "apply_edit_plan"
 		| "apply_narrated_remix_plan"
 		| "create_text_background_effect"
@@ -363,6 +364,106 @@ describe("codex executor", () => {
 		});
 
 		expect(transcribeResult.results[0]).toMatchObject({
+			success: false,
+			message: "Media asset 'cover.png' is type 'image', expected video or audio",
+		});
+	});
+
+	test("builds VideoContext through the local executor", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 725,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+
+		const contextResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_context",
+				args: {
+					mediaId,
+					language: "auto",
+					modelId: "whisper-tiny",
+				},
+			}),
+			probeAudio: async () => ({ hasAudio: true }),
+			transcribeMediaRange: async ({ range }) => ({
+				text: `chunk ${range.start}`,
+				language: "zh",
+				modelId: "whisper-tiny",
+				segments: [{ text: "hello", start: 1, end: 2 }],
+			}),
+		});
+
+		expect(contextResult.results[0]).toMatchObject({
+			tool: "build_video_context",
+			success: true,
+			message: "Built VideoContext for 'source.mp4'",
+			data: {
+				qualityLevel: "L2_transcript",
+				metadata: { durationSeconds: 725, hasAudio: true },
+				transcript: {
+					segments: [
+						{ start: 1, end: 2, text: "hello" },
+						{ start: 301, end: 302, text: "hello" },
+						{ start: 601, end: 602, text: "hello" },
+					],
+				},
+			},
+		});
+	});
+
+	test("build_video_context rejects image media without invoking transcription", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "cover.png",
+					mimeType: "image/png",
+					base64: Buffer.from("image").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					width: 1000,
+					height: 1000,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+
+		const contextResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_context",
+				args: {
+					mediaId,
+					language: "auto",
+					modelId: "whisper-tiny",
+				},
+			}),
+			probeAudio: async () => {
+				throw new Error("probeAudio should not run for image media");
+			},
+			transcribeMediaRange: async () => {
+				throw new Error("transcribeMediaRange should not run for image media");
+			},
+		});
+
+		expect(contextResult.results[0]).toMatchObject({
 			success: false,
 			message: "Media asset 'cover.png' is type 'image', expected video or audio",
 		});
