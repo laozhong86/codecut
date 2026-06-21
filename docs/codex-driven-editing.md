@@ -89,7 +89,7 @@ Before the first business bridge command, run:
 node scripts/codex-bridge.mjs doctor-install --project-id <id>
 ```
 
-`doctor-install` checks the source plugin, installed Codex plugin cache, `CODECUT_AGENT_BRIDGE_*` environment, the 4100 web service, and the executor project. It verifies that the token exists but never prints the token value.
+`doctor-install` checks the source plugin, installed Codex plugin cache, source-to-cache sync state, `CODECUT_AGENT_BRIDGE_*` environment, the 4100 web service, and the executor project. It verifies that the token exists but never prints the token value. If `plugin_sync` fails, run `node scripts/sync-codex-local-plugin.mjs` from the plugin root, then rerun `doctor-install`.
 
 Then run the executor readiness check:
 

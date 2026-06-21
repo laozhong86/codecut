@@ -185,7 +185,7 @@ node scripts/codex-bridge.mjs doctor-install --project-id <id>
 node scripts/codex-bridge.mjs doctor --project-id <id>
 ```
 
-`doctor-install` must verify source plugin metadata, installed plugin cache, `CODECUT_AGENT_BRIDGE_*` env, the 4100 web service, and the executor project. It must not print token values. If the only available readiness path is still browser heartbeat based, report that as `P0 blocked: command execution still depends on browser-mounted bridge` rather than asking the user to open or refresh the Browser.
+`doctor-install` must verify source plugin metadata, installed plugin cache, source-to-cache sync state, `CODECUT_AGENT_BRIDGE_*` env, the 4100 web service, and the executor project. It must not print token values. If `plugin_sync` fails, run `node scripts/sync-codex-local-plugin.mjs` from the plugin root, then rerun `doctor-install`. If the only available readiness path is still browser heartbeat based, report that as `P0 blocked: command execution still depends on browser-mounted bridge` rather than asking the user to open or refresh the Browser.
 
 ## Default Workflow
 
@@ -193,7 +193,7 @@ When the user wants Codex to edit through Codecut:
 
 1. Complete the P0 CLI Runtime Gate above and state the concrete project ID.
 2. Confirm the bridge env exists locally: `CODECUT_AGENT_BRIDGE_URL`, `CODECUT_AGENT_BRIDGE_TOKEN`, `CODECUT_AGENT_BRIDGE_TIMEOUT_MS`, `CODECUT_AGENT_BRIDGE_INTERVAL_MS`.
-3. Use `node scripts/codex-bridge.mjs doctor-install --project-id <id>` to verify source, cache, env, 4100 service, and executor project.
+3. Use `node scripts/codex-bridge.mjs doctor-install --project-id <id>` to verify source, cache, source-to-cache sync, env, 4100 service, and executor project.
 4. Use the CLI executor readiness check. If the check still requires a browser-mounted heartbeat, treat it as a known implementation gap.
 5. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool get_project_info --args-json '{}'` to confirm the active project.
 6. Use `node scripts/codex-bridge.mjs send --project-id <id> --tool list_media_assets --args-json '{}'` to inspect imported media.

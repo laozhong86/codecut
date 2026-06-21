@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { basename, extname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { buildRsyncArgs } from "./sync-codex-local-plugin.mjs";
 
 const requiredConfig = [
 	"CODECUT_AGENT_BRIDGE_URL",
@@ -211,11 +212,14 @@ async function checkSourcePlugin({ cwd }) {
 
 async function checkCachePlugin({ homeDir, sourceManifest }) {
 	if (!sourceManifest?.version) {
-		return doctorCheck({
-			id: "cache_plugin",
-			ok: false,
-			message: "Source plugin version is required before checking cache.",
-		});
+		return {
+			check: doctorCheck({
+				id: "cache_plugin",
+				ok: false,
+				message: "Source plugin version is required before checking cache.",
+			}),
+			cacheRoot: null,
+		};
 	}
 
 	const cacheRoot = join(
@@ -232,45 +236,124 @@ async function checkCachePlugin({ homeDir, sourceManifest }) {
 	try {
 		manifest = await readPluginManifest(manifestPath);
 	} catch (error) {
-		return doctorCheck({
-			id: "cache_plugin",
-			ok: false,
-			message: `Cannot read installed plugin manifest: ${error instanceof Error ? error.message : String(error)}`,
-			data: { cacheRoot, manifestPath, skillPath },
-		});
+		return {
+			check: doctorCheck({
+				id: "cache_plugin",
+				ok: false,
+				message: `Cannot read installed plugin manifest: ${error instanceof Error ? error.message : String(error)}`,
+				data: { cacheRoot, manifestPath, skillPath },
+			}),
+			cacheRoot,
+		};
 	}
 
 	if (manifest.name !== "codecut") {
-		return doctorCheck({
-			id: "cache_plugin",
-			ok: false,
-			message: `Installed plugin name must be codecut, got ${String(manifest.name)}`,
-			data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
-		});
+		return {
+			check: doctorCheck({
+				id: "cache_plugin",
+				ok: false,
+				message: `Installed plugin name must be codecut, got ${String(manifest.name)}`,
+				data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
+			}),
+			cacheRoot,
+		};
 	}
 	if (manifest.version !== sourceManifest.version) {
-		return doctorCheck({
-			id: "cache_plugin",
-			ok: false,
-			message: `Installed plugin version must match source ${sourceManifest.version}, got ${String(manifest.version)}`,
-			data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
-		});
+		return {
+			check: doctorCheck({
+				id: "cache_plugin",
+				ok: false,
+				message: `Installed plugin version must match source ${sourceManifest.version}, got ${String(manifest.version)}`,
+				data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
+			}),
+			cacheRoot,
+		};
 	}
 	if (!(await pathExists(skillPath))) {
-		return doctorCheck({
+		return {
+			check: doctorCheck({
+				id: "cache_plugin",
+				ok: false,
+				message: "Installed Codecut skill is missing",
+				data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
+			}),
+			cacheRoot,
+		};
+	}
+
+	return {
+		check: doctorCheck({
 			id: "cache_plugin",
-			ok: false,
-			message: "Installed Codecut skill is missing",
+			ok: true,
+			message: "Installed Codecut plugin cache is valid.",
 			data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
+		}),
+		cacheRoot,
+	};
+}
+
+function parseRsyncChangedPaths(output) {
+	return output
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter(Boolean)
+		.map((line) => {
+			const deletingMatch = line.match(/^\*deleting\s+(.+)$/);
+			if (deletingMatch) return deletingMatch[1];
+
+			const itemizedMatch = line.match(/^\S+\s+(.+)$/);
+			return itemizedMatch ? itemizedMatch[1] : line;
+		});
+}
+
+async function checkPluginSync({
+	cwd,
+	cacheRoot,
+	sourceOk,
+	cacheOk,
+	execFileImpl,
+}) {
+	if (!sourceOk || !cacheOk || !cacheRoot) {
+		return doctorCheck({
+			id: "plugin_sync",
+			ok: false,
+			message:
+				"Source and installed cache must be valid before checking plugin sync.",
+			data: { sourceOk, cacheOk, cacheRoot },
 		});
 	}
 
-	return doctorCheck({
-		id: "cache_plugin",
-		ok: true,
-		message: "Installed Codecut plugin cache is valid.",
-		data: { cacheRoot, manifestPath, skillPath, version: manifest.version },
-	});
+	const args = [
+		"--checksum",
+		"--itemize-changes",
+		...buildRsyncArgs({ sourceRoot: cwd, cacheRoot, dryRun: true }),
+	];
+	try {
+		const { stdout } = await execFileImpl("rsync", args);
+		const changedPaths = parseRsyncChangedPaths(String(stdout ?? ""));
+		if (changedPaths.length > 0) {
+			return doctorCheck({
+				id: "plugin_sync",
+				ok: false,
+				message:
+					"Installed Codecut plugin cache is out of sync with the source tree.",
+				data: { sourceRoot: cwd, cacheRoot, changedPaths },
+			});
+		}
+		return doctorCheck({
+			id: "plugin_sync",
+			ok: true,
+			message: "Installed Codecut plugin cache matches the source tree.",
+			data: { sourceRoot: cwd, cacheRoot },
+		});
+	} catch (error) {
+		return doctorCheck({
+			id: "plugin_sync",
+			ok: false,
+			message: `Plugin sync check failed: ${error instanceof Error ? error.message : String(error)}`,
+			data: { sourceRoot: cwd, cacheRoot },
+		});
+	}
 }
 
 function checkEnvironment({ env }) {
@@ -406,12 +489,24 @@ export async function runInstallDoctor({
 	homeDir = homedir(),
 	env = process.env,
 	fetchImpl = fetch,
+	execFileImpl = execFileAsync,
 }) {
 	const source = await checkSourcePlugin({ cwd });
+	const cache = await checkCachePlugin({
+		homeDir,
+		sourceManifest: source.manifest,
+	});
 	const environment = checkEnvironment({ env });
 	const checks = [
 		source.check,
-		await checkCachePlugin({ homeDir, sourceManifest: source.manifest }),
+		cache.check,
+		await checkPluginSync({
+			cwd,
+			cacheRoot: cache.cacheRoot,
+			sourceOk: source.check.ok,
+			cacheOk: cache.check.ok,
+			execFileImpl,
+		}),
 		environment.check,
 		await checkWebService({ config: environment.config, fetchImpl }),
 		await checkExecutorProject({
