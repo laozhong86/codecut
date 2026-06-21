@@ -174,6 +174,51 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		expect(validation.success).toBe(true);
 	});
 
+	test("projects decimal ASR segments to an EditPlan accepted by validateEditPlan", () => {
+		const plan: SpeechCleanupPlan = {
+			version: 2,
+			projectId: "project-1",
+			sourceMediaId: "media-1",
+			target: {
+				durationSec: 1.28,
+				aspectRatio: "16:9",
+			},
+			decisions: [
+				{
+					id: "seg-1",
+					text: "Um, this is a short proof.",
+					sourceStart: 0,
+					sourceEnd: 2.72,
+					action: "drop",
+					dropReason: "filler",
+					reason: "Opening filler.",
+				},
+				{
+					id: "seg-2",
+					text: "We keep the useful.",
+					sourceStart: 2.72,
+					sourceEnd: 4,
+					action: "keep",
+					reason: "Useful statement.",
+				},
+			],
+			rationale: "Runtime proof projection.",
+		};
+
+		const result = rebuildTimelineFromSpeechCleanup({
+			plan,
+			sourceDuration: 5.066667,
+		});
+
+		const validation = validateEditPlan({
+			plan: result.editPlan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset({ duration: 5.066667 })],
+		});
+
+		expect(validation.success).toBe(true);
+	});
+
 	test("fails when all decisions are dropped", () => {
 		const plan = speechCleanupPlan();
 		plan.decisions = plan.decisions.map(

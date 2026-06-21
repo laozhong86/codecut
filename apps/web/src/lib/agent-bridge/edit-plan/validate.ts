@@ -2,6 +2,8 @@ import type { MediaAsset } from "@/types/assets";
 import { validateTextRichSpans } from "@/services/renderer/nodes/text-layout";
 import { EditPlanSchema, type EditPlan } from "./schema";
 
+const TIMED_TEXT_TOLERANCE_SECONDS = 0.001;
+
 export type EditPlanValidationResult =
 	| { success: true; normalizedPlan: EditPlan }
 	| { success: false; message: string; path?: string };
@@ -48,7 +50,10 @@ function timedTextExceeds({
 	item: { startTime: number; duration: number };
 	timelineDuration: number;
 }): boolean {
-	return item.startTime + item.duration > timelineDuration;
+	return (
+		item.startTime + item.duration >
+		timelineDuration + TIMED_TEXT_TOLERANCE_SECONDS
+	);
 }
 
 function validateAudioAsset({
