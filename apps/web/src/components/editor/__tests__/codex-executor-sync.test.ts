@@ -148,10 +148,11 @@ describe("getExecutorStatusDotState", () => {
 			isSyncing: false,
 		});
 
-		expect(EXECUTOR_STATUS_DOT_CLASS).toContain("top-4");
-		expect(EXECUTOR_STATUS_DOT_CLASS).toContain("right-52");
+		expect(EXECUTOR_STATUS_DOT_CLASS).toContain("size-1.5");
+		expect(EXECUTOR_STATUS_DOT_CLASS).not.toContain("size-7");
+		expect(EXECUTOR_STATUS_DOT_CLASS).not.toContain("bg-background");
 		expect(state.ariaLabel).toBe("Codex executor succeeded");
-		expect(state.title).toBe("Codex executor succeeded. Click to sync.");
+		expect(state.title).toBe("Codex executor succeeded.");
 		expect(JSON.stringify(state)).not.toContain("get_timeline_state");
 		expect(JSON.stringify(state)).not.toContain("Timeline has 1 track");
 	});

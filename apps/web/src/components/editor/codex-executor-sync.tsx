@@ -53,7 +53,7 @@ type ExecutorSnapshotSummary = {
 };
 
 export const EXECUTOR_STATUS_DOT_CLASS =
-	"fixed top-4 right-52 z-50 inline-flex size-7 items-center justify-center rounded-full border border-border/70 bg-background/85 shadow-sm backdrop-blur transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default";
+	"fixed top-[1.55rem] right-48 z-50 size-1.5 rounded-full";
 
 export function getExecutorStatusDotState({
 	status,
@@ -67,24 +67,22 @@ export function getExecutorStatusDotState({
 	if (error || status?.status === "failed") {
 		return {
 			ariaLabel: "Codex executor failed",
-			title: "Codex executor failed. Click to sync.",
-			dotClassName: "bg-destructive shadow-[0_0_0_4px_rgba(239,68,68,0.16)]",
+			title: "Codex executor failed.",
+			dotClassName: "bg-destructive",
 		};
 	}
 	if (isSyncing || status?.status === "running") {
 		return {
 			ariaLabel: "Codex executor running",
 			title: "Codex executor running.",
-			dotClassName:
-				"animate-pulse bg-sky-400 shadow-[0_0_0_4px_rgba(56,189,248,0.16)]",
+			dotClassName: "animate-pulse bg-sky-400",
 		};
 	}
 	if (status?.status === "succeeded") {
 		return {
 			ariaLabel: "Codex executor succeeded",
-			title: "Codex executor succeeded. Click to sync.",
-			dotClassName:
-				"bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.16)]",
+			title: "Codex executor succeeded.",
+			dotClassName: "bg-emerald-500",
 		};
 	}
 	return {
@@ -306,27 +304,17 @@ export function CodexExecutorSync({
 	const dot = getExecutorStatusDotState({ status, error, isSyncing });
 
 	return (
-		<button
-			type="button"
+		<span
+			role="status"
 			aria-label={dot.ariaLabel}
 			title={dot.title}
-			onClick={() => {
-				void syncSnapshot().catch((err) => {
-					setError(err instanceof Error ? err.message : "Executor sync failed.");
-				});
-			}}
-			disabled={isSyncing}
-			className={EXECUTOR_STATUS_DOT_CLASS}
+			className={`${EXECUTOR_STATUS_DOT_CLASS} ${dot.dotClassName}`}
 		>
-			<span
-				aria-hidden="true"
-				className={`size-2.5 rounded-full ${dot.dotClassName}`}
-			/>
 			<span className="sr-only">
 				{summary
 					? `${summary.trackCount} tracks, ${summary.mediaCount} media, ${summary.duration.toFixed(2)} seconds, revision ${summary.revision}`
 					: dot.ariaLabel}
 			</span>
-		</button>
+		</span>
 	);
 }
