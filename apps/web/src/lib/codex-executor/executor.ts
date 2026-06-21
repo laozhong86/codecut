@@ -991,18 +991,13 @@ async function runBuildVideoContext({
 			version: context.version,
 			mediaId: context.mediaId,
 			name: context.name,
-			assetType: context.assetType,
 			qualityLevel: context.qualityLevel,
 			metadata: context.metadata,
-			transcript: {
-				fullText: context.text,
-				language: context.language,
-				modelId: context.modelId,
-				segments: context.segments,
-			},
+			transcript: context.transcript,
 			analysisChunks: context.analysisChunks,
+			assetTypeGuess: context.assetTypeGuess,
+			editingHints: context.editingHints,
 			warnings: context.warnings,
-			suggestTrimFillers: context.suggestTrimFillers,
 		},
 	};
 }

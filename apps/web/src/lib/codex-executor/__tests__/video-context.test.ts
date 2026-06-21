@@ -108,6 +108,12 @@ describe("video context", () => {
 		]);
 	});
 
+	test("buildAnalysisChunks keeps exactly 300 seconds as one chunk", () => {
+		expect(buildAnalysisChunks({ durationSeconds: 300 })).toEqual([
+			{ index: 1, start: 0, end: 300 },
+		]);
+	});
+
 	test("offsetTranscriptSegments remaps chunk segments into source time", () => {
 		expect(
 			offsetTranscriptSegments({
@@ -126,10 +132,10 @@ describe("video context", () => {
 		).toEqual([{ start: 301.235, end: 304.567, text: "rounded chunk" }]);
 	});
 
-	test("guessVideoContextAssetType flags long multi-segment text as oral", () => {
+	test("guessVideoContextAssetType flags 20 character multi-segment text as oral", () => {
 		expect(
 			guessVideoContextAssetType({
-				text: "This is a spoken explanation with enough words to clearly read as transcript content across multiple segments.",
+				text: "12345678901234567890",
 				segmentCount: 3,
 			}),
 		).toBe("oral_candidate");
@@ -142,9 +148,10 @@ describe("video context", () => {
 	});
 
 	test("shouldSuggestTrimFillers requires at least two filler markers", () => {
-		expect(shouldSuggestTrimFillers("嗯，我们然后看这里")).toBe(true);
+		expect(shouldSuggestTrimFillers("嗯，我们额看这里")).toBe(true);
 		expect(shouldSuggestTrimFillers("然后进入下一步")).toBe(false);
 		expect(shouldSuggestTrimFillers("然后然后")).toBe(false);
+		expect(shouldSuggestTrimFillers("那个然后")).toBe(false);
 	});
 
 	test("buildVideoContextWithTranscriber merges chunk transcripts into one context", async () => {
@@ -195,11 +202,17 @@ describe("video context", () => {
 				height: 1080,
 				hasAudio: true,
 			},
-			segments: [
-				{ start: 1, end: 4, text: "first chunk" },
-				{ start: 301, end: 304, text: "second chunk" },
-				{ start: 601, end: 604, text: "third chunk" },
-			],
+			transcript: {
+				fullText:
+					"First chunk spoken transcript with enough words for classification.\nSecond chunk spoken transcript with enough words for classification.\nThird chunk spoken transcript with enough words for classification.",
+				language: "zh",
+				modelId: "whisper-large-v3-turbo",
+				segments: [
+					{ start: 1, end: 4, text: "first chunk" },
+					{ start: 301, end: 304, text: "second chunk" },
+					{ start: 601, end: 604, text: "third chunk" },
+				],
+			},
 			analysisChunks: [
 				{ index: 1, start: 0, end: 300, status: "succeeded", segmentCount: 1 },
 				{
@@ -217,10 +230,42 @@ describe("video context", () => {
 					segmentCount: 1,
 				},
 			],
+			assetTypeGuess: "oral_candidate",
+			editingHints: {
+				suggestTrimFillers: false,
+				hasTalkingHeadSignal: true,
+				canBeBroll: false,
+			},
 		});
 		expect(videoContext.warnings).toContain("visual analysis not run");
 		expect(videoContext.warnings).toContain("OCR skipped");
 		expect(videoContext.warnings).toContain("scene detection not run");
+	});
+
+	test("buildVideoContextWithTranscriber fails fast when media has no audio", async () => {
+		let transcribeCount = 0;
+
+		await expect(
+			buildVideoContextWithTranscriber({
+				mediaAsset: {
+					id: "media-1",
+					name: "silent.mp4",
+					type: "video",
+					durationSeconds: 120,
+				},
+				probeAudio: async () => ({ hasAudio: false }),
+				transcribeRange: async () => {
+					transcribeCount += 1;
+					return {
+						text: "should not run",
+						language: "zh",
+						modelId: "whisper-large-v3-turbo",
+						segments: [],
+					};
+				},
+			}),
+		).rejects.toThrow("VideoContext requires audio content.");
+		expect(transcribeCount).toBe(0);
 	});
 
 	test("buildVideoContextWithTranscriber fails fast on chunk transcription errors", async () => {

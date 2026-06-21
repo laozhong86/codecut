@@ -416,6 +416,12 @@ describe("codex executor", () => {
 			data: {
 				qualityLevel: "L2_transcript",
 				metadata: { durationSeconds: 725, hasAudio: true },
+				assetTypeGuess: "oral_candidate",
+				editingHints: {
+					suggestTrimFillers: false,
+					hasTalkingHeadSignal: true,
+					canBeBroll: false,
+				},
 				transcript: {
 					segments: [
 						{ start: 1, end: 2, text: "hello" },
@@ -424,6 +430,20 @@ describe("codex executor", () => {
 					],
 				},
 			},
+		});
+		const data = resultData<{
+			assetType?: unknown;
+			assetTypeGuess?: unknown;
+			suggestTrimFillers?: unknown;
+			editingHints?: unknown;
+		}>(contextResult.results[0]);
+		expect(data.assetType).toBeUndefined();
+		expect(data.suggestTrimFillers).toBeUndefined();
+		expect(data.assetTypeGuess).toBe("oral_candidate");
+		expect(data.editingHints).toEqual({
+			suggestTrimFillers: false,
+			hasTalkingHeadSignal: true,
+			canBeBroll: false,
 		});
 	});
 

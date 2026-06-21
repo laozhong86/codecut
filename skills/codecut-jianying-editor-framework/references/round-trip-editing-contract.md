@@ -22,13 +22,13 @@ get_project_info
 Future product-direction loop:
 
 ```text
-getProjectState
-  -> buildVideoContext
+read project state
+  -> build video context
   -> generate EditPlan
-  -> validateEditPlan
-  -> previewEditPlan
-  -> applyEditPlan
-  -> verifyEditorState
+  -> validate EditPlan
+  -> preview EditPlan
+  -> apply EditPlan
+  -> verify editor state
 ```
 
 Do not claim the future product-direction loop is implemented unless the code exposes those tools. Today's `apply_edit_plan` validates and mutates in one command.

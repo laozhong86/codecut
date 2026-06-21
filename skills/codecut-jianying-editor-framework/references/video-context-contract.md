@@ -12,22 +12,29 @@ Do not ask Codex to "watch an MP4" directly. Convert media into searchable, time
 
 ```json
 {
+  "version": 1,
   "mediaId": "media_123",
   "name": "interview.mp4",
+  "qualityLevel": "L2_transcript",
   "metadata": {
     "durationSeconds": 1830.4,
     "width": 1920,
     "height": 1080,
-    "fps": 30,
     "hasAudio": true
   },
   "transcript": {
+    "fullText": "完整转写文本",
     "language": "zh",
+    "modelId": "whisper-large-v3-turbo",
     "segments": []
   },
-  "scenes": [],
-  "audioEvents": [],
-  "ocr": [],
+  "analysisChunks": [],
+  "assetTypeGuess": "oral_candidate",
+  "editingHints": {
+    "suggestTrimFillers": true,
+    "hasTalkingHeadSignal": true,
+    "canBeBroll": false
+  },
   "warnings": []
 }
 ```
@@ -130,7 +137,7 @@ Implemented for MVP:
 - L2 transcript context through local `build_video_context`
 - fixed 300-second analysis chunking for long media
 - source-video timestamp normalization across chunks
-- deterministic transcript-based `oral_candidate` and filler hints
+- deterministic transcript-based `assetTypeGuess` and `editingHints`
 
 ## Warnings
 

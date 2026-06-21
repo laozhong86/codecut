@@ -116,7 +116,7 @@ Minimum response:
 
 Failure behavior: fail fast if the editor has no project or the selected media cannot be resolved.
 
-### `buildVideoContext`
+### Future build video context concept
 
 Purpose: create or retrieve the analysis context for one source video.
 

@@ -28,7 +28,6 @@ export interface VideoContext {
 	version: 1;
 	mediaId: string;
 	name: string;
-	assetType: VideoContextAssetTypeGuess;
 	qualityLevel: "L2_transcript";
 	metadata: {
 		durationSeconds: number;
@@ -36,13 +35,20 @@ export interface VideoContext {
 		height?: number;
 		hasAudio: boolean;
 	};
-	text: string;
-	language: string;
-	modelId: string;
-	segments: TranscriptionSegment[];
+	transcript: {
+		fullText: string;
+		language: string;
+		modelId: string;
+		segments: TranscriptionSegment[];
+	};
 	analysisChunks: CompletedAnalysisChunk[];
+	assetTypeGuess: VideoContextAssetTypeGuess;
+	editingHints: {
+		suggestTrimFillers: boolean;
+		hasTalkingHeadSignal: boolean;
+		canBeBroll: false;
+	};
 	warnings: string[];
-	suggestTrimFillers: boolean;
 }
 
 export type ProbeAudio = ({
@@ -115,13 +121,13 @@ export function guessVideoContextAssetType({
 	segmentCount: number;
 }): VideoContextAssetTypeGuess {
 	const normalizedText = text.trim();
-	if (segmentCount >= 3 && normalizedText.length >= 48) {
+	if (segmentCount >= 3 && normalizedText.length >= 20) {
 		return "oral_candidate";
 	}
 	return "mixed_or_unknown";
 }
 
-const FILLER_MARKERS = ["嗯", "呃", "啊", "就是", "然后", "那个"];
+const FILLER_MARKERS = ["嗯", "啊", "呃", "额", "然后", "就是"];
 
 export function shouldSuggestTrimFillers(text: string): boolean {
 	const matchedMarkers = new Set<string>();
@@ -204,14 +210,14 @@ export async function buildVideoContextWithTranscriber({
 	}
 
 	const text = textParts.filter(Boolean).join("\n");
+	const assetTypeGuess = guessVideoContextAssetType({
+		text,
+		segmentCount: segments.length,
+	});
 	return {
 		version: 1,
 		mediaId: mediaAsset.id,
 		name: mediaAsset.name,
-		assetType: guessVideoContextAssetType({
-			text,
-			segmentCount: segments.length,
-		}),
 		qualityLevel: "L2_transcript",
 		metadata: {
 			durationSeconds: mediaAsset.durationSeconds,
@@ -219,16 +225,23 @@ export async function buildVideoContextWithTranscriber({
 			height: mediaAsset.height,
 			hasAudio: true,
 		},
-		text,
-		language,
-		modelId,
-		segments,
+		transcript: {
+			fullText: text,
+			language,
+			modelId,
+			segments,
+		},
 		analysisChunks,
+		assetTypeGuess,
+		editingHints: {
+			suggestTrimFillers: shouldSuggestTrimFillers(text),
+			hasTalkingHeadSignal: assetTypeGuess === "oral_candidate",
+			canBeBroll: false,
+		},
 		warnings: [
 			"visual analysis not run",
 			"OCR skipped",
 			"scene detection not run",
 		],
-		suggestTrimFillers: shouldSuggestTrimFillers(text),
 	};
 }
