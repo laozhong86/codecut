@@ -1,0 +1,18 @@
+{
+  "apps": {
+    "codecut": {
+      "id": "codecut",
+      "displayName": "Codecut",
+      "description": "Local Codecut preview for project browsing, editor inspection, and manual adjustment.",
+      "launch": {
+        "type": "local-web-server",
+        "command": "bun",
+        "args": [
+          "run",
+          "dev:web"
+        ],
+        "url": "http://127.0.0.1:4100/en/projects"
+      }
+    }
+  }
+}

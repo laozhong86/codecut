@@ -7,6 +7,7 @@
   },
   "license": "MIT",
   "skills": "./skills/",
+  "apps": "./.app.json",
   "interface": {
     "displayName": "Codecut",
     "shortDescription": "Codex-only Codecut editing workflow.",
@@ -19,7 +20,7 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Use $codecut-jianying-editor-framework to operate the current Codex-only Codecut editing MVP through the local executor and EditPlan workflow."
+      "Use $codecut-jianying-editor-framework to initialize Codecut, open the local preview in the Codex in-app browser, and operate the current Codex-only editing MVP through the local executor and EditPlan workflow."
     ],
     "brandColor": "#2563EB"
   }

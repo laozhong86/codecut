@@ -131,9 +131,27 @@ Browser role:
 
 - Browser is the human preview and manual-edit surface.
 - Browser is not the Agent runtime.
-- Opening a Browser tab is allowed only to give the user a convenient link to inspect the project page.
+- After the `http://127.0.0.1:4100/en/projects` readiness check succeeds, actively open the local preview page in the Codex in-app browser for the user.
+- Opening a Browser tab is allowed only to give the user a convenient link to inspect the project page or the current editor page.
 - A missing or closed Browser tab must not block Codex from operating through CLI once the headless/local executor path exists.
-- Do not use Browser visibility, screenshots, DOM control, macOS hotkeys, global menu automation, AppleScript, external browser windows, or standalone Playwright as an Agent execution dependency.
+- Do not use screenshots, DOM control, macOS hotkeys, global menu automation, AppleScript, external browser windows, or standalone Playwright as an Agent execution dependency.
+
+Open the preview with the Browser plugin's `control-in-app-browser` contract:
+
+```js
+const previewUrl = "http://127.0.0.1:4100/en/projects";
+const { setupBrowserRuntime } = await import("<absolute-browser-plugin-root>/scripts/browser-client.mjs");
+await setupBrowserRuntime({ globals: globalThis });
+globalThis.browser = await agent.browsers.get("iab");
+nodeRepl.write(await browser.documentation());
+await (await browser.capabilities.get("visibility")).set(true);
+globalThis.tab = (await browser.tabs.selected()) ?? await browser.tabs.new();
+if ((await tab.url()) !== previewUrl) {
+  await tab.goto(previewUrl);
+}
+```
+
+Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview URL; that reloads the page and can disturb manual editor work. If Browser bootstrap is unavailable, report the exact blocker and the preview URL, then continue only through the CLI gates that do not depend on Browser state.
 
 Important current implementation gap:
 
@@ -150,7 +168,7 @@ Project URL handling:
 http://127.0.0.1:4100/en/editor/<projectId>
 ```
 
-This URL is for human preview and manual adjustment. It is not a proof that the Agent executor is available.
+This URL is for human preview and manual adjustment. When a concrete `projectId` is available, use it as `previewUrl` and open it in the Codex in-app browser with the same flow above. It is not a proof that the Agent executor is available.
 
 The editing target must be explicit before any CLI command:
 
