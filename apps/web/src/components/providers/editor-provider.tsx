@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+	applyCodexExecutorSnapshot,
+	CodexExecutorSync,
+	loadCodexExecutorSnapshot,
+} from "@/components/editor/codex-executor-sync";
 import { AgentBridgeProvider } from "@/components/providers/agent-bridge-provider";
 import { useRouter } from "@/lib/navigation";
 import { Loader2 } from "lucide-react";
@@ -21,6 +26,9 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [executorRevision, setExecutorRevision] = useState<number | undefined>(
+		undefined,
+	);
 	const { disableKeybindings, enableKeybindings } = useKeybindingDisabler();
 	const activeProject = editor.project.getActiveOrNull();
 
@@ -38,6 +46,7 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		const loadProject = async () => {
 			try {
 				setIsLoading(true);
+				setExecutorRevision(undefined);
 				await editor.project.loadProject({ id: projectId });
 
 				if (cancelled) return;
@@ -53,6 +62,15 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 
 				if (isNotFound) {
 					try {
+						const snapshot = await loadCodexExecutorSnapshot({ projectId });
+						if (cancelled) return;
+						if (snapshot) {
+							applyCodexExecutorSnapshot({ editor, snapshot });
+							setExecutorRevision(snapshot.revision);
+							setIsLoading(false);
+							return;
+						}
+
 						const newProjectId = await editor.project.createNewProject({
 							name: "Untitled Project",
 						});
@@ -113,6 +131,13 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		<>
 			<EditorRuntimeBindings />
 			<AgentBridgeProvider projectId={projectId} />
+			{executorRevision !== undefined ? (
+				<CodexExecutorSync
+					projectId={projectId}
+					editor={editor}
+					initialRevision={executorRevision}
+				/>
+			) : null}
 			{children}
 		</>
 	);

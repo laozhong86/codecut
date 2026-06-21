@@ -8,6 +8,9 @@ node_modules
 .cursorignore
 .turbo
 *.tsbuildinfo
+.playwright-cli/
+apps/web/.codecut-executor/
+tmp/
 
 .env*
 !*.env.example

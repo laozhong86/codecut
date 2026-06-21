@@ -1,0 +1,4 @@
+interface:
+  display_name: Codecut Jianying Editor Framework
+  short_description: Applies Jianying-style editing discipline to Codecut's local executor workflow.
+  default_prompt: Use $codecut-jianying-editor-framework. Classify the request with the intent router, read only the matching workflow recipe, run doctor-install before business editing commands, then operate or extend Codecut through the local executor and codex-bridge CLI with explicit project settings, implemented EditPlan fields, timeline verification, and export contracts.

@@ -1,7 +1,13 @@
+import { FONT_SIZE_SCALE_REFERENCE } from "@/constants/text-constants";
+import type { TextElement, TextShadow } from "@/types/timeline";
 import type { CanvasRenderer } from "../canvas-renderer";
 import { BaseNode } from "./base-node";
-import type { TextElement } from "@/types/timeline";
-import { FONT_SIZE_SCALE_REFERENCE } from "@/constants/text-constants";
+import {
+	createTextLayout,
+	type TextLayoutLine,
+	type TextLayoutRun,
+	type TextRunStyle,
+} from "./text-layout";
 
 type RenderContext =
 	| CanvasRenderingContext2D
@@ -27,52 +33,35 @@ export function scaleBoxWidth({
 	return boxWidth * (canvasHeight / FONT_SIZE_SCALE_REFERENCE);
 }
 
-function wrapText({
-	context,
-	text,
-	maxWidth,
-}: {
-	context: RenderContext;
-	text: string;
-	maxWidth: number;
-}): string[] {
-	const lines: string[] = [];
-	const paragraphs = text.split("\n");
-
-	for (const paragraph of paragraphs) {
-		if (paragraph === "") {
-			lines.push("");
-			continue;
-		}
-
-		const chars = Array.from(paragraph);
-		let currentLine = "";
-
-		for (const char of chars) {
-			const testLine = currentLine + char;
-			const metrics = context.measureText(testLine);
-
-			if (metrics.width > maxWidth && currentLine !== "") {
-				lines.push(currentLine);
-				currentLine = char;
-			} else {
-				currentLine = testLine;
-			}
-		}
-
-		if (currentLine !== "") {
-			lines.push(currentLine);
-		}
-	}
-
-	return lines.length > 0 ? lines : [""];
-}
-
 export type TextNodeParams = TextElement & {
 	canvasCenter: { x: number; y: number };
 	canvasHeight: number;
 	textBaseline?: CanvasTextBaseline;
 };
+
+function getRunFont({
+	params,
+	runStyle,
+	scaledFontSize,
+}: {
+	params: TextNodeParams;
+	runStyle: TextRunStyle;
+	scaledFontSize: number;
+}): string {
+	const fontWeight =
+		runStyle.fontWeight ?? (params.fontWeight === "bold" ? "bold" : "normal");
+	const fontStyle =
+		runStyle.fontStyle ?? (params.fontStyle === "italic" ? "italic" : "normal");
+	const fontSize = scaledFontSize * (runStyle.fontScale ?? 1);
+	return `${fontStyle} ${fontWeight} ${fontSize}px ${params.fontFamily}`;
+}
+
+function resetShadow({ context }: { context: RenderContext }) {
+	context.shadowColor = "transparent";
+	context.shadowBlur = 0;
+	context.shadowOffsetX = 0;
+	context.shadowOffsetY = 0;
+}
 
 export class TextNode extends BaseNode<TextNodeParams> {
 	isInRange({ time }: { time: number }) {
@@ -87,37 +76,24 @@ export class TextNode extends BaseNode<TextNodeParams> {
 			return;
 		}
 
-		renderer.context.save();
+		const context = renderer.context;
+		context.save();
 
 		const x = this.params.transform.position.x + this.params.canvasCenter.x;
 		const y = this.params.transform.position.y + this.params.canvasCenter.y;
 
-		renderer.context.translate(x, y);
+		context.translate(x, y);
 		if (this.params.transform.rotate) {
-			renderer.context.rotate((this.params.transform.rotate * Math.PI) / 180);
+			context.rotate((this.params.transform.rotate * Math.PI) / 180);
 		}
 		if (this.params.transform.scale !== 1) {
-			renderer.context.scale(
-				this.params.transform.scale,
-				this.params.transform.scale,
-			);
+			context.scale(this.params.transform.scale, this.params.transform.scale);
 		}
 
-		const fontWeight = this.params.fontWeight === "bold" ? "bold" : "normal";
-		const fontStyle = this.params.fontStyle === "italic" ? "italic" : "normal";
-		const textBaseline = this.params.textBaseline || "middle";
 		const scaledFontSize = scaleFontSize({
 			fontSize: this.params.fontSize,
 			canvasHeight: this.params.canvasHeight,
 		});
-		renderer.context.font = `${fontStyle} ${fontWeight} ${scaledFontSize}px ${this.params.fontFamily}`;
-		renderer.context.textAlign = this.params.textAlign;
-		renderer.context.textBaseline = textBaseline;
-		renderer.context.fillStyle = this.params.color;
-
-		const prevAlpha = renderer.context.globalAlpha;
-		renderer.context.globalAlpha = this.params.opacity;
-
 		const boxWidth = this.params.boxWidth;
 		const hasBoxWidth = boxWidth !== undefined && boxWidth > 0;
 		const scaledBoxWidth = hasBoxWidth
@@ -125,186 +101,203 @@ export class TextNode extends BaseNode<TextNodeParams> {
 					boxWidth,
 					canvasHeight: this.params.canvasHeight,
 				})
-			: 0;
-
-		if (hasBoxWidth) {
-			this.renderMultiline({
-				context: renderer.context,
-				scaledFontSize,
-				scaledBoxWidth,
-				textBaseline,
-			});
-		} else {
-			this.renderSingleLine({
-				context: renderer.context,
-				scaledFontSize,
-				textBaseline,
-			});
-		}
-
-		renderer.context.globalAlpha = prevAlpha;
-		renderer.context.restore();
-	}
-
-	private renderSingleLine({
-		context,
-		scaledFontSize,
-		textBaseline,
-	}: {
-		context: RenderContext;
-		scaledFontSize: number;
-		textBaseline: CanvasTextBaseline;
-	}) {
-		if (this.params.backgroundColor && this.params.backgroundColor !== "transparent") {
-			const metrics = context.measureText(this.params.content);
-			const ascent = metrics.actualBoundingBoxAscent ?? scaledFontSize * 0.8;
-			const descent =
-				metrics.actualBoundingBoxDescent ?? scaledFontSize * 0.2;
-			const textW = metrics.width;
-			const textH = ascent + descent;
-			const padX = this.params.backgroundPaddingX ?? 8;
-			const padY = this.params.backgroundPaddingY ?? 4;
-			const borderRadius = this.params.backgroundBorderRadius ?? 0;
-
-			const prevAlpha = context.globalAlpha;
-			const bgOpacity = this.params.backgroundOpacity ?? 1;
-			context.globalAlpha = prevAlpha * bgOpacity;
-
-			context.fillStyle = this.params.backgroundColor;
-			let bgLeft = -textW / 2;
-			if (context.textAlign === "left") bgLeft = 0;
-			if (context.textAlign === "right") bgLeft = -textW;
-
-			const backgroundTop =
-				textBaseline === "bottom" ? -textH - padY : -textH / 2 - padY;
-			const bgW = textW + padX * 2;
-			const bgH = textH + padY * 2;
-			const bgX = bgLeft - padX;
-
-			if (borderRadius > 0 && context.roundRect) {
-				context.beginPath();
-				context.roundRect(bgX, backgroundTop, bgW, bgH, borderRadius);
-				context.fill();
-			} else {
-				context.fillRect(bgX, backgroundTop, bgW, bgH);
-			}
-
-			context.globalAlpha = prevAlpha;
-			context.fillStyle = this.params.color;
-		}
-
-		if (this.params.shadow) {
-			context.shadowColor = this.params.shadow.color;
-			context.shadowOffsetX = this.params.shadow.offsetX;
-			context.shadowOffsetY = this.params.shadow.offsetY;
-			context.shadowBlur = this.params.shadow.blur;
-		}
-
-		if (this.params.stroke && this.params.stroke.width > 0) {
-			context.strokeStyle = this.params.stroke.color;
-			context.lineWidth = this.params.stroke.width * 2;
-			context.lineJoin = "round";
-			context.strokeText(this.params.content, 0, 0);
-		}
-
-		if (this.params.shadow) {
-			context.shadowColor = "transparent";
-			context.shadowBlur = 0;
-			context.shadowOffsetX = 0;
-			context.shadowOffsetY = 0;
-		}
-
-		context.fillText(this.params.content, 0, 0);
-	}
-
-	private renderMultiline({
-		context,
-		scaledFontSize,
-		scaledBoxWidth,
-		textBaseline,
-	}: {
-		context: RenderContext;
-		scaledFontSize: number;
-		scaledBoxWidth: number;
-		textBaseline: CanvasTextBaseline;
-	}) {
-		const lines = wrapText({
-			context,
-			text: this.params.content,
+			: undefined;
+		const layout = createTextLayout({
+			content: this.params.content,
+			richSpans: this.params.richSpans,
 			maxWidth: scaledBoxWidth,
+			measureText: (text, style) => {
+				context.font = getRunFont({
+					params: this.params,
+					runStyle: style,
+					scaledFontSize,
+				});
+				return context.measureText(text).width;
+			},
+		});
+		const lineHeight = scaledFontSize * 1.3;
+		const textBaseline = this.params.textBaseline || "middle";
+
+		const prevAlpha = context.globalAlpha;
+		context.globalAlpha = this.params.opacity;
+
+		this.renderBackground({
+			context,
+			layoutLines: layout.lines,
+			scaledBoxWidth,
+			lineHeight,
+			textBaseline,
 		});
 
-		const lineHeight = scaledFontSize * 1.3;
-		const totalHeight = lines.length * lineHeight;
-
-		let startY: number;
-		if (textBaseline === "bottom") {
-			startY = -totalHeight;
-		} else {
-			startY = -totalHeight / 2 + lineHeight / 2;
-		}
-
+		context.textAlign = "left";
 		context.textBaseline = "middle";
 
-		let textX = 0;
-		if (context.textAlign === "left") {
-			textX = -scaledBoxWidth / 2;
-		} else if (context.textAlign === "right") {
-			textX = scaledBoxWidth / 2;
+		const totalHeight = layout.lines.length * lineHeight;
+		const startY =
+			textBaseline === "bottom"
+				? -totalHeight + lineHeight / 2
+				: -totalHeight / 2 + lineHeight / 2;
+
+		for (let lineIndex = 0; lineIndex < layout.lines.length; lineIndex += 1) {
+			const line = layout.lines[lineIndex];
+			const lineY = startY + lineIndex * lineHeight;
+			let runX = this.getLineStartX({
+				line,
+				scaledBoxWidth,
+			});
+
+			for (const run of line.runs) {
+				const runWidth = this.renderRun({
+					context,
+					run,
+					x: runX,
+					y: lineY,
+					scaledFontSize,
+				});
+				runX += runWidth;
+			}
 		}
 
-		if (this.params.backgroundColor && this.params.backgroundColor !== "transparent") {
-			const padX = this.params.backgroundPaddingX ?? 8;
-			const padY = this.params.backgroundPaddingY ?? 4;
-			const borderRadius = this.params.backgroundBorderRadius ?? 0;
+		context.globalAlpha = prevAlpha;
+		context.restore();
+	}
 
-			const prevAlpha = context.globalAlpha;
-			const bgOpacity = this.params.backgroundOpacity ?? 1;
-			context.globalAlpha = prevAlpha * bgOpacity;
-
-			context.fillStyle = this.params.backgroundColor;
-			const bgX = -scaledBoxWidth / 2 - padX;
-			const bgY = startY - lineHeight / 2 - padY;
-			const bgW = scaledBoxWidth + padX * 2;
-			const bgH = totalHeight + padY * 2;
-
-			if (borderRadius > 0 && context.roundRect) {
-				context.beginPath();
-				context.roundRect(bgX, bgY, bgW, bgH, borderRadius);
-				context.fill();
-			} else {
-				context.fillRect(bgX, bgY, bgW, bgH);
-			}
-
-			context.globalAlpha = prevAlpha;
-			context.fillStyle = this.params.color;
+	private renderBackground({
+		context,
+		layoutLines,
+		scaledBoxWidth,
+		lineHeight,
+		textBaseline,
+	}: {
+		context: RenderContext;
+		layoutLines: TextLayoutLine[];
+		scaledBoxWidth: number | undefined;
+		lineHeight: number;
+		textBaseline: CanvasTextBaseline;
+	}) {
+		if (
+			!this.params.backgroundColor ||
+			this.params.backgroundColor === "transparent"
+		) {
+			return;
 		}
 
-		for (let i = 0; i < lines.length; i++) {
-			const lineY = startY + i * lineHeight;
+		const maxLineWidth = Math.max(
+			...layoutLines.map((line) => line.width),
+			lineHeight,
+		);
+		const textWidth = scaledBoxWidth ?? maxLineWidth;
+		const textHeight = layoutLines.length * lineHeight;
+		const padX = this.params.backgroundPaddingX ?? 8;
+		const padY = this.params.backgroundPaddingY ?? 4;
+		const borderRadius = this.params.backgroundBorderRadius ?? 0;
+		const bgW = textWidth + padX * 2;
+		const bgH = textHeight + padY * 2;
+		const bgX = this.getBackgroundX({ textWidth, padX, scaledBoxWidth });
+		const bgY =
+			textBaseline === "bottom"
+				? -textHeight - padY
+				: -textHeight / 2 - padY;
 
-			if (this.params.shadow) {
-				context.shadowColor = this.params.shadow.color;
-				context.shadowOffsetX = this.params.shadow.offsetX;
-				context.shadowOffsetY = this.params.shadow.offsetY;
-				context.shadowBlur = this.params.shadow.blur;
-			}
+		const prevAlpha = context.globalAlpha;
+		context.globalAlpha = prevAlpha * (this.params.backgroundOpacity ?? 1);
+		context.fillStyle = this.params.backgroundColor;
 
-			if (this.params.stroke && this.params.stroke.width > 0) {
-				context.strokeStyle = this.params.stroke.color;
-				context.lineWidth = this.params.stroke.width * 2;
-				context.lineJoin = "round";
-				context.strokeText(lines[i], textX, lineY);
-			}
-
-			if (this.params.shadow) {
-				context.shadowColor = "transparent";
-				context.shadowBlur = 0;
-				context.shadowOffsetX = 0;
-				context.shadowOffsetY = 0;
-			}
-
-			context.fillText(lines[i], textX, lineY);
+		if (borderRadius > 0 && context.roundRect) {
+			context.beginPath();
+			context.roundRect(bgX, bgY, bgW, bgH, borderRadius);
+			context.fill();
+		} else {
+			context.fillRect(bgX, bgY, bgW, bgH);
 		}
+
+		context.globalAlpha = prevAlpha;
+	}
+
+	private getBackgroundX({
+		textWidth,
+		padX,
+		scaledBoxWidth,
+	}: {
+		textWidth: number;
+		padX: number;
+		scaledBoxWidth: number | undefined;
+	}): number {
+		if (scaledBoxWidth !== undefined) return -scaledBoxWidth / 2 - padX;
+		if (this.params.textAlign === "left") return -padX;
+		if (this.params.textAlign === "right") return -textWidth - padX;
+		return -textWidth / 2 - padX;
+	}
+
+	private getLineStartX({
+		line,
+		scaledBoxWidth,
+	}: {
+		line: TextLayoutLine;
+		scaledBoxWidth: number | undefined;
+	}): number {
+		if (this.params.textAlign === "left") {
+			return scaledBoxWidth !== undefined ? -scaledBoxWidth / 2 : 0;
+		}
+		if (this.params.textAlign === "right") {
+			return scaledBoxWidth !== undefined
+				? scaledBoxWidth / 2 - line.width
+				: -line.width;
+		}
+		return -line.width / 2;
+	}
+
+	private renderRun({
+		context,
+		run,
+		x,
+		y,
+		scaledFontSize,
+	}: {
+		context: RenderContext;
+		run: TextLayoutRun;
+		x: number;
+		y: number;
+		scaledFontSize: number;
+	}): number {
+		context.font = getRunFont({
+			params: this.params,
+			runStyle: run.style,
+			scaledFontSize,
+		});
+		const width = context.measureText(run.text).width;
+		const shadow = this.params.shadow;
+		if (shadow) {
+			this.applyShadow({ context, shadow });
+		}
+
+		const stroke = run.style.stroke ?? this.params.stroke;
+		if (stroke && stroke.width > 0) {
+			context.strokeStyle = stroke.color;
+			context.lineWidth = stroke.width * 2;
+			context.lineJoin = "round";
+			context.strokeText(run.text, x, y);
+		}
+
+		if (shadow) {
+			resetShadow({ context });
+		}
+
+		context.fillStyle = run.style.color ?? this.params.color;
+		context.fillText(run.text, x, y);
+		return width;
+	}
+
+	private applyShadow({
+		context,
+		shadow,
+	}: {
+		context: RenderContext;
+		shadow: TextShadow;
+	}) {
+		context.shadowColor = shadow.color;
+		context.shadowOffsetX = shadow.offsetX;
+		context.shadowOffsetY = shadow.offsetY;
+		context.shadowBlur = shadow.blur;
 	}
 }

@@ -38,12 +38,26 @@ export interface TTimelineViewState {
 	playheadTime: number;
 }
 
+export interface DerivedAsset {
+	id: string;
+	type: "person-mask";
+	sourceMediaId: string;
+	alphaMediaId: string;
+	duration: number;
+	width: number;
+	height: number;
+	fps: number;
+	confidence: number;
+	createdAt: string;
+}
+
 export interface TProject {
 	metadata: TProjectMetadata;
 	scenes: TScene[];
 	currentSceneId: string;
 	settings: TProjectSettings;
 	version: number;
+	derivedAssets: DerivedAsset[];
 	timelineViewState?: TTimelineViewState;
 	agentMessages?: AgentMessage[];
 }

@@ -1,6 +1,7 @@
 import type { EditorCore } from "@/core";
 import type {
 	TProject,
+	DerivedAsset,
 	TProjectMetadata,
 	TProjectSortKey,
 	TProjectSortOption,
@@ -94,6 +95,7 @@ export class ProjectManager {
 				},
 			},
 			version: CURRENT_PROJECT_VERSION,
+			derivedAssets: [],
 		};
 
 		this.active = newProject;
@@ -539,6 +541,38 @@ export class ProjectManager {
 		return this.active?.timelineViewState ?? DEFAULT_TIMELINE_VIEW_STATE;
 	}
 
+	getDerivedAssets(): DerivedAsset[] {
+		return this.getActive().derivedAssets;
+	}
+
+	addDerivedAsset({ derivedAsset }: { derivedAsset: DerivedAsset }): void {
+		const active = this.getActive();
+		if (active.derivedAssets.some((asset) => asset.id === derivedAsset.id)) {
+			throw new Error("Derived asset already exists.");
+		}
+
+		this.active = {
+			...active,
+			derivedAssets: [...active.derivedAssets, derivedAsset],
+		};
+		this.notify();
+		this.editor.save.markDirty();
+	}
+
+	removeDerivedAsset({ id }: { id: string }): void {
+		const active = this.getActive();
+		if (!active.derivedAssets.some((asset) => asset.id === id)) {
+			throw new Error("Derived asset was not found.");
+		}
+
+		this.active = {
+			...active,
+			derivedAssets: active.derivedAssets.filter((asset) => asset.id !== id),
+		};
+		this.notify();
+		this.editor.save.markDirty();
+	}
+
 	setTimelineViewState({ viewState }: { viewState: TTimelineViewState }): void {
 		if (!this.active) return;
 		this.active = {
@@ -599,6 +633,7 @@ export class ProjectManager {
 		const scene = buildScene({
 			tracks,
 			mediaAssets,
+			derivedAssets: this.active.derivedAssets,
 			duration,
 			canvasSize,
 			background,
@@ -614,8 +649,7 @@ export class ProjectManager {
 		tempCanvas.width = thumbWidth;
 		tempCanvas.height = thumbHeight;
 
-		const representativeTime =
-			duration * ProjectManager.THUMBNAIL_TIME_RATIO;
+		const representativeTime = duration * ProjectManager.THUMBNAIL_TIME_RATIO;
 
 		await renderer.renderToCanvas({
 			node: scene,
@@ -647,6 +681,8 @@ export class ProjectManager {
 	}
 
 	private notify(): void {
-		this.listeners.forEach((fn) => fn());
+		this.listeners.forEach((fn) => {
+			fn();
+		});
 	}
 }

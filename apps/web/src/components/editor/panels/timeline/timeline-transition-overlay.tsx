@@ -91,8 +91,7 @@ function TransitionJunctionOverlay({
 		side: "left" | "right";
 	} | null>(null);
 
-	const pixelsPerSecond =
-		TIMELINE_CONSTANTS.PIXELS_PER_SECOND * zoomLevel;
+	const pixelsPerSecond = TIMELINE_CONSTANTS.PIXELS_PER_SECOND * zoomLevel;
 	const junctionTime = getElementEndTime({ element: fromElement });
 	const junctionPx = junctionTime * pixelsPerSecond;
 
@@ -125,10 +124,7 @@ function TransitionJunctionOverlay({
 
 	const clampDuration = useCallback(
 		({ duration }: { duration: number }): number => {
-			return Math.max(
-				MIN_TRANSITION_DURATION,
-				Math.min(duration, maxDuration),
-			);
+			return Math.max(MIN_TRANSITION_DURATION, Math.min(duration, maxDuration));
 		},
 		[maxDuration],
 	);
@@ -245,15 +241,14 @@ function TransitionJunctionOverlay({
 			<div
 				className="absolute top-0 left-0 z-10 h-full cursor-ew-resize"
 				style={{ width: `${handleWidth}px` }}
-				onPointerDown={(event) =>
-					handleDragStart({ event, side: "left" })
-				}
+				onPointerDown={(event) => handleDragStart({ event, side: "left" })}
 				onPointerMove={(event) => handleDragMove({ event })}
 				onPointerUp={handleDragEnd}
-				role="separator"
+				role="slider"
 				aria-valuenow={displayDuration}
 				aria-valuemin={MIN_TRANSITION_DURATION}
 				aria-valuemax={maxDuration}
+				aria-orientation="horizontal"
 				aria-label="Resize transition left"
 				tabIndex={0}
 				onKeyDown={() => {}}
@@ -302,15 +297,14 @@ function TransitionJunctionOverlay({
 			<div
 				className="absolute top-0 right-0 z-10 h-full cursor-ew-resize"
 				style={{ width: `${handleWidth}px` }}
-				onPointerDown={(event) =>
-					handleDragStart({ event, side: "right" })
-				}
+				onPointerDown={(event) => handleDragStart({ event, side: "right" })}
 				onPointerMove={(event) => handleDragMove({ event })}
 				onPointerUp={handleDragEnd}
-				role="separator"
+				role="slider"
 				aria-valuenow={displayDuration}
 				aria-valuemin={MIN_TRANSITION_DURATION}
 				aria-valuemax={maxDuration}
+				aria-orientation="horizontal"
 				aria-label="Resize transition right"
 				tabIndex={0}
 				onKeyDown={() => {}}
@@ -371,11 +365,7 @@ function TransitionDiamondIcon() {
 	return (
 		<svg viewBox="0 0 12 12" className="size-3">
 			<title>Transition</title>
-			<path
-				d="M6 1 L11 6 L6 11 L1 6 Z"
-				fill="currentColor"
-				opacity="0.9"
-			/>
+			<path d="M6 1 L11 6 L6 11 L1 6 Z" fill="currentColor" opacity="0.9" />
 		</svg>
 	);
 }

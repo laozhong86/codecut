@@ -59,13 +59,21 @@ function RenderTreeController() {
 		const renderTree = buildScene({
 			tracks,
 			mediaAssets,
+			derivedAssets: activeProject.derivedAssets,
 			duration,
 			canvasSize: { width, height },
 			background: activeProject.settings.background,
 		});
 
 		editor.renderer.setRenderTree({ renderTree });
-	}, [tracks, mediaAssets, activeProject?.settings.background, width, height]);
+	}, [
+		tracks,
+		mediaAssets,
+		activeProject?.derivedAssets,
+		activeProject?.settings.background,
+		width,
+		height,
+	]);
 
 	return null;
 }

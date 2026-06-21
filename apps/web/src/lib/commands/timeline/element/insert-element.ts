@@ -21,6 +21,7 @@ import {
 } from "@/lib/timeline/track-utils";
 import type { MediaAsset } from "@/types/assets";
 import { TIMELINE_CONSTANTS } from "@/constants/timeline-constants";
+import { DEFAULT_CANVAS_SIZE } from "@/constants/project-constants";
 
 type InsertElementPlacement =
 	| { mode: "explicit"; trackId: string }
@@ -92,15 +93,23 @@ export class InsertElementCommand extends Command {
 				const nextCanvasSize = { width: asset.width, height: asset.height };
 				const shouldSetOriginalCanvasSize =
 					!activeProject?.settings.originalCanvasSize;
-				editor.project.updateSettings({
-					settings: {
-						canvasSize: nextCanvasSize,
-						...(shouldSetOriginalCanvasSize
-							? { originalCanvasSize: nextCanvasSize }
-							: {}),
-					},
-					pushHistory: false,
-				});
+				const currentCanvasSize = activeProject.settings.canvasSize;
+				const shouldUseAssetCanvasSize =
+					currentCanvasSize.width === DEFAULT_CANVAS_SIZE.width &&
+					currentCanvasSize.height === DEFAULT_CANVAS_SIZE.height;
+				const settings = {
+					...(shouldUseAssetCanvasSize ? { canvasSize: nextCanvasSize } : {}),
+					...(shouldSetOriginalCanvasSize
+						? { originalCanvasSize: nextCanvasSize }
+						: {}),
+				};
+
+				if (Object.keys(settings).length > 0) {
+					editor.project.updateSettings({
+						settings,
+						pushHistory: false,
+					});
+				}
 			}
 
 			if (asset?.type === "video" && asset?.fps) {

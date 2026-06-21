@@ -58,6 +58,7 @@ export class RendererManager {
 			const scene = buildScene({
 				tracks,
 				mediaAssets,
+				derivedAssets: activeProject.derivedAssets,
 				duration,
 				canvasSize,
 				background: activeProject.settings.background,
@@ -124,6 +125,8 @@ export class RendererManager {
 	}
 
 	private notify(): void {
-		this.listeners.forEach((fn) => fn());
+		this.listeners.forEach((fn) => {
+			fn();
+		});
 	}
 }

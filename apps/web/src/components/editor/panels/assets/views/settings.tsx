@@ -23,10 +23,7 @@ import { patternCraftGradients } from "@/data/colors/pattern-craft";
 import { colors } from "@/data/colors/solid";
 import { syntaxUIGradients } from "@/data/colors/syntax-ui";
 import { useEditor } from "@/hooks/use-editor";
-import {
-	IMAGE_PROVIDERS,
-	VIDEO_PROVIDERS,
-} from "@/lib/ai/providers";
+import { IMAGE_PROVIDERS, VIDEO_PROVIDERS } from "@/lib/ai/providers";
 import { useAISettingsStore } from "@/stores/ai-settings-store";
 import { cn } from "@/utils/ui";
 import {
@@ -150,7 +147,9 @@ function ProjectInfoView() {
 		);
 		if (matched) {
 			editor.project.updateSettings({
-				settings: { canvasSize: { width: matched.width, height: matched.height } },
+				settings: {
+					canvasSize: { width: matched.width, height: matched.height },
+				},
 			});
 		}
 	};
@@ -205,9 +204,7 @@ function ProjectInfoView() {
 									{preset.label} ({preset.width}×{preset.height})
 								</SelectItem>
 							))}
-							<SelectItem value={CANVAS_CUSTOM_VALUE}>
-								{t("Custom")}
-							</SelectItem>
+							<SelectItem value={CANVAS_CUSTOM_VALUE}>{t("Custom")}</SelectItem>
 						</SelectContent>
 					</Select>
 				</PropertyItemValue>
@@ -223,7 +220,9 @@ function ProjectInfoView() {
 							const value = Number(event.target.value);
 							setCustomWidth(value);
 						}}
-						onBlur={() => applyCustomSize({ width: customWidth, height: customHeight })}
+						onBlur={() =>
+							applyCustomSize({ width: customWidth, height: customHeight })
+						}
 						onKeyDown={(event) => {
 							if (event.key === "Enter") {
 								applyCustomSize({ width: customWidth, height: customHeight });
@@ -241,7 +240,9 @@ function ProjectInfoView() {
 							const value = Number(event.target.value);
 							setCustomHeight(value);
 						}}
-						onBlur={() => applyCustomSize({ width: customWidth, height: customHeight })}
+						onBlur={() =>
+							applyCustomSize({ width: customWidth, height: customHeight })
+						}
 						onKeyDown={(event) => {
 							if (event.key === "Enter") {
 								applyCustomSize({ width: customWidth, height: customHeight });
@@ -335,7 +336,7 @@ const BackgroundPreviews = memo(
 			() =>
 				backgrounds.map((bg, index) => (
 					<button
-						key={`${index}-${bg}`}
+						key={bg}
 						className={cn(
 							"border-foreground/15 hover:border-primary aspect-square size-20 cursor-pointer rounded-sm border",
 							isColorBackground &&

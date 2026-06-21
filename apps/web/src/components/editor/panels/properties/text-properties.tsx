@@ -6,6 +6,7 @@ import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import type { FontFamily } from "@/constants/font-constants";
 import type {
 	TextElement,
+	TextRichSpan,
 	TextStroke,
 	TextShadow,
 	Transform,
@@ -34,6 +35,7 @@ import {
 	TEXT_STYLE_PRESETS,
 	type TextStylePreset,
 } from "@/constants/text-style-presets";
+import { sanitizeTextRichSpansForContent } from "@/services/renderer/nodes/text-layout";
 import { cn } from "@/utils/ui";
 
 interface TextElementRef {
@@ -66,6 +68,9 @@ export function TextProperties({
 	const posYDraft = useRef("");
 	const scaleDraft = useRef("");
 	const rotationDraft = useRef("");
+	const keywordStartDraft = useRef("0");
+	const keywordEndDraft = useRef("1");
+	const keywordColorDraft = useRef("#ffd84d");
 
 	const buildBatchUpdates = (updates: Partial<Record<string, unknown>>) =>
 		elementRefs.map((ref) => ({
@@ -102,6 +107,7 @@ export function TextProperties({
 	const initialBgBorderRadiusRef = useRef<number | null>(null);
 	const initialBgPaddingXRef = useRef<number | null>(null);
 	const initialBgPaddingYRef = useRef<number | null>(null);
+	const initialRichSpansRef = useRef<TextRichSpan[] | null>(null);
 
 	const scalePercent = Math.round(element.transform.scale * 100);
 	const posXDisplay = isEditingPosX.current
@@ -116,6 +122,18 @@ export function TextProperties({
 	const rotationDisplay = isEditingRotation.current
 		? rotationDraft.current
 		: Math.round(element.transform.rotate).toString();
+	const contentLength = Array.from(element.content).length;
+	const keywordStart = parseInt(keywordStartDraft.current, 10);
+	const keywordEnd = parseInt(keywordEndDraft.current, 10);
+	const canAddKeyword =
+		Number.isInteger(keywordStart) &&
+		Number.isInteger(keywordEnd) &&
+		keywordStart >= 0 &&
+		keywordEnd > keywordStart &&
+		keywordEnd <= contentLength &&
+		!element.richSpans.some(
+			(span) => keywordStart < span.end && keywordEnd > span.start,
+		);
 
 	const updateTransform = ({
 		updates: transformUpdates,
@@ -176,6 +194,46 @@ export function TextProperties({
 			pushHistory,
 		});
 	};
+
+	const updateRichSpans = ({ richSpans }: { richSpans: TextRichSpan[] }) => {
+		editor.timeline.updateElements({
+			updates: buildBatchUpdates({ richSpans }),
+		});
+	};
+
+	const addKeywordSpan = () => {
+		if (!canAddKeyword) return;
+		const richSpan: TextRichSpan = {
+			start: keywordStart,
+			end: keywordEnd,
+			color: keywordColorDraft.current,
+			fontScale: 1.15,
+			fontWeight: "bold",
+			stroke: { color: "#000000", width: 2 },
+		};
+		updateRichSpans({
+			richSpans: [...element.richSpans, richSpan].sort(
+				(a, b) => a.start - b.start,
+			),
+		});
+	};
+
+	const removeKeywordSpan = ({ index }: { index: number }) => {
+		updateRichSpans({
+			richSpans: element.richSpans.filter((_, spanIndex) => spanIndex !== index),
+		});
+	};
+
+	const getContentUpdates = ({
+		content,
+		richSpans,
+	}: {
+		content: string;
+		richSpans: TextRichSpan[];
+	}) => ({
+		content,
+		richSpans: sanitizeTextRichSpansForContent({ content, richSpans }),
+	});
 
 	const handleFontSizeChange = ({ value }: { value: string }) => {
 		fontSizeDraft.current = value;
@@ -314,6 +372,7 @@ export function TextProperties({
 									isEditingContent.current = true;
 									contentDraft.current = element.content;
 									initialContentRef.current = element.content;
+									initialRichSpansRef.current = element.richSpans;
 									forceRender();
 								}}
 								onChange={(event) => {
@@ -321,10 +380,15 @@ export function TextProperties({
 									forceRender();
 									if (initialContentRef.current === null) {
 										initialContentRef.current = element.content;
+										initialRichSpansRef.current = element.richSpans;
 									}
 									editor.timeline.updateElements({
 										updates: buildBatchUpdates({
-											content: event.target.value,
+											...getContentUpdates({
+												content: event.target.value,
+												richSpans:
+													initialRichSpansRef.current ?? element.richSpans,
+											}),
 										}),
 										pushHistory: false,
 									});
@@ -335,16 +399,23 @@ export function TextProperties({
 										editor.timeline.updateElements({
 											updates: buildBatchUpdates({
 												content: initialContentRef.current,
+												richSpans:
+													initialRichSpansRef.current ?? element.richSpans,
 											}),
 											pushHistory: false,
 										});
 										editor.timeline.updateElements({
 											updates: buildBatchUpdates({
-												content: finalContent,
+												...getContentUpdates({
+													content: finalContent,
+													richSpans:
+														initialRichSpansRef.current ?? element.richSpans,
+												}),
 											}),
 											pushHistory: true,
 										});
 										initialContentRef.current = null;
+										initialRichSpansRef.current = null;
 									}
 									isEditingContent.current = false;
 									contentDraft.current = "";
@@ -525,6 +596,73 @@ export function TextProperties({
 										}}
 									/>
 								))}
+							</div>
+						</PropertyGroup>
+						<PropertyGroup title={t("Keywords")} collapsible={false}>
+							<div className="space-y-3">
+								<div className="grid grid-cols-3 gap-2">
+									<Input
+										type="number"
+										min={0}
+										max={contentLength}
+										value={keywordStartDraft.current}
+										onChange={(event) => {
+											keywordStartDraft.current = event.target.value;
+											forceRender();
+										}}
+										className="bg-accent h-8 rounded-sm px-2 text-center !text-xs"
+									/>
+									<Input
+										type="number"
+										min={0}
+										max={contentLength}
+										value={keywordEndDraft.current}
+										onChange={(event) => {
+											keywordEndDraft.current = event.target.value;
+											forceRender();
+										}}
+										className="bg-accent h-8 rounded-sm px-2 text-center !text-xs"
+									/>
+									<Input
+										value={keywordColorDraft.current}
+										onChange={(event) => {
+											keywordColorDraft.current = event.target.value;
+											forceRender();
+										}}
+										className="bg-accent h-8 rounded-sm px-2 text-center !text-xs"
+									/>
+								</div>
+								<Button
+									variant="outline"
+									size="sm"
+									disabled={!canAddKeyword}
+									onClick={addKeywordSpan}
+									className="h-8 w-full"
+								>
+									{t("Add")}
+								</Button>
+								{element.richSpans.length > 0 && (
+									<div className="space-y-1.5">
+										{element.richSpans.map((span, index) => (
+											<div
+												key={`${span.start}-${span.end}-${span.color ?? ""}`}
+												className="bg-accent flex items-center justify-between gap-2 rounded-sm px-2 py-1 text-xs"
+											>
+												<span className="truncate">
+													{span.start}-{span.end} {span.color ?? element.color}
+												</span>
+												<Button
+													variant="ghost"
+													size="sm"
+													onClick={() => removeKeywordSpan({ index })}
+													className="h-6 px-2"
+												>
+													{t("Remove")}
+												</Button>
+											</div>
+										))}
+									</div>
+								)}
 							</div>
 						</PropertyGroup>
 						<PropertyGroup title={t("Appearance")} collapsible={false}>

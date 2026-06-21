@@ -1,4 +1,5 @@
 import type { MediaAsset } from "@/types/assets";
+import { validateTextRichSpans } from "@/services/renderer/nodes/text-layout";
 import { EditPlanSchema, type EditPlan } from "./schema";
 
 export type EditPlanValidationResult =
@@ -24,6 +25,18 @@ function getGeneratedTimelineDuration({ plan }: { plan: EditPlan }): number {
 	return duration;
 }
 
+function getClipDuration({ clip }: { clip: EditPlan["clips"][number] }): number {
+	return clip.sourceEnd - clip.sourceStart;
+}
+
+function getClipTimelineEnd({
+	clip,
+}: {
+	clip: EditPlan["clips"][number];
+}): number {
+	return clip.timelineStart + getClipDuration({ clip });
+}
+
 function timedTextExceeds({
 	item,
 	timelineDuration,
@@ -32,6 +45,35 @@ function timedTextExceeds({
 	timelineDuration: number;
 }): boolean {
 	return item.startTime + item.duration > timelineDuration;
+}
+
+function validateAudioAsset({
+	assetId,
+	mediaAssets,
+	path,
+	missingMessage,
+	typeMessage,
+}: {
+	assetId: string;
+	mediaAssets: MediaAsset[];
+	path: string;
+	missingMessage: string;
+	typeMessage: string;
+}): EditPlanValidationResult | null {
+	const asset = mediaAssets.find((candidate) => candidate.id === assetId);
+	if (!asset) {
+		return fail({ message: missingMessage, path });
+	}
+	if (asset.type !== "audio") {
+		return fail({ message: typeMessage, path });
+	}
+	if (typeof asset.duration !== "number" || asset.duration <= 0) {
+		return fail({
+			message: "EditPlan audio asset duration is required.",
+			path,
+		});
+	}
+	return null;
 }
 
 export function validateEditPlan({
@@ -49,6 +91,20 @@ export function validateEditPlan({
 	}
 
 	const normalizedPlan = parsed.data;
+	const hasCaptions = (normalizedPlan.captions?.length ?? 0) > 0;
+	if (hasCaptions && !normalizedPlan.captionStyle) {
+		return fail({
+			message: "EditPlan captions require captionStyle.",
+			path: "captionStyle",
+		});
+	}
+	if (!hasCaptions && normalizedPlan.captionStyle) {
+		return fail({
+			message: "EditPlan captionStyle requires captions.",
+			path: "captionStyle",
+		});
+	}
+
 	if (normalizedPlan.projectId !== projectId) {
 		return fail({
 			message: "EditPlan projectId does not match the active project.",
@@ -122,14 +178,135 @@ export function validateEditPlan({
 			path: "title",
 		});
 	}
+	if (normalizedPlan.title?.richSpans) {
+		try {
+			validateTextRichSpans({
+				content: normalizedPlan.title.text,
+				richSpans: normalizedPlan.title.richSpans,
+			});
+		} catch {
+			return fail({
+				message:
+					"EditPlan title richSpans must be sorted and non-overlapping.",
+				path: "title.richSpans",
+			});
+		}
+	}
 
 	for (let index = 0; index < (normalizedPlan.captions ?? []).length; index += 1) {
 		const caption = normalizedPlan.captions?.[index];
 		if (!caption) continue;
+		if (caption.stylePreset) {
+			return fail({
+				message: "EditPlan captions must use top-level captionStyle.",
+				path: `captions[${index}].stylePreset`,
+			});
+		}
 		if (timedTextExceeds({ item: caption, timelineDuration })) {
 			return fail({
 				message: "EditPlan caption exceeds the generated timeline duration.",
 				path: `captions[${index}]`,
+			});
+		}
+		if (caption.richSpans) {
+			try {
+				validateTextRichSpans({
+					content: caption.text,
+					richSpans: caption.richSpans,
+				});
+			} catch {
+				return fail({
+					message:
+						"EditPlan caption richSpans must be sorted and non-overlapping.",
+					path: `captions[${index}].richSpans`,
+				});
+			}
+		}
+	}
+
+	if (normalizedPlan.audio?.bgm) {
+		const audioError = validateAudioAsset({
+			assetId: normalizedPlan.audio.bgm.assetId,
+			mediaAssets,
+			path: "audio.bgm.assetId",
+			missingMessage:
+				"EditPlan bgm assetId was not found in the project media library.",
+			typeMessage: "EditPlan bgm asset must be audio.",
+		});
+		if (audioError) return audioError;
+	}
+
+	for (let index = 0; index < (normalizedPlan.audio?.sfx ?? []).length; index += 1) {
+		const sfx = normalizedPlan.audio?.sfx?.[index];
+		if (!sfx) continue;
+		const audioError = validateAudioAsset({
+			assetId: sfx.assetId,
+			mediaAssets,
+			path: `audio.sfx[${index}].assetId`,
+			missingMessage:
+				"EditPlan sfx assetId was not found in the project media library.",
+			typeMessage: "EditPlan sfx asset must be audio.",
+		});
+		if (audioError) return audioError;
+		if (sfx.startTime > timelineDuration) {
+			return fail({
+				message:
+					"EditPlan sfx startTime exceeds the generated timeline duration.",
+				path: `audio.sfx[${index}].startTime`,
+			});
+		}
+	}
+
+	if ((normalizedPlan.transitions?.length ?? 0) > 0 && sourceMedia.type !== "video") {
+		return fail({
+			message: "EditPlan transitions require video source media.",
+			path: "transitions",
+		});
+	}
+
+	const clipsById = new Map(
+		normalizedPlan.clips.map((clip) => [clip.id, clip] as const),
+	);
+	const adjacencyTolerance = 0.05;
+	for (
+		let index = 0;
+		index < (normalizedPlan.transitions ?? []).length;
+		index += 1
+	) {
+		const transition = normalizedPlan.transitions?.[index];
+		if (!transition) continue;
+		const fromClip = clipsById.get(transition.fromClipId);
+		if (!fromClip) {
+			return fail({
+				message: "EditPlan transition fromClipId does not reference a clip.",
+				path: `transitions[${index}].fromClipId`,
+			});
+		}
+		const toClip = clipsById.get(transition.toClipId);
+		if (!toClip) {
+			return fail({
+				message: "EditPlan transition toClipId does not reference a clip.",
+				path: `transitions[${index}].toClipId`,
+			});
+		}
+		if (
+			Math.abs(getClipTimelineEnd({ clip: fromClip }) - toClip.timelineStart) >
+			adjacencyTolerance
+		) {
+			return fail({
+				message: "EditPlan transition clips must be adjacent on the timeline.",
+				path: `transitions[${index}]`,
+			});
+		}
+		const neighboringDuration = Math.min(
+			getClipDuration({ clip: fromClip }),
+			getClipDuration({ clip: toClip }),
+		);
+		if (transition.duration > neighboringDuration) {
+			return fail({
+				message:
+					"EditPlan transition duration exceeds neighboring clip duration.",
+				path: `transitions[${index}].duration`,
 			});
 		}
 	}

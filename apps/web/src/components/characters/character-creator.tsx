@@ -16,6 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
 	useCharacterStore,
 	storeCharacterImageBlob,
 	createImageThumbnailDataUrl,
@@ -23,7 +30,6 @@ import {
 } from "@/stores/character-store";
 import { generateCharacterPortrait } from "./turnaround-generator";
 import { generateUUID } from "@/utils/id";
-import { useAISettingsStore } from "@/stores/ai-settings-store";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
 	Cancel01Icon,
@@ -32,7 +38,14 @@ import {
 	SparklesIcon,
 	Upload04Icon,
 } from "@hugeicons/core-free-icons";
-import type { AICharacter, CharacterImage } from "@/types/character";
+import {
+	CHARACTER_AGE_RANGES,
+	CHARACTER_GENDERS,
+	type AICharacter,
+	type CharacterAgeRange,
+	type CharacterGender,
+	type CharacterImage,
+} from "@/types/character";
 import {
 	analyzeImageWithVision,
 	blobToDataUrl,
@@ -52,6 +65,73 @@ interface CharacterCreatorProps {
 	editCharacter?: AICharacter | null;
 }
 
+const CHARACTER_PROFILE_NONE_VALUE = "__none__";
+
+type CharacterProfileSelectValue =
+	| CharacterGender
+	| CharacterAgeRange
+	| typeof CHARACTER_PROFILE_NONE_VALUE;
+
+function toOptionalGender({
+	value,
+}: {
+	value: CharacterProfileSelectValue;
+}): CharacterGender | undefined {
+	return CHARACTER_GENDERS.includes(value as CharacterGender)
+		? (value as CharacterGender)
+		: undefined;
+}
+
+function getGenderLabel({
+	value,
+	t,
+}: {
+	value: CharacterGender;
+	t: (key: string) => string;
+}): string {
+	switch (value) {
+		case "female":
+			return t("Female");
+		case "male":
+			return t("Male");
+		case "non-binary":
+			return t("Non-binary");
+	}
+}
+
+function getAgeLabel({
+	value,
+	t,
+}: {
+	value: CharacterAgeRange;
+	t: (key: string) => string;
+}): string {
+	switch (value) {
+		case "child":
+			return t("Child");
+		case "teenager":
+			return t("Teenager");
+		case "young adult":
+			return t("Young adult");
+		case "adult":
+			return t("Adult");
+		case "middle-aged adult":
+			return t("Middle-aged adult");
+		case "senior":
+			return t("Senior");
+	}
+}
+
+function toOptionalAge({
+	value,
+}: {
+	value: CharacterProfileSelectValue;
+}): CharacterAgeRange | undefined {
+	return CHARACTER_AGE_RANGES.includes(value as CharacterAgeRange)
+		? (value as CharacterAgeRange)
+		: undefined;
+}
+
 export function CharacterCreatorDialog({
 	isOpen,
 	onOpenChange,
@@ -60,11 +140,16 @@ export function CharacterCreatorDialog({
 	const { t } = useTranslation();
 	const { addCharacter, updateCharacter, addImage, removeImage } =
 		useCharacterStore();
-	const { imageProviderId, imageApiKey } = useAISettingsStore();
 
 	const isEditing = editCharacter !== null && editCharacter !== undefined;
 
 	const [name, setName] = useState(editCharacter?.name ?? "");
+	const [gender, setGender] = useState<
+		CharacterGender | typeof CHARACTER_PROFILE_NONE_VALUE
+	>(editCharacter?.gender ?? CHARACTER_PROFILE_NONE_VALUE);
+	const [age, setAge] = useState<
+		CharacterAgeRange | typeof CHARACTER_PROFILE_NONE_VALUE
+	>(editCharacter?.age ?? CHARACTER_PROFILE_NONE_VALUE);
 	const [description, setDescription] = useState(
 		editCharacter?.description ?? "",
 	);
@@ -97,9 +182,6 @@ export function CharacterCreatorDialog({
 		Map<string, CharacterImage>
 	>(new Map());
 
-	const isProviderConfigured =
-		imageProviderId !== null && imageApiKey.length > 0;
-
 	const handleGenerateTurnaround = useCallback(async () => {
 		if (!description.trim()) {
 			toast.error(t("Please enter a character description first"));
@@ -108,7 +190,11 @@ export function CharacterCreatorDialog({
 		setIsGenerating(true);
 		try {
 			const result = await generateCharacterPortrait({
+				name: name.trim(),
+				gender: toOptionalGender({ value: gender }),
+				age: toOptionalAge({ value: age }),
 				description: description.trim(),
+				styleDescription: styleDescription.trim(),
 			});
 
 			const response = await fetch(result.url);
@@ -124,7 +210,7 @@ export function CharacterCreatorDialog({
 			const characterImage: CharacterImage = {
 				id: imageId,
 				label: "Character Portrait",
-				prompt: description.trim(),
+				prompt: result.prompt,
 				blobKey,
 				thumbnailDataUrl,
 				createdAt: new Date().toISOString(),
@@ -152,7 +238,7 @@ export function CharacterCreatorDialog({
 		} finally {
 			setIsGenerating(false);
 		}
-	}, [description, t]);
+	}, [name, gender, age, description, styleDescription, t]);
 
 	const handleUploadImage = useCallback(() => {
 		const input = document.createElement("input");
@@ -224,6 +310,8 @@ export function CharacterCreatorDialog({
 
 	const resetForm = useCallback(() => {
 		setName("");
+		setGender(CHARACTER_PROFILE_NONE_VALUE);
+		setAge(CHARACTER_PROFILE_NONE_VALUE);
 		setDescription("");
 		setStyleDescription("");
 		setPreviewImages([]);
@@ -237,6 +325,8 @@ export function CharacterCreatorDialog({
 			return;
 		}
 
+		const selectedGender = toOptionalGender({ value: gender });
+		const selectedAge = toOptionalAge({ value: age });
 		const trimmedStyleDesc = styleDescription.trim() || undefined;
 
 		if (isEditing && editCharacter) {
@@ -244,6 +334,8 @@ export function CharacterCreatorDialog({
 				id: editCharacter.id,
 				updates: {
 					name: trimmedName,
+					gender: selectedGender,
+					age: selectedAge,
 					description: description.trim(),
 					styleDescription: trimmedStyleDesc,
 				},
@@ -254,6 +346,8 @@ export function CharacterCreatorDialog({
 		} else {
 			const characterId = addCharacter({
 				name: trimmedName,
+				gender: selectedGender,
+				age: selectedAge,
 				description: description.trim(),
 			});
 			if (trimmedStyleDesc) {
@@ -271,6 +365,8 @@ export function CharacterCreatorDialog({
 		resetForm();
 	}, [
 		name,
+		gender,
+		age,
 		description,
 		styleDescription,
 		isEditing,
@@ -357,6 +453,62 @@ export function CharacterCreatorDialog({
 							value={name}
 							onChange={(event) => setName(event.target.value)}
 						/>
+					</div>
+
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="character-gender">
+								{t("Gender")}
+							</Label>
+							<Select
+								value={gender}
+								onValueChange={(value) =>
+									setGender(
+										value as CharacterGender | typeof CHARACTER_PROFILE_NONE_VALUE,
+									)
+								}
+							>
+								<SelectTrigger id="character-gender" className="w-full">
+									<SelectValue placeholder={t("Not specified")} />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={CHARACTER_PROFILE_NONE_VALUE}>
+										{t("Not specified")}
+									</SelectItem>
+									{CHARACTER_GENDERS.map((option) => (
+										<SelectItem key={option} value={option}>
+											{getGenderLabel({ value: option, t })}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="character-age">{t("Age")}</Label>
+							<Select
+								value={age}
+								onValueChange={(value) =>
+									setAge(
+										value as CharacterAgeRange | typeof CHARACTER_PROFILE_NONE_VALUE,
+									)
+								}
+							>
+								<SelectTrigger id="character-age" className="w-full">
+									<SelectValue placeholder={t("Not specified")} />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={CHARACTER_PROFILE_NONE_VALUE}>
+										{t("Not specified")}
+									</SelectItem>
+									{CHARACTER_AGE_RANGES.map((option) => (
+										<SelectItem key={option} value={option}>
+											{getAgeLabel({ value: option, t })}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
 					</div>
 
 					<div className="flex flex-col gap-2">
@@ -508,7 +660,6 @@ export function CharacterCreatorDialog({
 								size="sm"
 								disabled={
 									isGenerating ||
-									!isProviderConfigured ||
 									!description.trim()
 								}
 								onClick={handleGenerateTurnaround}
@@ -554,13 +705,6 @@ export function CharacterCreatorDialog({
 							</Button>
 						</div>
 
-						{!isProviderConfigured && (
-							<p className="text-muted-foreground text-xs">
-								{t(
-									"Configure an image provider in editor Settings to generate character portraits.",
-								)}
-							</p>
-						)}
 					</div>
 				</DialogBody>
 

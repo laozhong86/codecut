@@ -101,6 +101,7 @@ export function ShortcutsDialog({
 		getKeybindingsForAction,
 		setIsRecording,
 		isRecording,
+		t,
 	]);
 
 	const handleStartRecording = (shortcut: KeyboardShortcut) => {
@@ -112,7 +113,7 @@ export function ShortcutsDialog({
 		<Dialog open={isOpen} onOpenChange={onOpenChange}>
 			<DialogContent className="flex max-h-[80vh] max-w-2xl flex-col p-0">
 				<DialogHeader>
-					<DialogTitle>{t('Keyboard shortcuts')}</DialogTitle>
+					<DialogTitle>{t("Keyboard shortcuts")}</DialogTitle>
 				</DialogHeader>
 
 				<DialogBody className="scrollbar-thin flex-grow overflow-y-auto">
@@ -142,7 +143,7 @@ export function ShortcutsDialog({
 				</DialogBody>
 				<DialogFooter>
 					<Button variant="destructive" onClick={resetToDefaults}>
-						{t('Reset to default')}
+						{t("Reset to default")}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -196,7 +197,7 @@ function ShortcutItem({
 							})}
 						</div>
 						{index < displayKeys.length - 1 && (
-							<span className="text-muted-foreground text-xs">{t('or')}</span>
+							<span className="text-muted-foreground text-xs">{t("or")}</span>
 						)}
 					</div>
 				))}
@@ -227,7 +228,9 @@ function EditableShortcutKey({
 			size="sm"
 			onClick={handleClick}
 			title={
-				isRecording ? t('Press any key combination...') : t('Click to edit shortcut')
+				isRecording
+					? t("Press any key combination...")
+					: t("Click to edit shortcut")
 			}
 		>
 			{children}

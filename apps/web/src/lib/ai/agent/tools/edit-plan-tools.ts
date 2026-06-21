@@ -49,7 +49,7 @@ export function executeApplyEditPlanTool({
 export const applyEditPlanTool: AgentTool = {
 	name: "apply_edit_plan",
 	description:
-		"Validate and apply a Codex-generated EditPlan to the current Cutia timeline. This tool does not generate plans or call an LLM.",
+		"Validate and apply a Codex-generated EditPlan to the current Codecut timeline. This tool does not generate plans or call an LLM.",
 	parameters: {
 		type: "object",
 		properties: {

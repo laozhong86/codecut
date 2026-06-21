@@ -5,6 +5,7 @@ import {
 	buildTextElement,
 	buildUploadAudioElement,
 } from "@/lib/timeline/element-utils";
+import { serializeElementVisualProperties } from "@/lib/timeline/element-serialization";
 import type { AgentTool } from "./types";
 
 export const getTimelineStateTool: AgentTool = {
@@ -20,12 +21,18 @@ export const getTimelineStateTool: AgentTool = {
 		const editor = EditorCore.getInstance();
 		const tracks = editor.timeline.getTracks();
 		const duration = editor.timeline.getTotalDuration();
+		const activeProject = editor.project.getActiveOrNull();
 
 		const trackDetails = tracks.map((track) => ({
 			id: track.id,
 			type: track.type,
 			name: track.name,
 			isMain: "isMain" in track ? track.isMain : false,
+			...("muted" in track ? { muted: track.muted } : {}),
+			...("hidden" in track ? { hidden: track.hidden } : {}),
+			...(track.type === "video"
+				? { transitions: track.transitions ?? [] }
+				: {}),
 			elements: track.elements.map((element) => ({
 				id: element.id,
 				type: element.type,
@@ -36,13 +43,18 @@ export const getTimelineStateTool: AgentTool = {
 				trimEnd: element.trimEnd,
 				...("content" in element ? { content: element.content } : {}),
 				...("mediaId" in element ? { mediaId: element.mediaId } : {}),
+				...serializeElementVisualProperties(element),
 			})),
 		}));
 
 		return {
 			success: true,
 			message: `Timeline has ${tracks.length} track(s), total duration: ${duration.toFixed(2)}s`,
-			data: { tracks: trackDetails, totalDuration: duration },
+			data: {
+				tracks: trackDetails,
+				totalDuration: duration,
+				derivedAssets: activeProject?.derivedAssets ?? [],
+			},
 		};
 	},
 };

@@ -24,10 +24,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
-	BreadcrumbLink,
 	BreadcrumbList,
 	BreadcrumbPage,
-	BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import {
 	Calendar04Icon,
@@ -44,7 +42,7 @@ import {
 	InformationCircleIcon,
 	UserIcon,
 } from "@hugeicons/core-free-icons";
-import { OcVideoIcon } from "@cutia/ui/icons";
+import { OcVideoIcon } from "@codecut/ui/icons";
 import { Label } from "@/components/ui/label";
 import {
 	DropdownMenu,
@@ -138,14 +136,6 @@ function ProjectsHeader() {
 				<div className="flex items-center gap-5">
 					<Breadcrumb>
 						<BreadcrumbList>
-							<BreadcrumbItem>
-								<BreadcrumbLink asChild>
-									<Link href="/" className="text-sm sm:text-base">
-										{t("Home")}
-									</Link>
-								</BreadcrumbLink>
-							</BreadcrumbItem>
-							<BreadcrumbSeparator />
 							<BreadcrumbItem>
 								<BreadcrumbPage className="text-sm sm:text-base font-medium">
 									{t("All projects")}

@@ -111,6 +111,10 @@ interface BaseTimelineElement {
 export interface VideoElement extends BaseTimelineElement {
 	type: "video";
 	mediaId: string;
+	mask?: {
+		type: "person-mask";
+		derivedAssetId: string;
+	};
 	muted?: boolean;
 	hidden?: boolean;
 	transform: Transform;
@@ -139,9 +143,20 @@ export interface TextShadow {
 	blur: number;
 }
 
+export interface TextRichSpan {
+	start: number;
+	end: number;
+	color?: string;
+	fontScale?: number;
+	fontWeight?: "normal" | "bold";
+	fontStyle?: "normal" | "italic";
+	stroke?: TextStroke;
+}
+
 export interface TextElement extends BaseTimelineElement {
 	type: "text";
 	content: string;
+	richSpans: TextRichSpan[];
 	fontSize: number;
 	fontFamily: string;
 	color: string;

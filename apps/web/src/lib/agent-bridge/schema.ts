@@ -4,6 +4,7 @@ export const BridgeToolNameSchema = z.enum([
 	"get_project_info",
 	"update_project_settings",
 	"list_media_assets",
+	"import_media_file",
 	"get_timeline_state",
 	"add_video_to_timeline",
 	"add_text_to_timeline",
@@ -14,6 +15,9 @@ export const BridgeToolNameSchema = z.enum([
 	"export_project",
 	"transcribe_media",
 	"apply_edit_plan",
+	"apply_narrated_remix_plan",
+	"create_text_background_effect",
+	"create_human_pip_effect",
 ]);
 
 export const BridgeCommandSchema = z.object({

@@ -243,7 +243,8 @@ export class TimelineManager {
 			({ trackId, elementId, updates: elementUpdates }) =>
 				new UpdateElementCommand(trackId, elementId, elementUpdates),
 		);
-		const command = commands.length === 1 ? commands[0] : new BatchCommand(commands);
+		const command =
+			commands.length === 1 ? commands[0] : new BatchCommand(commands);
 		if (pushHistory) {
 			this.editor.command.execute({ command });
 		} else {
@@ -304,7 +305,7 @@ export class TimelineManager {
 		duration: number;
 	}): TrackTransition | null {
 		const track = this.getTrackById({ trackId });
-		if (!track || track.type !== "video") return null;
+		if (track?.type !== "video") return null;
 
 		const fromElement = track.elements.find((el) => el.id === fromElementId);
 		const toElement = track.elements.find((el) => el.id === toElementId);
@@ -341,7 +342,7 @@ export class TimelineManager {
 		transitionId: string;
 	}): void {
 		const track = this.getTrackById({ trackId });
-		if (!track || track.type !== "video") return;
+		if (track?.type !== "video") return;
 
 		const updatedTrack = removeTransitionFromTrack({
 			track: track as VideoTrack,
@@ -364,7 +365,7 @@ export class TimelineManager {
 		updates: Partial<Pick<TrackTransition, "type" | "duration">>;
 	}): void {
 		const track = this.getTrackById({ trackId });
-		if (!track || track.type !== "video") return;
+		if (track?.type !== "video") return;
 
 		const updatedTracks = this.getTracks().map((t) => {
 			if (t.id !== trackId || t.type !== "video") return t;
@@ -380,7 +381,7 @@ export class TimelineManager {
 
 	cleanupTransitions({ trackId }: { trackId: string }): void {
 		const track = this.getTrackById({ trackId });
-		if (!track || track.type !== "video") return;
+		if (track?.type !== "video") return;
 
 		const cleaned = cleanupTransitionsForTrack({
 			track: track as VideoTrack,
@@ -403,7 +404,9 @@ export class TimelineManager {
 	}
 
 	private notify(): void {
-		this.listeners.forEach((fn) => fn());
+		this.listeners.forEach((fn) => {
+			fn();
+		});
 	}
 
 	updateTracks(newTracks: TimelineTrack[]): void {

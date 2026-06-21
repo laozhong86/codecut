@@ -53,6 +53,8 @@ ${characters
 		const parts = [
 			`- [${c.id}] "${c.name}" (${c.images.length} ref images, ${c.generations.length} generations)`,
 		];
+		if (c.gender) parts.push(`  Gender: ${c.gender}`);
+		if (c.age) parts.push(`  Age range: ${c.age}`);
 		if (c.description) parts.push(`  Description: ${c.description}`);
 		if (c.styleDescription)
 			parts.push(`  Style Lock: ${c.styleDescription}`);
@@ -118,14 +120,14 @@ You can:
 - generate_image and generate_video both return a mediaId in their result; save it and pass it as referenceMediaId in follow-up generation calls when the content should be visually related.
 
 ## Character Library & Visual Consistency
-- The character library stores reusable AI character cards with reference images, descriptions, and style locks.
+- The character library stores reusable AI character cards with reference images, gender, age range, descriptions, and style locks.
 - Use list_characters to see available characters. Use get_character_details to view a character's full profile before generating content.
 - Use characterId or characterName in generate_image / generate_video to automatically use a character's reference image.
 - When a character is used as reference, the generated content is automatically associated with that character.
 - Prefer using characterId/characterName over referenceMediaId when the user mentions a specific character by name.
 
 ### Auto-Injection into Generation Prompts
-- A character's **description** is automatically **prepended** to the generation prompt, ensuring appearance consistency across all generated images and videos.
+- A character's **gender**, **age range**, and **description** are automatically **prepended** to the generation prompt, ensuring appearance consistency across all generated images and videos.
 - A character's **style lock** is automatically **appended** to the generation prompt, ensuring all assets share a cohesive art style.
 
 ### Analyzing Reference Images (Reverse-Engineering)

@@ -13,7 +13,7 @@ import type { AgentTool } from "./types";
 export const listCharactersTool: AgentTool = {
 	name: "list_characters",
 	description:
-		"List all AI characters in the character library. Returns each character's id, name, description, style description, and number of reference images. Use characterId in generate_image or generate_video to use a character's reference image for consistent visuals.",
+		"List all AI characters in the character library. Returns each character's id, name, gender, age range, description, style description, and number of reference images. Use characterId in generate_image or generate_video to use a character's reference image for consistent visuals.",
 	parameters: {
 		type: "object",
 		properties: {},
@@ -33,6 +33,8 @@ export const listCharactersTool: AgentTool = {
 		const characterList = characters.map((character) => ({
 			id: character.id,
 			name: character.name,
+			gender: character.gender ?? null,
+			age: character.age ?? null,
 			description: character.description,
 			styleDescription: character.styleDescription ?? null,
 			imageCount: character.images.length,
@@ -50,7 +52,7 @@ export const listCharactersTool: AgentTool = {
 export const getCharacterDetailsTool: AgentTool = {
 	name: "get_character_details",
 	description:
-		"Get full details of a specific character including description, style description, all reference image labels/prompts, and generation history. Use this to understand a character's visual identity before generating content.",
+		"Get full details of a specific character including gender, age range, description, style description, all reference image labels/prompts, and generation history. Use this to understand a character's visual identity before generating content.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -93,6 +95,8 @@ export const getCharacterDetailsTool: AgentTool = {
 			data: {
 				id: character.id,
 				name: character.name,
+				gender: character.gender ?? null,
+				age: character.age ?? null,
 				description: character.description,
 				styleDescription: character.styleDescription ?? null,
 				referenceImages: character.images.map((img) => ({

@@ -4,6 +4,7 @@ import {
 	completeBridgeQueueItem,
 	getBridgeQueueItem,
 } from "@/lib/agent-bridge/queue";
+import { validateBridgeBrowserOrigin } from "@/lib/agent-bridge/origin";
 import { BridgeCommandResultSchema } from "@/lib/agent-bridge/schema";
 
 const postBodySchema = z
@@ -14,10 +15,10 @@ const postBodySchema = z
 	.strict();
 
 function validateBridgeToken(request: NextRequest): NextResponse | null {
-	const expectedToken = process.env.CUTIA_AGENT_BRIDGE_TOKEN;
+	const expectedToken = process.env.CODECUT_AGENT_BRIDGE_TOKEN;
 	if (!expectedToken) {
 		return NextResponse.json(
-			{ error: "CUTIA_AGENT_BRIDGE_TOKEN is required." },
+			{ error: "CODECUT_AGENT_BRIDGE_TOKEN is required." },
 			{ status: 503 },
 		);
 	}
@@ -30,30 +31,8 @@ function validateBridgeToken(request: NextRequest): NextResponse | null {
 	return null;
 }
 
-function validateSameOrigin(request: NextRequest): NextResponse | null {
-	const requestOrigin = request.nextUrl.origin;
-	const origin = request.headers.get("origin");
-	const referer = request.headers.get("referer");
-
-	if (origin && origin !== requestOrigin) {
-		return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-	}
-
-	if (referer) {
-		try {
-			if (new URL(referer).origin !== requestOrigin) {
-				return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-			}
-		} catch {
-			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-		}
-	}
-
-	return null;
-}
-
 export async function POST(request: NextRequest) {
-	const originError = validateSameOrigin(request);
+	const originError = validateBridgeBrowserOrigin(request);
 	if (originError) return originError;
 
 	const body = await request.json();

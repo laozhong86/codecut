@@ -1,0 +1,188 @@
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { NextRequest } from "next/server";
+import { POST as postCommands } from "../commands/route";
+import { GET as getMedia } from "../media/route";
+import { GET as getProject } from "../project/route";
+import { POST as postProjects } from "../projects/route";
+import { GET as getStatus } from "../status/route";
+
+const origin = "http://localhost:4100";
+const token = "local-dev-bridge";
+
+function request({
+	url,
+	method = "GET",
+	headers,
+	body,
+}: {
+	url: string;
+	method?: "GET" | "POST";
+	headers?: Record<string, string>;
+	body?: unknown;
+}) {
+	return new NextRequest(url, {
+		method,
+		headers: {
+			...(body ? { "content-type": "application/json" } : {}),
+			...headers,
+		},
+		body: body ? JSON.stringify(body) : undefined,
+	});
+}
+
+describe("codex executor API routes", () => {
+	let stateDir: string;
+	let previousStateDir: string | undefined;
+
+	beforeEach(async () => {
+		previousStateDir = process.env.CODECUT_EXECUTOR_STATE_DIR;
+		stateDir = await mkdtemp(join(tmpdir(), "codecut-executor-routes-"));
+		process.env.CODECUT_EXECUTOR_STATE_DIR = stateDir;
+		process.env.CODECUT_AGENT_BRIDGE_TOKEN = token;
+	});
+
+	afterEach(async () => {
+		if (previousStateDir === undefined) {
+			delete process.env.CODECUT_EXECUTOR_STATE_DIR;
+		} else {
+			process.env.CODECUT_EXECUTOR_STATE_DIR = previousStateDir;
+		}
+		await rm(stateDir, { recursive: true, force: true });
+	});
+
+	test("creates a project, executes a command, and exposes status", async () => {
+		const createResponse = await postProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: { projectId: "project-1", name: "Codex cut" },
+			}),
+		);
+
+		const commandResponse = await postCommands(
+			request({
+				url: `${origin}/api/codex-executor/commands`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					envelope: {
+						version: 1,
+						projectId: "project-1",
+						source: "codex",
+						commands: [{ id: "cmd-1", tool: "get_project_info", args: {} }],
+					},
+				},
+			}),
+		);
+
+		const statusResponse = await getStatus(
+			request({
+				url: `${origin}/api/codex-executor/status?projectId=project-1`,
+			}),
+		);
+
+		expect(createResponse.status).toBe(200);
+		expect(await createResponse.json()).toMatchObject({
+			projectId: "project-1",
+			editorUrl: "http://127.0.0.1:4100/en/editor/project-1",
+		});
+		expect(commandResponse.status).toBe(200);
+		expect(await commandResponse.json()).toMatchObject({
+			status: "completed",
+			projectId: "project-1",
+			results: [{ commandId: "cmd-1", success: true }],
+		});
+		expect(statusResponse.status).toBe(200);
+		expect(await statusResponse.json()).toMatchObject({
+			projectId: "project-1",
+			status: "succeeded",
+			tool: "get_project_info",
+		});
+	});
+
+	test("exposes read-only project snapshots and media bytes for the editor page", async () => {
+		await postProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: { projectId: "project-1", name: "Codex cut" },
+			}),
+		);
+
+		const importResponse = await postCommands(
+			request({
+				url: `${origin}/api/codex-executor/commands`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					envelope: {
+						version: 1,
+						projectId: "project-1",
+						source: "codex",
+						commands: [
+							{
+								id: "cmd-1",
+								tool: "import_media_file",
+								args: {
+									fileName: "clip.mp4",
+									mimeType: "video/mp4",
+									base64: Buffer.from("video bytes").toString("base64"),
+									size: Buffer.byteLength("video bytes"),
+									lastModified: 1,
+									duration: 10,
+									width: 1920,
+									height: 1080,
+								},
+							},
+						],
+					},
+				},
+			}),
+		);
+		const imported = await importResponse.json();
+		const mediaId = imported.results[0].data.assets[0].id;
+
+		const projectResponse = await getProject(
+			request({
+				url: `${origin}/api/codex-executor/project?projectId=project-1`,
+			}),
+		);
+		const mediaResponse = await getMedia(
+			request({
+				url: `${origin}/api/codex-executor/media?projectId=project-1&mediaId=${mediaId}`,
+			}),
+		);
+
+		expect(projectResponse.status).toBe(200);
+		expect(await projectResponse.json()).toMatchObject({
+			project: { id: "project-1", name: "Codex cut" },
+			mediaAssets: [
+				{
+					id: mediaId,
+					name: "clip.mp4",
+					url: `/api/codex-executor/media?projectId=project-1&mediaId=${mediaId}`,
+				},
+			],
+		});
+		expect(mediaResponse.status).toBe(200);
+		expect(mediaResponse.headers.get("content-type")).toBe("video/mp4");
+		expect(await mediaResponse.text()).toBe("video bytes");
+	});
+
+	test("rejects command execution without the local bridge token", async () => {
+		const response = await postCommands(
+			request({
+				url: `${origin}/api/codex-executor/commands`,
+				method: "POST",
+				body: { envelope: {} },
+			}),
+		);
+
+		expect(response.status).toBe(401);
+	});
+});

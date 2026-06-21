@@ -1,0 +1,142 @@
+# Platform Presets
+
+Use platform presets to constrain EditPlan defaults. Presets are planning defaults, not hidden runtime fallbacks. If the user gives a different requirement, use the user's explicit requirement and state the tradeoff.
+
+## Short-Form Vertical
+
+Applies to TikTok, Reels, Shorts, and similar feeds.
+
+| Field | Default |
+| --- | --- |
+| Aspect ratio | 9:16 |
+| Resolution | 1080x1920 |
+| FPS | 30 |
+| Duration | 15-45 seconds |
+| Structure | hook -> proof/demo -> value beat -> CTA or loop |
+| Captions | large, short, middle-lower safe zone |
+| BGM with voice | 0.08-0.14 |
+| BGM without voice | 0.18-0.28 |
+
+Rules:
+
+- First frame should show a result, product, action, or visual payoff.
+- First 1-3 seconds need a reason to keep watching.
+- Avoid bottom-right overlays because platform UI often covers them.
+- Use `cover` only when subject stays safe in vertical crop; otherwise use `blur-bg` or `contain`.
+
+## YouTube Horizontal
+
+| Field | Default |
+| --- | --- |
+| Aspect ratio | 16:9 |
+| Resolution | 1920x1080 |
+| FPS | source or 30 |
+| Duration | user-defined |
+| Structure | intro promise -> chapters -> payoff/summary |
+| Captions | optional, lower third |
+
+Rules:
+
+- Preserve narrative continuity more than fast cuts.
+- Use chapters for tutorials, essays, and demos.
+- Avoid over-large TikTok captions unless user wants Shorts style.
+
+## Square Feed
+
+| Field | Default |
+| --- | --- |
+| Aspect ratio | 1:1 |
+| Resolution | 1080x1080 |
+| Duration | 15-60 seconds |
+| Structure | result/hook -> supporting proof -> CTA |
+| Captions | center-lower, compact |
+
+Rules:
+
+- Use square when product/image composition benefits from balanced space.
+- Ensure subtitles do not crowd the visual center.
+
+## Tutorial / Demo
+
+| Field | Default |
+| --- | --- |
+| Aspect ratio | source aspect or requested platform |
+| Duration | 45-180 seconds for MVP |
+| Structure | problem -> step 1 -> step 2 -> result |
+| Captions | step labels and concise explanations |
+| Visual context | OCR and scene boundaries preferred |
+
+Rules:
+
+- Preserve chronological order.
+- Do not over-optimize for viral pacing if it harms comprehension.
+- Use overlays for step labels, not unsupported claims.
+
+## UGC / Product Ad
+
+| Field | Default |
+| --- | --- |
+| Aspect ratio | 9:16 |
+| Duration | 15-35 seconds |
+| Structure | hook -> pain/proof -> demo/process -> CTA |
+| Captions | claim-focused and short |
+| Visual priority | proof shots over explanation |
+
+Rules:
+
+- Do not invent price, shipping time, guarantee, or platform claims.
+- Prefer visible proof: product close-up, comparison, order page, packaging, shipping, QC.
+- End with one CTA or loop-back; do not stack multiple actions.
+
+## Talking-Head Polish
+
+| Field | Default |
+| --- | --- |
+| Aspect ratio | source or target platform |
+| Duration | user goal |
+| Structure | strongest statement first, then supporting beats |
+| Captions | transcript-derived |
+
+Rules:
+
+- Remove filler, repeated setup, and dead air.
+- Keep sentence boundaries intact.
+- Do not cut mid-word.
+- Preserve tone and meaning over aggressive compression.
+
+## AI Video Re-Edit
+
+| Field | Default |
+| --- | --- |
+| Aspect ratio | target platform |
+| Duration | 15-45 seconds |
+| Structure | best clean visuals first |
+| Captions | overlay-driven if no voice |
+
+Rules:
+
+- Inspect frames when available.
+- Remove malformed hands/faces, warped text/logos, flicker, style drift, and subject exits.
+- If source has no useful audio, use captions/overlays plus BGM rhythm.
+
+## Safe Zone Guidance
+
+For short-form vertical planning:
+
+- Hook overlays: top safe zone or center badge.
+- Spoken captions: middle-lower safe zone.
+- CTA: center or top safe zone.
+- Avoid bottom edge and right rail.
+
+## Preset Selection
+
+If user says:
+
+- "TikTok", "Reels", "Shorts", "竖屏" -> Short-Form Vertical.
+- "YouTube", "横屏", "长视频" -> YouTube Horizontal unless the user asks for Shorts.
+- "教程", "demo", "演示" -> Tutorial / Demo.
+- "带货", "商品", "广告", "UGC" -> UGC / Product Ad.
+- "口播", "去废话", "精剪" -> Talking-Head Polish.
+- "AI 视频", "二创", "修一下" -> AI Video Re-Edit.
+
+When multiple presets apply, choose the business goal first and platform second. For example, "TikTok 商品广告" uses UGC / Product Ad with Short-Form Vertical output settings.
