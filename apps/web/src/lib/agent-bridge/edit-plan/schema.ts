@@ -66,15 +66,20 @@ export const EditPlanClipSchema = z
 	})
 	.strict();
 
-export const EditPlanTimedTextSchema = z
-	.object({
-		text: z.string().min(1),
-		startTime: z.number().min(0),
-		duration: z.number().positive(),
-		stylePreset: EditPlanTextStylePresetSchema.optional(),
-		richSpans: z.array(EditPlanTextRichSpanSchema).optional(),
-	})
-	.strict();
+const EditPlanBaseTimedTextSchema = z.object({
+	text: z.string().min(1),
+	startTime: z.number().min(0),
+	duration: z.number().positive(),
+});
+
+export const EditPlanTitleSchema = EditPlanBaseTimedTextSchema.extend({
+	stylePreset: EditPlanTextStylePresetSchema.optional(),
+	richSpans: z.array(EditPlanTextRichSpanSchema).optional(),
+}).strict();
+
+export const EditPlanCaptionSchema = EditPlanBaseTimedTextSchema.extend({
+	richSpans: z.array(EditPlanTextRichSpanSchema).optional(),
+}).strict();
 
 export const EditPlanAudioSchema = z
 	.object({
@@ -121,8 +126,8 @@ export const EditPlanSchema = z
 			})
 			.strict(),
 		clips: z.array(EditPlanClipSchema).min(1),
-		title: EditPlanTimedTextSchema.optional(),
-		captions: z.array(EditPlanTimedTextSchema).optional(),
+		title: EditPlanTitleSchema.optional(),
+		captions: z.array(EditPlanCaptionSchema).optional(),
 		captionStyle: EditPlanCaptionStyleSchema.optional(),
 		audio: EditPlanAudioSchema.optional(),
 		transitions: z.array(EditPlanTransitionSchema).optional(),
@@ -132,7 +137,8 @@ export const EditPlanSchema = z
 
 export type EditPlan = z.infer<typeof EditPlanSchema>;
 export type EditPlanClip = z.infer<typeof EditPlanClipSchema>;
-export type EditPlanTimedText = z.infer<typeof EditPlanTimedTextSchema>;
+export type EditPlanTitle = z.infer<typeof EditPlanTitleSchema>;
+export type EditPlanCaption = z.infer<typeof EditPlanCaptionSchema>;
 export type EditPlanCaptionStyle = z.infer<typeof EditPlanCaptionStyleSchema>;
 export type EditPlanTextStylePreset = z.infer<
 	typeof EditPlanTextStylePresetSchema

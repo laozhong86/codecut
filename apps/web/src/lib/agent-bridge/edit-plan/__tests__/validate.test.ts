@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { MediaAsset } from "@/types/assets";
+import { EditPlanSchema } from "../schema";
 import { validateEditPlan } from "../validate";
 
 function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
@@ -376,7 +377,7 @@ describe("validateEditPlan", () => {
 		});
 	});
 
-	test("rejects per-caption stylePreset in favor of captionStyle", () => {
+	test("rejects per-caption stylePreset through the schema", () => {
 		const plan = {
 			...validPlan(),
 			captions: [
@@ -397,9 +398,26 @@ describe("validateEditPlan", () => {
 
 		expect(result).toEqual({
 			success: false,
-			message: "EditPlan captions must use top-level captionStyle.",
-			path: "captions[0].stylePreset",
+			message: "EditPlan schema is invalid.",
 		});
+	});
+
+	test("schema rejects per-caption stylePreset", () => {
+		const plan = {
+			...validPlan(),
+			captions: [
+				{
+					text: "This caption should use the top-level captionStyle.",
+					startTime: 0,
+					duration: 2,
+					stylePreset: "lower_title",
+				},
+			],
+		};
+
+		const result = EditPlanSchema.safeParse(plan);
+
+		expect(result.success).toBe(false);
 	});
 
 	test("accepts imported audio assets and adjacent transitions", () => {
@@ -512,6 +530,28 @@ describe("validateEditPlan", () => {
 			...validPlan(),
 			audio: {
 				sfx: [{ assetId: "sfx-1", startTime: 31, volume: 0.8 }],
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset(), audioAsset({ id: "sfx-1" })],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message:
+				"EditPlan sfx startTime exceeds the generated timeline duration.",
+			path: "audio.sfx[0].startTime",
+		});
+	});
+
+	test("rejects sfx start times at the generated timeline end", () => {
+		const plan = {
+			...validPlan(),
+			audio: {
+				sfx: [{ assetId: "sfx-1", startTime: 30, volume: 0.8 }],
 			},
 		};
 

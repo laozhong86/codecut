@@ -738,4 +738,31 @@ describe("applyEditPlanToEditor", () => {
 		});
 		expect(editor.timeline.getTracks()).toEqual([videoTrack()]);
 	});
+
+	test("does not modify the timeline when sfx starts at the timeline end", () => {
+		const editor = fakeEditor({
+			mediaAssets: [mediaAsset(), audioAsset({ id: "sfx-1" })],
+		});
+		const plan: EditPlan = {
+			...validPlan(),
+			audio: {
+				sfx: [{ assetId: "sfx-1", startTime: 30, volume: 0.8 }],
+			},
+		};
+
+		const result = applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message:
+				"EditPlan sfx startTime exceeds the generated timeline duration.",
+			path: "audio.sfx[0].startTime",
+		});
+		expect(editor.timeline.getTracks()).toEqual([videoTrack()]);
+	});
 });

@@ -25,7 +25,11 @@ function getGeneratedTimelineDuration({ plan }: { plan: EditPlan }): number {
 	return duration;
 }
 
-function getClipDuration({ clip }: { clip: EditPlan["clips"][number] }): number {
+function getClipDuration({
+	clip,
+}: {
+	clip: EditPlan["clips"][number];
+}): number {
 	return clip.sourceEnd - clip.sourceStart;
 }
 
@@ -117,7 +121,8 @@ export function validateEditPlan({
 	);
 	if (!sourceMedia) {
 		return fail({
-			message: "EditPlan sourceMediaId was not found in the project media library.",
+			message:
+				"EditPlan sourceMediaId was not found in the project media library.",
 			path: "sourceMediaId",
 		});
 	}
@@ -168,7 +173,9 @@ export function validateEditPlan({
 		});
 	}
 
-	const timelineDuration = getGeneratedTimelineDuration({ plan: normalizedPlan });
+	const timelineDuration = getGeneratedTimelineDuration({
+		plan: normalizedPlan,
+	});
 	if (
 		normalizedPlan.title &&
 		timedTextExceeds({ item: normalizedPlan.title, timelineDuration })
@@ -186,22 +193,19 @@ export function validateEditPlan({
 			});
 		} catch {
 			return fail({
-				message:
-					"EditPlan title richSpans must be sorted and non-overlapping.",
+				message: "EditPlan title richSpans must be sorted and non-overlapping.",
 				path: "title.richSpans",
 			});
 		}
 	}
 
-	for (let index = 0; index < (normalizedPlan.captions ?? []).length; index += 1) {
+	for (
+		let index = 0;
+		index < (normalizedPlan.captions ?? []).length;
+		index += 1
+	) {
 		const caption = normalizedPlan.captions?.[index];
 		if (!caption) continue;
-		if (caption.stylePreset) {
-			return fail({
-				message: "EditPlan captions must use top-level captionStyle.",
-				path: `captions[${index}].stylePreset`,
-			});
-		}
 		if (timedTextExceeds({ item: caption, timelineDuration })) {
 			return fail({
 				message: "EditPlan caption exceeds the generated timeline duration.",
@@ -236,7 +240,11 @@ export function validateEditPlan({
 		if (audioError) return audioError;
 	}
 
-	for (let index = 0; index < (normalizedPlan.audio?.sfx ?? []).length; index += 1) {
+	for (
+		let index = 0;
+		index < (normalizedPlan.audio?.sfx ?? []).length;
+		index += 1
+	) {
 		const sfx = normalizedPlan.audio?.sfx?.[index];
 		if (!sfx) continue;
 		const audioError = validateAudioAsset({
@@ -248,7 +256,7 @@ export function validateEditPlan({
 			typeMessage: "EditPlan sfx asset must be audio.",
 		});
 		if (audioError) return audioError;
-		if (sfx.startTime > timelineDuration) {
+		if (sfx.startTime >= timelineDuration) {
 			return fail({
 				message:
 					"EditPlan sfx startTime exceeds the generated timeline duration.",
@@ -257,7 +265,10 @@ export function validateEditPlan({
 		}
 	}
 
-	if ((normalizedPlan.transitions?.length ?? 0) > 0 && sourceMedia.type !== "video") {
+	if (
+		(normalizedPlan.transitions?.length ?? 0) > 0 &&
+		sourceMedia.type !== "video"
+	) {
 		return fail({
 			message: "EditPlan transitions require video source media.",
 			path: "transitions",
