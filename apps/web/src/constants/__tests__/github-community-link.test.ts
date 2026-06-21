@@ -7,9 +7,9 @@ import {
 
 describe("GitHub community link", () => {
 	test("points to the public project repository and feedback entry", () => {
-		expect(SOCIAL_LINKS.github).toBe("https://github.com/msgbyte/cutia");
+		expect(SOCIAL_LINKS.github).toBe("https://github.com/laozhong86/codecut");
 		expect(GITHUB_COMMUNITY_URL).toBe(
-			"https://github.com/msgbyte/cutia/issues",
+			"https://github.com/laozhong86/codecut/issues",
 		);
 	});
 });

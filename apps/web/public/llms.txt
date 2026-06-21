@@ -35,7 +35,7 @@ Codecut lets you edit videos directly in a web browser with AI built into every 
 
 - Website: https://codecut.msgbyte.com
 - Editor: https://codecut.msgbyte.com/projects
-- GitHub: https://github.com/msgbyte/codecut
+- GitHub: https://github.com/laozhong86/codecut
 - Roadmap: https://codecut.msgbyte.com/roadmap
 
 ## FAQ
@@ -56,7 +56,7 @@ Codecut supports exporting videos in MP4 and WebM formats with adjustable qualit
 Codecut runs in your browser and requires an initial page load. Once loaded, most editing features work without an active internet connection since all processing is done locally.
 
 ### Is Codecut open source?
-Yes, Codecut is fully open source and community-driven. You can inspect the source code, contribute, or fork it on GitHub at https://github.com/msgbyte/codecut.
+Yes, Codecut is fully open source and community-driven. You can inspect the source code, contribute, or fork it on GitHub at https://github.com/laozhong86/codecut.
 
 ### How is Codecut different from CapCut?
 Unlike CapCut, Codecut is fully open source and runs entirely in your browser. Your media files stay on your device — only AI features may communicate with external services. Codecut is AI-native with built-in AI agent, image generation, and audio transcription, with no account or subscription required.
