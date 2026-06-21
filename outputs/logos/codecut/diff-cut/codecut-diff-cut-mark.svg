@@ -1,0 +1,22 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="codecut-diff-cut-title codecut-diff-cut-desc">
+	<title id="codecut-diff-cut-title">Codecut Diff Cut Mark</title>
+	<desc id="codecut-diff-cut-desc">Two beveled edit slabs separated by a cyan cut seam on a transparent background.</desc>
+	<defs>
+		<linearGradient id="seam" x1="198" y1="286" x2="329" y2="245" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#00E5FF"/>
+			<stop offset="0.55" stop-color="#22D3EE"/>
+			<stop offset="1" stop-color="#0EA5B7"/>
+		</linearGradient>
+		<filter id="seam-glow" x="173" y="230" width="184" height="93" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+			<feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#22D3EE" flood-opacity="0.55"/>
+		</filter>
+	</defs>
+	<g>
+		<path d="M204 116H384C399.5 116 408.8 133.4 400 146.2L324.6 256H112C96.5 256 87.2 238.6 96 225.8L151.2 145.5C164.1 126.8 181.3 116 204 116Z" fill="#F8FAFC"/>
+		<path d="M188.1 300H400C415.5 300 424.8 317.4 416 330.2L360.8 410.5C347.9 429.2 330.7 440 308 440H128C112.5 440 103.2 422.6 112 409.8L188.1 300Z" fill="#F8FAFC"/>
+		<path d="M176 142H374L358 166H159.5L176 142Z" fill="#FFFFFF" opacity="0.72"/>
+		<path d="M210 326H392L376 350H193.5L210 326Z" fill="#FFFFFF" opacity="0.55"/>
+		<path d="M218.8 256H343.5L303.7 314H179L218.8 256Z" fill="url(#seam)" filter="url(#seam-glow)"/>
+		<path d="M240.6 256H276.8L237 314H200.8L240.6 256Z" fill="#9AF4FF" opacity="0.5"/>
+	</g>
+</svg>
