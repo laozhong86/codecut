@@ -1,13 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-	AlertCircle,
-	CheckCircle2,
-	Clock3,
-	Loader2,
-	RefreshCw,
-} from "lucide-react";
 import type { EditorCore } from "@/core";
 import { CURRENT_PROJECT_VERSION } from "@/services/storage/migrations";
 import type { MediaAsset } from "@/types/assets";
@@ -58,6 +51,48 @@ type ExecutorSnapshotSummary = {
 	mediaCount: number;
 	syncedAt: string;
 };
+
+export const EXECUTOR_STATUS_DOT_CLASS =
+	"fixed top-4 right-52 z-50 inline-flex size-7 items-center justify-center rounded-full border border-border/70 bg-background/85 shadow-sm backdrop-blur transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default";
+
+export function getExecutorStatusDotState({
+	status,
+	error,
+	isSyncing,
+}: {
+	status: ExecutorStatus | null;
+	error: string | null;
+	isSyncing: boolean;
+}) {
+	if (error || status?.status === "failed") {
+		return {
+			ariaLabel: "Codex executor failed",
+			title: "Codex executor failed. Click to sync.",
+			dotClassName: "bg-destructive shadow-[0_0_0_4px_rgba(239,68,68,0.16)]",
+		};
+	}
+	if (isSyncing || status?.status === "running") {
+		return {
+			ariaLabel: "Codex executor running",
+			title: "Codex executor running.",
+			dotClassName:
+				"animate-pulse bg-sky-400 shadow-[0_0_0_4px_rgba(56,189,248,0.16)]",
+		};
+	}
+	if (status?.status === "succeeded") {
+		return {
+			ariaLabel: "Codex executor succeeded",
+			title: "Codex executor succeeded. Click to sync.",
+			dotClassName:
+				"bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.16)]",
+		};
+	}
+	return {
+		ariaLabel: "Codex executor idle",
+		title: "Codex executor idle. Click to sync.",
+		dotClassName: "bg-muted-foreground",
+	};
+}
 
 function appendRevision({ url, revision }: { url: string; revision: number }) {
 	const separator = url.includes("?") ? "&" : "?";
@@ -268,67 +303,30 @@ export function CodexExecutorSync({
 
 	if (!status && !error) return null;
 
-	const icon =
-		status?.status === "running" ? (
-			<Loader2 className="size-4 animate-spin" />
-		) : status?.status === "failed" || error ? (
-			<AlertCircle className="size-4" />
-		) : status?.status === "succeeded" ? (
-			<CheckCircle2 className="size-4" />
-		) : (
-			<Clock3 className="size-4" />
-		);
+	const dot = getExecutorStatusDotState({ status, error, isSyncing });
 
 	return (
-		<div className="bg-background/95 text-foreground fixed right-4 bottom-4 z-50 flex max-w-[380px] items-start gap-3 rounded-md border px-3 py-2 text-xs shadow-lg backdrop-blur">
-			<div className="text-muted-foreground mt-0.5">{icon}</div>
-			<div className="min-w-0">
-				<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-					<span className="font-medium">Codex Executor</span>
-					{status?.tool ? (
-						<span className="text-muted-foreground">{status.tool}</span>
-					) : null}
-					{status?.revision ? (
-						<span className="text-muted-foreground">rev {status.revision}</span>
-					) : null}
-					<button
-						type="button"
-						aria-label="Sync executor project"
-						title="Sync executor project"
-						onClick={() => {
-							void syncSnapshot().catch((err) => {
-								setError(
-									err instanceof Error ? err.message : "Executor sync failed.",
-								);
-							});
-						}}
-						disabled={isSyncing}
-						className="hover:bg-accent ml-auto inline-flex size-6 items-center justify-center rounded-sm disabled:opacity-50"
-					>
-						<RefreshCw
-							className={isSyncing ? "size-3.5 animate-spin" : "size-3.5"}
-						/>
-					</button>
-				</div>
-				<div className="text-muted-foreground mt-1 break-words">
-					{error ?? status?.message}
-				</div>
-				{summary ? (
-					<div className="text-muted-foreground mt-2 grid grid-cols-4 gap-2">
-						<span>{summary.trackCount} tracks</span>
-						<span>{summary.mediaCount} media</span>
-						<span>{summary.duration.toFixed(2)}s</span>
-						<span>rev {summary.revision}</span>
-					</div>
-				) : null}
-				{status?.updatedAt ? (
-					<div className="text-muted-foreground/80 mt-1">
-						{new Date(
-							summary?.syncedAt ?? status.updatedAt,
-						).toLocaleTimeString()}
-					</div>
-				) : null}
-			</div>
-		</div>
+		<button
+			type="button"
+			aria-label={dot.ariaLabel}
+			title={dot.title}
+			onClick={() => {
+				void syncSnapshot().catch((err) => {
+					setError(err instanceof Error ? err.message : "Executor sync failed.");
+				});
+			}}
+			disabled={isSyncing}
+			className={EXECUTOR_STATUS_DOT_CLASS}
+		>
+			<span
+				aria-hidden="true"
+				className={`size-2.5 rounded-full ${dot.dotClassName}`}
+			/>
+			<span className="sr-only">
+				{summary
+					? `${summary.trackCount} tracks, ${summary.mediaCount} media, ${summary.duration.toFixed(2)} seconds, revision ${summary.revision}`
+					: dot.ariaLabel}
+			</span>
+		</button>
 	);
 }

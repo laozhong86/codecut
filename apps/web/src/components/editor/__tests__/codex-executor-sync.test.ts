@@ -2,7 +2,11 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { EditorCore } from "@/core";
 import type { MediaAsset } from "@/types/assets";
 import type { TProject } from "@/types/project";
-import { applyCodexExecutorSnapshot } from "../codex-executor-sync";
+import {
+	applyCodexExecutorSnapshot,
+	EXECUTOR_STATUS_DOT_CLASS,
+	getExecutorStatusDotState,
+} from "../codex-executor-sync";
 
 const originalFetch = globalThis.fetch;
 
@@ -126,5 +130,29 @@ describe("applyCodexExecutorSnapshot", () => {
 		).rejects.toThrow("Executor media asset media-1 is empty.");
 
 		expect(capturedAssets).toEqual([]);
+	});
+});
+
+describe("getExecutorStatusDotState", () => {
+	test("models a compact top-right indicator without persistent details", () => {
+		const state = getExecutorStatusDotState({
+			status: {
+				projectId: "project-1",
+				status: "succeeded",
+				tool: "get_timeline_state",
+				message: "Timeline has 1 track(s), total duration: 60.48s",
+				updatedAt: "2026-06-21T10:00:00.000Z",
+				revision: 4,
+			},
+			error: null,
+			isSyncing: false,
+		});
+
+		expect(EXECUTOR_STATUS_DOT_CLASS).toContain("top-4");
+		expect(EXECUTOR_STATUS_DOT_CLASS).toContain("right-52");
+		expect(state.ariaLabel).toBe("Codex executor succeeded");
+		expect(state.title).toBe("Codex executor succeeded. Click to sync.");
+		expect(JSON.stringify(state)).not.toContain("get_timeline_state");
+		expect(JSON.stringify(state)).not.toContain("Timeline has 1 track");
 	});
 });
