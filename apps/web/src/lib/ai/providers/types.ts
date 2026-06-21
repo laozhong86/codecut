@@ -55,3 +55,70 @@ export interface AIVideoProvider {
 		apiKey: string;
 	}): Promise<VideoTaskResult>;
 }
+
+export interface DigitalHumanGenerationRequest {
+	imageMediaId: string;
+	audioMediaId: string;
+	scriptText: string;
+	motionPrompt: string;
+	width: number;
+	height: number;
+	fps: number;
+}
+
+export type DigitalHumanTaskStatus = VideoTaskStatus;
+
+export interface DigitalHumanTaskResult {
+	taskId: string;
+	status: DigitalHumanTaskStatus;
+	videoUrl?: string;
+	error?: string;
+}
+
+export interface AIDigitalHumanProvider {
+	id: string;
+	name: string;
+	description: string;
+	submitDigitalHumanTask(params: {
+		request: DigitalHumanGenerationRequest;
+		apiKey: string;
+		imageFile: File;
+		audioFile: File;
+	}): Promise<DigitalHumanTaskResult>;
+	getDigitalHumanTask(params: {
+		taskId: string;
+		apiKey: string;
+	}): Promise<DigitalHumanTaskResult>;
+	downloadDigitalHumanResult(params: {
+		videoUrl: string;
+	}): Promise<Blob>;
+}
+
+export interface VoiceDesignRequest {
+	text: string;
+	emotionPrompt: string;
+}
+
+export type VoiceDesignTaskStatus = VideoTaskStatus;
+
+export interface VoiceDesignTaskResult {
+	taskId: string;
+	status: VoiceDesignTaskStatus;
+	audioUrl?: string;
+	error?: string;
+}
+
+export interface AIVoiceDesignProvider {
+	id: string;
+	name: string;
+	description: string;
+	submitVoiceDesignTask(params: {
+		request: VoiceDesignRequest;
+		apiKey: string;
+	}): Promise<VoiceDesignTaskResult>;
+	getVoiceDesignTask(params: {
+		taskId: string;
+		apiKey: string;
+	}): Promise<VoiceDesignTaskResult>;
+	downloadVoiceDesignResult(params: { audioUrl: string }): Promise<Blob>;
+}

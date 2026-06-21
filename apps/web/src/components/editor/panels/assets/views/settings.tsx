@@ -23,7 +23,11 @@ import { patternCraftGradients } from "@/data/colors/pattern-craft";
 import { colors } from "@/data/colors/solid";
 import { syntaxUIGradients } from "@/data/colors/syntax-ui";
 import { useEditor } from "@/hooks/use-editor";
-import { IMAGE_PROVIDERS, VIDEO_PROVIDERS } from "@/lib/ai/providers";
+import {
+	DIGITAL_HUMAN_PROVIDERS,
+	IMAGE_PROVIDERS,
+	VIDEO_PROVIDERS,
+} from "@/lib/ai/providers";
 import { useAISettingsStore } from "@/stores/ai-settings-store";
 import { cn } from "@/utils/ui";
 import {
@@ -468,11 +472,15 @@ function AISettingsView() {
 		imageApiKey,
 		videoProviderId,
 		videoApiKey,
+		digitalHumanProviderId,
+		runningHubApiKey,
 		devPlaceholderEnabled,
 		setImageProvider,
 		setImageApiKey,
 		setVideoProvider,
 		setVideoApiKey,
+		setDigitalHumanProvider,
+		setRunningHubApiKey,
 		setDevPlaceholderEnabled,
 	} = useAISettingsStore();
 
@@ -482,6 +490,10 @@ function AISettingsView() {
 
 	const handleVideoProviderChange = (value: string) => {
 		setVideoProvider(value === NO_PROVIDER ? null : value);
+	};
+
+	const handleDigitalHumanProviderChange = (value: string) => {
+		setDigitalHumanProvider(value === NO_PROVIDER ? null : value);
 	};
 
 	return (
@@ -557,6 +569,50 @@ function AISettingsView() {
 							placeholder={t("Enter API key")}
 							value={videoApiKey}
 							onChange={(event) => setVideoApiKey(event.target.value)}
+						/>
+					</PropertyItemValue>
+				</PropertyItem>
+			</div>
+
+			<div className="flex flex-col gap-3">
+				<span className="text-foreground text-xs font-medium">
+					{t("Digital Human Provider")}
+				</span>
+				<PropertyItem direction="column">
+					<PropertyItemLabel>{t("Provider")}</PropertyItemLabel>
+					<PropertyItemValue>
+						<Select
+							value={digitalHumanProviderId ?? NO_PROVIDER}
+							onValueChange={handleDigitalHumanProviderChange}
+						>
+							<SelectTrigger>
+								<SelectValue placeholder={t("Select a provider")} />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value={NO_PROVIDER}>{t("None")}</SelectItem>
+								{DIGITAL_HUMAN_PROVIDERS.map((provider) => (
+									<SelectItem key={provider.id} value={provider.id}>
+										{provider.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</PropertyItemValue>
+				</PropertyItem>
+			</div>
+
+			<div className="flex flex-col gap-3">
+				<span className="text-foreground text-xs font-medium">
+					{t("RunningHub API Key")}
+				</span>
+				<PropertyItem direction="column">
+					<PropertyItemLabel>{t("API Key")}</PropertyItemLabel>
+					<PropertyItemValue>
+						<Input
+							type="password"
+							placeholder={t("Enter API key")}
+							value={runningHubApiKey}
+							onChange={(event) => setRunningHubApiKey(event.target.value)}
 						/>
 					</PropertyItemValue>
 				</PropertyItem>

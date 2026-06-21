@@ -4,6 +4,7 @@ import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { useCallback, useState } from "react";
 import { PanelBaseView as BaseView } from "@/components/editor/panels/panel-base-view";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
 	Select,
@@ -13,7 +14,11 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { getImageProvider, getVideoProvider } from "@/lib/ai/providers";
+import {
+	getDigitalHumanProvider,
+	getImageProvider,
+	getVideoProvider,
+} from "@/lib/ai/providers";
 import {
 	useAIImageGenerationStore,
 	type AssetStatus,
@@ -24,12 +29,18 @@ import {
 	type GeneratedVideo,
 } from "@/stores/ai-video-generation-store";
 import {
+	useAIDigitalHumanGenerationStore,
+	type GeneratedDigitalHumanVideo,
+} from "@/stores/ai-digital-human-generation-store";
+import {
 	getHistoryImageBlob,
 	useAIGenerationHistoryStore,
 	type AIGenerationHistoryEntry,
 } from "@/stores/ai-generation-history-store";
 import { useAISettingsStore } from "@/stores/ai-settings-store";
 import { useAssetsPanelStore } from "@/stores/assets-panel-store";
+import { useEditor } from "@/hooks/use-editor";
+import type { MediaAsset } from "@/types/assets";
 import { cn } from "@/utils/ui";
 import {
 	ArrowUpRight01Icon,
@@ -658,6 +669,290 @@ function AIVideoView() {
 	);
 }
 
+const EMPTY_MEDIA_VALUE = "__none__";
+
+function MediaAssetSelect({
+	label,
+	value,
+	assets,
+	disabled,
+	onChange,
+}: {
+	label: string;
+	value: string;
+	assets: MediaAsset[];
+	disabled: boolean;
+	onChange: (mediaId: string) => void;
+}) {
+	const { t } = useTranslation();
+
+	return (
+		<div className="flex flex-col gap-1">
+			<span className="text-muted-foreground text-xs">{label}</span>
+			<Select
+				value={value || EMPTY_MEDIA_VALUE}
+				onValueChange={(selected) =>
+					onChange(selected === EMPTY_MEDIA_VALUE ? "" : selected)
+				}
+				disabled={disabled}
+			>
+				<SelectTrigger>
+					<SelectValue placeholder={t("Select media")} />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value={EMPTY_MEDIA_VALUE}>{t("None")}</SelectItem>
+					{assets.map((asset) => (
+						<SelectItem key={asset.id} value={asset.id}>
+							{asset.name}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</div>
+	);
+}
+
+function AIDigitalHumanView() {
+	const { t } = useTranslation();
+	const editor = useEditor();
+	const { digitalHumanProviderId, runningHubApiKey } = useAISettingsStore();
+	const { setActiveTab } = useAssetsPanelStore();
+	const {
+		imageMediaId,
+		audioMediaId,
+		scriptText,
+		motionPrompt,
+		width,
+		height,
+		fps,
+		isGenerating,
+		generatedVideos,
+		setImageMediaId,
+		setAudioMediaId,
+		setScriptText,
+		setMotionPrompt,
+		setWidth,
+		setHeight,
+		setFps,
+		generate,
+	} = useAIDigitalHumanGenerationStore();
+
+	const provider = digitalHumanProviderId
+		? getDigitalHumanProvider({ id: digitalHumanProviderId })
+		: null;
+	const isConfigured = provider !== null && runningHubApiKey.length > 0;
+
+	if (!isConfigured) {
+		return (
+			<div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+				<HugeiconsIcon
+					icon={Settings01Icon}
+					className="text-muted-foreground size-10"
+				/>
+				<div className="flex flex-col gap-1">
+					<p className="text-foreground text-sm font-medium">
+						{t("No Digital Human Provider Configured")}
+					</p>
+					<p className="text-muted-foreground text-xs">
+						{t(
+							"Select a provider and enter your API key in Settings to get started.",
+						)}
+					</p>
+				</div>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={() => setActiveTab("settings")}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") setActiveTab("settings");
+					}}
+				>
+					{t("Go to Settings")}
+				</Button>
+			</div>
+		);
+	}
+
+	const mediaAssets = editor.media.getAssets();
+	const imageAssets = mediaAssets.filter((asset) => asset.type === "image");
+	const audioAssets = mediaAssets.filter((asset) => asset.type === "audio");
+	const canGenerate =
+		imageMediaId.length > 0 &&
+		audioMediaId.length > 0 &&
+		scriptText.trim().length > 0 &&
+		motionPrompt.trim().length > 0 &&
+		width > 0 &&
+		height > 0 &&
+		fps > 0;
+
+	return (
+		<div className="flex flex-col gap-4">
+			<div className="flex flex-col gap-3">
+				<MediaAssetSelect
+					label={t("Image asset")}
+					value={imageMediaId}
+					assets={imageAssets}
+					disabled={isGenerating}
+					onChange={setImageMediaId}
+				/>
+				<MediaAssetSelect
+					label={t("Audio asset")}
+					value={audioMediaId}
+					assets={audioAssets}
+					disabled={isGenerating}
+					onChange={setAudioMediaId}
+				/>
+				<Textarea
+					placeholder={t("Script text")}
+					value={scriptText}
+					onChange={(event) => setScriptText(event.target.value)}
+					rows={4}
+					disabled={isGenerating}
+				/>
+				<Textarea
+					placeholder={t("Motion prompt")}
+					value={motionPrompt}
+					onChange={(event) => setMotionPrompt(event.target.value)}
+					rows={2}
+					disabled={isGenerating}
+				/>
+				<div className="grid grid-cols-3 gap-2">
+					<Input
+						type="number"
+						min={1}
+						value={width}
+						onChange={(event) => setWidth(Number(event.target.value))}
+						disabled={isGenerating}
+						aria-label={t("Digital human width")}
+					/>
+					<Input
+						type="number"
+						min={1}
+						value={height}
+						onChange={(event) => setHeight(Number(event.target.value))}
+						disabled={isGenerating}
+						aria-label={t("Digital human height")}
+					/>
+					<Input
+						type="number"
+						min={1}
+						value={fps}
+						onChange={(event) => setFps(Number(event.target.value))}
+						disabled={isGenerating}
+						aria-label={t("Digital human FPS")}
+					/>
+				</div>
+				<Button
+					type="button"
+					disabled={isGenerating || !canGenerate}
+					onClick={() => generate()}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") generate();
+					}}
+				>
+					{isGenerating ? (
+						<>
+							<HugeiconsIcon
+								icon={Loading03Icon}
+								className="mr-1 size-4 animate-spin"
+							/>
+							{t("Generating...")}
+						</>
+					) : (
+						<>
+							<HugeiconsIcon icon={Video01Icon} className="mr-1 size-4" />
+							{t("Generate Digital Human")}
+						</>
+					)}
+				</Button>
+			</div>
+
+			{generatedVideos.length > 0 && (
+				<div className="flex flex-col gap-2">
+					<span className="text-muted-foreground text-xs font-medium">
+						{t("Digital Human Videos ({{num}})", {
+							num: generatedVideos.length,
+						})}
+					</span>
+					<div className="flex flex-col gap-2">
+						{generatedVideos.map((video) => (
+							<GeneratedDigitalHumanVideoCard key={video.id} video={video} />
+						))}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
+function GeneratedDigitalHumanVideoCard({
+	video,
+}: {
+	video: GeneratedDigitalHumanVideo;
+}) {
+	const { t } = useTranslation();
+	const { retryAddToAssets } = useAIDigitalHumanGenerationStore();
+	const isTaskRunning =
+		video.taskStatus === "pending" || video.taskStatus === "running";
+
+	return (
+		<div className="bg-muted/50 overflow-hidden rounded-md border p-3">
+			<p className="text-foreground mb-2 line-clamp-2 text-xs">
+				{video.scriptText}
+			</p>
+			{video.videoUrl?.startsWith("blob:") && (
+				<video
+					src={video.videoUrl}
+					controls
+					className="mb-2 w-full rounded"
+					preload="metadata"
+				>
+					<track kind="captions" />
+				</video>
+			)}
+			{isTaskRunning && (
+				<div className="bg-muted mb-2 flex aspect-video items-center justify-center rounded">
+					<div className="flex flex-col items-center gap-2">
+						<HugeiconsIcon
+							icon={Loading03Icon}
+							className="text-muted-foreground size-8 animate-spin"
+						/>
+						<span className="text-muted-foreground text-xs">
+							{t("Generating digital human...")}
+						</span>
+					</div>
+				</div>
+			)}
+			{video.taskStatus === "failed" && (
+				<span className="text-xs text-red-500">
+					{video.error ?? t("Digital human generation failed")}
+				</span>
+			)}
+			{video.assetStatus === "adding" && (
+				<span className="text-muted-foreground text-xs">
+					{t("Adding to assets...")}
+				</span>
+			)}
+			{video.assetStatus === "added" && (
+				<span className="text-xs text-green-600">{t("Added to assets")}</span>
+			)}
+			{video.assetStatus === "failed" && (
+				<button
+					type="button"
+					className="cursor-pointer text-xs text-red-500 underline"
+					onClick={() => retryAddToAssets(video.id)}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") retryAddToAssets(video.id);
+					}}
+				>
+					{t("Failed to add. Click to retry.")}
+				</button>
+			)}
+		</div>
+	);
+}
+
 function VideoStatusBadge({
 	video,
 	onRetry,
@@ -1152,6 +1447,9 @@ function AIGenerateView() {
 			<TabsList className="mb-3 justify-start">
 				<TabsTrigger value="image">{t("Image")}</TabsTrigger>
 				<TabsTrigger value="video">{t("Video")}</TabsTrigger>
+				<TabsTrigger value="digital-human">
+					{t("Digital Human")}
+				</TabsTrigger>
 			</TabsList>
 			<TabsContent
 				value="image"
@@ -1164,6 +1462,12 @@ function AIGenerateView() {
 				className="mt-0 flex min-h-0 flex-1 flex-col"
 			>
 				<AIVideoView />
+			</TabsContent>
+			<TabsContent
+				value="digital-human"
+				className="mt-0 flex min-h-0 flex-1 flex-col"
+			>
+				<AIDigitalHumanView />
 			</TabsContent>
 		</Tabs>
 	);

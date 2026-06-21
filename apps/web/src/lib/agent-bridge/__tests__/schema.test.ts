@@ -52,6 +52,11 @@ describe("agent bridge schema", () => {
 		expect(result.success).toBe(true);
 	});
 
+	test("accepts the digital human generation tool", () => {
+		const result = BridgeToolNameSchema.safeParse("generate_digital_human");
+		expect(result.success).toBe(true);
+	});
+
 	test("rejects non-Codex sources", () => {
 		const result = BridgeEnvelopeSchema.safeParse({
 			version: 1,

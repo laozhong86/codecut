@@ -2,16 +2,30 @@
 
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { Link } from "@/lib/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogBody,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { CharacterCard } from "@/components/characters/character-card";
 import { CharacterCreatorDialog } from "@/components/characters/character-creator";
 import { CharacterDetailDialog } from "@/components/characters/character-detail";
 import { useCharacterStore } from "@/stores/character-store";
+import { useAISettingsStore } from "@/stores/ai-settings-store";
+import { useGeneratedVoicesStore } from "@/stores/generated-voices-store";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageToggle } from "@/components/language-toggle";
 import type { AICharacter } from "@/types/character";
+import type { GeneratedVoice } from "@/types/voice";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
 	PlusSignIcon,
@@ -43,6 +57,7 @@ export default function CharactersPage() {
 
 	const [searchQuery, setSearchQuery] = useState("");
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [isCreateVoiceOpen, setIsCreateVoiceOpen] = useState(false);
 	const [editingCharacter, setEditingCharacter] =
 		useState<AICharacter | null>(null);
 	const [viewingCharacter, setViewingCharacter] =
@@ -61,6 +76,10 @@ export default function CharactersPage() {
 						.includes(searchQuery.toLowerCase()),
 			)
 		: characters;
+
+	useEffect(() => {
+		void useGeneratedVoicesStore.getState().loadVoices();
+	}, []);
 
 	const handleDeleteConfirm = () => {
 		if (deletingCharacter) {
@@ -125,6 +144,19 @@ export default function CharactersPage() {
 						</div>
 						<Button
 							size="lg"
+							variant="outline"
+							className="flex px-5 md:px-6"
+							onClick={() => setIsCreateVoiceOpen(true)}
+						>
+							<span className="text-sm font-medium hidden md:block">
+								{t("Create Voice")}
+							</span>
+							<span className="text-sm font-medium block md:hidden">
+								{t("Voice")}
+							</span>
+						</Button>
+						<Button
+							size="lg"
 							className="flex px-5 md:px-6"
 							onClick={() => setIsCreateOpen(true)}
 							onKeyDown={(event) => {
@@ -181,11 +213,17 @@ export default function CharactersPage() {
 						))}
 					</div>
 				)}
+				<GeneratedVoicesSection />
 			</main>
 
 			<CharacterCreatorDialog
 				isOpen={isCreateOpen}
 				onOpenChange={setIsCreateOpen}
+			/>
+
+			<VoiceCreatorDialog
+				isOpen={isCreateVoiceOpen}
+				onOpenChange={setIsCreateVoiceOpen}
 			/>
 
 			<CharacterCreatorDialog
@@ -232,6 +270,207 @@ export default function CharactersPage() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+		</div>
+	);
+}
+
+function VoiceCreatorDialog({
+	isOpen,
+	onOpenChange,
+}: {
+	isOpen: boolean;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const { t } = useTranslation();
+	const { runningHubApiKey } = useAISettingsStore();
+	const { generateVoice, isGenerating, currentTaskStatus } =
+		useGeneratedVoicesStore();
+	const [text, setText] = useState("");
+	const [emotionPrompt, setEmotionPrompt] = useState("");
+	const [error, setError] = useState<string | null>(null);
+
+	const hasRunningHubKey = runningHubApiKey.trim().length > 0;
+	const canGenerate =
+		hasRunningHubKey &&
+		text.trim().length > 0 &&
+		emotionPrompt.trim().length > 0 &&
+		!isGenerating;
+
+	const handleSubmit = async () => {
+		if (!canGenerate) return;
+		setError(null);
+		try {
+			await generateVoice({ text, emotionPrompt });
+			setText("");
+			setEmotionPrompt("");
+			onOpenChange(false);
+		} catch (submitError) {
+			setError(
+				submitError instanceof Error
+					? submitError.message
+					: t("Voice design generation failed"),
+			);
+		}
+	};
+
+	return (
+		<Dialog open={isOpen} onOpenChange={onOpenChange}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>{t("Create Voice")}</DialogTitle>
+					<DialogDescription>
+						{t("Generate a reusable character voice with RunningHub.")}
+					</DialogDescription>
+				</DialogHeader>
+				<DialogBody>
+					<div className="flex flex-col gap-2">
+						<label className="text-sm font-medium" htmlFor="voice-text">
+							{t("Voice text")}
+						</label>
+						<Textarea
+							id="voice-text"
+							value={text}
+							onChange={(event) => setText(event.target.value)}
+							disabled={isGenerating}
+							rows={5}
+						/>
+					</div>
+					<div className="flex flex-col gap-2">
+						<label className="text-sm font-medium" htmlFor="voice-emotion">
+							{t("Emotion / voice description")}
+						</label>
+						<Textarea
+							id="voice-emotion"
+							value={emotionPrompt}
+							onChange={(event) => setEmotionPrompt(event.target.value)}
+							disabled={isGenerating}
+							rows={3}
+						/>
+					</div>
+					{!hasRunningHubKey && (
+						<p className="text-destructive text-sm">
+							{t("Configure RunningHub API Key in AI Settings first.")}
+						</p>
+					)}
+					{isGenerating && currentTaskStatus && (
+						<p className="text-muted-foreground text-sm">
+							{t("Task status")}: {currentTaskStatus}
+						</p>
+					)}
+					{error && <p className="text-destructive text-sm">{error}</p>}
+				</DialogBody>
+				<DialogFooter>
+					<Button
+						type="button"
+						variant="outline"
+						onClick={() => onOpenChange(false)}
+						disabled={isGenerating}
+					>
+						{t("Cancel")}
+					</Button>
+					<Button type="button" onClick={handleSubmit} disabled={!canGenerate}>
+						{isGenerating ? t("Generating...") : t("Create Voice")}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function GeneratedVoicesSection() {
+	const { t } = useTranslation();
+	const { voices, isLoading } = useGeneratedVoicesStore();
+
+	return (
+		<section className="px-4 pt-2">
+			<div className="mb-3 flex items-center justify-between">
+				<h2 className="text-base font-medium">{t("Generated Voices")}</h2>
+				{isLoading && (
+					<span className="text-muted-foreground text-xs">
+						{t("Loading...")}
+					</span>
+				)}
+			</div>
+			{voices.length === 0 ? (
+				<div className="border-border bg-muted/20 rounded-md border p-6 text-sm text-muted-foreground">
+					{t("No generated voices yet")}
+				</div>
+			) : (
+				<div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+					{voices.map((voice) => (
+						<GeneratedVoiceCard key={voice.id} voice={voice} />
+					))}
+				</div>
+			)}
+		</section>
+	);
+}
+
+function GeneratedVoiceCard({ voice }: { voice: GeneratedVoice }) {
+	const { t } = useTranslation();
+	const { loadVoiceAudio, removeVoice } = useGeneratedVoicesStore();
+	const [audioUrl, setAudioUrl] = useState<string | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
+
+	useEffect(() => {
+		let isMounted = true;
+		let objectUrl: string | null = null;
+
+		void loadVoiceAudio({ audioBlobId: voice.audioBlobId })
+			.then((blob) => {
+				if (!isMounted || !blob) return;
+				objectUrl = URL.createObjectURL(blob);
+				setAudioUrl(objectUrl);
+			})
+			.catch((error) => {
+				if (!isMounted) return;
+				setLoadError(
+					error instanceof Error ? error.message : t("Failed to load voice"),
+				);
+			});
+
+		return () => {
+			isMounted = false;
+			if (objectUrl) URL.revokeObjectURL(objectUrl);
+		};
+	}, [loadVoiceAudio, t, voice.audioBlobId]);
+
+	return (
+		<div className="bg-card flex flex-col gap-3 rounded-md border p-4">
+			<div className="flex items-start justify-between gap-3">
+				<div className="min-w-0">
+					<h3 className="truncate text-sm font-medium">{voice.name}</h3>
+					<p className="text-muted-foreground mt-1 line-clamp-2 text-xs">
+						{voice.text}
+					</p>
+				</div>
+				<Button
+					type="button"
+					variant="destructive-foreground"
+					size="sm"
+					onClick={() => {
+						void removeVoice({ voiceId: voice.id });
+					}}
+				>
+					{t("Delete")}
+				</Button>
+			</div>
+			<Badge variant="secondary" className="w-fit max-w-full truncate">
+				{voice.emotionPrompt}
+			</Badge>
+			{audioUrl ? (
+				<audio className="w-full" controls src={audioUrl}>
+					<track kind="captions" />
+				</audio>
+			) : (
+				<p className="text-muted-foreground text-xs">
+					{loadError ?? t("Loading audio...")}
+				</p>
+			)}
+			<div className="text-muted-foreground flex items-center justify-between gap-3 text-xs">
+				<span>{voice.mimeType}</span>
+				<span>{new Date(voice.createdAt).toLocaleDateString()}</span>
+			</div>
 		</div>
 	);
 }

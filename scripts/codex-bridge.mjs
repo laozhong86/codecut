@@ -28,6 +28,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs inspect-video-range --project-id <id> --media-id <id> --start-seconds <seconds> --end-seconds <seconds> [--frame-count <1..16>]",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
+		"  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text \"...\" --motion-prompt \"...\" --width 1280 --height 720 --fps 25",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>",
 		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --download <true|false>",
 		"",
@@ -692,6 +693,61 @@ export function buildPostCutCaptionsEnvelope({ projectId, language, modelId }) {
 	});
 }
 
+function parsePositiveNumber(value, label) {
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		throw new Error(`--${label} must be a positive number`);
+	}
+	return parsed;
+}
+
+export function buildDigitalHumanEnvelope({
+	projectId,
+	imageMediaId,
+	audioMediaId,
+	scriptText,
+	motionPrompt,
+	width,
+	height,
+	fps,
+}) {
+	if (!imageMediaId) {
+		throw new Error("--image-media-id is required");
+	}
+	if (!audioMediaId) {
+		throw new Error("--audio-media-id is required");
+	}
+	if (!scriptText?.trim()) {
+		throw new Error("--script-text is required");
+	}
+	if (!motionPrompt?.trim()) {
+		throw new Error("--motion-prompt is required");
+	}
+	const parsedWidth = parsePositiveNumber(width, "width");
+	const parsedHeight = parsePositiveNumber(height, "height");
+	const parsedFps = parsePositiveNumber(fps, "fps");
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "generate_digital_human",
+		args: {
+			imageMediaId,
+			audioMediaId,
+			scriptText: scriptText.trim(),
+			motionPrompt: motionPrompt.trim(),
+			width: parsedWidth,
+			height: parsedHeight,
+			fps: parsedFps,
+		},
+	});
+}
+
+function requireRunningHubApiKey({ env }) {
+	if (!env.RUNNINGHUB_API_KEY) {
+		throw new Error("RUNNINGHUB_API_KEY is required");
+	}
+}
+
 const extensionMimeTypes = new Map([
 	[".jpg", "image/jpeg"],
 	[".jpeg", "image/jpeg"],
@@ -993,6 +1049,18 @@ export async function runCli({
 			projectId: flags.projectId,
 			language: flags.language,
 			modelId: flags.modelId,
+		});
+	} else if (command === "generate-digital-human") {
+		requireRunningHubApiKey({ env });
+		envelope = buildDigitalHumanEnvelope({
+			projectId: flags.projectId,
+			imageMediaId: flags.imageMediaId,
+			audioMediaId: flags.audioMediaId,
+			scriptText: flags.scriptText,
+			motionPrompt: flags.motionPrompt,
+			width: flags.width,
+			height: flags.height,
+			fps: flags.fps,
 		});
 	} else if (command === "apply-plan") {
 		envelope = await buildApplyPlanEnvelope({

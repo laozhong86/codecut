@@ -18,6 +18,13 @@ import {
 	transcribeMediaWithNodeRuntime,
 } from "@/lib/codex-executor/transcription";
 import {
+	type RunningHubExecutorMediaAsset,
+	generateRunningHubDigitalHumanFromExecutorMedia,
+	type RunningHubGeneratedDigitalHuman,
+} from "@/lib/ai/providers/runninghub-digital-human-server";
+import { RUNNINGHUB_DIGITAL_HUMAN_PROVIDER_ID } from "@/lib/ai/providers/runninghub-digital-human";
+import type { DigitalHumanGenerationRequest } from "@/lib/ai/providers";
+import {
 	createHumanPipEffect,
 	createTextBackgroundEffect,
 	requireHumanPipPlacement,
@@ -57,6 +64,7 @@ type ExecutorToolName =
 	| "apply_narrated_remix_plan"
 	| "create_text_background_effect"
 	| "create_human_pip_effect"
+	| "generate_digital_human"
 	| "get_timeline_state";
 
 interface ExecutorMediaAsset {
@@ -122,6 +130,7 @@ const commandSchema = z
 			"apply_narrated_remix_plan",
 			"create_text_background_effect",
 			"create_human_pip_effect",
+			"generate_digital_human",
 			"get_timeline_state",
 		]),
 		args: z.record(z.string(), z.unknown()),
@@ -228,6 +237,25 @@ const createHumanPipEffectArgsSchema = z
 		replaceExisting: z.boolean(),
 	})
 	.strict();
+
+const generateDigitalHumanArgsSchema = z
+	.object({
+		imageMediaId: z.string().min(1),
+		audioMediaId: z.string().min(1),
+		scriptText: z.string().trim().min(1),
+		motionPrompt: z.string().trim().min(1),
+		width: z.number().positive(),
+		height: z.number().positive(),
+		fps: z.number().positive(),
+	})
+	.strict();
+
+export type ExecutorGenerateDigitalHuman = (params: {
+	apiKey: string;
+	imageAsset: RunningHubExecutorMediaAsset;
+	audioAsset: RunningHubExecutorMediaAsset;
+	request: DigitalHumanGenerationRequest;
+}) => Promise<RunningHubGeneratedDigitalHuman>;
 
 function executorRoot(): string {
 	return (
@@ -917,6 +945,115 @@ async function runCreateHumanPipEffect({
 	};
 }
 
+function requireExecutorMediaAsset({
+	state,
+	mediaId,
+	expectedType,
+}: {
+	state: ExecutorProjectState;
+	mediaId: string;
+	expectedType: ExecutorMediaAsset["type"];
+}): ExecutorMediaAsset {
+	const mediaAsset = state.mediaAssets.find((asset) => asset.id === mediaId);
+	if (!mediaAsset) {
+		throw new Error(`Media asset '${mediaId}' not found`);
+	}
+	if (mediaAsset.type !== expectedType) {
+		throw new Error(
+			`Media asset '${mediaAsset.name}' is type '${mediaAsset.type}', expected ${expectedType}`,
+		);
+	}
+	return mediaAsset;
+}
+
+function digitalHumanFileName({ taskId }: { taskId: string }): string {
+	const safeTaskId = taskId.replace(/[^a-zA-Z0-9_-]/g, "-");
+	return `digital-human-${safeTaskId}.mp4`;
+}
+
+async function runGenerateDigitalHuman({
+	state,
+	args,
+	env,
+	generateDigitalHuman,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	generateDigitalHuman: ExecutorGenerateDigitalHuman;
+}) {
+	const parsed = generateDigitalHumanArgsSchema.parse(args);
+	const apiKey = env.RUNNINGHUB_API_KEY;
+	if (!apiKey) {
+		throw new Error("RUNNINGHUB_API_KEY is required");
+	}
+	const imageAsset = requireExecutorMediaAsset({
+		state,
+		mediaId: parsed.imageMediaId,
+		expectedType: "image",
+	});
+	const audioAsset = requireExecutorMediaAsset({
+		state,
+		mediaId: parsed.audioMediaId,
+		expectedType: "audio",
+	});
+	const request: DigitalHumanGenerationRequest = {
+		imageMediaId: parsed.imageMediaId,
+		audioMediaId: parsed.audioMediaId,
+		scriptText: parsed.scriptText,
+		motionPrompt: parsed.motionPrompt,
+		width: parsed.width,
+		height: parsed.height,
+		fps: parsed.fps,
+	};
+	const generated = await generateDigitalHuman({
+		apiKey,
+		imageAsset,
+		audioAsset,
+		request,
+	});
+	if (generated.videoBytes.byteLength <= 0) {
+		throw new Error("RunningHub returned an empty digital human video");
+	}
+	const mimeType = generated.mimeType || "video/mp4";
+	if (!mimeType.startsWith("video/")) {
+		throw new Error(`RunningHub returned unsupported video MIME type: ${mimeType}`);
+	}
+
+	const mediaId = generateUUID();
+	const name = digitalHumanFileName({ taskId: generated.taskId });
+	const mediaPath = join(
+		mediaDirectory({ projectId: state.project.id }),
+		mediaId,
+	);
+	await writeFile(mediaPath, generated.videoBytes);
+	const asset: ExecutorMediaAsset = {
+		id: mediaId,
+		name,
+		type: "video",
+		mimeType,
+		duration: generated.duration,
+		width: parsed.width,
+		height: parsed.height,
+		size: generated.videoBytes.byteLength,
+		lastModified: Date.now(),
+		path: mediaPath,
+	};
+	state.mediaAssets = [...state.mediaAssets, asset];
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Generated digital human video '${name}'`,
+		data: {
+			mediaId,
+			taskId: generated.taskId,
+			provider: RUNNINGHUB_DIGITAL_HUMAN_PROVIDER_ID,
+			duration: generated.duration,
+			name,
+		},
+	};
+}
+
 async function runTranscribeMedia({
 	state,
 	args,
@@ -1254,6 +1391,8 @@ async function executeCommand({
 	probeAudio,
 	transcribeMediaRange,
 	inspectVideoRange,
+	env,
+	generateDigitalHuman,
 }: {
 	state: ExecutorProjectState;
 	command: ExecutorCommand;
@@ -1261,6 +1400,8 @@ async function executeCommand({
 	probeAudio: ProbeAudio;
 	transcribeMediaRange: ExecutorTranscribeMediaRange;
 	inspectVideoRange: InspectVideoRange;
+	env: Record<string, string | undefined>;
+	generateDigitalHuman: ExecutorGenerateDigitalHuman;
 }) {
 	if (command.tool === "get_project_info") {
 		return runGetProjectInfo({ state });
@@ -1315,6 +1456,14 @@ async function executeCommand({
 	if (command.tool === "create_human_pip_effect") {
 		return runCreateHumanPipEffect({ state, args: command.args });
 	}
+	if (command.tool === "generate_digital_human") {
+		return runGenerateDigitalHuman({
+			state,
+			args: command.args,
+			env,
+			generateDigitalHuman,
+		});
+	}
 	if (command.tool === "get_timeline_state") {
 		return runGetTimelineState({ state });
 	}
@@ -1337,18 +1486,35 @@ const defaultBuildVideoContextProbeAudio: ProbeAudio = async ({
 	});
 };
 
+const defaultGenerateDigitalHuman: ExecutorGenerateDigitalHuman = ({
+	apiKey,
+	imageAsset,
+	audioAsset,
+	request,
+}) =>
+	generateRunningHubDigitalHumanFromExecutorMedia({
+		apiKey,
+		imageAsset,
+		audioAsset,
+		request,
+	});
+
 export async function executeCodexExecutorEnvelope({
 	envelope,
 	transcribeMedia = transcribeMediaWithNodeRuntime,
 	probeAudio = defaultBuildVideoContextProbeAudio,
 	transcribeMediaRange = transcribeMediaRangeWithNodeRuntime,
 	inspectVideoRange = inspectVideoRangeWithNodeRuntime,
+	env = process.env,
+	generateDigitalHuman = defaultGenerateDigitalHuman,
 }: {
 	envelope: unknown;
 	transcribeMedia?: ExecutorTranscribeMedia;
 	probeAudio?: ProbeAudio;
 	transcribeMediaRange?: ExecutorTranscribeMediaRange;
 	inspectVideoRange?: InspectVideoRange;
+	env?: Record<string, string | undefined>;
+	generateDigitalHuman?: ExecutorGenerateDigitalHuman;
 }) {
 	const parsedEnvelope = envelopeSchema.parse(envelope);
 	const state = await loadProjectState({ projectId: parsedEnvelope.projectId });
@@ -1371,6 +1537,8 @@ export async function executeCodexExecutorEnvelope({
 				probeAudio,
 				transcribeMediaRange,
 				inspectVideoRange,
+				env,
+				generateDigitalHuman,
 			});
 			const success = result.success !== false;
 			const message =
