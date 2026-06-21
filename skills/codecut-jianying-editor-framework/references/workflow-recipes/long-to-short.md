@@ -11,6 +11,7 @@ Use this recipe when the user wants one imported source video compressed into a 
 - `apply_edit_plan` succeeds.
 - `get_timeline_state` proves final duration, clip count, media source, and caption bounds.
 - If vertical or square output is requested, `get_project_info` proves project settings after `update_project_settings`; `EditPlan.target.aspectRatio` alone does not mutate canvas settings.
+- If landscape source is converted to vertical or square output, visual preflight proves the reframe and caption policy before the EditPlan is applied.
 
 ## Required Context
 
@@ -19,6 +20,7 @@ Use this recipe when the user wants one imported source video compressed into a 
 - `transcribe_media` for talking videos
 - `build_video_context` for long-video or transcript-first planning
 - Source duration and media dimensions
+- Visual preflight for landscape-to-vertical outputs, especially when the source may contain burned-in captions or the subject is off-center
 
 If transcript is unavailable for speech-led content, stop and report the missing context. Do not infer content from the file name.
 
@@ -29,11 +31,16 @@ If transcript is unavailable for speech-led content, stop and report the missing
 3. Pick the source media asset; import only if the user supplied an absolute local path and no suitable asset exists.
 4. Transcribe the source when speech determines clip selection.
 5. Build VideoContext with `build_video_context` when long-video or transcript-first planning needs source-timestamped context.
-6. If the user asks to remove filler, restarts, repeated setup, or dead air, generate a strict SpeechCleanupPlan v2 and project it with `rebuildTimelineFromSpeechCleanup()` before applying.
-7. Otherwise, select clips with a clear role: hook, proof, process, value, or CTA.
-8. Generate an implemented EditPlan v1 only.
-9. Apply only to an empty timeline, or use `replaceExisting=true` after explicit user confirmation that existing timeline content can be cleared. Append is not implemented in the current `apply_edit_plan` path.
-10. Verify with `get_timeline_state`.
+6. For vertical or square output from a landscape source, run visual preflight before clip planning:
+   - classify whether the source is a plain talking head, a talking head with bottom burned-in captions, a screen recording, or mixed B-roll.
+   - choose the reframe policy before caption placement. For talking-head footage where the face can remain large and the old subtitle band can be removed by reframing, use `vertical_face_safe_crop_above_burned_captions`.
+   - Do not use `black-bar` as a subtitle mask to cover source subtitles.
+   - If the chosen policy requires source crop, face anchor, or per-clip transform fields outside current EditPlan v1, stop and report the runtime gap instead of hiding the problem with captions.
+7. If the user asks to remove filler, restarts, repeated setup, or dead air, generate a strict SpeechCleanupPlan v2 and project it with `rebuildTimelineFromSpeechCleanup()` before applying.
+8. Otherwise, select clips with a clear role: hook, proof, process, value, or CTA.
+9. Generate an implemented EditPlan v1 only.
+10. Apply only to an empty timeline, or use `replaceExisting=true` after explicit user confirmation that existing timeline content can be cleared. Append is not implemented in the current `apply_edit_plan` path.
+11. Verify with `get_timeline_state`.
 
 ## Defaults
 
@@ -41,6 +48,8 @@ If transcript is unavailable for speech-led content, stop and report the missing
 - Aspect ratio: 9:16 when the user asks for TikTok, Reels, Shorts, or short video. Apply it through `update_project_settings`; do not treat the EditPlan target field as execution proof.
 - Captions: concise transcript-derived captions only after the cut is stable.
 - Speech cleanup: `dropReason` is required for `drop` decisions and forbidden for `keep` decisions. Filler counts come only from `dropReason: "filler"`, not marker words inside kept text.
+- Landscape-to-vertical reframe: prefer centered `cover` only when visual preflight proves the subject and burned-in captions are safe. Use `vertical_face_safe_crop_above_burned_captions` as the planning template for talking-head sources where the old bottom caption band should be cropped out.
+- Caption policy: new captions must avoid old burned-in captions; Do not use `black-bar` as a subtitle mask.
 
 ## Stop Conditions
 
@@ -48,6 +57,7 @@ If transcript is unavailable for speech-led content, stop and report the missing
 - Executor readiness check fails.
 - No source media and no absolute local path.
 - Transcript required but unavailable.
+- Landscape-to-vertical output requires a source crop or face anchor that current EditPlan v1 cannot express.
 - The requested style requires fields outside current EditPlan v1, such as speed, effects, BGM, or overlays.
 
 ## Report Back

@@ -35,6 +35,12 @@ Do not ask Codex to "watch an MP4" directly. Convert media into searchable, time
     "hasTalkingHeadSignal": true,
     "canBeBroll": false
   },
+  "visualPreflight": {
+    "burnedCaptionRegion": "bottom",
+    "subjectSafeArea": { "x": 0.28, "y": 0.04, "width": 0.44, "height": 0.78 },
+    "recommendedReframeTemplate": "vertical_face_safe_crop_above_burned_captions",
+    "captionPolicy": "place_new_captions_above_old_region_or_crop_old_region"
+  },
   "warnings": []
 }
 ```
@@ -49,6 +55,7 @@ Do not ask Codex to "watch an MP4" directly. Convert media into searchable, time
 | audio availability | yes | Decide transcript feasibility |
 | transcript segments | yes for talking video | Select meaning-bearing clips |
 | scenes/keyframes | optional for MVP | Visual validation later |
+| visual preflight | required when landscape source becomes vertical and source text may affect framing | Choose crop/caption policy before EditPlan |
 | audio events | optional for MVP | Silence/dead-air trimming later |
 | OCR | optional | Useful for tutorials and screen recordings |
 
@@ -127,7 +134,7 @@ OCR helps tutorial/demo edits and product proof. If OCR is missing, Codex should
 | --- | --- | --- |
 | L1 Metadata only | duration, dimensions | basic placement, manual user-provided cuts |
 | L2 Transcript | metadata + transcript | long-to-short, talking-head polish, captions |
-| L3 Visual | transcript + scenes/keyframes/OCR | tutorials, UGC/product proof, AI artifact checks |
+| L3 Visual | transcript + scenes/keyframes/OCR + visual preflight | tutorials, UGC/product proof, AI artifact checks, landscape-to-vertical reframe |
 | L4 Full analysis | visual + audio events + business notes | platform-ready short-form edit |
 
 MVP should target L2 for long-to-short talking videos.
@@ -156,6 +163,8 @@ VideoContext warnings are for optional context that is incomplete but does not b
 
 Warnings should influence the plan. For example, if visual analysis was not run, Codex should not claim it selected the strongest visual moment.
 
+If visual preflight was not run for a landscape-to-vertical talking-head source, Codex must not claim that the face-safe crop, burned-in caption removal, or new caption position is verified. It may still produce a transcript-first cut, but it must report the missing reframe proof.
+
 ## Codecut Mapping
 
 Existing Codecut capabilities already cover part of this contract:
@@ -172,3 +181,5 @@ Missing or future capabilities:
 - OCR
 - audio-event detection
 - explicit VideoContext storage and retrieval
+- visual preflight extraction of `burnedCaptionRegion`, `subjectSafeArea`, `recommendedReframeTemplate`, and `captionPolicy`
+- source-crop and face-anchor execution fields for templates such as `vertical_face_safe_crop_above_burned_captions`

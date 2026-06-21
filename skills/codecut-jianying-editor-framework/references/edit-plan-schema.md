@@ -120,6 +120,12 @@ Current validation fail-fast checks include:
 target aspect ratios into `visual.transform.scale`. It is the only implemented
 clip fit value and is readable through `get_timeline_state`.
 
+Centered `cover` is not an explicit source crop. It cannot guarantee removal of
+bottom burned-in captions and it cannot follow a face anchor. If visual
+preflight selects `vertical_face_safe_crop_above_burned_captions`, the current
+runtime needs a future source crop or anchored reframe field; stop and report the runtime gap instead of hiding the problem with captions. Do not invent
+arbitrary crop, anchor, x/y, or transform fields in the current EditPlan v1.
+
 Do not include `intent`, `strategy`, `overlays`, `acceptanceChecks`, `speed`,
 `anchor`, arbitrary transform objects, arbitrary style objects, external audio
 URLs, or automatic asset-download instructions in a plan sent to the current

@@ -86,4 +86,45 @@ describe("Codecut plugin startup guidance", () => {
 			expect(content).toContain("source apps/web/.env.local");
 		}
 	});
+
+	test("requires visual preflight for horizontal sources converted to vertical shorts", async () => {
+		const skillRoot = join(
+			pluginRoot,
+			"skills",
+			"codecut-jianying-editor-framework",
+		);
+		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
+		const longToShort = await readFile(
+			join(skillRoot, "references", "workflow-recipes", "long-to-short.md"),
+			"utf8",
+		);
+		const platformPresets = await readFile(
+			join(skillRoot, "references", "platform-presets.md"),
+			"utf8",
+		);
+		const videoContext = await readFile(
+			join(skillRoot, "references", "video-context-contract.md"),
+			"utf8",
+		);
+		const editPlanSchema = await readFile(
+			join(skillRoot, "references", "edit-plan-schema.md"),
+			"utf8",
+		);
+
+		for (const content of [skill, longToShort, platformPresets]) {
+			expect(content).toContain("visual preflight");
+			expect(content).toContain(
+				"vertical_face_safe_crop_above_burned_captions",
+			);
+			expect(content).toContain("Do not use `black-bar` as a subtitle mask");
+		}
+
+		expect(videoContext).toContain("burnedCaptionRegion");
+		expect(videoContext).toContain("recommendedReframeTemplate");
+		expect(videoContext).toContain("captionPolicy");
+		expect(editPlanSchema).toContain("source crop");
+		expect(editPlanSchema).toContain(
+			"stop and report the runtime gap instead of hiding the problem with captions",
+		);
+	});
 });

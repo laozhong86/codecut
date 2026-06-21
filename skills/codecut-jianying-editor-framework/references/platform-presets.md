@@ -23,6 +23,9 @@ Rules:
 - First 1-3 seconds need a reason to keep watching.
 - Avoid bottom-right overlays because platform UI often covers them.
 - Use `cover` only when subject stays safe in vertical crop; otherwise use `blur-bg` or `contain`.
+- Landscape source requires visual preflight before `cover`; verify subject safe area, burned-in captions, and where new captions will sit.
+- For horizontal talking-head footage with bottom burned-in captions, prefer `vertical_face_safe_crop_above_burned_captions` when the face and torso can remain large while the old subtitle band is cropped away.
+- Do not use `black-bar` as a subtitle mask for burned-in captions. Choose crop, preserve the original captions, or stop on the missing runtime capability.
 
 ## YouTube Horizontal
 
@@ -127,6 +130,7 @@ For short-form vertical planning:
 - Spoken captions: middle-lower safe zone.
 - CTA: center or top safe zone.
 - Avoid bottom edge and right rail.
+- After visual preflight finds burned-in captions, place new captions away from that region or choose a reframe policy that removes it.
 
 ## Preset Selection
 
