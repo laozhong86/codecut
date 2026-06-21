@@ -86,6 +86,12 @@ describe("RunningHub digital human provider", () => {
 		expect(normalizeRunningHubDigitalHumanStatus({ status: "FAILED" })).toBe(
 			"failed",
 		);
+		expect(normalizeRunningHubDigitalHumanStatus({ status: "succeeded" })).toBe(
+			"succeeded",
+		);
+		expect(normalizeRunningHubDigitalHumanStatus({ status: "failed" })).toBe(
+			"failed",
+		);
 	});
 
 	test("extracts the mp4 result URL and fails when no mp4 result exists", () => {
@@ -116,6 +122,24 @@ describe("RunningHub digital human provider", () => {
 					}),
 			}),
 		).rejects.toThrow("upload failed");
+	});
+
+	test("uses RunningHub uploaded filename before signed download URLs", async () => {
+		await expect(
+			uploadRunningHubMediaFile({
+				apiKey: "rh-key",
+				file: new File(["image"], "portrait.png", { type: "image/png" }),
+				fetchImpl: async () =>
+					new Response(
+						JSON.stringify({
+							data: {
+								filename: "api/portrait-uploaded.png",
+								download_url: "https://www.runninghub.cn/temp/portrait.png",
+							},
+						}),
+					),
+			}),
+		).resolves.toBe("api/portrait-uploaded.png");
 	});
 
 	test("fails fast when RunningHub submit fails", async () => {

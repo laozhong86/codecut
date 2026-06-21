@@ -50,6 +50,12 @@ describe("RunningHub voice design provider", () => {
 		expect(normalizeRunningHubVoiceDesignStatus({ status: "FAILED" })).toBe(
 			"failed",
 		);
+		expect(normalizeRunningHubVoiceDesignStatus({ status: "succeeded" })).toBe(
+			"succeeded",
+		);
+		expect(normalizeRunningHubVoiceDesignStatus({ status: "failed" })).toBe(
+			"failed",
+		);
 	});
 
 	test("extracts audio result URL and fails when no audio result exists", () => {
