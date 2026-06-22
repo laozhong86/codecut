@@ -32,6 +32,22 @@ describe("visual context", () => {
 		]);
 	});
 
+	test("does not round visual windows beyond media duration", () => {
+		const durationSeconds = 15.155918;
+		const windows = buildVisualContextWindows({ durationSeconds });
+
+		expect(windows).toEqual([
+			{ id: "window-1", index: 1, startSeconds: 0, endSeconds: 15.155 },
+		]);
+		expect(windows.at(-1)?.endSeconds).toBeLessThanOrEqual(durationSeconds);
+	});
+
+	test("drops sub-millisecond tails instead of creating zero-length windows", () => {
+		expect(buildVisualContextWindows({ durationSeconds: 60.0004 })).toEqual([
+			{ id: "window-1", index: 1, startSeconds: 0, endSeconds: 60 },
+		]);
+	});
+
 	test("rejects invalid durations", () => {
 		expect(() => buildVisualContextWindows({ durationSeconds: 0 })).toThrow(
 			"VisualContext requires a positive duration.",
