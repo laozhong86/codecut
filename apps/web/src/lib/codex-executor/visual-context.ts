@@ -79,8 +79,8 @@ export type InspectVisualRange = ({
 	outputDirectory: string;
 }) => Promise<VideoRangeInspection>;
 
-function roundToMillis(value: number): number {
-	return Number(value.toFixed(3));
+function floorToMillis(value: number): number {
+	return Math.floor(value * 1000) / 1000;
 }
 
 function targetAspectRatioValue(targetAspectRatio: VisualTargetAspectRatio) {
@@ -98,19 +98,24 @@ export function buildVisualContextWindows({
 		throw new Error("VisualContext requires a positive duration.");
 	}
 
+	const boundedDurationSeconds = floorToMillis(durationSeconds);
+	if (boundedDurationSeconds <= 0) {
+		throw new Error("VisualContext requires a duration of at least 1ms.");
+	}
+
 	const windows: VisualContextWindow[] = [];
 	let startSeconds = 0;
 	let index = 1;
-	while (startSeconds < durationSeconds) {
+	while (startSeconds < boundedDurationSeconds) {
 		const endSeconds = Math.min(
 			startSeconds + VISUAL_CONTEXT_WINDOW_SECONDS,
-			durationSeconds,
+			boundedDurationSeconds,
 		);
 		windows.push({
 			id: `window-${index}`,
 			index,
-			startSeconds: roundToMillis(startSeconds),
-			endSeconds: roundToMillis(endSeconds),
+			startSeconds,
+			endSeconds,
 		});
 		startSeconds = endSeconds;
 		index += 1;
