@@ -27,7 +27,8 @@ const siteConstantsPath = resolve(
 );
 const manifestPath = resolve(rootDir, "apps/web/public/manifest.json");
 const metadataPath = resolve(rootDir, "apps/web/src/app/metadata.ts");
-const middlewarePath = resolve(rootDir, "apps/web/src/middleware.ts");
+const deprecatedMiddlewarePath = resolve(rootDir, "apps/web/src/middleware.ts");
+const proxyPath = resolve(rootDir, "apps/web/src/proxy.ts");
 const headerPath = resolve(rootDir, "apps/web/src/components/header.tsx");
 const footerPath = resolve(rootDir, "apps/web/src/components/footer.tsx");
 const comparisonTablePath = resolve(
@@ -80,7 +81,7 @@ describe("Codecut brand assets", () => {
 		const siteConstants = readFileSync(siteConstantsPath, "utf8");
 		const manifest = readFileSync(manifestPath, "utf8");
 		const metadata = readFileSync(metadataPath, "utf8");
-		const middleware = readFileSync(middlewarePath, "utf8");
+		const proxy = readFileSync(proxyPath, "utf8");
 		const header = readFileSync(headerPath, "utf8");
 		const footer = readFileSync(footerPath, "utf8");
 		const comparisonTable = readFileSync(comparisonTablePath, "utf8");
@@ -99,7 +100,9 @@ describe("Codecut brand assets", () => {
 		expect(manifest).toContain('"/logos/codecut/png/logo-512.png"');
 		expect(metadata).toContain('type: "image/png"');
 		expect(metadata).not.toContain("/logos/codecut/svg/logo.svg");
-		expect(middleware).toContain("icon.png");
+		expect(existsSync(deprecatedMiddlewarePath)).toBe(false);
+		expect(proxy).toContain("icon.png");
+		expect(proxy).toContain("export default");
 		expect(header).toContain("Codecut");
 		expect(header).not.toContain("dark:invert");
 		expect(footer).toContain("Codecut");
