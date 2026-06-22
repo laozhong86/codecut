@@ -21,7 +21,7 @@ const validInput = {
 	description: "young woman, blonde hair, white tank top",
 	styleDescription: "photorealistic, soft warm indoor light",
 } satisfies CharacterPortraitInput;
-const middlewarePath = join(process.cwd(), "apps/web/src/middleware.ts");
+const proxyPath = join(process.cwd(), "apps/web/src/proxy.ts");
 
 describe("character portrait Codex action", () => {
 	test("builds the image prompt from the master prompt, description, and style lock", () => {
@@ -204,8 +204,8 @@ describe("character portrait Codex action", () => {
 	});
 
 	test("allows generated Codex assets to be served as static files", async () => {
-		const middleware = await Bun.file(middlewarePath).text();
+		const proxy = await Bun.file(proxyPath).text();
 
-		expect(middleware).toContain("generated");
+		expect(proxy).toContain("generated");
 	});
 });
