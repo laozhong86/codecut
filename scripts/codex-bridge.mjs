@@ -2,6 +2,7 @@
 
 import { access, readFile, stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
+import { isIP } from "node:net";
 import { homedir } from "node:os";
 import { basename, extname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -16,6 +17,9 @@ const requiredConfig = [
 	"CODECUT_AGENT_BRIDGE_INTERVAL_MS",
 ];
 const execFileAsync = promisify(execFile);
+const importBytesBase64MaxBytes = 15 * 1024 * 1024;
+const importUrlMaxBytes = 250 * 1024 * 1024;
+const importUrlTimeoutMs = 120_000;
 
 function usage() {
 	return [
@@ -25,12 +29,28 @@ function usage() {
 		"  node scripts/codex-bridge.mjs doctor --project-id <id>",
 		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
+		"  node scripts/codex-bridge.mjs import-media --project-id <id> --url https://example.com/media-file [--mime-type <type>]",
+		"  node scripts/codex-bridge.mjs import-media --project-id <id> --bytes-base64-file /absolute/path/payload.base64 --file-name <name> --mime-type <type>",
 		"  node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-visual-context --project-id <id> --media-id <id> --target-aspect-ratio <9:16|16:9|1:1>",
 		"  node scripts/codex-bridge.mjs inspect-video-range --project-id <id> --media-id <id> --start-seconds <seconds> --end-seconds <seconds> [--frame-count <1..16>]",
+		"  node scripts/codex-bridge.mjs get-timeline-state-v2 --project-id <id> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>] [--include-referenced-media <true|false>]",
+		"  node scripts/codex-bridge.mjs inspect-timeline --project-id <id> --start-time <seconds> [--end-time <seconds>] [--frame-count <1..16>]",
+		"  node scripts/codex-bridge.mjs get-transcript --project-id <id> --language <auto|code> --model-id <model> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>]",
+		"  node scripts/codex-bridge.mjs add-texts --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs add-captions --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs insert-clips --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs move-clips --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs remove-clips --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs split-clip --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs set-clip-properties --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs set-keyframes --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs ripple-delete-ranges --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs list-models --project-id <id> [--type <transcription|digital_human>]",
+		"  node scripts/codex-bridge.mjs search-media --project-id <id> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
-		"  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text \"...\" --motion-prompt \"...\" --width 1280 --height 720 --fps 25",
+		'  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text "..." --motion-prompt "..." --width 1280 --height 720 --fps 25',
 		"  node scripts/codex-bridge.mjs validate-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs preview-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>",
@@ -84,6 +104,13 @@ function assertNoTokenFlags(flags) {
 			);
 		}
 	}
+}
+
+function parseArgsJsonFlag(flags) {
+	if (!flags.argsJson) {
+		throw new Error("--args-json is required");
+	}
+	return JSON.parse(flags.argsJson);
 }
 
 export function requireRuntimeConfig({ env }) {
@@ -637,6 +664,340 @@ export function buildCommandEnvelope({ projectId, tool, args }) {
 	};
 }
 
+function parseNonNegativeNumber(value, label) {
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed) || parsed < 0) {
+		throw new Error(`--${label} must be a finite non-negative number`);
+	}
+	return parsed;
+}
+
+function assertFrameCount(value) {
+	if (
+		value !== undefined &&
+		(!Number.isInteger(Number(value)) ||
+			Number(value) < 1 ||
+			Number(value) > 16)
+	) {
+		throw new Error("--frame-count must be an integer from 1 to 16");
+	}
+	return value === undefined ? undefined : Number(value);
+}
+
+function requireJsonObject(value, label) {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error(`--${label} must be a JSON object`);
+	}
+	return value;
+}
+
+function requireNonEmptyStringArray(value, label) {
+	if (
+		!Array.isArray(value) ||
+		value.length === 0 ||
+		value.some((entry) => typeof entry !== "string" || entry.length === 0)
+	) {
+		throw new Error(`--${label} must contain at least one id`);
+	}
+	return value;
+}
+
+function validateRanges(ranges) {
+	if (!Array.isArray(ranges) || ranges.length === 0) {
+		throw new Error("--ranges must contain at least one range");
+	}
+	for (const range of ranges) {
+		if (
+			!Array.isArray(range) ||
+			range.length !== 2 ||
+			!Number.isFinite(Number(range[0])) ||
+			!Number.isFinite(Number(range[1])) ||
+			Number(range[0]) < 0 ||
+			Number(range[1]) <= Number(range[0])
+		) {
+			throw new Error(
+				"--ranges entries must be [start, end] with end greater than start",
+			);
+		}
+	}
+	return ranges.map(([start, end]) => [Number(start), Number(end)]);
+}
+
+function optionalTimelineWindow({ startTime, endTime, frameCount }) {
+	const args = {};
+	if (startTime !== undefined) {
+		args.startTime = parseNonNegativeNumber(startTime, "start-time");
+	}
+	if (endTime !== undefined) {
+		args.endTime = parseNonNegativeNumber(endTime, "end-time");
+		if (args.startTime !== undefined && args.endTime <= args.startTime) {
+			throw new Error("--end-time must be greater than --start-time");
+		}
+	}
+	const parsedFrameCount = assertFrameCount(frameCount);
+	if (parsedFrameCount !== undefined) {
+		args.frameCount = parsedFrameCount;
+	}
+	return args;
+}
+
+export function buildGetTimelineStateV2Envelope({
+	projectId,
+	startTime,
+	endTime,
+	includeFrames,
+	includeReferencedMedia,
+}) {
+	const args = {
+		format: "v2",
+		...optionalTimelineWindow({ startTime, endTime }),
+		...(includeFrames === undefined ? {} : { includeFrames }),
+		...(includeReferencedMedia === undefined ? {} : { includeReferencedMedia }),
+	};
+	return buildCommandEnvelope({
+		projectId,
+		tool: "get_timeline_state",
+		args,
+	});
+}
+
+export function buildInspectTimelineEnvelope({
+	projectId,
+	startTime,
+	endTime,
+	frameCount,
+}) {
+	if (startTime === undefined) {
+		throw new Error("--start-time is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "inspect_timeline",
+		args: optionalTimelineWindow({ startTime, endTime, frameCount }),
+	});
+}
+
+export function buildGetTranscriptEnvelope({
+	projectId,
+	language,
+	modelId,
+	startTime,
+	endTime,
+	includeFrames,
+}) {
+	if (!language) {
+		throw new Error("--language is required");
+	}
+	if (!modelId) {
+		throw new Error("--model-id is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "get_transcript",
+		args: {
+			language,
+			modelId,
+			...optionalTimelineWindow({ startTime, endTime }),
+			...(includeFrames === undefined ? {} : { includeFrames }),
+		},
+	});
+}
+
+export function buildAddTextsEnvelope({ projectId, trackId, entries }) {
+	if (!Array.isArray(entries) || entries.length === 0) {
+		throw new Error("--entries must contain at least one text entry");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "add_texts",
+		args: {
+			...(trackId === undefined ? {} : { trackId }),
+			entries,
+		},
+	});
+}
+
+export function buildAddCaptionsEnvelope({
+	projectId,
+	language,
+	modelId,
+	captionStyle,
+}) {
+	if (!language) {
+		throw new Error("--language is required");
+	}
+	if (!modelId) {
+		throw new Error("--model-id is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "add_captions",
+		args: {
+			language,
+			modelId,
+			...(captionStyle === undefined ? {} : { captionStyle }),
+		},
+	});
+}
+
+export function buildListModelsEnvelope({ projectId, type }) {
+	if (
+		type !== undefined &&
+		type !== "transcription" &&
+		type !== "digital_human"
+	) {
+		throw new Error("--type must be transcription or digital_human");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "list_models",
+		args: type === undefined ? {} : { type },
+	});
+}
+
+export function buildInsertClipsEnvelope({
+	projectId,
+	trackId,
+	atTime,
+	clips,
+}) {
+	if (!trackId) {
+		throw new Error("--track-id is required");
+	}
+	if (!Array.isArray(clips) || clips.length === 0) {
+		throw new Error("--clips must contain at least one clip");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "insert_clips",
+		args: {
+			trackId,
+			atTime: parseNonNegativeNumber(atTime, "at-time"),
+			clips,
+		},
+	});
+}
+
+export function buildMoveClipsEnvelope({ projectId, moves }) {
+	if (!Array.isArray(moves) || moves.length === 0) {
+		throw new Error("--moves must contain at least one move");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "move_clips",
+		args: { moves },
+	});
+}
+
+export function buildRemoveClipsEnvelope({ projectId, elementIds }) {
+	return buildCommandEnvelope({
+		projectId,
+		tool: "remove_clips",
+		args: { elementIds: requireNonEmptyStringArray(elementIds, "element-ids") },
+	});
+}
+
+export function buildSplitClipEnvelope({ projectId, elementId, atTime }) {
+	if (!elementId) {
+		throw new Error("--element-id is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "split_clip",
+		args: {
+			elementId,
+			atTime: parseNonNegativeNumber(atTime, "at-time"),
+		},
+	});
+}
+
+export function buildSetClipPropertiesEnvelope({
+	projectId,
+	elementId,
+	properties,
+}) {
+	if (!elementId) {
+		throw new Error("--element-id is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "set_clip_properties",
+		args: {
+			elementId,
+			properties: requireJsonObject(properties, "properties"),
+		},
+	});
+}
+
+const supportedKeyframeProperties = new Set([
+	"opacity",
+	"transform.position",
+	"transform.scale",
+	"transform.rotate",
+]);
+
+export function buildSetKeyframesEnvelope({
+	projectId,
+	elementId,
+	property,
+	keyframes,
+}) {
+	if (!elementId) {
+		throw new Error("--element-id is required");
+	}
+	if (!supportedKeyframeProperties.has(property)) {
+		throw new Error("--property must be a supported keyframe property");
+	}
+	if (!Array.isArray(keyframes)) {
+		throw new Error("--keyframes must be an array");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "set_keyframes",
+		args: { elementId, property, keyframes },
+	});
+}
+
+export function buildSearchMediaEnvelope({
+	projectId,
+	query,
+	scope,
+	mediaId,
+	limit,
+}) {
+	if (!query || !String(query).trim()) {
+		throw new Error("--query is required");
+	}
+	if (
+		scope !== undefined &&
+		scope !== "metadata" &&
+		scope !== "spoken" &&
+		scope !== "both"
+	) {
+		throw new Error("--scope must be metadata, spoken, or both");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "search_media",
+		args: {
+			query,
+			...(scope === undefined ? {} : { scope }),
+			...(mediaId === undefined ? {} : { mediaId }),
+			...(limit === undefined
+				? {}
+				: { limit: parsePositiveNumber(limit, "limit") }),
+		},
+	});
+}
+
+export function buildRippleDeleteRangesEnvelope({ projectId, ranges }) {
+	return buildCommandEnvelope({
+		projectId,
+		tool: "ripple_delete_ranges",
+		args: { ranges: validateRanges(ranges) },
+	});
+}
+
 export function buildExportEnvelope({
 	projectId,
 	format,
@@ -910,6 +1271,159 @@ function mimeTypeForFilePath({ filePath }) {
 	return mimeType;
 }
 
+function normalizeSupportedMimeType(value, flagName = "mime-type") {
+	if (!value || typeof value !== "string") {
+		throw new Error(`--${flagName} is required`);
+	}
+	const mimeType = value.split(";")[0].trim().toLowerCase();
+	if (![...extensionMimeTypes.values()].includes(mimeType)) {
+		throw new Error(`--${flagName} must be a supported media MIME type`);
+	}
+	return mimeType;
+}
+
+function inferMimeTypeFromUrlPath(url) {
+	const extension = extname(url.pathname).toLowerCase();
+	return extensionMimeTypes.get(extension);
+}
+
+function inferFileNameFromUrl(url) {
+	const fileName = basename(url.pathname);
+	if (!fileName || fileName === "/" || fileName === ".") {
+		throw new Error("--file-name is required when URL path has no file name");
+	}
+	return decodeURIComponent(fileName);
+}
+
+function isPrivateLiteralHost(hostname) {
+	const normalized = hostname.toLowerCase();
+	if (normalized === "localhost" || normalized.endsWith(".localhost")) {
+		return true;
+	}
+	const ipVersion = isIP(normalized);
+	if (ipVersion === 4) {
+		const [a, b] = normalized.split(".").map((part) => Number(part));
+		return (
+			a === 0 ||
+			a === 10 ||
+			a === 127 ||
+			(a === 169 && b === 254) ||
+			(a === 172 && b >= 16 && b <= 31) ||
+			(a === 192 && b === 168) ||
+			(a === 100 && b >= 64 && b <= 127) ||
+			(a === 198 && (b === 18 || b === 19))
+		);
+	}
+	if (ipVersion === 6) {
+		return (
+			normalized === "::1" ||
+			normalized.startsWith("fe80:") ||
+			normalized.startsWith("fc") ||
+			normalized.startsWith("fd")
+		);
+	}
+	return false;
+}
+
+function parseImportUrl(value) {
+	if (!value) {
+		throw new Error("--url is required");
+	}
+	const url = new URL(value);
+	if (url.protocol !== "https:") {
+		throw new Error("--url must use https");
+	}
+	if (url.username || url.password) {
+		throw new Error("--url must not contain credentials");
+	}
+	if (isPrivateLiteralHost(url.hostname)) {
+		throw new Error("--url must not use localhost or private literal hosts");
+	}
+	return url;
+}
+
+function validateSingleImportSource({ filePath, url, bytes, bytesBase64File }) {
+	const sourceCount = [
+		Boolean(filePath),
+		Boolean(url),
+		Boolean(bytes || bytesBase64File),
+	].filter(Boolean).length;
+	if (sourceCount !== 1) {
+		throw new Error("import-media requires exactly one media source");
+	}
+}
+
+function normalizeMediaMetadata({ duration, width, height }) {
+	return {
+		...(duration === undefined
+			? {}
+			: { duration: parsePositiveNumber(duration, "duration") }),
+		...(width === undefined ? {} : { width: parsePositiveNumber(width, "width") }),
+		...(height === undefined
+			? {}
+			: { height: parsePositiveNumber(height, "height") }),
+	};
+}
+
+async function readBase64Input({ bytes, bytesBase64File }) {
+	if (bytes && bytesBase64File) {
+		throw new Error("--bytes and --bytes-base64-file cannot be used together");
+	}
+	const base64 = bytes ?? (await readFile(bytesBase64File, "utf8"));
+	if (Buffer.byteLength(base64, "utf8") > importBytesBase64MaxBytes) {
+		throw new Error("--bytes payload must be 15MB or smaller");
+	}
+	const content = Buffer.from(base64, "base64");
+	if (content.byteLength === 0) {
+		throw new Error("--bytes payload must not be empty");
+	}
+	return {
+		base64: content.toString("base64"),
+		content,
+	};
+}
+
+async function fetchUrlBytes({ url, mimeType, fetchImpl }) {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), importUrlTimeoutMs);
+	try {
+		const response = await fetchImpl(url.href, {
+			redirect: "error",
+			signal: controller.signal,
+		});
+		if (response.redirected || (response.status >= 300 && response.status < 400)) {
+			throw new Error("--url must not redirect");
+		}
+		if (!response.ok) {
+			throw new Error(`--url download failed with HTTP ${response.status}`);
+		}
+		const contentLength = Number(response.headers.get("content-length"));
+		if (Number.isFinite(contentLength) && contentLength > importUrlMaxBytes) {
+			throw new Error("--url download must be 250MB or smaller");
+		}
+		const contentType = response.headers.get("content-type");
+		const resolvedMimeType =
+			mimeType ??
+			(contentType ? normalizeSupportedMimeType(contentType) : undefined) ??
+			inferMimeTypeFromUrlPath(url);
+		if (!resolvedMimeType) {
+			throw new Error(
+				"--mime-type is required when URL content type is missing",
+			);
+		}
+		const content = Buffer.from(await response.arrayBuffer());
+		if (content.byteLength > importUrlMaxBytes) {
+			throw new Error("--url download must be 250MB or smaller");
+		}
+		return {
+			content,
+			mimeType: normalizeSupportedMimeType(resolvedMimeType),
+		};
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
 export async function probeMediaFile({
 	filePath,
 	execFileImpl = execFileAsync,
@@ -949,31 +1463,89 @@ export async function probeMediaFile({
 export async function buildImportMediaEnvelope({
 	projectId,
 	filePath,
+	url,
+	bytes,
+	bytesBase64File,
+	fileName,
+	mimeType,
+	lastModified,
+	duration,
+	width,
+	height,
 	mediaMetadata,
+	fetchImpl = fetch,
 }) {
-	if (!filePath) {
-		throw new Error("--file-path is required");
-	}
-	if (!isAbsolute(filePath)) {
-		throw new Error("--file-path must be an absolute path");
+	validateSingleImportSource({ filePath, url, bytes, bytesBase64File });
+	if (filePath) {
+		if (!isAbsolute(filePath)) {
+			throw new Error("--file-path must be an absolute path");
+		}
+
+		const fileStat = await stat(filePath);
+		if (!fileStat.isFile()) {
+			throw new Error("--file-path must point to a regular file");
+		}
+
+		const content = await readFile(filePath);
+		return buildCommandEnvelope({
+			projectId,
+			tool: "import_media_file",
+			args: {
+				fileName: basename(filePath),
+				mimeType: mimeTypeForFilePath({ filePath }),
+				base64: content.toString("base64"),
+				size: fileStat.size,
+				lastModified: fileStat.mtimeMs,
+				...(mediaMetadata ?? {}),
+				...normalizeMediaMetadata({ duration, width, height }),
+			},
+		});
 	}
 
-	const fileStat = await stat(filePath);
-	if (!fileStat.isFile()) {
-		throw new Error("--file-path must point to a regular file");
+	if (bytes || bytesBase64File) {
+		if (!fileName) {
+			throw new Error("--file-name is required for bytes import");
+		}
+		if (!mimeType) {
+			throw new Error("--mime-type is required for bytes import");
+		}
+		const payload = await readBase64Input({ bytes, bytesBase64File });
+		return buildCommandEnvelope({
+			projectId,
+			tool: "import_media_file",
+			args: {
+				fileName,
+				mimeType: normalizeSupportedMimeType(mimeType),
+				base64: payload.base64,
+				size: payload.content.byteLength,
+				lastModified:
+					lastModified === undefined
+						? Date.now()
+						: parseNonNegativeNumber(lastModified, "last-modified"),
+				...normalizeMediaMetadata({ duration, width, height }),
+			},
+		});
 	}
 
-	const content = await readFile(filePath);
+	const parsedUrl = parseImportUrl(url);
+	const remote = await fetchUrlBytes({
+		url: parsedUrl,
+		mimeType: mimeType ? normalizeSupportedMimeType(mimeType) : undefined,
+		fetchImpl,
+	});
 	return buildCommandEnvelope({
 		projectId,
 		tool: "import_media_file",
 		args: {
-			fileName: basename(filePath),
-			mimeType: mimeTypeForFilePath({ filePath }),
-			base64: content.toString("base64"),
-			size: fileStat.size,
-			lastModified: fileStat.mtimeMs,
-			...(mediaMetadata ?? {}),
+			fileName: fileName ?? inferFileNameFromUrl(parsedUrl),
+			mimeType: remote.mimeType,
+			base64: remote.content.toString("base64"),
+			size: remote.content.byteLength,
+			lastModified:
+				lastModified === undefined
+					? Date.now()
+					: parseNonNegativeNumber(lastModified, "last-modified"),
+			...normalizeMediaMetadata({ duration, width, height }),
 		},
 	});
 }
@@ -1274,13 +1846,10 @@ export async function runCli({
 		stdout(JSON.stringify({ status: "ready", executor }, null, 2));
 		return 0;
 	} else if (command === "send") {
-		if (!flags.argsJson) {
-			throw new Error("--args-json is required");
-		}
 		envelope = buildCommandEnvelope({
 			projectId: flags.projectId,
 			tool: flags.tool,
-			args: JSON.parse(flags.argsJson),
+			args: parseArgsJsonFlag(flags),
 		});
 	} else if (command === "export") {
 			envelope = buildExportEnvelope({
@@ -1292,11 +1861,29 @@ export async function runCli({
 				overwrite: parseBoolean(flags.overwrite, "overwrite"),
 			});
 	} else if (command === "import-media") {
-		const mediaMetadata = await probeMediaFile({ filePath: flags.filePath });
+		const flagMetadata = normalizeMediaMetadata({
+			duration: flags.duration,
+			width: flags.width,
+			height: flags.height,
+		});
+		const mediaMetadata =
+			flags.filePath && flagMetadata.duration === undefined
+				? await probeMediaFile({ filePath: flags.filePath })
+				: flagMetadata;
 		envelope = await buildImportMediaEnvelope({
 			projectId: flags.projectId,
 			filePath: flags.filePath,
+			url: flags.url,
+			bytes: flags.bytes,
+			bytesBase64File: flags.bytesBase64File,
+			fileName: flags.fileName,
+			mimeType: flags.mimeType,
+			lastModified: flags.lastModified,
+			duration: flags.duration,
+			width: flags.width,
+			height: flags.height,
 			mediaMetadata,
+			fetchImpl,
 		});
 	} else if (command === "transcribe") {
 		envelope = buildTranscribeEnvelope({
@@ -1326,6 +1913,110 @@ export async function runCli({
 			endSeconds: Number(flags.endSeconds),
 			frameCount:
 				flags.frameCount === undefined ? undefined : Number(flags.frameCount),
+		});
+	} else if (command === "get-timeline-state-v2") {
+		envelope = buildGetTimelineStateV2Envelope({
+			projectId: flags.projectId,
+			startTime:
+				flags.startTime === undefined ? undefined : Number(flags.startTime),
+			endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
+			includeFrames:
+				flags.includeFrames === undefined
+					? undefined
+					: parseBoolean(flags.includeFrames, "includeFrames"),
+			includeReferencedMedia:
+				flags.includeReferencedMedia === undefined
+					? undefined
+					: parseBoolean(
+							flags.includeReferencedMedia,
+							"includeReferencedMedia",
+						),
+		});
+	} else if (command === "inspect-timeline") {
+		envelope = buildInspectTimelineEnvelope({
+			projectId: flags.projectId,
+			startTime: Number(flags.startTime),
+			endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
+			frameCount:
+				flags.frameCount === undefined ? undefined : Number(flags.frameCount),
+		});
+	} else if (command === "get-transcript") {
+		envelope = buildGetTranscriptEnvelope({
+			projectId: flags.projectId,
+			language: flags.language,
+			modelId: flags.modelId,
+			startTime:
+				flags.startTime === undefined ? undefined : Number(flags.startTime),
+			endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
+			includeFrames:
+				flags.includeFrames === undefined
+					? undefined
+					: parseBoolean(flags.includeFrames, "includeFrames"),
+		});
+	} else if (command === "add-texts") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildAddTextsEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "add-captions") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildAddCaptionsEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "list-models") {
+		envelope = buildListModelsEnvelope({
+			projectId: flags.projectId,
+			type: flags.type,
+		});
+	} else if (command === "search-media") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildSearchMediaEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "insert-clips") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildInsertClipsEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "move-clips") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildMoveClipsEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "remove-clips") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildRemoveClipsEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "split-clip") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildSplitClipEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "set-clip-properties") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildSetClipPropertiesEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "set-keyframes") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildSetKeyframesEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "ripple-delete-ranges") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildRippleDeleteRangesEnvelope({
+			projectId: flags.projectId,
+			...payload,
 		});
 	} else if (command === "build-post-cut-captions") {
 		envelope = buildPostCutCaptionsEnvelope({

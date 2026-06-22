@@ -7,6 +7,7 @@ export class SplitElementsCommand extends Command {
 	private savedState: TimelineTrack[] | null = null;
 	private rightSideElements: { trackId: string; elementId: string }[] = [];
 	private previousSelection: { trackId: string; elementId: string }[] = [];
+	private splitElementIds = new Map<string, string>();
 
 	constructor(
 		private elements: { trackId: string; elementId: string }[],
@@ -72,7 +73,10 @@ export class SplitElementsCommand extends Command {
 					}
 
 					if (this.retainSide === "right") {
-						const newId = generateUUID();
+						const newId = this.getSplitElementId({
+							trackId: track.id,
+							elementId: element.id,
+						});
 						this.rightSideElements.push({
 							trackId: track.id,
 							elementId: newId,
@@ -90,7 +94,10 @@ export class SplitElementsCommand extends Command {
 					}
 
 					// "both" - split into two pieces
-					const secondElementId = generateUUID();
+					const secondElementId = this.getSplitElementId({
+						trackId: track.id,
+						elementId: element.id,
+					});
 					this.rightSideElements.push({
 						trackId: track.id,
 						elementId: secondElementId,
@@ -119,7 +126,9 @@ export class SplitElementsCommand extends Command {
 		editor.timeline.updateTracks(updatedTracks);
 
 		if (this.rightSideElements.length > 0) {
-			editor.selection.setSelectedElements({ elements: this.rightSideElements });
+			editor.selection.setSelectedElements({
+				elements: this.rightSideElements,
+			});
 		}
 	}
 
@@ -127,7 +136,26 @@ export class SplitElementsCommand extends Command {
 		if (this.savedState) {
 			const editor = EditorCore.getInstance();
 			editor.timeline.updateTracks(this.savedState);
-			editor.selection.setSelectedElements({ elements: this.previousSelection });
+			editor.selection.setSelectedElements({
+				elements: this.previousSelection,
+			});
 		}
+	}
+
+	private getSplitElementId({
+		trackId,
+		elementId,
+	}: {
+		trackId: string;
+		elementId: string;
+	}): string {
+		const key = `${trackId}:${elementId}`;
+		const existingId = this.splitElementIds.get(key);
+		if (existingId) {
+			return existingId;
+		}
+		const nextId = generateUUID();
+		this.splitElementIds.set(key, nextId);
+		return nextId;
 	}
 }

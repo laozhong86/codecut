@@ -1,6 +1,7 @@
 import type { CanvasRenderer } from "../canvas-renderer";
 import { BaseNode } from "./base-node";
-import type { Transform } from "@/types/timeline";
+import type { TimelineElementKeyframes, Transform } from "@/types/timeline";
+import { applyVisualKeyframes } from "../keyframes";
 
 const VISUAL_EPSILON = 1 / 1000;
 
@@ -11,6 +12,7 @@ export interface VisualNodeParams {
 	trimEnd: number;
 	transform: Transform;
 	opacity: number;
+	keyframes?: TimelineElementKeyframes;
 	playbackRate?: number;
 	reversed?: boolean;
 }
@@ -41,15 +43,22 @@ export abstract class VisualNode<
 		source,
 		sourceWidth,
 		sourceHeight,
+		time,
 	}: {
 		renderer: CanvasRenderer;
 		source: CanvasImageSource;
 		sourceWidth: number;
 		sourceHeight: number;
+		time: number;
 	}): void {
 		renderer.context.save();
 
-		const { transform, opacity } = this.params;
+		const { transform, opacity } = applyVisualKeyframes({
+			transform: this.params.transform,
+			opacity: this.params.opacity,
+			keyframes: this.params.keyframes,
+			localTime: time - this.params.timeOffset,
+		});
 		const containScale = Math.min(
 			renderer.width / sourceWidth,
 			renderer.height / sourceHeight,

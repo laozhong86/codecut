@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, rm } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
 const EXCLUDES = [
+	".git",
 	".git/",
 	"node_modules/",
 	".next/",
@@ -186,6 +187,13 @@ export function buildRsyncArgs({ sourceRoot, cacheRoot, dryRun = false }) {
 	];
 }
 
+async function removeCacheGitMetadata({ cacheRoot, dryRun }) {
+	if (dryRun) {
+		return;
+	}
+	await rm(join(cacheRoot, ".git"), { recursive: true, force: true });
+}
+
 export async function runSync({
 	sourceRoot = process.cwd(),
 	homeDir = homedir(),
@@ -206,6 +214,7 @@ export async function runSync({
 		cacheRoot: plan.cacheRoot,
 		dryRun,
 	});
+	await removeCacheGitMetadata({ cacheRoot: plan.cacheRoot, dryRun });
 	await execFileImpl("rsync", rsyncArgs);
 
 	const summary = {

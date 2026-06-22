@@ -36,6 +36,7 @@ export class ImageNode extends VisualNode<ImageNodeParams> {
 			source: image,
 			sourceWidth: mediaW,
 			sourceHeight: mediaH,
+			time,
 		});
 	}
 }

@@ -91,6 +91,7 @@ export class MaskedVideoNode extends VideoNode {
 			source: maskCanvas,
 			sourceWidth: maskCanvas.width,
 			sourceHeight: maskCanvas.height,
+			time,
 		});
 	}
 }

@@ -45,8 +45,21 @@ function envelope({
 		| "transcribe_media"
 		| "build_video_context"
 		| "build_visual_context"
+		| "inspect_timeline"
+		| "get_transcript"
 		| "inspect_video_range"
 		| "build_post_cut_captions"
+		| "add_texts"
+		| "add_captions"
+		| "list_models"
+		| "set_keyframes"
+		| "search_media"
+		| "insert_clips"
+		| "move_clips"
+		| "remove_clips"
+		| "split_clip"
+		| "set_clip_properties"
+		| "ripple_delete_ranges"
 		| "validate_edit_plan"
 		| "preview_edit_plan"
 		| "apply_edit_plan"
@@ -91,15 +104,7 @@ function personMask(overrides: Partial<DerivedAsset> = {}): DerivedAsset {
 }
 
 function installFixtureWebCodecsGlobals() {
-	const globals = globalThis as typeof globalThis & {
-		AudioData?: unknown;
-		AudioDecoder?: unknown;
-		AudioEncoder?: unknown;
-		EncodedAudioChunk?: unknown;
-		EncodedVideoChunk?: unknown;
-		VideoEncoder?: unknown;
-		VideoFrame?: unknown;
-	};
+	const globals = globalThis as unknown as Record<string, unknown>;
 	globals.AudioData ??= AudioData;
 	globals.AudioDecoder ??= AudioDecoder;
 	globals.AudioEncoder ??= AudioEncoder;
@@ -369,6 +374,42 @@ describe("codex executor", () => {
 		}
 		await rm(stateDir, { recursive: true, force: true });
 	});
+
+	async function seedDraftState({
+		tracks,
+		mediaAssets = [],
+	}: {
+		tracks: Array<Record<string, unknown>>;
+		mediaAssets?: Array<Record<string, unknown>>;
+	}) {
+		await createExecutorProject({ projectId, name: "Verifiable edit loop" });
+		const now = "2026-06-22T00:00:00.000Z";
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			JSON.stringify(
+				{
+					version: 1,
+					revision: 1,
+					project: {
+						id: projectId,
+						name: "Verifiable edit loop",
+						settings: {
+							canvasSize: { width: 1080, height: 1920 },
+							fps: 30,
+							background: { type: "color", color: "#000000" },
+						},
+						createdAt: now,
+						updatedAt: now,
+					},
+					mediaAssets,
+					derivedAssets: [],
+					tracks,
+				},
+				null,
+				2,
+			),
+		);
+	}
 
 	test("imports media and exposes project info without a browser-mounted bridge", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
@@ -2556,14 +2597,15 @@ describe("codex executor", () => {
 			}),
 		});
 
-		expect(visualResult.results[0]).toMatchObject({
-			tool: "build_visual_context",
-			success: false,
+			expect(visualResult.results[0]).toMatchObject({
+				tool: "build_visual_context",
+				success: false,
+			});
+			const [result] = visualResult.results;
+			expect("message" in result ? String(result.message) : "").toContain(
+				"targetAspectRatio",
+			);
 		});
-		expect(String(visualResult.results[0].message)).toContain(
-			"targetAspectRatio",
-		);
-	});
 
 	test("inspects a video range through the local executor without mutating project state", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
@@ -3444,5 +3486,1072 @@ describe("codex executor", () => {
 				"placement must be one of right_down, right_up, left_down, left_up, center.",
 		});
 		expect(after.tracks).toEqual([]);
+	});
+
+	test("inspect_timeline renders composited timeline frames without mutating project state", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "text-track-1",
+					type: "text",
+					name: "Captions",
+					hidden: false,
+					elements: [
+						{
+							id: "caption-1",
+							type: "text",
+							name: "Caption",
+							content: "Rendered proof",
+							richSpans: [],
+							fontSize: 96,
+							fontFamily: "Inter",
+							color: "#ffffff",
+							backgroundColor: "transparent",
+							textAlign: "center",
+							fontWeight: "bold",
+							fontStyle: "normal",
+							textDecoration: "none",
+							hidden: false,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+						},
+					],
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "inspect_timeline",
+				args: { startTime: 0, endTime: 2, frameCount: 2 },
+			}),
+		});
+		const after = await getExecutorProjectState({ projectId });
+		const data = resultData<{
+			artifact: { path: string; kind: string; mimeType: string };
+			frames: Array<{ timeSeconds: number }>;
+			revision: number;
+		}>(result.results[0]);
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Inspected timeline at 2 frame(s).",
+			data: {
+				revision: 1,
+				canvasSize: { width: 1080, height: 1920 },
+				artifact: {
+					kind: "timeline_contact_sheet",
+					mimeType: "image/png",
+				},
+				frames: [{ timeSeconds: 0 }, { timeSeconds: 2 }],
+			},
+		});
+		expect(data.artifact.path.replaceAll("\\", "/")).toContain(
+			"/timeline-inspect/",
+		);
+		expect((await readFile(data.artifact.path)).byteLength).toBeGreaterThan(0);
+		expect(after).toEqual(before);
+	});
+
+	test("get_transcript maps edited clip source segments back onto the timeline", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "media-1",
+					name: "talk.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 30,
+					width: 1920,
+					height: 1080,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/talk.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Talk",
+							mediaId: "media-1",
+							startTime: 10,
+							duration: 5,
+							trimStart: 20,
+							trimEnd: 25,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_transcript",
+				args: {
+					language: "auto",
+					modelId: "whisper-tiny",
+					includeFrames: true,
+				},
+			}),
+			transcribeMediaRange: async ({ range }) => {
+				expect(range).toEqual({ start: 20, end: 25 });
+				return {
+					text: "hello",
+					segments: [{ text: "hello", start: 1, end: 2 }],
+					language: "auto",
+					modelId: "whisper-tiny",
+				};
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				revision: 1,
+				segmentFormat: [
+					"text",
+					"startTime",
+					"endTime",
+					"sourceStart",
+					"sourceEnd",
+				],
+				frameFormat: [
+					"startFrame",
+					"endFrame",
+					"sourceStartFrame",
+					"sourceEndFrame",
+				],
+				clips: [
+					{
+						clipId: "clip-1",
+						trackId: "video-track-1",
+						mediaId: "media-1",
+						segments: [["hello", 11, 12, 21, 22]],
+						segmentFrames: [[330, 360, 630, 660]],
+					},
+				],
+			},
+		});
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
+	test("get_transcript clamps returned segments to the edited clip range", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "media-1",
+					name: "talk.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 30,
+					width: 1920,
+					height: 1080,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/talk.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Talk",
+							mediaId: "media-1",
+							startTime: 10,
+							duration: 5,
+							trimStart: 20,
+							trimEnd: 25,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_transcript",
+				args: {
+					language: "auto",
+					modelId: "whisper-tiny",
+					includeFrames: true,
+				},
+			}),
+			transcribeMediaRange: async ({ range }) => {
+				expect(range).toEqual({ start: 20, end: 25 });
+				return {
+					text: "long",
+					segments: [{ text: "long", start: 0, end: 10 }],
+					language: "auto",
+					modelId: "whisper-tiny",
+				};
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				clips: [
+					{
+						clipId: "clip-1",
+						segments: [["long", 10, 15, 20, 25]],
+						segmentFrames: [[300, 450, 600, 750]],
+					},
+				],
+			},
+		});
+	});
+
+	test("insert_clips ripples later elements on the target track", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "media-1",
+					name: "source.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 10,
+					width: 1920,
+					height: 1080,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/source.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "existing-1",
+							type: "video",
+							name: "Existing",
+							mediaId: "media-1",
+							startTime: 2,
+							duration: 2,
+							trimStart: 2,
+							trimEnd: 4,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "insert_clips",
+				args: {
+					trackId: "track-1",
+					atTime: 1,
+					clips: [
+						{
+							mediaId: "media-1",
+							duration: 1.5,
+							trimStart: 0.5,
+							trimEnd: 2,
+						},
+					],
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const inserted = state.tracks[0].elements.find(
+			(element) => element.id !== "existing-1",
+		);
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				createdElementIds: [expect.any(String)],
+				changedElementIds: ["existing-1"],
+				removedElementIds: [],
+				revision: 2,
+				totalDuration: 5.5,
+			},
+		});
+		expect(inserted).toMatchObject({
+			type: "video",
+			mediaId: "media-1",
+			startTime: 1,
+			duration: 1.5,
+			trimStart: 0.5,
+			trimEnd: 2,
+		});
+		expect(
+			state.tracks[0].elements.find((e) => e.id === "existing-1"),
+		).toMatchObject({ startTime: 3.5 });
+		expect(state.revision).toBe(2);
+	});
+
+	test("move_clips moves an element by id to another compatible track", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Source",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "image",
+							name: "Still",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+				{
+					id: "track-2",
+					type: "video",
+					name: "Destination",
+					isMain: false,
+					muted: false,
+					hidden: false,
+					elements: [],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "move_clips",
+				args: {
+					moves: [{ elementId: "clip-1", toTrackId: "track-2", startTime: 4 }],
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: { changedElementIds: ["clip-1"], revision: 2, totalDuration: 6 },
+		});
+		expect(state.tracks[0].elements).toEqual([]);
+		expect(state.tracks[1].elements[0]).toMatchObject({
+			id: "clip-1",
+			startTime: 4,
+		});
+	});
+
+	test("remove_clips deletes only requested elements without ripple", async () => {
+		const textBase = {
+			type: "text",
+			name: "Text",
+			richSpans: [],
+			fontSize: 24,
+			fontFamily: "Inter",
+			color: "#ffffff",
+			backgroundColor: "transparent",
+			textAlign: "center",
+			fontWeight: "normal",
+			fontStyle: "normal",
+			textDecoration: "none",
+			transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+			opacity: 1,
+			trimStart: 0,
+			trimEnd: 0,
+		};
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "text",
+					name: "Captions",
+					hidden: false,
+					elements: [
+						{
+							...textBase,
+							id: "text-1",
+							content: "remove",
+							startTime: 0,
+							duration: 1,
+						},
+						{
+							...textBase,
+							id: "text-2",
+							content: "keep",
+							startTime: 3,
+							duration: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "remove_clips",
+				args: { elementIds: ["text-1"] },
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				removedElementIds: ["text-1"],
+				changedElementIds: [],
+				createdElementIds: [],
+				revision: 2,
+				totalDuration: 4,
+			},
+		});
+		expect(state.tracks[0].elements).toEqual([
+			expect.objectContaining({ id: "text-2", startTime: 3 }),
+		]);
+	});
+
+	test("split_clip keeps source trim continuity across left and right clips", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Clip",
+							mediaId: "media-1",
+							startTime: 2,
+							duration: 6,
+							trimStart: 10,
+							trimEnd: 16,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "split_clip",
+				args: { elementId: "clip-1", atTime: 5 },
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const [left, right] = state.tracks[0].elements;
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				createdElementIds: [expect.any(String)],
+				changedElementIds: ["clip-1"],
+				revision: 2,
+			},
+		});
+		expect(left).toMatchObject({
+			id: "clip-1",
+			startTime: 2,
+			duration: 3,
+			trimStart: 10,
+			trimEnd: 13,
+		});
+		expect(right).toMatchObject({
+			startTime: 5,
+			duration: 3,
+			trimStart: 13,
+			trimEnd: 16,
+		});
+	});
+
+	test("set_clip_properties updates only whitelisted element properties", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Clip",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 5,
+							trimStart: 0,
+							trimEnd: 5,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_clip_properties",
+				args: {
+					elementIds: ["clip-1"],
+					properties: {
+						duration: 3,
+						trimStart: 1,
+						trimEnd: 4,
+						opacity: 0.4,
+						playbackRate: 1.25,
+						transform: {
+							scale: 1.2,
+							position: { x: 12, y: -8 },
+							rotate: 5,
+						},
+					},
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				changedElementIds: ["clip-1"],
+				revision: 2,
+				totalDuration: 3,
+			},
+		});
+		expect(state.tracks[0].elements[0]).toMatchObject({
+			duration: 3,
+			trimStart: 1,
+			trimEnd: 4,
+			opacity: 0.4,
+			playbackRate: 1.25,
+			transform: {
+				scale: 1.2,
+				position: { x: 12, y: -8 },
+				rotate: 5,
+			},
+		});
+
+		const beforeInvalid = await getExecutorProjectState({ projectId });
+		const invalid = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_clip_properties",
+				args: {
+					elementIds: ["clip-1"],
+					properties: { unsupported: true },
+				},
+			}),
+		});
+
+		expect(invalid.results[0]).toMatchObject({ success: false });
+		expect(String((invalid.results[0] as { message?: unknown }).message)).toContain(
+			"unsupported",
+		);
+		expect(await getExecutorProjectState({ projectId })).toEqual(beforeInvalid);
+	});
+
+	test("ripple_delete_ranges cuts ranges and shifts later timeline content", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Clip 1",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 4,
+							trimStart: 0,
+							trimEnd: 4,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+						{
+							id: "clip-2",
+							type: "video",
+							name: "Clip 2",
+							mediaId: "media-1",
+							startTime: 5,
+							duration: 2,
+							trimStart: 5,
+							trimEnd: 7,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "ripple_delete_ranges",
+				args: { ranges: [[1, 3]] },
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const elements = state.tracks[0].elements;
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				removedRanges: [[1, 3]],
+				createdElementIds: [expect.any(String)],
+				changedElementIds: ["clip-1", "clip-2"],
+				revision: 2,
+				totalDuration: 5,
+			},
+		});
+		expect(elements[0]).toMatchObject({
+			id: "clip-1",
+			startTime: 0,
+			duration: 1,
+			trimStart: 0,
+			trimEnd: 1,
+		});
+		expect(elements[1]).toMatchObject({
+			startTime: 1,
+			duration: 1,
+			trimStart: 3,
+			trimEnd: 4,
+		});
+		expect(elements[2]).toMatchObject({
+			id: "clip-2",
+			startTime: 3,
+		});
+	});
+
+	test("add_texts creates a top text track and returns created ids", async () => {
+		await seedDraftState({ tracks: [] });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_texts",
+				args: {
+					entries: [
+						{
+							startTime: 0.5,
+							duration: 2,
+							content: "Hook line",
+							name: "Hook",
+							fontSize: 8,
+							fontFamily: "Inter",
+							color: "#ffe45c",
+							textAlign: "center",
+							fontWeight: "bold",
+							transform: {
+								scale: 1,
+								position: { x: 12, y: -320 },
+								rotate: 0,
+							},
+							boxWidth: 52,
+							stroke: { color: "#000000", width: 3 },
+						},
+					],
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const createdId = resultData<{
+			createdTrackId: string;
+			createdElementIds: string[];
+			revision: number;
+		}>(result.results[0]).createdElementIds[0];
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				createdTrackId: expect.any(String),
+				createdElementIds: [expect.any(String)],
+				changedElementIds: [],
+				removedElementIds: [],
+				revision: 2,
+				totalDuration: 2.5,
+			},
+		});
+		expect(state.tracks[0]).toMatchObject({
+			type: "text",
+			elements: [
+				{
+					id: createdId,
+					type: "text",
+					name: "Hook",
+					content: "Hook line",
+					startTime: 0.5,
+					duration: 2,
+					fontSize: 8,
+					fontFamily: "Inter",
+					color: "#ffe45c",
+					fontWeight: "bold",
+					transform: {
+						scale: 1,
+						position: { x: 12, y: -320 },
+						rotate: 0,
+					},
+					boxWidth: 52,
+					stroke: { color: "#000000", width: 3 },
+				},
+			],
+		});
+		expect(state.revision).toBe(2);
+	});
+
+	test("add_texts fails fast for incompatible tracks without mutating revision", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "audio-track-1",
+					type: "audio",
+					name: "Audio",
+					muted: false,
+					elements: [],
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_texts",
+				args: {
+					trackId: "audio-track-1",
+					entries: [{ startTime: 0, duration: 1, content: "Nope" }],
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({ success: false });
+		expect(String((result.results[0] as { message?: unknown }).message)).toContain(
+			"text elements cannot be placed on audio tracks",
+		);
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
+	test("add_captions writes segment-level captions from edited clip audio", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "media-1",
+					name: "talk.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 30,
+					width: 1920,
+					height: 1080,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/talk.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Talk",
+							mediaId: "media-1",
+							startTime: 10,
+							duration: 5,
+							trimStart: 20,
+							trimEnd: 25,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_captions",
+				args: {
+					language: "auto",
+					modelId: "whisper-tiny",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
+				},
+			}),
+			transcribeMediaRange: async ({ range }) => {
+				expect(range).toEqual({ start: 20, end: 25 });
+				return {
+					text: "hello world",
+					segments: [{ text: "hello world", start: 1, end: 2 }],
+					language: "auto",
+					modelId: "whisper-tiny",
+				};
+			},
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const textTrack = state.tracks.find((track) => track.type === "text");
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				source: "edited_video_clip_audio",
+				captionCount: 1,
+				createdTrackId: expect.any(String),
+				createdElementIds: [expect.any(String)],
+				revision: 2,
+			},
+		});
+		expect(textTrack?.elements[0]).toMatchObject({
+			type: "text",
+			content: "hello world",
+			startTime: 11,
+			duration: 1,
+			fontFamily: "Montserrat",
+			fontSize: 7,
+			fontWeight: "bold",
+			color: "#fff3b0",
+			transform: { scale: 1, position: { x: 0, y: 300 }, rotate: 0 },
+		});
+	});
+
+	test("list_models returns current callable model contracts without mutating state", async () => {
+		await seedDraftState({ tracks: [] });
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "list_models", args: {} }),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				models: expect.arrayContaining([
+					expect.objectContaining({
+						type: "transcription",
+						id: "whisper-base",
+					}),
+					expect.objectContaining({
+						type: "digital_human",
+						id: "runninghub-digital-human",
+					}),
+				]),
+				defaults: { transcription: "whisper-base" },
+			},
+		});
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
+	test("set_keyframes writes visual keyframes and exposes them in timeline state v2", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "text-track-1",
+					type: "text",
+					name: "Text",
+					hidden: false,
+					elements: [
+						{
+							id: "text-1",
+							type: "text",
+							name: "Title",
+							content: "Animated",
+							richSpans: [],
+							fontSize: 12,
+							fontFamily: "Inter",
+							color: "#ffffff",
+							backgroundColor: "transparent",
+							textAlign: "center",
+							fontWeight: "bold",
+							fontStyle: "normal",
+							textDecoration: "none",
+							hidden: false,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+							startTime: 0,
+							duration: 4,
+							trimStart: 0,
+							trimEnd: 0,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_keyframes",
+				args: {
+					elementId: "text-1",
+					property: "opacity",
+					keyframes: [
+						{ time: 2, value: 0.2, interpolation: "hold" },
+						{ time: 0, value: 1, interpolation: "linear" },
+						{ time: 2, value: 0.4, interpolation: "linear" },
+					],
+				},
+			}),
+		});
+		const readback = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2" },
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: { changedElementIds: ["text-1"], revision: 2 },
+		});
+		expect(readback.results[0]).toMatchObject({
+			success: true,
+			data: {
+				tracks: [
+					{
+						elements: [
+							{
+								id: "text-1",
+								keyframes: {
+									opacity: [
+										{ time: 0, value: 1, interpolation: "linear" },
+										{ time: 2, value: 0.4, interpolation: "linear" },
+									],
+								},
+							},
+						],
+					},
+				],
+			},
+		});
+	});
+
+	test("search_media finds metadata and cached spoken transcript hits", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "media-1",
+					name: "launch demo.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 30,
+					width: 1920,
+					height: 1080,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/launch.mp4",
+				},
+				{
+					id: "media-2",
+					name: "silent broll.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 20,
+					width: 1920,
+					height: 1080,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/broll.mp4",
+				},
+			],
+			tracks: [],
+		});
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "transcribe_media",
+				args: {
+					mediaId: "media-1",
+					language: "auto",
+					modelId: "whisper-tiny",
+				},
+			}),
+			transcribeMedia: async () => ({
+				text: "launch offer starts now",
+				segments: [{ text: "launch offer starts now", start: 3, end: 5 }],
+				language: "auto",
+				modelId: "whisper-tiny",
+			}),
+		});
+		const beforeSearch = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "search_media",
+				args: { query: "launch", scope: "both", limit: 5 },
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				query: "launch",
+				metadata: [
+					expect.objectContaining({
+						mediaId: "media-1",
+						name: "launch demo.mp4",
+					}),
+				],
+				spoken: [
+					{
+						mediaId: "media-1",
+						name: "launch demo.mp4",
+						startSeconds: 3,
+						endSeconds: 5,
+						text: "launch offer starts now",
+						score: expect.any(Number),
+					},
+				],
+				unindexedMediaIds: ["media-2"],
+			},
+		});
+		expect(await getExecutorProjectState({ projectId })).toEqual(beforeSearch);
 	});
 });
