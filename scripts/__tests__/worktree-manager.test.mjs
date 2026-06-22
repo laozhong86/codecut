@@ -8,7 +8,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
 	buildWorktreeNames,
 	createWorktree,
@@ -80,7 +80,9 @@ describe("worktree manager", () => {
 		});
 
 		expect(names.branchName).toBe("codex/visual-export");
-		expect(names.worktreePath).toBe("/repo/.worktrees/visual-export");
+		expect(names.worktreePath).toBe(
+			join(resolve("/repo"), ".worktrees", "visual-export"),
+		);
 		expect(() =>
 			buildWorktreeNames({ repoRoot: "/repo", topic: "../bad" }),
 		).toThrow("Topic must use lowercase letters, numbers, and hyphens only");
