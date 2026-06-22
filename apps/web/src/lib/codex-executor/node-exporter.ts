@@ -86,15 +86,7 @@ function assertSupportedCanvasSize({
 
 async function installNodeWebCodecsGlobals() {
 	const webcodecs = await import("@napi-rs/webcodecs");
-	const globals = globalThis as typeof globalThis & {
-		AudioData?: unknown;
-		AudioDecoder?: unknown;
-		AudioEncoder?: unknown;
-		EncodedAudioChunk?: unknown;
-		EncodedVideoChunk?: unknown;
-		VideoEncoder?: unknown;
-		VideoFrame?: unknown;
-	};
+	const globals = globalThis as Record<string, unknown>;
 	globals.AudioData ??= webcodecs.AudioData;
 	globals.AudioDecoder ??= webcodecs.AudioDecoder;
 	globals.AudioEncoder ??= webcodecs.AudioEncoder;
@@ -113,7 +105,7 @@ async function addAudioMixToSource({
 	audioMix: NodeAudioMix;
 	audioSource: { add(sample: unknown): Promise<void>; close(): void };
 	AudioSample: new (init: {
-		data: ArrayBufferLike;
+		data: ArrayBuffer;
 		format: "f32";
 		numberOfChannels: number;
 		sampleRate: number;
@@ -137,7 +129,7 @@ async function addAudioMixToSource({
 			sampleRate: audioMix.sampleRate,
 			numberOfChannels: audioMix.numberOfChannels,
 			timestamp: offset / audioMix.sampleRate,
-			data: interleaved.buffer,
+			data: interleaved.buffer as ArrayBuffer,
 		});
 		await audioSource.add(sample);
 		sample.close();
@@ -155,7 +147,7 @@ async function addAudioMixToEncodedAacSource({
 }: {
 	audioMix: NodeAudioMix;
 	audioSource: {
-		add(packet: unknown, metadata?: EncodedAudioChunkMetadata): Promise<void>;
+		add(packet: unknown, metadata?: unknown): Promise<void>;
 		close(): void;
 	};
 	AudioData: typeof import("@napi-rs/webcodecs").AudioData;

@@ -109,8 +109,10 @@ async function collectAudioClips({
 						? mediaMap.get(element.mediaId)?.file
 						: await fileForLibraryAudioElement({ element });
 				if (!file) {
+					const source =
+						element.sourceType === "upload" ? element.mediaId : element.sourceUrl;
 					throw new Error(
-						`Timeline audio media asset was not found: ${element.mediaId}`,
+						`Timeline audio media source was not found: ${source}`,
 					);
 				}
 				clips.push({
@@ -266,11 +268,7 @@ async function decodeBareAudioFile({ file }: { file: File }) {
 		import("@napi-rs/webcodecs"),
 		import("mediabunny"),
 	]);
-	const globals = globalThis as typeof globalThis & {
-		AudioData?: unknown;
-		AudioDecoder?: unknown;
-		EncodedAudioChunk?: unknown;
-	};
+	const globals = globalThis as Record<string, unknown>;
 	globals.AudioData ??= webcodecs.AudioData;
 	globals.AudioDecoder ??= webcodecs.AudioDecoder;
 	globals.EncodedAudioChunk ??= webcodecs.EncodedAudioChunk;

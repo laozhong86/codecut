@@ -36,6 +36,7 @@ export class TransitionNode extends BaseNode<TransitionNodeParams> {
 	private ensureOffscreen({
 		width,
 		height,
+		renderer,
 	}: {
 		width: number;
 		height: number;
