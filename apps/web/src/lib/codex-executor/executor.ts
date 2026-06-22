@@ -242,6 +242,16 @@ const buildPostCutCaptionsArgsSchema = z
 	})
 	.strict();
 
+const getTimelineStateV2ArgsSchema = z
+	.object({
+		format: z.literal("v2"),
+		startTime: z.number().nonnegative().optional(),
+		endTime: z.number().nonnegative().optional(),
+		includeFrames: z.boolean().optional(),
+		includeReferencedMedia: z.boolean().optional(),
+	})
+	.strict();
+
 const createTextBackgroundEffectArgsSchema = z
 	.object({
 		sourceMediaId: z.string().min(1),
@@ -430,6 +440,203 @@ function serializeTrack(track: TimelineTrack) {
 		})),
 		...(track.type === "video" ? { transitions: track.transitions ?? [] } : {}),
 	};
+}
+
+function secondsToFrame(seconds: number, fps: number) {
+	return Math.round(seconds * fps);
+}
+
+function elementEndTime(element: TimelineElement) {
+	return element.startTime + element.duration;
+}
+
+function elementOverlapsWindow({
+	element,
+	startTime,
+	endTime,
+}: {
+	element: TimelineElement;
+	startTime: number;
+	endTime: number;
+}) {
+	return element.startTime < endTime && elementEndTime(element) > startTime;
+}
+
+function trackTimeRange(track: TimelineTrack) {
+	if (track.elements.length === 0) {
+		return { startTime: 0, endTime: 0, duration: 0 };
+	}
+	const startTime = Math.min(
+		...track.elements.map((element) => element.startTime),
+	);
+	const endTime = Math.max(...track.elements.map(elementEndTime));
+	return {
+		startTime,
+		endTime,
+		duration: endTime - startTime,
+	};
+}
+
+function frameFieldsForElement({
+	element,
+	fps,
+}: {
+	element: TimelineElement;
+	fps: number;
+}) {
+	return {
+		startFrame: secondsToFrame(element.startTime, fps),
+		durationFrames: secondsToFrame(element.duration, fps),
+		endFrame: secondsToFrame(elementEndTime(element), fps),
+		trimStartFrame: secondsToFrame(element.trimStart, fps),
+		trimEndFrame: secondsToFrame(element.trimEnd, fps),
+	};
+}
+
+function serializeElementV2({
+	element,
+	track,
+	trackIndex,
+	elementIndex,
+	includeFrames,
+	fps,
+}: {
+	element: TimelineElement;
+	track: TimelineTrack;
+	trackIndex: number;
+	elementIndex: number;
+	includeFrames: boolean;
+	fps: number;
+}) {
+	return {
+		id: element.id,
+		type: element.type,
+		name: element.name,
+		trackId: track.id,
+		trackIndex,
+		index: elementIndex,
+		startTime: element.startTime,
+		duration: element.duration,
+		endTime: elementEndTime(element),
+		trimStart: element.trimStart,
+		trimEnd: element.trimEnd,
+		...(includeFrames ? frameFieldsForElement({ element, fps }) : {}),
+		...("content" in element ? { content: element.content } : {}),
+		...("mediaId" in element ? { mediaId: element.mediaId } : {}),
+		...serializeElementVisualProperties(element),
+	};
+}
+
+function serializeTrackV2({
+	track,
+	trackIndex,
+	startTime,
+	endTime,
+	includeFrames,
+	fps,
+}: {
+	track: TimelineTrack;
+	trackIndex: number;
+	startTime: number;
+	endTime: number;
+	includeFrames: boolean;
+	fps: number;
+}) {
+	const returnedElements = track.elements
+		.map((element, elementIndex) => ({
+			element: element as TimelineElement,
+			elementIndex,
+		}))
+		.filter(({ element }) =>
+			elementOverlapsWindow({ element, startTime, endTime }),
+		);
+	return {
+		id: track.id,
+		type: track.type,
+		name: track.name,
+		index: trackIndex,
+		...("isMain" in track ? { isMain: track.isMain } : {}),
+		...("muted" in track ? { muted: track.muted } : {}),
+		...("hidden" in track ? { hidden: track.hidden } : {}),
+		timeRange: trackTimeRange(track),
+		elementCount: track.elements.length,
+		returnedElementCount: returnedElements.length,
+		elements: returnedElements.map(({ element, elementIndex }) =>
+			serializeElementV2({
+				element,
+				track,
+				trackIndex,
+				elementIndex,
+				includeFrames,
+				fps,
+			}),
+		),
+		...(track.type === "video" ? { transitions: track.transitions ?? [] } : {}),
+	};
+}
+
+function timelineSummary({
+	state,
+	returnedElementCount,
+}: {
+	state: ExecutorProjectState;
+	returnedElementCount: number;
+}) {
+	const trackTypeCounts: Record<TrackType, number> = {
+		video: 0,
+		text: 0,
+		audio: 0,
+		sticker: 0,
+	};
+	let elementCount = 0;
+	let transitionCount = 0;
+	for (const track of state.tracks) {
+		trackTypeCounts[track.type] += 1;
+		elementCount += track.elements.length;
+		if (track.type === "video") {
+			transitionCount += track.transitions?.length ?? 0;
+		}
+	}
+	return {
+		trackCount: state.tracks.length,
+		elementCount,
+		returnedElementCount,
+		transitionCount,
+		derivedAssetCount: state.derivedAssets.length,
+		trackTypeCounts,
+	};
+}
+
+function referencedMediaIds(state: ExecutorProjectState) {
+	const ids = new Set<string>();
+	for (const track of state.tracks) {
+		for (const element of track.elements) {
+			if ("mediaId" in element) {
+				ids.add(element.mediaId);
+			}
+		}
+	}
+	return ids;
+}
+
+function serializeReferencedMedia(state: ExecutorProjectState) {
+	const ids = referencedMediaIds(state);
+	return Object.fromEntries(
+		state.mediaAssets
+			.filter((asset) => ids.has(asset.id))
+			.map((asset) => [
+				asset.id,
+				{
+					id: asset.id,
+					name: asset.name,
+					type: asset.type,
+					mimeType: asset.mimeType,
+					...(asset.duration !== undefined ? { duration: asset.duration } : {}),
+					...(asset.width !== undefined ? { width: asset.width } : {}),
+					...(asset.height !== undefined ? { height: asset.height } : {}),
+				},
+			]),
+	);
 }
 
 function insertElement({
@@ -1684,7 +1891,20 @@ async function runBuildVisualContext({
 			projectDirectory({ projectId: state.project.id }),
 			"visual-context",
 		),
-		inspectRange: inspectVideoRange,
+		inspectRange: async ({
+			mediaAsset: targetMediaAsset,
+			startSeconds,
+			endSeconds,
+			frameCount,
+			outputDirectory,
+		}) =>
+			inspectVideoRange({
+				mediaAsset: targetMediaAsset,
+				startSeconds,
+				endSeconds,
+				frameCount,
+				outputDirectory,
+			}),
 	});
 
 	return {
@@ -1882,7 +2102,90 @@ async function runBuildPostCutCaptions({
 	};
 }
 
-function runGetTimelineState({ state }: { state: ExecutorProjectState }) {
+function runGetTimelineStateV2({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: z.infer<typeof getTimelineStateV2ArgsSchema>;
+}) {
+	const duration = calculateTotalDuration({ tracks: state.tracks });
+	const startTime = args.startTime ?? 0;
+	const endTime = args.endTime ?? duration;
+	if (endTime < startTime) {
+		throw new Error(
+			"get_timeline_state v2 endTime must be greater than or equal to startTime.",
+		);
+	}
+	const includeFrames = args.includeFrames ?? false;
+	const fps = state.project.settings.fps;
+	const tracks = state.tracks.map((track, trackIndex) =>
+		serializeTrackV2({
+			track,
+			trackIndex,
+			startTime,
+			endTime,
+			includeFrames,
+			fps,
+		}),
+	);
+	const returnedElementCount = tracks.reduce(
+		(total, track) => total + track.returnedElementCount,
+		0,
+	);
+	return {
+		success: true,
+		message: `Timeline v2 has ${state.tracks.length} track(s), ${returnedElementCount} returned element(s)`,
+		data: {
+			schemaVersion: 2,
+			project: {
+				id: state.project.id,
+				name: state.project.name,
+				revision: state.revision,
+				settings: state.project.settings,
+				totalDuration: duration,
+				...(includeFrames
+					? { totalFrames: secondsToFrame(duration, fps) }
+					: {}),
+			},
+			window: {
+				startTime,
+				endTime,
+				...(includeFrames
+					? {
+							startFrame: secondsToFrame(startTime, fps),
+							endFrame: secondsToFrame(endTime, fps),
+						}
+					: {}),
+				totalElementCount: state.tracks.reduce(
+					(total, track) => total + track.elements.length,
+					0,
+				),
+				returnedElementCount,
+			},
+			summary: timelineSummary({ state, returnedElementCount }),
+			tracks,
+			...(args.includeReferencedMedia
+				? { referencedMedia: serializeReferencedMedia(state) }
+				: {}),
+			derivedAssets: state.derivedAssets,
+		},
+	};
+}
+
+function runGetTimelineState({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	if (Object.keys(args).length > 0) {
+		return runGetTimelineStateV2({
+			state,
+			args: getTimelineStateV2ArgsSchema.parse(args),
+		});
+	}
 	const duration = calculateTotalDuration({ tracks: state.tracks });
 	return {
 		success: true,
@@ -2000,7 +2303,7 @@ async function executeCommand({
 		return runVerifyTimeline({ state, args: command.args });
 	}
 	if (command.tool === "get_timeline_state") {
-		return runGetTimelineState({ state });
+		return runGetTimelineState({ state, args: command.args });
 	}
 	throw new Error(`Unsupported executor tool: ${command.tool}`);
 }
@@ -2034,10 +2337,9 @@ const defaultGenerateDigitalHuman: ExecutorGenerateDigitalHuman = ({
 		request,
 	});
 
-const defaultExportProject: ExecutorExportProject = async () => {
-	throw new Error(
-		"Local executor export requires a Node-compatible renderer. Browser download export is not supported by codex-bridge export.",
-	);
+const defaultExportProject: ExecutorExportProject = async (params) => {
+	const { exportProjectWithNodeRenderer } = await import("./node-exporter");
+	return exportProjectWithNodeRenderer(params);
 };
 
 export async function executeCodexExecutorEnvelope({

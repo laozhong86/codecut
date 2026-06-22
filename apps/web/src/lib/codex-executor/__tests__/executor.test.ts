@@ -2,6 +2,26 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createCanvas } from "@napi-rs/canvas";
+import {
+	AudioData,
+	AudioDecoder,
+	AudioEncoder,
+	EncodedAudioChunk,
+	EncodedVideoChunk,
+	Mp4Demuxer,
+	Mp4Muxer,
+	VideoEncoder,
+	VideoFrame,
+} from "@napi-rs/webcodecs";
+import {
+	AudioSample,
+	AudioSampleSource,
+	BufferTarget,
+	Mp3OutputFormat,
+	Output,
+	WavOutputFormat,
+} from "mediabunny";
 import type { DerivedAsset } from "@/types/project";
 import {
 	createExecutorProject,
@@ -68,6 +88,226 @@ function personMask(overrides: Partial<DerivedAsset> = {}): DerivedAsset {
 		createdAt: "2026-06-21T00:00:00.000Z",
 		...overrides,
 	};
+}
+
+function installFixtureWebCodecsGlobals() {
+	const globals = globalThis as typeof globalThis & {
+		AudioData?: unknown;
+		AudioDecoder?: unknown;
+		AudioEncoder?: unknown;
+		EncodedAudioChunk?: unknown;
+		EncodedVideoChunk?: unknown;
+		VideoEncoder?: unknown;
+		VideoFrame?: unknown;
+	};
+	globals.AudioData ??= AudioData;
+	globals.AudioDecoder ??= AudioDecoder;
+	globals.AudioEncoder ??= AudioEncoder;
+	globals.EncodedAudioChunk ??= EncodedAudioChunk;
+	globals.EncodedVideoChunk ??= EncodedVideoChunk;
+	globals.VideoEncoder ??= VideoEncoder;
+	globals.VideoFrame ??= VideoFrame;
+}
+
+async function createFixtureMp4({
+	width = 64,
+	height = 36,
+	fps = 4,
+	duration = 1,
+}: {
+	width?: number;
+	height?: number;
+	fps?: number;
+	duration?: number;
+} = {}): Promise<Buffer> {
+	const muxer = new Mp4Muxer({ fastStart: true });
+	const codec = "avc1.42001E";
+	muxer.addVideoTrack({ codec, width, height, framerate: fps });
+	const encoder = new VideoEncoder({
+		output: (chunk, metadata) => muxer.addVideoChunk(chunk, metadata),
+		error: (error) => {
+			throw error;
+		},
+	});
+	encoder.configure({
+		codec,
+		width,
+		height,
+		bitrate: 200_000,
+		framerate: fps,
+		avc: { format: "avc" },
+	});
+
+	const canvas = createCanvas(width, height);
+	const context = canvas.getContext("2d");
+	const frameDurationUs = Math.round(1_000_000 / fps);
+	const frameCount = Math.ceil(duration * fps);
+	for (let i = 0; i < frameCount; i++) {
+		context.fillStyle = i % 2 === 0 ? "#dc2626" : "#16a34a";
+		context.fillRect(0, 0, width, height);
+		context.fillStyle = "#ffffff";
+		context.font = "12px sans-serif";
+		context.fillText(`f${i}`, 4, 16);
+		const frame = new VideoFrame(canvas, {
+			timestamp: i * frameDurationUs,
+			duration: frameDurationUs,
+		});
+		encoder.encode(frame, { keyFrame: i === 0 });
+		frame.close();
+	}
+
+	await encoder.flush();
+	encoder.close();
+	const data = muxer.finalize();
+	muxer.close();
+	return Buffer.from(data);
+}
+
+async function createFixtureBareAudio({
+	format,
+	duration = 1,
+	sampleRate = 48_000,
+}: {
+	format: "mp3" | "wav";
+	duration?: number;
+	sampleRate?: number;
+}): Promise<Buffer> {
+	installFixtureWebCodecsGlobals();
+	const channels = 2;
+	const frameCount = Math.ceil(duration * sampleRate);
+	const samples = new Float32Array(frameCount * channels);
+	for (let i = 0; i < frameCount; i += 1) {
+		const sample = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.2;
+		samples[i * channels] = sample;
+		samples[i * channels + 1] = sample;
+	}
+
+	const target = new BufferTarget();
+	const output = new Output({
+		format: format === "mp3" ? new Mp3OutputFormat() : new WavOutputFormat(),
+		target,
+	});
+	const audioSource = new AudioSampleSource({
+		codec: format === "mp3" ? "mp3" : "pcm-f32",
+		bitrate: 128_000,
+	});
+	output.addAudioTrack(audioSource);
+	await output.start();
+
+	const audioSample = new AudioSample({
+		format: "f32",
+		sampleRate,
+		numberOfChannels: channels,
+		timestamp: 0,
+		data: samples.buffer,
+	});
+	await audioSource.add(audioSample);
+	audioSample.close();
+	audioSource.close();
+	await output.finalize();
+
+	if (!target.buffer) {
+		throw new Error(`Fixture ${format} audio did not produce bytes.`);
+	}
+	return Buffer.from(target.buffer);
+}
+
+async function createFixtureAudioMp4({
+	duration = 1,
+	sampleRate = 48_000,
+}: {
+	duration?: number;
+	sampleRate?: number;
+} = {}): Promise<Buffer> {
+	const channels = 2;
+	const frameCount = Math.ceil(duration * sampleRate);
+	const samples = new Float32Array(frameCount * channels);
+	for (let i = 0; i < frameCount; i += 1) {
+		const sample = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.2;
+		samples[i * channels] = sample;
+		samples[i * channels + 1] = sample;
+	}
+	const muxer = new Mp4Muxer({ fastStart: true });
+	muxer.addAudioTrack({
+		codec: "mp4a.40.2",
+		sampleRate,
+		numberOfChannels: channels,
+	});
+	const audioEncoder = new AudioEncoder({
+		output: (chunk, metadata) => muxer.addAudioChunk(chunk, metadata),
+		error: (error) => {
+			throw error;
+		},
+	});
+	audioEncoder.configure({
+		codec: "mp4a.40.2",
+		sampleRate,
+		numberOfChannels: channels,
+		bitrate: 128_000,
+	});
+	const audioData = new AudioData({
+		format: "f32",
+		sampleRate,
+		numberOfFrames: frameCount,
+		numberOfChannels: channels,
+		timestamp: 0,
+		data: samples.buffer,
+	});
+	audioEncoder.encode(audioData);
+	audioData.close();
+	await audioEncoder.flush();
+	audioEncoder.close();
+	const data = muxer.finalize();
+	muxer.close();
+	return Buffer.from(data);
+}
+
+async function readMp4Summary(bytes: Buffer): Promise<{
+	duration: number | null;
+	videoTrackCount: number;
+	audioTrackCount: number;
+	decodedAudioFrames: number;
+}> {
+	let decodedAudioFrames = 0;
+	const audioDecoder = new AudioDecoder({
+		output: (audioData) => {
+			decodedAudioFrames += audioData.numberOfFrames;
+			audioData.close();
+		},
+		error: (error) => {
+			throw error;
+		},
+	});
+	const demuxer = new Mp4Demuxer({
+		audioOutput: (chunk) => audioDecoder.decode(chunk),
+		error: (error) => {
+			throw error;
+		},
+	});
+	await demuxer.loadBuffer(bytes);
+	const audioTrackCount = demuxer.tracks.filter(
+		(track) => track.trackType === "audio",
+	).length;
+	if (audioTrackCount > 0) {
+		const audioConfig = demuxer.audioDecoderConfig;
+		if (!audioConfig) {
+			throw new Error("MP4 summary expected an audio decoder config.");
+		}
+		audioDecoder.configure(audioConfig);
+		await demuxer.demuxAsync();
+		await audioDecoder.flush();
+	}
+	audioDecoder.close();
+	const summary = {
+		duration: demuxer.duration,
+		videoTrackCount: demuxer.tracks.filter(
+			(track) => track.trackType === "video",
+		).length,
+		audioTrackCount,
+		decodedAudioFrames,
+	};
+	demuxer.close();
+	return summary;
 }
 
 describe("codex executor", () => {
@@ -265,9 +505,9 @@ describe("codex executor", () => {
 				name: "digital-human-task-1.mp4",
 			},
 		});
-		expect(typeof resultData<{ mediaId: string }>(result.results[0]).mediaId).toBe(
-			"string",
-		);
+		expect(
+			typeof resultData<{ mediaId: string }>(result.results[0]).mediaId,
+		).toBe("string");
 
 		const snapshot = await getExecutorProjectSnapshot({ projectId });
 		expect(snapshot.mediaAssets).toContainEqual(
@@ -450,6 +690,380 @@ describe("codex executor", () => {
 			revision: state.revision,
 		});
 		expect(state.revision).toBeGreaterThan(1);
+	});
+
+	test("keeps get_timeline_state v1 default and exposes explicit v2 orientation data", async () => {
+		await createExecutorProject({ projectId, name: "Timeline v2 proof" });
+		const importVideoResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 120,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importVideoResult.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "unused.png",
+					mimeType: "image/png",
+					base64: Buffer.from("image").toString("base64"),
+					size: 5,
+					lastModified: 2,
+					width: 800,
+					height: 800,
+				},
+			}),
+		});
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 10, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 4,
+								timelineStart: 0,
+								reason: "Opening",
+							},
+							{
+								id: "clip-2",
+								sourceStart: 10,
+								sourceEnd: 16,
+								timelineStart: 4,
+								reason: "Proof",
+							},
+						],
+						captions: [
+							{ text: "Opening claim", startTime: 1, duration: 2 },
+							{ text: "Proof point", startTime: 5, duration: 2 },
+						],
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+						},
+						rationale: "Timeline v2 proof",
+					},
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		const v1Result = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+		const v1Data = resultData<Record<string, unknown>>(v1Result.results[0]);
+		expect("schemaVersion" in v1Data).toBe(false);
+		expect(v1Result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				revision: state.revision,
+				totalDuration: 10,
+				derivedAssets: [],
+			},
+		});
+		expect(v1Data.tracks).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "text",
+					elements: expect.arrayContaining([
+						expect.objectContaining({ content: "Opening claim" }),
+					]),
+				}),
+				expect.objectContaining({
+					type: "video",
+					elements: expect.arrayContaining([
+						expect.objectContaining({ mediaId }),
+					]),
+				}),
+			]),
+		);
+
+		const v2Result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: {
+					format: "v2",
+					startTime: 3,
+					endTime: 7,
+					includeFrames: true,
+					includeReferencedMedia: true,
+				},
+			}),
+		});
+
+		expect(v2Result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				schemaVersion: 2,
+				project: {
+					id: projectId,
+					name: "Timeline v2 proof",
+					revision: state.revision,
+					settings: {
+						fps: 30,
+						canvasSize: { width: 1080, height: 1920 },
+						background: { type: "color", color: "#000000" },
+					},
+					totalDuration: 10,
+					totalFrames: 300,
+				},
+				window: {
+					startTime: 3,
+					endTime: 7,
+					startFrame: 90,
+					endFrame: 210,
+					totalElementCount: 4,
+					returnedElementCount: 3,
+				},
+				summary: {
+					trackCount: 2,
+					elementCount: 4,
+					returnedElementCount: 3,
+					transitionCount: 0,
+					derivedAssetCount: 0,
+					trackTypeCounts: {
+						video: 1,
+						text: 1,
+						audio: 0,
+						sticker: 0,
+					},
+				},
+				tracks: [
+					{
+						type: "text",
+						index: 0,
+						elementCount: 2,
+						returnedElementCount: 1,
+						timeRange: { startTime: 1, endTime: 7, duration: 6 },
+						elements: [
+							{
+								type: "text",
+								content: "Proof point",
+								trackIndex: 0,
+								index: 1,
+								startTime: 5,
+								duration: 2,
+								endTime: 7,
+								startFrame: 150,
+								durationFrames: 60,
+								endFrame: 210,
+							},
+						],
+					},
+					{
+						type: "video",
+						index: 1,
+						elementCount: 2,
+						returnedElementCount: 2,
+						timeRange: { startTime: 0, endTime: 10, duration: 10 },
+						elements: [
+							{
+								type: "video",
+								mediaId,
+								trackIndex: 1,
+								index: 0,
+								startTime: 0,
+								duration: 4,
+								endTime: 4,
+								startFrame: 0,
+								durationFrames: 120,
+								endFrame: 120,
+								trimStartFrame: 0,
+								trimEndFrame: 120,
+							},
+							{
+								type: "video",
+								mediaId,
+								trackIndex: 1,
+								index: 1,
+								startTime: 4,
+								duration: 6,
+								endTime: 10,
+								startFrame: 120,
+								durationFrames: 180,
+								endFrame: 300,
+								trimStartFrame: 300,
+								trimEndFrame: 480,
+							},
+						],
+					},
+				],
+				referencedMedia: {
+					[mediaId]: {
+						id: mediaId,
+						name: "source.mp4",
+						type: "video",
+						mimeType: "video/mp4",
+						duration: 120,
+						width: 1920,
+						height: 1080,
+					},
+				},
+				derivedAssets: [],
+			},
+		});
+		const v2Data = resultData<{
+			referencedMedia?: Record<string, { name: string }>;
+		}>(v2Result.results[0]);
+		expect(
+			Object.values(v2Data.referencedMedia ?? {}).map((asset) => asset.name),
+		).toEqual(["source.mp4"]);
+	});
+
+	test("omits derived frame fields from get_timeline_state v2 unless requested", async () => {
+		await createExecutorProject({ projectId, name: "Timeline v2 seconds" });
+		const now = "2026-06-22T00:00:00.000Z";
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			JSON.stringify(
+				{
+					version: 1,
+					revision: 2,
+					project: {
+						id: projectId,
+						name: "Timeline v2 seconds",
+						settings: {
+							canvasSize: { width: 1080, height: 1920 },
+							fps: 30,
+							background: { type: "color", color: "#000000" },
+						},
+						createdAt: now,
+						updatedAt: now,
+					},
+					mediaAssets: [],
+					derivedAssets: [],
+					tracks: [
+						{
+							id: "text-track-1",
+							type: "text",
+							name: "Text track",
+							hidden: false,
+							elements: [
+								{
+									id: "text-1",
+									type: "text",
+									name: "Caption",
+									content: "Seconds first",
+									richSpans: [],
+									fontSize: 12,
+									fontFamily: "Inter",
+									color: "#ffffff",
+									backgroundColor: "transparent",
+									textAlign: "center",
+									fontWeight: "bold",
+									fontStyle: "normal",
+									textDecoration: "none",
+									hidden: false,
+									transform: {
+										scale: 1,
+										position: { x: 0, y: 0 },
+										rotate: 0,
+									},
+									opacity: 1,
+									startTime: 1.25,
+									duration: 2.5,
+									trimStart: 0,
+									trimEnd: 0,
+								},
+							],
+						},
+					],
+				},
+				null,
+				2,
+			),
+		);
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2" },
+			}),
+		});
+		const data = resultData<{
+			project: Record<string, unknown>;
+			window: Record<string, unknown>;
+			tracks: Array<{
+				elements: Array<Record<string, unknown>>;
+			}>;
+		}>(result.results[0]);
+		const element = data.tracks[0].elements[0];
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				schemaVersion: 2,
+				project: {
+					totalDuration: 3.75,
+				},
+				window: {
+					startTime: 0,
+					endTime: 3.75,
+				},
+				tracks: [
+					{
+						elements: [
+							{
+								startTime: 1.25,
+								duration: 2.5,
+								endTime: 3.75,
+							},
+						],
+					},
+				],
+			},
+		});
+		expect(data.project.totalFrames).toBeUndefined();
+		expect(data.window.startFrame).toBeUndefined();
+		expect(data.window.endFrame).toBeUndefined();
+		expect(element.startFrame).toBeUndefined();
+		expect(element.durationFrames).toBeUndefined();
+		expect(element.endFrame).toBeUndefined();
+		expect(element.trimStartFrame).toBeUndefined();
+		expect(element.trimEndFrame).toBeUndefined();
+	});
+
+	test("rejects get_timeline_state v2 windows where endTime is before startTime", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Timeline v2 invalid window",
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2", startTime: 5, endTime: 4 },
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(result.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "get_timeline_state",
+			success: false,
+			message:
+				"get_timeline_state v2 endTime must be greater than or equal to startTime.",
+		});
+		expect(state.revision).toBe(1);
 	});
 
 	test("project info exposes draft revision summary and last executor status", async () => {
@@ -688,7 +1302,12 @@ describe("codex executor", () => {
 					overwrite: false,
 				},
 			}),
-			exportProject: async ({ state: exportState, format, quality, includeAudio }) => {
+			exportProject: async ({
+				state: exportState,
+				format,
+				quality,
+				includeAudio,
+			}) => {
 				expect(exportState.project.id).toBe(projectId);
 				expect(format).toBe("mp4");
 				expect(quality).toBe("high");
@@ -711,6 +1330,440 @@ describe("codex executor", () => {
 			},
 		});
 	});
+
+	test("exports a text timeline through the default node renderer", async () => {
+		await createExecutorProject({ projectId, name: "Codex renderer" });
+		const now = "2026-06-22T00:00:00.000Z";
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			JSON.stringify(
+				{
+					version: 1,
+					revision: 2,
+					project: {
+						id: projectId,
+						name: "Codex renderer",
+						settings: {
+							canvasSize: { width: 320, height: 180 },
+							fps: 10,
+							background: { type: "color", color: "#111827" },
+						},
+						createdAt: now,
+						updatedAt: now,
+					},
+					mediaAssets: [],
+					derivedAssets: [],
+					tracks: [
+						{
+							id: "text-track-1",
+							type: "text",
+							name: "Text track",
+							hidden: false,
+							elements: [
+								{
+									id: "text-1",
+									type: "text",
+									name: "Title",
+									content: "CodeCut Export",
+									richSpans: [],
+									fontSize: 12,
+									fontFamily: "Inter",
+									color: "#ffffff",
+									backgroundColor: "#2563eb",
+									textAlign: "center",
+									fontWeight: "bold",
+									fontStyle: "normal",
+									textDecoration: "none",
+									transform: {
+										scale: 1,
+										position: { x: 0, y: 0 },
+										rotate: 0,
+									},
+									opacity: 1,
+									startTime: 0,
+									duration: 1,
+									trimStart: 0,
+									trimEnd: 0,
+									boxWidth: 60,
+									backgroundBorderRadius: 8,
+									backgroundOpacity: 0.8,
+									backgroundPaddingX: 8,
+									backgroundPaddingY: 4,
+								},
+							],
+						},
+					],
+				},
+				null,
+				2,
+			),
+		);
+		const outputFile = join(stateDir, "node-renderer.mp4");
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_project",
+				args: {
+					format: "mp4",
+					quality: "high",
+					includeAudio: false,
+					outputFile,
+					overwrite: false,
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "export_project",
+			success: true,
+			data: {
+				outputFile,
+				format: "mp4",
+				includeAudio: false,
+				revision: 2,
+				totalDuration: 1,
+			},
+		});
+		const outputBytes = await readFile(outputFile);
+		expect(outputBytes.byteLength).toBeGreaterThan(0);
+		expect(outputBytes.subarray(4, 8).toString("utf8")).toBe("ftyp");
+		const summary = await readMp4Summary(outputBytes);
+		expect(summary.videoTrackCount).toBe(1);
+		expect(summary.duration).toBeGreaterThan(0);
+	});
+
+	test("exports an imported video timeline through the default node renderer", async () => {
+		await createExecutorProject({ projectId, name: "Codex video renderer" });
+		const videoBytes = await createFixtureMp4();
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "fixture.mp4",
+					mimeType: "video/mp4",
+					base64: videoBytes.toString("base64"),
+					size: videoBytes.byteLength,
+					lastModified: 1,
+					duration: 1,
+					width: 64,
+					height: 36,
+				},
+			}),
+		});
+		expect(importResult.results[0]).toMatchObject({
+			tool: "import_media_file",
+			success: true,
+		});
+		const audioBytes = await createFixtureAudioMp4();
+		const importAudioResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "fixture-audio.m4a",
+					mimeType: "audio/mp4",
+					base64: audioBytes.toString("base64"),
+					size: audioBytes.byteLength,
+					lastModified: 2,
+					duration: 1,
+				},
+			}),
+		});
+		expect(importAudioResult.results[0]).toMatchObject({
+			tool: "import_media_file",
+			success: true,
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		const audioId = resultData<{ assets: Array<{ id: string }> }>(
+			importAudioResult.results[0],
+		).assets[0].id;
+		const state = await getExecutorProjectState({ projectId });
+		const now = "2026-06-22T00:00:00.000Z";
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			JSON.stringify(
+				{
+					...state,
+					revision: state.revision + 1,
+					project: {
+						...state.project,
+						settings: {
+							canvasSize: { width: 64, height: 36 },
+							fps: 4,
+							background: { type: "color", color: "#000000" },
+						},
+						updatedAt: now,
+					},
+					tracks: [
+						{
+							id: "video-track-1",
+							type: "video",
+							name: "Video",
+							isMain: true,
+							muted: false,
+							hidden: false,
+							elements: [
+								{
+									id: "video-1",
+									type: "video",
+									name: "Fixture",
+									mediaId,
+									startTime: 0,
+									duration: 1,
+									trimStart: 0,
+									trimEnd: 1,
+									transform: {
+										scale: 1,
+										position: { x: 0, y: 0 },
+										rotate: 0,
+									},
+									opacity: 1,
+									playbackRate: 1,
+									reversed: false,
+								},
+							],
+						},
+						{
+							id: "audio-track-1",
+							type: "audio",
+							name: "Audio",
+							muted: false,
+							elements: [
+								{
+									id: "audio-1",
+									type: "audio",
+									name: "Fixture audio",
+									sourceType: "upload",
+									mediaId: audioId,
+									startTime: 0,
+									duration: 1,
+									trimStart: 0,
+									trimEnd: 1,
+									volume: 0.6,
+									muted: false,
+									playbackRate: 1,
+								},
+							],
+						},
+					],
+				},
+				null,
+				2,
+			),
+		);
+		const outputFile = join(stateDir, "node-video-renderer.mp4");
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_project",
+				args: {
+					format: "mp4",
+					quality: "high",
+					includeAudio: true,
+					outputFile,
+					overwrite: false,
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "export_project",
+			success: true,
+			data: {
+				outputFile,
+				format: "mp4",
+				includeAudio: true,
+				revision: state.revision + 1,
+				totalDuration: 1,
+			},
+		});
+		const outputBytes = await readFile(outputFile);
+		expect(outputBytes.byteLength).toBeGreaterThan(0);
+		expect(outputBytes.subarray(4, 8).toString("utf8")).toBe("ftyp");
+		const summary = await readMp4Summary(outputBytes);
+		expect(summary.videoTrackCount).toBe(1);
+		expect(summary.audioTrackCount).toBe(1);
+		expect(summary.decodedAudioFrames).toBeGreaterThan(0);
+		expect(summary.duration).toBeGreaterThan(0);
+	});
+
+	for (const audioFixture of [
+		{
+			format: "wav",
+			fileName: "fixture-audio.wav",
+			mimeType: "audio/wav",
+		},
+		{
+			format: "mp3",
+			fileName: "fixture-audio.mp3",
+			mimeType: "audio/mpeg",
+		},
+	] as const) {
+		test(`exports a timeline with bare ${audioFixture.format.toUpperCase()} audio through the default node renderer`, async () => {
+			await createExecutorProject({
+				projectId,
+				name: `Codex ${audioFixture.format} audio renderer`,
+			});
+			const videoBytes = await createFixtureMp4();
+			const importResult = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "import_media_file",
+					args: {
+						fileName: "fixture.mp4",
+						mimeType: "video/mp4",
+						base64: videoBytes.toString("base64"),
+						size: videoBytes.byteLength,
+						lastModified: 1,
+						duration: 1,
+						width: 64,
+						height: 36,
+					},
+				}),
+			});
+			expect(importResult.results[0]).toMatchObject({
+				tool: "import_media_file",
+				success: true,
+			});
+			const audioBytes = await createFixtureBareAudio({
+				format: audioFixture.format,
+			});
+			const importAudioResult = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "import_media_file",
+					args: {
+						fileName: audioFixture.fileName,
+						mimeType: audioFixture.mimeType,
+						base64: audioBytes.toString("base64"),
+						size: audioBytes.byteLength,
+						lastModified: 2,
+						duration: 1,
+					},
+				}),
+			});
+			expect(importAudioResult.results[0]).toMatchObject({
+				tool: "import_media_file",
+				success: true,
+			});
+			const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+				importResult.results[0],
+			).assets[0].id;
+			const audioId = resultData<{ assets: Array<{ id: string }> }>(
+				importAudioResult.results[0],
+			).assets[0].id;
+			const state = await getExecutorProjectState({ projectId });
+			const now = "2026-06-22T00:00:00.000Z";
+			await writeFile(
+				join(stateDir, "projects", projectId, "project.json"),
+				JSON.stringify(
+					{
+						...state,
+						revision: state.revision + 1,
+						project: {
+							...state.project,
+							settings: {
+								canvasSize: { width: 64, height: 36 },
+								fps: 4,
+								background: { type: "color", color: "#000000" },
+							},
+							updatedAt: now,
+						},
+						tracks: [
+							{
+								id: "video-track-1",
+								type: "video",
+								name: "Video",
+								isMain: true,
+								muted: false,
+								hidden: false,
+								elements: [
+									{
+										id: "video-1",
+										type: "video",
+										name: "Fixture",
+										mediaId,
+										startTime: 0,
+										duration: 1,
+										trimStart: 0,
+										trimEnd: 1,
+										transform: {
+											scale: 1,
+											position: { x: 0, y: 0 },
+											rotate: 0,
+										},
+										opacity: 1,
+										playbackRate: 1,
+										reversed: false,
+									},
+								],
+							},
+							{
+								id: "audio-track-1",
+								type: "audio",
+								name: "Audio",
+								muted: false,
+								elements: [
+									{
+										id: "audio-1",
+										type: "audio",
+										name: "Fixture audio",
+										sourceType: "upload",
+										mediaId: audioId,
+										startTime: 0,
+										duration: 1,
+										trimStart: 0,
+										trimEnd: 1,
+										volume: 0.6,
+										muted: false,
+										playbackRate: 1,
+									},
+								],
+							},
+						],
+					},
+					null,
+					2,
+				),
+			);
+			const outputFile = join(
+				stateDir,
+				`node-${audioFixture.format}-audio-renderer.mp4`,
+			);
+
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "export_project",
+					args: {
+						format: "mp4",
+						quality: "high",
+						includeAudio: true,
+						outputFile,
+						overwrite: false,
+					},
+				}),
+			});
+
+			expect(result.results[0]).toMatchObject({
+				tool: "export_project",
+				success: true,
+				data: {
+					outputFile,
+					format: "mp4",
+					includeAudio: true,
+					revision: state.revision + 1,
+					totalDuration: 1,
+				},
+			});
+			const outputBytes = await readFile(outputFile);
+			expect(outputBytes.byteLength).toBeGreaterThan(0);
+			expect(outputBytes.subarray(4, 8).toString("utf8")).toBe("ftyp");
+			const summary = await readMp4Summary(outputBytes);
+			expect(summary.videoTrackCount).toBe(1);
+			expect(summary.audioTrackCount).toBe(1);
+			expect(summary.decodedAudioFrames).toBeGreaterThan(0);
+			expect(summary.duration).toBeGreaterThan(0);
+		});
+	}
 
 	test("export fails fast for unsafe local export inputs", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
@@ -1533,7 +2586,8 @@ describe("codex executor", () => {
 			importResult.results[0],
 		).assets[0].id;
 		const before = await getExecutorProjectState({ projectId });
-		const inspectedRanges: Array<{ startSeconds: number; endSeconds: number }> = [];
+		const inspectedRanges: Array<{ startSeconds: number; endSeconds: number }> =
+			[];
 
 		const inspectResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
@@ -1596,9 +2650,7 @@ describe("codex executor", () => {
 			},
 		});
 
-		expect(inspectedRanges).toEqual([
-			{ startSeconds: 12.5, endSeconds: 18 },
-		]);
+		expect(inspectedRanges).toEqual([{ startSeconds: 12.5, endSeconds: 18 }]);
 		expect(inspectResult.results[0]).toMatchObject({
 			tool: "inspect_video_range",
 			success: true,

@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/**": ["./public/locales/**/*"],
   },
+  serverExternalPackages: ["@napi-rs/canvas", "@napi-rs/webcodecs"],
   images: {
     remotePatterns: [
       {

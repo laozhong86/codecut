@@ -1,4 +1,5 @@
 import type { CanvasRenderer } from "../canvas-renderer";
+import type { RendererCanvas } from "../runtime";
 import { BaseNode } from "./base-node";
 import type { TransitionType } from "@/types/timeline";
 
@@ -15,8 +16,8 @@ export interface TransitionNodeParams {
 export class TransitionNode extends BaseNode<TransitionNodeParams> {
 	private outgoing: BaseNode;
 	private incoming: BaseNode;
-	private offscreenA?: OffscreenCanvas | HTMLCanvasElement;
-	private offscreenB?: OffscreenCanvas | HTMLCanvasElement;
+	private offscreenA?: RendererCanvas;
+	private offscreenB?: RendererCanvas;
 
 	constructor(params: TransitionNodeParams) {
 		super(params);
@@ -35,33 +36,26 @@ export class TransitionNode extends BaseNode<TransitionNodeParams> {
 	private ensureOffscreen({
 		width,
 		height,
+		renderer,
 	}: {
 		width: number;
 		height: number;
+		renderer: CanvasRenderer;
 	}): {
-		canvasA: OffscreenCanvas | HTMLCanvasElement;
-		canvasB: OffscreenCanvas | HTMLCanvasElement;
+		canvasA: RendererCanvas;
+		canvasB: RendererCanvas;
 	} {
 		const needsRecreate =
 			!this.offscreenA ||
 			!this.offscreenB ||
-			(this.offscreenA instanceof OffscreenCanvas
-				? this.offscreenA.width !== width || this.offscreenA.height !== height
-				: this.offscreenA.width !== width ||
-					this.offscreenA.height !== height);
+			this.offscreenA.width !== width ||
+			this.offscreenA.height !== height ||
+			this.offscreenB.width !== width ||
+			this.offscreenB.height !== height;
 
 		if (needsRecreate) {
-			try {
-				this.offscreenA = new OffscreenCanvas(width, height);
-				this.offscreenB = new OffscreenCanvas(width, height);
-			} catch {
-				this.offscreenA = document.createElement("canvas");
-				this.offscreenA.width = width;
-				this.offscreenA.height = height;
-				this.offscreenB = document.createElement("canvas");
-				this.offscreenB.width = width;
-				this.offscreenB.height = height;
-			}
+			this.offscreenA = renderer.createCanvas({ width, height });
+			this.offscreenB = renderer.createCanvas({ width, height });
 		}
 
 		const canvasA = this.offscreenA;
@@ -89,7 +83,11 @@ export class TransitionNode extends BaseNode<TransitionNodeParams> {
 		}
 
 		const { width, height } = renderer;
-		const { canvasA, canvasB } = this.ensureOffscreen({ width, height });
+		const { canvasA, canvasB } = this.ensureOffscreen({
+			width,
+			height,
+			renderer,
+		});
 
 		const ctxA = canvasA.getContext("2d");
 		const ctxB = canvasB.getContext("2d");

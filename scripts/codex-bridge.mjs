@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { basename, extname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { buildRsyncArgs } from "./sync-codex-local-plugin.mjs";
 
 const requiredConfig = [
@@ -494,6 +495,83 @@ async function checkExecutorProject({ projectId, config, fetchImpl }) {
 	}
 }
 
+async function checkNodeRenderer({ cwd }) {
+	try {
+		const requireFromWeb = createRequire(join(cwd, "apps/web/package.json"));
+		const { createCanvas } = requireFromWeb("@napi-rs/canvas");
+		const { VideoEncoder, AudioEncoder } = requireFromWeb("@napi-rs/webcodecs");
+
+		const canvas = createCanvas(16, 16);
+		const context = canvas.getContext("2d");
+		if (!context) {
+			throw new Error("Failed to create a Node canvas 2D context.");
+		}
+		context.fillStyle = "#000000";
+		context.fillRect(0, 0, 16, 16);
+
+		const [h264, vp9, aac, opus] = await Promise.all([
+			VideoEncoder.isConfigSupported({
+				codec: "avc1.42001E",
+				width: 16,
+				height: 16,
+				bitrate: 100_000,
+				framerate: 1,
+			}),
+			VideoEncoder.isConfigSupported({
+				codec: "vp09.00.10.08",
+				width: 16,
+				height: 16,
+				bitrate: 100_000,
+				framerate: 1,
+			}),
+			AudioEncoder.isConfigSupported({
+				codec: "mp4a.40.2",
+				sampleRate: 48_000,
+				numberOfChannels: 2,
+				bitrate: 128_000,
+			}),
+			AudioEncoder.isConfigSupported({
+				codec: "opus",
+				sampleRate: 48_000,
+				numberOfChannels: 2,
+				bitrate: 128_000,
+			}),
+		]);
+
+		const support = {
+			canvas: true,
+			h264: Boolean(h264.supported),
+			vp9: Boolean(vp9.supported),
+			aac: Boolean(aac.supported),
+			opus: Boolean(opus.supported),
+		};
+		const unsupported = Object.entries(support)
+			.filter(([, ok]) => !ok)
+			.map(([name]) => name);
+		if (unsupported.length > 0) {
+			return doctorCheck({
+				id: "node_renderer",
+				ok: false,
+				message: `Node renderer codec support is missing: ${unsupported.join(", ")}`,
+				data: support,
+			});
+		}
+
+		return doctorCheck({
+			id: "node_renderer",
+			ok: true,
+			message: "Node Canvas/WebCodecs renderer is available.",
+			data: support,
+		});
+	} catch (error) {
+		return doctorCheck({
+			id: "node_renderer",
+			ok: false,
+			message: `Node renderer check failed: ${error instanceof Error ? error.message : String(error)}`,
+		});
+	}
+}
+
 export async function runInstallDoctor({
 	projectId,
 	cwd = process.cwd(),
@@ -501,6 +579,7 @@ export async function runInstallDoctor({
 	env = process.env,
 	fetchImpl = fetch,
 	execFileImpl = execFileAsync,
+	nodeRendererProbe = checkNodeRenderer,
 }) {
 	const source = await checkSourcePlugin({ cwd });
 	const cache = await checkCachePlugin({
@@ -519,6 +598,7 @@ export async function runInstallDoctor({
 			execFileImpl,
 		}),
 		environment.check,
+		await nodeRendererProbe({ cwd }),
 		await checkWebService({ config: environment.config, fetchImpl }),
 		await checkExecutorProject({
 			projectId,

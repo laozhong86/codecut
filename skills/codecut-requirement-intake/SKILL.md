@@ -58,16 +58,7 @@ For YouTube or other remote URLs, confirm output form, platform, aspect ratio, a
 
 ## Required Question Format
 
-Ask exactly one blocking question per assistant turn. Do not list a full intake form.
-
-Use this channel order:
-
-1. If Codex `request_user_input` is available, call it with exactly one question for the next missing field, 2-3 mutually exclusive choices, and exactly one recommended option. Put the recommended option first and suffix its label with `(Recommended)`.
-2. After calling `request_user_input`, stop and wait for the answer. Do not also print duplicate natural-language questions, numbered lists, or "please answer these items" text in the same turn.
-3. If `request_user_input` is unavailable in the current Codex mode, ask the same single question in natural language with the same choices, then stop.
-4. On the next user answer, record only the explicit answer, recalculate missing fields, and ask the next highest-priority blocking question if the gate is still blocked.
-
-Do not include a fixed "Other/custom" option when using `request_user_input`; the Codex client supplies a free-form path. In natural-language fallback, the user may answer with custom constraints directly.
+Ask at most five questions. Each question must provide choices and exactly one recommended option.
 
 Use this order:
 
@@ -86,6 +77,7 @@ Output form:
    A. CodeCut 编辑器预览和时间线验证 (Recommended) - fastest path and matches current verified executor workflow.
    B. 本地 MP4 文件 - requires export path verification before claiming completion.
    C. 两者都要 - timeline first, export second.
+   D. 只下载源视频 - no editing timeline needed.
 ```
 
 Platform / destination:
@@ -95,6 +87,7 @@ Platform / destination:
    A. TikTok/Reels/Shorts (Recommended) - short-form reach and vertical layout.
    B. YouTube horizontal - preserves source composition.
    C. Internal preview only - avoids platform-specific styling.
+   D. Other/custom - specify platform and constraints.
 ```
 
 Aspect ratio:
@@ -103,7 +96,8 @@ Aspect ratio:
 3. 画幅按哪个来？
    A. Vertical 9:16 (Recommended for TikTok/Reels/Shorts) - short-form native, but may crop horizontal UI.
    B. Horizontal 16:9 - preserves the source frame.
-   C. Source aspect - preserves the source frame.
+   C. Square 1:1 - feed-safe compromise.
+   D. Source aspect/custom - specify exact dimensions.
 ```
 
 Caption policy:
@@ -113,6 +107,7 @@ Caption policy:
    A. Post-cut captions from edited audio (Recommended for talking videos) - best alignment after cuts.
    B. Preserve existing burned-in captions - avoids overlap when the source already has subtitles.
    C. No new captions - clean visual result.
+   D. Translate captions/custom - specify target language and style.
 ```
 
 Editing style:
@@ -122,6 +117,7 @@ Editing style:
    A. Fast-cut creator-native (Recommended) - stronger short-form retention.
    B. Clean tutorial - clearer for demos and screen recordings.
    C. Documentary soft - calmer narrative pacing.
+   D. Other/custom - provide a reference or style description.
 ```
 
 ## File Rules
@@ -142,7 +138,7 @@ Assumptions: <list, if any>
 Next stage: <material-ingest|edit-planning|executor-apply|timeline-inspection>
 ```
 
-When blocked, ask only the next required question and do not run executor commands.
+When blocked, report only the questions and do not run executor commands.
 
 ## Common Mistakes
 
@@ -152,6 +148,4 @@ When blocked, ask only the next required question and do not run executor comman
 | Writing assumptions into `clarification-answers.md` | Write assumptions into `assumptions.md`; answers are only user-provided. |
 | Treating YouTube URL as local-file fast path | Use remote URL rule and confirm output form before mutation. |
 | Asking open-ended questions | Provide concrete choices and one recommended option. |
-| Asking a five-question checklist | Ask one field per turn and wait for the answer. |
-| Printing questions after calling `request_user_input` | The tool call is the question UI; stop after the tool call. |
 | Continuing because defaults seem safe | Stop when two or more blocking fields are missing. |
