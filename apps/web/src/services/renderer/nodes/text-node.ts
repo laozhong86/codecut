@@ -2,6 +2,7 @@ import { FONT_SIZE_SCALE_REFERENCE } from "@/constants/text-constants";
 import type { TextElement, TextShadow } from "@/types/timeline";
 import type { CanvasRenderer } from "../canvas-renderer";
 import { BaseNode } from "./base-node";
+import { applyVisualKeyframes } from "../keyframes";
 import {
 	createTextLayout,
 	type TextLayoutLine,
@@ -106,15 +107,22 @@ export class TextNode extends BaseNode<TextNodeParams> {
 		const context = renderer.context;
 		context.save();
 
-		const x = this.params.transform.position.x + this.params.canvasCenter.x;
-		const y = this.params.transform.position.y + this.params.canvasCenter.y;
+		const { transform, opacity } = applyVisualKeyframes({
+			transform: this.params.transform,
+			opacity: this.params.opacity,
+			keyframes: this.params.keyframes,
+			localTime: time - this.params.startTime,
+		});
+
+		const x = transform.position.x + this.params.canvasCenter.x;
+		const y = transform.position.y + this.params.canvasCenter.y;
 
 		context.translate(x, y);
-		if (this.params.transform.rotate) {
-			context.rotate((this.params.transform.rotate * Math.PI) / 180);
+		if (transform.rotate) {
+			context.rotate((transform.rotate * Math.PI) / 180);
 		}
-		if (this.params.transform.scale !== 1) {
-			context.scale(this.params.transform.scale, this.params.transform.scale);
+		if (transform.scale !== 1) {
+			context.scale(transform.scale, transform.scale);
 		}
 
 		const scaledFontSize = scaleFontSize({
@@ -146,7 +154,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
 		const textBaseline = this.params.textBaseline || "middle";
 
 		const prevAlpha = context.globalAlpha;
-		context.globalAlpha = this.params.opacity;
+		context.globalAlpha = opacity;
 
 		this.renderBackground({
 			context,

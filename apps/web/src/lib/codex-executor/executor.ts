@@ -4,6 +4,11 @@ import { dirname, isAbsolute, join } from "node:path";
 import { z } from "zod";
 import { applyEditPlanToEditor } from "@/lib/agent-bridge/edit-plan/apply";
 import { validateEditPlan } from "@/lib/agent-bridge/edit-plan/validate";
+import {
+	EditPlanCaptionStyleSchema,
+	type EditPlanCaptionStyle,
+} from "@/lib/agent-bridge/edit-plan/schema";
+import { resolveCaptionStylePreset } from "@/lib/agent-bridge/edit-plan/text-presets";
 import { applyNarratedRemixPlanToEditor } from "@/lib/agent-bridge/narrated-remix/apply";
 import {
 	type ProbeAudio,
@@ -11,6 +16,17 @@ import {
 } from "@/lib/codex-executor/video-context";
 import { buildVisualContextWithInspector } from "@/lib/codex-executor/visual-context";
 import { inspectVideoRange as inspectVideoRangeWithNodeRuntime } from "@/lib/codex-executor/video-range-inspection";
+import { inspectTimelineWithNodeRenderer } from "@/lib/codex-executor/timeline-inspection";
+import {
+	addTextElements,
+	insertClips,
+	moveClips,
+	removeClips,
+	rippleDeleteRanges,
+	setClipProperties,
+	setKeyframes,
+	splitClip,
+} from "@/lib/codex-executor/timeline-mutations";
 import {
 	type ExecutorTranscribeMedia,
 	type ExecutorTranscribeMediaRange,
@@ -28,6 +44,11 @@ import {
 import { RUNNINGHUB_DIGITAL_HUMAN_PROVIDER_ID } from "@/lib/ai/providers/runninghub-digital-human";
 import type { DigitalHumanGenerationRequest } from "@/lib/ai/providers";
 import {
+	DEFAULT_TRANSCRIPTION_MODEL,
+	TRANSCRIPTION_LANGUAGES,
+	TRANSCRIPTION_MODELS,
+} from "@/constants/transcription-constants";
+import {
 	createHumanPipEffect,
 	createTextBackgroundEffect,
 	requireHumanPipPlacement,
@@ -44,7 +65,10 @@ import type { MediaAsset } from "@/types/assets";
 import type { DerivedAsset } from "@/types/project";
 import type {
 	CreateTimelineElement,
+	PositionKeyframe,
+	ScalarKeyframe,
 	TimelineElement,
+	TimelineElementKeyframes,
 	TimelineTrack,
 	TrackType,
 	TrackTransition,
@@ -63,11 +87,24 @@ type ExecutorToolName =
 	| "build_video_context"
 	| "build_visual_context"
 	| "inspect_video_range"
+	| "inspect_timeline"
+	| "get_transcript"
 	| "build_post_cut_captions"
+	| "add_texts"
+	| "add_captions"
+	| "list_models"
+	| "set_keyframes"
+	| "search_media"
 	| "validate_edit_plan"
 	| "preview_edit_plan"
 	| "apply_edit_plan"
 	| "apply_narrated_remix_plan"
+	| "insert_clips"
+	| "move_clips"
+	| "remove_clips"
+	| "split_clip"
+	| "set_clip_properties"
+	| "ripple_delete_ranges"
 	| "create_text_background_effect"
 	| "create_human_pip_effect"
 	| "generate_digital_human"
@@ -136,11 +173,24 @@ const commandSchema = z
 			"build_video_context",
 			"build_visual_context",
 			"inspect_video_range",
+			"inspect_timeline",
+			"get_transcript",
 			"build_post_cut_captions",
+			"add_texts",
+			"add_captions",
+			"list_models",
+			"set_keyframes",
+			"search_media",
 			"validate_edit_plan",
 			"preview_edit_plan",
 			"apply_edit_plan",
 			"apply_narrated_remix_plan",
+			"insert_clips",
+			"move_clips",
+			"remove_clips",
+			"split_clip",
+			"set_clip_properties",
+			"ripple_delete_ranges",
 			"create_text_background_effect",
 			"create_human_pip_effect",
 			"generate_digital_human",
@@ -235,10 +285,106 @@ const inspectVideoRangeArgsSchema = z
 	})
 	.strict();
 
+const inspectTimelineArgsSchema = z
+	.object({
+		startTime: z.number().nonnegative(),
+		endTime: z.number().nonnegative().optional(),
+		frameCount: z.number().int().min(1).max(16).optional(),
+	})
+	.strict();
+
+const transformSchema = z
+	.object({
+		scale: z.number().positive(),
+		position: z
+			.object({
+				x: z.number(),
+				y: z.number(),
+			})
+			.strict(),
+		rotate: z.number(),
+		flipX: z.boolean().optional(),
+		flipY: z.boolean().optional(),
+	})
+	.strict();
+
 const buildPostCutCaptionsArgsSchema = z
 	.object({
 		language: z.unknown(),
 		modelId: z.unknown(),
+	})
+	.strict();
+
+const textStrokeSchema = z
+	.object({
+		color: z.string().min(1),
+		width: z.number().positive(),
+	})
+	.strict();
+
+const textShadowSchema = z
+	.object({
+		color: z.string().min(1),
+		offsetX: z.number(),
+		offsetY: z.number(),
+		blur: z.number().nonnegative(),
+	})
+	.strict();
+
+const addTextEntrySchema = z
+	.object({
+		startTime: z.number().nonnegative(),
+		duration: z.number().positive(),
+		content: z.string().min(1),
+		name: z.string().min(1).optional(),
+		transform: transformSchema.optional(),
+		opacity: z.number().min(0).max(1).optional(),
+		fontSize: z.number().positive().optional(),
+		fontFamily: z.string().min(1).optional(),
+		color: z.string().min(1).optional(),
+		backgroundColor: z.string().min(1).optional(),
+		textAlign: z.enum(["left", "center", "right"]).optional(),
+		fontWeight: z.enum(["normal", "bold"]).optional(),
+		fontStyle: z.enum(["normal", "italic"]).optional(),
+		textDecoration: z.enum(["none", "underline", "line-through"]).optional(),
+		boxWidth: z.number().positive().optional(),
+		stroke: textStrokeSchema.optional(),
+		shadow: textShadowSchema.optional(),
+		backgroundOpacity: z.number().min(0).max(1).optional(),
+		backgroundPaddingX: z.number().nonnegative().optional(),
+		backgroundPaddingY: z.number().nonnegative().optional(),
+		backgroundBorderRadius: z.number().nonnegative().optional(),
+	})
+	.strict();
+
+const addTextsArgsSchema = z
+	.object({
+		trackId: z.string().min(1).optional(),
+		entries: z.array(addTextEntrySchema).min(1),
+	})
+	.strict();
+
+const addCaptionsArgsSchema = z
+	.object({
+		language: z.unknown(),
+		modelId: z.unknown(),
+		captionStyle: EditPlanCaptionStyleSchema.optional(),
+	})
+	.strict();
+
+const listModelsArgsSchema = z
+	.object({
+		type: z.enum(["transcription", "digital_human"]).optional(),
+	})
+	.strict();
+
+const getTranscriptArgsSchema = z
+	.object({
+		language: z.unknown(),
+		modelId: z.unknown(),
+		startTime: z.number().nonnegative().optional(),
+		endTime: z.number().nonnegative().optional(),
+		includeFrames: z.boolean().optional(),
 	})
 	.strict();
 
@@ -249,6 +395,157 @@ const getTimelineStateV2ArgsSchema = z
 		endTime: z.number().nonnegative().optional(),
 		includeFrames: z.boolean().optional(),
 		includeReferencedMedia: z.boolean().optional(),
+	})
+	.strict();
+
+const insertClipSchema = z
+	.object({
+		mediaId: z.string().min(1),
+		duration: z.number().positive(),
+		trimStart: z.number().nonnegative().optional(),
+		trimEnd: z.number().nonnegative().optional(),
+		playbackRate: z.number().positive().optional(),
+		name: z.string().min(1).optional(),
+	})
+	.strict();
+
+const insertClipsArgsSchema = z
+	.object({
+		trackId: z.string().min(1),
+		atTime: z.number().nonnegative(),
+		clips: z.array(insertClipSchema).min(1),
+	})
+	.strict();
+
+const moveClipsArgsSchema = z
+	.object({
+		moves: z
+			.array(
+				z
+					.object({
+						elementId: z.string().min(1),
+						toTrackId: z.string().min(1).optional(),
+						startTime: z.number().nonnegative().optional(),
+					})
+					.strict()
+					.refine(
+						(value) =>
+							value.toTrackId !== undefined || value.startTime !== undefined,
+						"move requires toTrackId or startTime",
+					),
+			)
+			.min(1),
+	})
+	.strict();
+
+const removeClipsArgsSchema = z
+	.object({
+		elementIds: z.array(z.string().min(1)).min(1),
+	})
+	.strict();
+
+const splitClipArgsSchema = z
+	.object({
+		elementId: z.string().min(1),
+		atTime: z.number().nonnegative(),
+	})
+	.strict();
+
+const setClipPropertiesArgsSchema = z
+	.object({
+		elementId: z.string().min(1).optional(),
+		elementIds: z.array(z.string().min(1)).min(1).optional(),
+		properties: z
+			.object({
+				duration: z.number().positive().optional(),
+				trimStart: z.number().nonnegative().optional(),
+				trimEnd: z.number().nonnegative().optional(),
+				opacity: z.number().min(0).max(1).optional(),
+				volume: z.number().min(0).max(1).optional(),
+				muted: z.boolean().optional(),
+				hidden: z.boolean().optional(),
+				playbackRate: z.number().positive().optional(),
+				transform: transformSchema.optional(),
+				content: z.string().optional(),
+				fontSize: z.number().positive().optional(),
+				fontFamily: z.string().min(1).optional(),
+				color: z.string().min(1).optional(),
+				backgroundColor: z.string().min(1).optional(),
+				textAlign: z.enum(["left", "center", "right"]).optional(),
+				fontWeight: z.enum(["normal", "bold"]).optional(),
+				fontStyle: z.enum(["normal", "italic"]).optional(),
+				textDecoration: z
+					.enum(["none", "underline", "line-through"])
+					.optional(),
+			})
+			.strict()
+			.refine((value) => Object.keys(value).length > 0, {
+				message: "properties must contain at least one field",
+			}),
+	})
+	.strict()
+	.refine(
+		(value) =>
+			(value.elementId !== undefined) !== (value.elementIds !== undefined),
+		{
+			message: "set_clip_properties requires elementId or elementIds",
+		},
+	);
+
+const keyframeInterpolationSchema = z.enum(["linear", "hold"]);
+const scalarKeyframeSchema = z
+	.object({
+		time: z.number().nonnegative(),
+		value: z.number(),
+		interpolation: keyframeInterpolationSchema.optional(),
+	})
+	.strict();
+const positionKeyframeSchema = z
+	.object({
+		time: z.number().nonnegative(),
+		value: z
+			.object({
+				x: z.number(),
+				y: z.number(),
+			})
+			.strict(),
+		interpolation: keyframeInterpolationSchema.optional(),
+	})
+	.strict();
+const keyframePropertySchema = z.enum([
+	"opacity",
+	"transform.position",
+	"transform.scale",
+	"transform.rotate",
+]);
+const setKeyframesArgsSchema = z
+	.object({
+		elementId: z.string().min(1),
+		property: keyframePropertySchema,
+		keyframes: z.array(z.union([scalarKeyframeSchema, positionKeyframeSchema])),
+	})
+	.strict();
+
+const searchMediaArgsSchema = z
+	.object({
+		query: z.string().trim().min(1),
+		scope: z.enum(["metadata", "spoken", "both"]).optional(),
+		mediaId: z.string().min(1).optional(),
+		limit: z.number().int().min(1).max(50).optional(),
+	})
+	.strict();
+
+const rippleDeleteRangesArgsSchema = z
+	.object({
+		ranges: z
+			.array(
+				z
+					.tuple([z.number().nonnegative(), z.number().nonnegative()])
+					.refine(([start, end]) => end > start, {
+						message: "range end must be greater than range start",
+					}),
+			)
+			.min(1),
 	})
 	.strict();
 
@@ -357,6 +654,20 @@ function mediaDirectory({ projectId }: { projectId: string }): string {
 	return join(projectDirectory({ projectId }), "media");
 }
 
+function transcriptCacheDirectory({ projectId }: { projectId: string }): string {
+	return join(projectDirectory({ projectId }), "transcripts");
+}
+
+function transcriptCachePath({
+	projectId,
+	mediaId,
+}: {
+	projectId: string;
+	mediaId: string;
+}): string {
+	return join(transcriptCacheDirectory({ projectId }), `${mediaId}.json`);
+}
+
 async function writeJson({ path, value }: { path: string; value: unknown }) {
 	await mkdir(dirname(path), { recursive: true });
 	await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -364,6 +675,47 @@ async function writeJson({ path, value }: { path: string; value: unknown }) {
 
 async function readJson<T>({ path }: { path: string }): Promise<T> {
 	return JSON.parse(await readFile(path, "utf8")) as T;
+}
+
+type TranscriptCacheEntry = {
+	mediaId: string;
+	language: string;
+	modelId: string;
+	text: string;
+	segments: Array<{ text: string; start: number; end: number }>;
+	updatedAt: string;
+};
+
+async function writeTranscriptCache({
+	state,
+	entry,
+}: {
+	state: ExecutorProjectState;
+	entry: Omit<TranscriptCacheEntry, "updatedAt">;
+}) {
+	await writeJson({
+		path: transcriptCachePath({
+			projectId: state.project.id,
+			mediaId: entry.mediaId,
+		}),
+		value: { ...entry, updatedAt: new Date().toISOString() },
+	});
+}
+
+async function readTranscriptCacheOrNull({
+	projectId,
+	mediaId,
+}: {
+	projectId: string;
+	mediaId: string;
+}): Promise<TranscriptCacheEntry | null> {
+	try {
+		return await readJson<TranscriptCacheEntry>({
+			path: transcriptCachePath({ projectId, mediaId }),
+		});
+	} catch {
+		return null;
+	}
 }
 
 function mediaTypeForMimeType({
@@ -521,6 +873,7 @@ function serializeElementV2({
 		trimStart: element.trimStart,
 		trimEnd: element.trimEnd,
 		...(includeFrames ? frameFieldsForElement({ element, fps }) : {}),
+		...(element.keyframes ? { keyframes: element.keyframes } : {}),
 		...("content" in element ? { content: element.content } : {}),
 		...("mediaId" in element ? { mediaId: element.mediaId } : {}),
 		...serializeElementVisualProperties(element),
@@ -1746,6 +2099,16 @@ async function runTranscribeMedia({
 	}
 
 	const result = await transcribeMedia({ mediaAsset, language, modelId });
+	await writeTranscriptCache({
+		state,
+		entry: {
+			mediaId: mediaAsset.id,
+			language: result.language,
+			modelId: result.modelId ?? modelId,
+			text: result.text,
+			segments: result.segments,
+		},
+	});
 	return {
 		success: true,
 		message: `Transcribed '${mediaAsset.name}'`,
@@ -1965,6 +2328,43 @@ async function runInspectVideoRange({
 	};
 }
 
+async function runInspectTimeline({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = inspectTimelineArgsSchema.parse(args);
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
+	const result = await inspectTimelineWithNodeRenderer({
+		state,
+		mediaAssets,
+		args: parsed,
+		outputDirectory: join(
+			projectDirectory({ projectId: state.project.id }),
+			"timeline-inspect",
+		),
+	});
+	return {
+		success: true,
+		message: `Inspected timeline at ${result.frameTimes.length} frame(s).`,
+		data: {
+			revision: state.revision,
+			canvasSize: result.canvasSize,
+			totalDuration: result.totalDuration,
+			artifact: {
+				kind: "timeline_contact_sheet",
+				path: result.artifactPath,
+				mimeType: "image/png",
+				width: result.sheetSize.width,
+				height: result.sheetSize.height,
+			},
+			frames: result.frameTimes.map((timeSeconds) => ({ timeSeconds })),
+		},
+	};
+}
+
 function roundTimelineSeconds(value: number): number {
 	return Math.round(value * 1000) / 1000;
 }
@@ -1979,6 +2379,152 @@ function isVisibleVideoElement(element: TimelineElement): element is VideoElemen
 	);
 }
 
+function isTranscriptElement(element: TimelineElement) {
+	if (element.type === "video") {
+		return !element.muted && !element.hidden;
+	}
+	if (element.type === "audio") {
+		return element.sourceType === "upload" && !element.muted;
+	}
+	return false;
+}
+
+async function runGetTranscript({
+	state,
+	args,
+	transcribeMediaRange,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	transcribeMediaRange: ExecutorTranscribeMediaRange;
+}) {
+	const parsed = getTranscriptArgsSchema.parse(args);
+	const language = parseExecutorTranscriptionLanguage(parsed.language);
+	const modelId = parseExecutorTranscriptionModelId(parsed.modelId);
+	const totalDuration = calculateTotalDuration({ tracks: state.tracks });
+	const windowStart = parsed.startTime ?? 0;
+	const windowEnd = parsed.endTime ?? totalDuration;
+	if (windowEnd < windowStart) {
+		throw new Error(
+			"get_transcript endTime must be greater than or equal to startTime.",
+		);
+	}
+	const mediaById = new Map(
+		state.mediaAssets.map((asset) => [asset.id, asset]),
+	);
+	const fps = state.project.settings.fps;
+	const clips = [];
+
+	for (const track of state.tracks) {
+		for (const element of track.elements as TimelineElement[]) {
+			if (!isTranscriptElement(element)) continue;
+			if (!("mediaId" in element)) continue;
+			const elementStart = element.startTime;
+			const elementEnd = element.startTime + element.duration;
+			const overlapStart = Math.max(elementStart, windowStart);
+			const overlapEnd = Math.min(elementEnd, windowEnd);
+			if (overlapEnd <= overlapStart) continue;
+			const mediaAsset = mediaById.get(element.mediaId);
+			if (!mediaAsset) {
+				throw new Error(`Media asset "${element.mediaId}" was not found.`);
+			}
+			if (mediaAsset.type !== "video" && mediaAsset.type !== "audio") {
+				throw new Error(`Media asset "${mediaAsset.id}" is not transcribable.`);
+			}
+			const playbackRate =
+				"playbackRate" in element ? (element.playbackRate ?? 1) : 1;
+			const sourceStart =
+				element.trimStart + (overlapStart - element.startTime) * playbackRate;
+			const sourceEnd =
+				element.trimStart + (overlapEnd - element.startTime) * playbackRate;
+			const result = await transcribeMediaRange({
+				mediaAsset,
+				language,
+				modelId,
+				range: { start: sourceStart, end: sourceEnd },
+			});
+			const segments = [];
+			const segmentFrames = [];
+			for (const segment of result.segments) {
+				const absoluteSourceStart = sourceStart + segment.start;
+				const absoluteSourceEnd = sourceStart + segment.end;
+				const clippedSourceStart = Math.max(absoluteSourceStart, sourceStart);
+				const clippedSourceEnd = Math.min(absoluteSourceEnd, sourceEnd);
+				if (clippedSourceEnd <= clippedSourceStart) continue;
+				const timelineStart =
+					element.startTime +
+					(clippedSourceStart - element.trimStart) / playbackRate;
+				const timelineEnd =
+					element.startTime +
+					(clippedSourceEnd - element.trimStart) / playbackRate;
+				if (timelineEnd <= windowStart || timelineStart >= windowEnd) continue;
+				const clippedTimelineStart = Math.max(timelineStart, windowStart);
+				const clippedTimelineEnd = Math.min(timelineEnd, windowEnd);
+				const rowSourceStart =
+					element.trimStart +
+					(clippedTimelineStart - element.startTime) * playbackRate;
+				const rowSourceEnd =
+					element.trimStart +
+					(clippedTimelineEnd - element.startTime) * playbackRate;
+				const row = [
+					segment.text,
+					roundTimelineSeconds(clippedTimelineStart),
+					roundTimelineSeconds(clippedTimelineEnd),
+					roundTimelineSeconds(rowSourceStart),
+					roundTimelineSeconds(rowSourceEnd),
+				];
+				segments.push(row);
+				if (parsed.includeFrames) {
+					segmentFrames.push([
+						secondsToFrame(row[1] as number, fps),
+						secondsToFrame(row[2] as number, fps),
+						secondsToFrame(row[3] as number, fps),
+						secondsToFrame(row[4] as number, fps),
+					]);
+				}
+			}
+			clips.push({
+				clipId: element.id,
+				trackId: track.id,
+				mediaId: element.mediaId,
+				segments,
+				...(parsed.includeFrames ? { segmentFrames } : {}),
+			});
+		}
+	}
+	const segmentCount = clips.reduce(
+		(total, clip) => total + clip.segments.length,
+		0,
+	);
+	return {
+		success: true,
+		message: `Transcript has ${segmentCount} segment(s) from ${clips.length} clip(s).`,
+		data: {
+			revision: state.revision,
+			language,
+			modelId,
+			segmentFormat: [
+				"text",
+				"startTime",
+				"endTime",
+				"sourceStart",
+				"sourceEnd",
+			],
+			...(parsed.includeFrames
+				? {
+						frameFormat: [
+							"startFrame",
+							"endFrame",
+							"sourceStartFrame",
+							"sourceEndFrame",
+						],
+					}
+				: {}),
+			clips,
+		},
+	};
+}
+
 async function runBuildPostCutCaptions({
 	state,
 	args,
@@ -1989,8 +2535,50 @@ async function runBuildPostCutCaptions({
 	transcribeMediaRange: ExecutorTranscribeMediaRange;
 }) {
 	const parsed = buildPostCutCaptionsArgsSchema.parse(args);
-	const language = parseExecutorTranscriptionLanguage(parsed.language);
-	const modelId = parseExecutorTranscriptionModelId(parsed.modelId);
+	const result = await buildPostCutCaptionsData({
+		state,
+		language: parseExecutorTranscriptionLanguage(parsed.language),
+		modelId: parseExecutorTranscriptionModelId(parsed.modelId),
+		transcribeMediaRange,
+	});
+	if (!result.success) return result;
+	return {
+		success: true,
+		message: `Built ${result.data.captions.length} post-cut caption(s) from ${result.data.trace.length} video clip(s).`,
+		data: result.data,
+	};
+}
+
+async function buildPostCutCaptionsData({
+	state,
+	language,
+	modelId,
+	transcribeMediaRange,
+}: {
+	state: ExecutorProjectState;
+	language: ReturnType<typeof parseExecutorTranscriptionLanguage>;
+	modelId: ReturnType<typeof parseExecutorTranscriptionModelId>;
+	transcribeMediaRange: ExecutorTranscribeMediaRange;
+}): Promise<
+	| {
+			success: true;
+			data: {
+				source: "edited_video_clip_audio";
+				language: string;
+				modelId: string;
+				captionStyle: EditPlanCaptionStyle;
+				captions: Array<{ text: string; startTime: number; duration: number }>;
+				trace: Array<{
+					mediaId: string;
+					timelineStart: number;
+					sourceStart: number;
+					sourceEnd: number;
+					captionCount: number;
+				}>;
+			};
+	  }
+	| { success: false; message: string }
+> {
 	const clips = state.tracks
 		.filter(
 			(track) =>
@@ -2060,6 +2648,20 @@ async function runBuildPostCutCaptions({
 			modelId,
 			range: { start: element.trimStart, end: element.trimEnd },
 		});
+		await writeTranscriptCache({
+			state,
+			entry: {
+				mediaId,
+				language: result.language,
+				modelId: result.modelId ?? modelId,
+				text: result.text,
+				segments: result.segments.map((segment) => ({
+					text: segment.text,
+					start: roundTimelineSeconds(element.trimStart + segment.start),
+					end: roundTimelineSeconds(element.trimStart + segment.end),
+				})),
+			},
+		});
 
 		for (const segment of result.segments) {
 			const text = segment.text.trim();
@@ -2087,7 +2689,6 @@ async function runBuildPostCutCaptions({
 
 	return {
 		success: true,
-		message: `Built ${captions.length} post-cut caption(s) from ${clips.length} video clip(s).`,
 		data: {
 			source: "edited_video_clip_audio",
 			language,
@@ -2098,6 +2699,83 @@ async function runBuildPostCutCaptions({
 			},
 			captions,
 			trace,
+		},
+	};
+}
+
+function aspectRatioForState(state: ExecutorProjectState): "9:16" | "16:9" | "1:1" {
+	const { width, height } = state.project.settings.canvasSize;
+	if (width === height) return "1:1";
+	return width < height ? "9:16" : "16:9";
+}
+
+async function runAddTexts({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = addTextsArgsSchema.parse(args);
+	const summary = addTextElements({
+		state,
+		args: parsed,
+	});
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Added ${summary.createdElementIds.length} text element(s).`,
+		data: { ...summary, revision: state.revision },
+	};
+}
+
+async function runAddCaptions({
+	state,
+	args,
+	transcribeMediaRange,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	transcribeMediaRange: ExecutorTranscribeMediaRange;
+}) {
+	const parsed = addCaptionsArgsSchema.parse(args);
+	const captionStyle = parsed.captionStyle ?? {
+		preset: "talking-head-pop",
+		position: "lower-safe",
+	};
+	const captions = await buildPostCutCaptionsData({
+		state,
+		language: parseExecutorTranscriptionLanguage(parsed.language),
+		modelId: parseExecutorTranscriptionModelId(parsed.modelId),
+		transcribeMediaRange,
+	});
+	if (!captions.success) return captions;
+	const raw = resolveCaptionStylePreset({
+		captionStyle,
+		aspectRatio: aspectRatioForState(state),
+	});
+	const summary = addTextElements({
+		state,
+		args: {
+			entries: captions.data.captions.map((caption, index) => ({
+				...raw,
+				name: `Caption ${index + 1}`,
+				content: caption.text,
+				startTime: caption.startTime,
+				duration: caption.duration,
+			})),
+		},
+	});
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Added ${captions.data.captions.length} caption(s).`,
+		data: {
+			...summary,
+			revision: state.revision,
+			source: captions.data.source,
+			captionCount: captions.data.captions.length,
+			captionStyle,
 		},
 	};
 }
@@ -2199,6 +2877,305 @@ function runGetTimelineState({
 	};
 }
 
+async function runInsertClips({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = insertClipsArgsSchema.parse(args);
+	const mediaAssets = state.mediaAssets.map((asset) => ({
+		id: asset.id,
+		name: asset.name,
+		type: asset.type,
+		duration: asset.duration,
+		width: asset.width,
+		height: asset.height,
+	}));
+	const summary = insertClips({ state, mediaAssets, args: parsed });
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Inserted ${summary.createdElementIds.length} clip(s).`,
+		data: { ...summary, revision: state.revision },
+	};
+}
+
+async function runMoveClips({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = moveClipsArgsSchema.parse(args);
+	const summary = moveClips({ state, args: parsed });
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Moved ${summary.changedElementIds.length} clip(s).`,
+		data: { ...summary, revision: state.revision },
+	};
+}
+
+async function runRemoveClips({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = removeClipsArgsSchema.parse(args);
+	const summary = removeClips({ state, elementIds: parsed.elementIds });
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Removed ${summary.removedElementIds.length} clip(s).`,
+		data: { ...summary, revision: state.revision },
+	};
+}
+
+async function runSplitClip({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = splitClipArgsSchema.parse(args);
+	const summary = splitClip({
+		state,
+		elementId: parsed.elementId,
+		atTime: parsed.atTime,
+	});
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: "Split 1 clip.",
+		data: { ...summary, revision: state.revision },
+	};
+}
+
+async function runSetClipProperties({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = setClipPropertiesArgsSchema.parse(args);
+	const summary = setClipProperties({
+		state,
+		args: {
+			elementIds: parsed.elementIds ?? [parsed.elementId as string],
+			properties: parsed.properties,
+		},
+	});
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: "Updated clip properties.",
+		data: { ...summary, revision: state.revision },
+	};
+}
+
+async function runSetKeyframes({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = setKeyframesArgsSchema.parse(args);
+	const keyframes = parsed.keyframes.map((keyframe) => ({
+		...keyframe,
+		interpolation: keyframe.interpolation ?? "linear",
+	})) as Array<ScalarKeyframe | PositionKeyframe>;
+	const summary = setKeyframes({
+		state,
+		args: {
+			elementId: parsed.elementId,
+			property: parsed.property as keyof TimelineElementKeyframes,
+			keyframes,
+		},
+	});
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Set ${keyframes.length} keyframe(s) on ${parsed.property}.`,
+		data: { ...summary, revision: state.revision },
+	};
+}
+
+async function runRippleDeleteRanges({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = rippleDeleteRangesArgsSchema.parse(args);
+	const summary = rippleDeleteRanges({ state, ranges: parsed.ranges });
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Ripple deleted ${summary.removedRanges.length} range(s).`,
+		data: { ...summary, revision: state.revision },
+	};
+}
+
+function runListModels({ args }: { args: Record<string, unknown> }) {
+	const parsed = listModelsArgsSchema.parse(args);
+	const models = [];
+	if (!parsed.type || parsed.type === "transcription") {
+		models.push(
+			...TRANSCRIPTION_MODELS.map((model) => ({
+				type: "transcription",
+				id: model.id,
+				name: model.name,
+				description: model.description,
+				huggingFaceId: model.huggingFaceId,
+				encoderDtype: model.encoderDtype,
+			})),
+		);
+	}
+	if (!parsed.type || parsed.type === "digital_human") {
+		models.push({
+			type: "digital_human",
+			id: RUNNINGHUB_DIGITAL_HUMAN_PROVIDER_ID,
+			displayName: "RunningHub Digital Human",
+			inputs: [
+				"imageMediaId",
+				"audioMediaId",
+				"scriptText",
+				"motionPrompt",
+				"width",
+				"height",
+				"fps",
+			],
+			requiredMediaTypes: {
+				imageMediaId: "image",
+				audioMediaId: "audio",
+			},
+		});
+	}
+	return {
+		success: true,
+		message: `Found ${models.length} callable model(s).`,
+		data: {
+			models,
+			defaults: { transcription: DEFAULT_TRANSCRIPTION_MODEL },
+			supportedLanguages: TRANSCRIPTION_LANGUAGES.map((language) => ({
+				code: language.code,
+				name: language.name,
+			})),
+		},
+	};
+}
+
+function mediaMatchesQuery({
+	asset,
+	query,
+}: {
+	asset: ExecutorMediaAsset;
+	query: string;
+}) {
+	const haystack = `${asset.name} ${asset.type} ${asset.mimeType}`.toLowerCase();
+	return haystack.includes(query.toLowerCase());
+}
+
+function scoreText({ text, query }: { text: string; query: string }) {
+	const loweredText = text.toLowerCase();
+	const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+	return terms.reduce(
+		(total, term) => total + (loweredText.includes(term) ? 1 : 0),
+		0,
+	);
+}
+
+async function runSearchMedia({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = searchMediaArgsSchema.parse(args);
+	const scope = parsed.scope ?? "both";
+	const limit = parsed.limit ?? 10;
+	const candidates = state.mediaAssets.filter(
+		(asset) => !parsed.mediaId || asset.id === parsed.mediaId,
+	);
+	if (parsed.mediaId && candidates.length === 0) {
+		return {
+			success: false,
+			message: `Media asset '${parsed.mediaId}' not found`,
+		};
+	}
+	const metadata =
+		scope === "spoken"
+			? []
+			: candidates
+					.filter((asset) =>
+						mediaMatchesQuery({ asset, query: parsed.query }),
+					)
+					.slice(0, limit)
+					.map((asset) => ({
+						mediaId: asset.id,
+						name: asset.name,
+						type: asset.type,
+						mimeType: asset.mimeType,
+					}));
+	const spoken: Array<{
+		mediaId: string;
+		name: string;
+		startSeconds: number;
+		endSeconds: number;
+		text: string;
+		score: number;
+	}> = [];
+	const unindexedMediaIds: string[] = [];
+	if (scope !== "metadata") {
+		for (const asset of candidates.filter(
+			(candidate) => candidate.type === "video" || candidate.type === "audio",
+		)) {
+			const cache = await readTranscriptCacheOrNull({
+				projectId: state.project.id,
+				mediaId: asset.id,
+			});
+			if (!cache) {
+				unindexedMediaIds.push(asset.id);
+				continue;
+			}
+			for (const segment of cache.segments) {
+				const score = scoreText({ text: segment.text, query: parsed.query });
+				if (score <= 0) continue;
+				spoken.push({
+					mediaId: asset.id,
+					name: asset.name,
+					startSeconds: segment.start,
+					endSeconds: segment.end,
+					text: segment.text,
+					score,
+				});
+			}
+		}
+	}
+	spoken.sort((left, right) => right.score - left.score);
+	return {
+		success: true,
+		message: `Found ${metadata.length + spoken.length} media search hit(s).`,
+		data: {
+			query: parsed.query,
+			scope,
+			metadata,
+			spoken: spoken.slice(0, limit),
+			unindexedMediaIds,
+		},
+	};
+}
+
 async function executeCommand({
 	state,
 	command,
@@ -2263,12 +3240,38 @@ async function executeCommand({
 			inspectVideoRange,
 		});
 	}
+	if (command.tool === "inspect_timeline") {
+		return runInspectTimeline({ state, args: command.args });
+	}
+	if (command.tool === "get_transcript") {
+		return runGetTranscript({
+			state,
+			args: command.args,
+			transcribeMediaRange,
+		});
+	}
 	if (command.tool === "build_post_cut_captions") {
 		return runBuildPostCutCaptions({
 			state,
 			args: command.args,
 			transcribeMediaRange,
 		});
+	}
+	if (command.tool === "add_texts") {
+		return runAddTexts({ state, args: command.args });
+	}
+	if (command.tool === "add_captions") {
+		return runAddCaptions({
+			state,
+			args: command.args,
+			transcribeMediaRange,
+		});
+	}
+	if (command.tool === "list_models") {
+		return runListModels({ args: command.args });
+	}
+	if (command.tool === "search_media") {
+		return runSearchMedia({ state, args: command.args });
 	}
 	if (command.tool === "validate_edit_plan") {
 		return runValidateEditPlan({ state, args: command.args });
@@ -2281,6 +3284,27 @@ async function executeCommand({
 	}
 	if (command.tool === "apply_narrated_remix_plan") {
 		return runApplyNarratedRemixPlan({ state, args: command.args });
+	}
+	if (command.tool === "insert_clips") {
+		return runInsertClips({ state, args: command.args });
+	}
+	if (command.tool === "move_clips") {
+		return runMoveClips({ state, args: command.args });
+	}
+	if (command.tool === "remove_clips") {
+		return runRemoveClips({ state, args: command.args });
+	}
+	if (command.tool === "split_clip") {
+		return runSplitClip({ state, args: command.args });
+	}
+	if (command.tool === "set_clip_properties") {
+		return runSetClipProperties({ state, args: command.args });
+	}
+	if (command.tool === "set_keyframes") {
+		return runSetKeyframes({ state, args: command.args });
+	}
+	if (command.tool === "ripple_delete_ranges") {
+		return runRippleDeleteRanges({ state, args: command.args });
 	}
 	if (command.tool === "create_text_background_effect") {
 		return runCreateTextBackgroundEffect({ state, args: command.args });

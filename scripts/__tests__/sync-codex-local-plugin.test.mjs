@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -95,6 +95,7 @@ enabled = true
 
 		expect(args).toContain("--delete");
 		expect(args).toContain("--dry-run");
+		expect(args).toContain("--exclude=.git");
 		expect(args).toContain("--exclude=.git/");
 		expect(args).toContain("--exclude=node_modules/");
 		expect(args).toContain("--exclude=.next/");
@@ -152,6 +153,37 @@ enabled = true
 				marketplaceName: "local-opc",
 				cacheRoot,
 			});
+		} finally {
+			await rm(sourceRoot, { recursive: true, force: true });
+			await rm(homeRoot, { recursive: true, force: true });
+		}
+	});
+
+	test("removes stale git metadata from the installed cache before syncing", async () => {
+		const sourceRoot = await createPluginSource();
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-sync-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(cacheRoot, { recursive: true });
+		await writeFile(join(cacheRoot, ".git"), "gitdir: /repo/.git/worktrees/p0\n");
+		await writeFile(
+			join(homeRoot, "config.toml"),
+			'[plugins."codecut@local-opc"]\nenabled = true\n',
+			"utf8",
+		);
+
+		try {
+			await runSync({
+				sourceRoot,
+				homeDir: homeRoot,
+				configPath: join(homeRoot, "config.toml"),
+				execFileImpl: async () => ({ stdout: "", stderr: "" }),
+				stdout: () => {},
+			});
+
+			await expect(access(join(cacheRoot, ".git"))).rejects.toThrow();
 		} finally {
 			await rm(sourceRoot, { recursive: true, force: true });
 			await rm(homeRoot, { recursive: true, force: true });

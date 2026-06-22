@@ -9,6 +9,10 @@
     "dev:web": "turbo run dev --filter=@codecut/web",
     "build:web": "turbo run build --filter=@codecut/web",
     "lint:web": "biome lint apps/web/src --max-diagnostics=1000",
+    "typecheck:web": "bun x tsc -p apps/web/tsconfig.json --noEmit",
+    "coverage:focused": "bun test --coverage --coverage-reporter=lcov --coverage-dir=tmp/coverage-focused && node scripts/check-focused-coverage.mjs tmp/coverage-focused/lcov.info",
+    "playwright:install": "playwright install chromium",
+    "test:e2e": "playwright test --config=playwright.config.ts",
     "lint:web:fix": "biome lint apps/web/src --write --max-diagnostics=1000",
     "format:web": "biome format apps/web/src/services/renderer --write --max-diagnostics=1000",
     "git-hooks:install": "node scripts/git-hooks/install-hooks.mjs",
@@ -29,6 +33,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.0",
+    "@playwright/test": "^1.58.2",
     "turbo": "^2.7.5",
     "typescript": "5.8.3"
   },

@@ -3,14 +3,28 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	buildAddCaptionsEnvelope,
+	buildAddTextsEnvelope,
 	buildApplyPlanEnvelope,
 	buildCommandEnvelope,
 	buildDigitalHumanEnvelope,
 	buildExportEnvelope,
+	buildGetTimelineStateV2Envelope,
+	buildGetTranscriptEnvelope,
 	buildImportMediaEnvelope,
+	buildInsertClipsEnvelope,
+	buildInspectTimelineEnvelope,
 	buildInspectVideoRangeEnvelope,
+	buildListModelsEnvelope,
+	buildMoveClipsEnvelope,
 	buildPreviewEditPlanEnvelope,
 	buildPostCutCaptionsEnvelope,
+	buildRemoveClipsEnvelope,
+	buildRippleDeleteRangesEnvelope,
+	buildSearchMediaEnvelope,
+	buildSetClipPropertiesEnvelope,
+	buildSetKeyframesEnvelope,
+	buildSplitClipEnvelope,
 	buildTranscribeEnvelope,
 	buildValidateEditPlanEnvelope,
 	buildVideoContextEnvelope,
@@ -34,7 +48,9 @@ describe("codex bridge CLI helpers", () => {
 
 		expect(exitCode).toBe(0);
 		expect(output).toContain("node scripts/codex-bridge.mjs send");
-		expect(output).toContain("node scripts/codex-bridge.mjs generate-digital-human");
+		expect(output).toContain(
+			"node scripts/codex-bridge.mjs generate-digital-human",
+		);
 	});
 
 	test("requires local runtime config instead of using hidden defaults", () => {
@@ -65,6 +81,235 @@ describe("codex bridge CLI helpers", () => {
 				},
 			],
 		});
+	});
+
+	test("buildGetTimelineStateV2Envelope preserves v1 tool name with explicit v2 args", () => {
+		expect(
+			buildGetTimelineStateV2Envelope({
+				projectId: "project-1",
+				startTime: 1,
+				endTime: 3,
+				includeFrames: true,
+				includeReferencedMedia: true,
+			}),
+		).toEqual({
+			version: 1,
+			projectId: "project-1",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "get_timeline_state",
+					args: {
+						format: "v2",
+						startTime: 1,
+						endTime: 3,
+						includeFrames: true,
+						includeReferencedMedia: true,
+					},
+				},
+			],
+		});
+	});
+
+	test("buildInspectTimelineEnvelope validates timeline inspect ranges", () => {
+		expect(
+			buildInspectTimelineEnvelope({
+				projectId: "project-1",
+				startTime: 1,
+				endTime: 3,
+				frameCount: 4,
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-1",
+				tool: "inspect_timeline",
+				args: {
+					startTime: 1,
+					endTime: 3,
+					frameCount: 4,
+				},
+			}),
+		);
+		expect(() =>
+			buildInspectTimelineEnvelope({
+				projectId: "project-1",
+				startTime: Number.NaN,
+			}),
+		).toThrow("--start-time must be a finite non-negative number");
+		expect(() =>
+			buildInspectTimelineEnvelope({
+				projectId: "project-1",
+				startTime: 3,
+				endTime: 1,
+			}),
+		).toThrow("--end-time must be greater than --start-time");
+		expect(() =>
+			buildInspectTimelineEnvelope({
+				projectId: "project-1",
+				startTime: 1,
+				endTime: 3,
+				frameCount: 17,
+			}),
+		).toThrow("--frame-count must be an integer from 1 to 16");
+	});
+
+	test("buildGetTranscriptEnvelope validates transcript args", () => {
+		expect(
+			buildGetTranscriptEnvelope({
+				projectId: "project-1",
+				language: "auto",
+				modelId: "whisper-base",
+				startTime: 0,
+				endTime: 10,
+				includeFrames: true,
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-1",
+				tool: "get_transcript",
+				args: {
+					language: "auto",
+					modelId: "whisper-base",
+					startTime: 0,
+					endTime: 10,
+					includeFrames: true,
+				},
+			}),
+		);
+		expect(() =>
+			buildGetTranscriptEnvelope({
+				projectId: "project-1",
+				language: "",
+				modelId: "whisper-base",
+			}),
+		).toThrow("--language is required");
+		expect(() =>
+			buildGetTranscriptEnvelope({
+				projectId: "project-1",
+				language: "auto",
+				modelId: "whisper-base",
+				startTime: 10,
+				endTime: 0,
+			}),
+		).toThrow("--end-time must be greater than --start-time");
+	});
+
+	test("micro edit envelope helpers require stable ids and payloads", () => {
+		expect(
+			buildInsertClipsEnvelope({
+				projectId: "project-1",
+				trackId: "track-1",
+				atTime: 1,
+				clips: [{ mediaId: "media-1", duration: 2 }],
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-1",
+				tool: "insert_clips",
+				args: {
+					trackId: "track-1",
+					atTime: 1,
+					clips: [{ mediaId: "media-1", duration: 2 }],
+				},
+			}),
+		);
+		expect(
+			buildMoveClipsEnvelope({
+				projectId: "project-1",
+				moves: [{ elementId: "clip-1", toTrackId: "track-2" }],
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-1",
+				tool: "move_clips",
+				args: {
+					moves: [{ elementId: "clip-1", toTrackId: "track-2" }],
+				},
+			}),
+		);
+		expect(
+			buildRemoveClipsEnvelope({
+				projectId: "project-1",
+				elementIds: ["clip-1"],
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-1",
+				tool: "remove_clips",
+				args: { elementIds: ["clip-1"] },
+			}),
+		);
+		expect(
+			buildSplitClipEnvelope({
+				projectId: "project-1",
+				elementId: "clip-1",
+				atTime: 4,
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-1",
+				tool: "split_clip",
+				args: { elementId: "clip-1", atTime: 4 },
+			}),
+		);
+		expect(
+			buildSetClipPropertiesEnvelope({
+				projectId: "project-1",
+				elementId: "clip-1",
+				properties: { duration: 3, opacity: 0.4 },
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-1",
+				tool: "set_clip_properties",
+				args: {
+					elementId: "clip-1",
+					properties: { duration: 3, opacity: 0.4 },
+				},
+			}),
+		);
+		expect(
+			buildRippleDeleteRangesEnvelope({
+				projectId: "project-1",
+				ranges: [[1, 3]],
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-1",
+				tool: "ripple_delete_ranges",
+				args: { ranges: [[1, 3]] },
+			}),
+		);
+		expect(() =>
+			buildInsertClipsEnvelope({
+				projectId: "project-1",
+				trackId: "",
+				atTime: 1,
+				clips: [{ mediaId: "media-1", duration: 2 }],
+			}),
+		).toThrow("--track-id is required");
+		expect(() =>
+			buildRemoveClipsEnvelope({
+				projectId: "project-1",
+				elementIds: [],
+			}),
+		).toThrow("--element-ids must contain at least one id");
+		expect(() =>
+			buildSetClipPropertiesEnvelope({
+				projectId: "project-1",
+				elementId: "clip-1",
+				properties: null,
+			}),
+		).toThrow("--properties must be a JSON object");
+		expect(() =>
+			buildRippleDeleteRangesEnvelope({
+				projectId: "project-1",
+				ranges: [[3, 1]],
+			}),
+		).toThrow(
+			"--ranges entries must be [start, end] with end greater than start",
+		);
 	});
 
 	test("builds an export command only from explicit export options", () => {
@@ -383,13 +628,216 @@ describe("codex bridge CLI helpers", () => {
 		}
 	});
 
-	test("import-media requires an absolute local file path", async () => {
+	test("builds import-media envelopes from bytes and https URLs", async () => {
+		const base64 = Buffer.from("image-bytes").toString("base64");
+		expect(
+			await buildImportMediaEnvelope({
+				projectId: "project-123",
+				bytes: base64,
+				fileName: "source.png",
+				mimeType: "image/png",
+				lastModified: 1234,
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "import_media_file",
+				args: {
+					fileName: "source.png",
+					mimeType: "image/png",
+					base64,
+					size: 11,
+					lastModified: 1234,
+				},
+			}),
+		);
+
+		const requests = [];
+		const envelope = await buildImportMediaEnvelope({
+			projectId: "project-123",
+			url: "https://cdn.example.com/folder/source.png",
+			fetchImpl: async (url, init) => {
+				requests.push({ url, init });
+				return new Response(Buffer.from("downloaded-image"), {
+					status: 200,
+					headers: { "content-type": "image/png" },
+				});
+			},
+		});
+
+		expect(requests[0].url).toBe("https://cdn.example.com/folder/source.png");
+		expect(requests[0].init.redirect).toBe("error");
+		expect(envelope).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "import_media_file",
+				args: {
+					fileName: "source.png",
+					mimeType: "image/png",
+					base64: Buffer.from("downloaded-image").toString("base64"),
+					size: 16,
+					lastModified: expect.any(Number),
+				},
+			}),
+		);
+	});
+
+	test("import-media validates exactly one source and rejects unsafe URLs", async () => {
 		await expect(
 			buildImportMediaEnvelope({
 				projectId: "project-123",
 				filePath: "source.mp4",
 			}),
 		).rejects.toThrow("--file-path must be an absolute path");
+		await expect(
+			buildImportMediaEnvelope({
+				projectId: "project-123",
+				filePath: "/tmp/source.mp4",
+				bytes: Buffer.from("png").toString("base64"),
+				fileName: "source.png",
+				mimeType: "image/png",
+			}),
+		).rejects.toThrow("exactly one media source");
+		await expect(
+			buildImportMediaEnvelope({
+				projectId: "project-123",
+				bytes: Buffer.from("png").toString("base64"),
+				mimeType: "image/png",
+			}),
+		).rejects.toThrow("--file-name is required for bytes import");
+		await expect(
+			buildImportMediaEnvelope({
+				projectId: "project-123",
+				url: "http://cdn.example.com/source.png",
+			}),
+		).rejects.toThrow("--url must use https");
+		await expect(
+			buildImportMediaEnvelope({
+				projectId: "project-123",
+				url: "https://user:pass@cdn.example.com/source.png",
+			}),
+		).rejects.toThrow("--url must not contain credentials");
+		await expect(
+			buildImportMediaEnvelope({
+				projectId: "project-123",
+				url: "https://127.0.0.1/source.png",
+			}),
+		).rejects.toThrow("--url must not use localhost or private literal hosts");
+		await expect(
+			buildImportMediaEnvelope({
+				projectId: "project-123",
+				url: "https://cdn.example.com/source.unknown",
+				fetchImpl: async () =>
+					new Response(Buffer.from("downloaded"), { status: 200 }),
+			}),
+		).rejects.toThrow("--mime-type is required when URL content type is missing");
+		await expect(
+			buildImportMediaEnvelope({
+				projectId: "project-123",
+				url: "https://cdn.example.com/source.png",
+				fetchImpl: async () =>
+					new Response(null, {
+						status: 302,
+						headers: { location: "https://example.com/next" },
+					}),
+			}),
+		).rejects.toThrow("--url must not redirect");
+	});
+
+	test("builds rich editing command envelopes from args-json payloads", () => {
+		expect(
+			buildAddTextsEnvelope({
+				projectId: "project-123",
+				entries: [{ startTime: 0, duration: 2, content: "Hook" }],
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "add_texts",
+				args: { entries: [{ startTime: 0, duration: 2, content: "Hook" }] },
+			}),
+		);
+		expect(() =>
+			buildAddTextsEnvelope({ projectId: "project-123", entries: [] }),
+		).toThrow("--entries must contain at least one text entry");
+
+		expect(
+			buildAddCaptionsEnvelope({
+				projectId: "project-123",
+				language: "auto",
+				modelId: "whisper-base",
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "add_captions",
+				args: { language: "auto", modelId: "whisper-base" },
+			}),
+		);
+
+		expect(
+			buildListModelsEnvelope({
+				projectId: "project-123",
+				type: "transcription",
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "list_models",
+				args: { type: "transcription" },
+			}),
+		);
+
+		expect(
+			buildSetKeyframesEnvelope({
+				projectId: "project-123",
+				elementId: "text-1",
+				property: "opacity",
+				keyframes: [
+					{ time: 0, value: 1 },
+					{ time: 1, value: 0, interpolation: "linear" },
+				],
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "set_keyframes",
+				args: {
+					elementId: "text-1",
+					property: "opacity",
+					keyframes: [
+						{ time: 0, value: 1 },
+						{ time: 1, value: 0, interpolation: "linear" },
+					],
+				},
+			}),
+		);
+		expect(() =>
+			buildSetKeyframesEnvelope({
+				projectId: "project-123",
+				elementId: "text-1",
+				property: "blur",
+				keyframes: [],
+			}),
+		).toThrow("--property must be a supported keyframe property");
+
+		expect(
+			buildSearchMediaEnvelope({
+				projectId: "project-123",
+				query: "intro",
+				scope: "both",
+				limit: 5,
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "search_media",
+				args: { query: "intro", scope: "both", limit: 5 },
+			}),
+		);
+		expect(() =>
+			buildSearchMediaEnvelope({ projectId: "project-123", query: "" }),
+		).toThrow("--query is required");
 	});
 
 	test("builds an apply-plan command envelope from a local JSON file", async () => {

@@ -1,6 +1,6 @@
 {
   "name": "codecut",
-  "version": "0.1.1",
+  "version": "0.1.1+codex.p0-verifiable-loop-20260622",
   "description": "Codex-only Codecut editing workflow for local executor transcription, EditPlan application, verification, and export.",
   "author": {
     "name": "Local OPC"

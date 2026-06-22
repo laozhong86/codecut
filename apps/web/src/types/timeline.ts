@@ -55,6 +55,30 @@ export interface Transform {
 	flipY?: boolean;
 }
 
+export type KeyframeInterpolation = "linear" | "hold";
+
+export interface ScalarKeyframe {
+	time: number;
+	value: number;
+	interpolation?: KeyframeInterpolation;
+}
+
+export interface PositionKeyframe {
+	time: number;
+	value: {
+		x: number;
+		y: number;
+	};
+	interpolation?: KeyframeInterpolation;
+}
+
+export interface TimelineElementKeyframes {
+	opacity?: ScalarKeyframe[];
+	"transform.scale"?: ScalarKeyframe[];
+	"transform.rotate"?: ScalarKeyframe[];
+	"transform.position"?: PositionKeyframe[];
+}
+
 // ---- Transitions ----
 
 export type TransitionType =
@@ -106,6 +130,7 @@ interface BaseTimelineElement {
 	startTime: number;
 	trimStart: number;
 	trimEnd: number;
+	keyframes?: TimelineElementKeyframes;
 }
 
 export interface VideoElement extends BaseTimelineElement {

@@ -35,7 +35,7 @@ describe("MaskedVideoNode", () => {
 					};
 				},
 			},
-		} as CanvasRenderer;
+			} as unknown as CanvasRenderer;
 
 		await expect(node().render({ renderer, time: 0 })).rejects.toThrow(
 			"Masked video source frame is missing.",
@@ -54,7 +54,7 @@ describe("MaskedVideoNode", () => {
 					};
 				},
 			},
-		} as CanvasRenderer;
+			} as unknown as CanvasRenderer;
 
 		await expect(node().render({ renderer, time: 0 })).rejects.toThrow(
 			"Masked video alpha frame is missing.",

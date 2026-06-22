@@ -18,6 +18,8 @@ export class PasteCommand extends Command {
 	private savedState: TimelineTrack[] | null = null;
 	private pastedElements: { trackId: string; elementId: string }[] = [];
 	private previousSelection: { trackId: string; elementId: string }[] = [];
+	private pastedElementIds: string[] = [];
+	private pastedTrackIdsBySourceTrackId = new Map<string, string>();
 
 	constructor(
 		private time: number,
@@ -37,10 +39,14 @@ export class PasteCommand extends Command {
 		const minStart = Math.min(
 			...this.clipboardItems.map((item) => item.element.startTime),
 		);
+		const indexedClipboardItems = this.clipboardItems.map((item, index) => ({
+			index,
+			item,
+		}));
 
 		const updatedTracks = [...this.savedState];
 		const itemsByTrackId = groupClipboardItemsByTrackId({
-			clipboardItems: this.clipboardItems,
+			clipboardItems: indexedClipboardItems,
 		});
 
 		for (const [trackId, items] of itemsByTrackId) {
@@ -48,13 +54,14 @@ export class PasteCommand extends Command {
 				items,
 				minStart,
 				time: this.time,
+				resolveElementId: (index) => this.getPastedElementId(index),
 			});
 
 			if (elementsToAdd.length === 0) {
 				continue;
 			}
 
-			const trackType = items[0].trackType;
+			const trackType = items[0].item.trackType;
 			const sourceTrackIndex = updatedTracks.findIndex(
 				(track) => track.id === trackId,
 			);
@@ -109,6 +116,7 @@ export class PasteCommand extends Command {
 			const newTrack = buildTrackWithElements({
 				trackType,
 				elements: elementsToAdd,
+				trackId: this.getPastedTrackId({ sourceTrackId: trackId }),
 			});
 			updatedTracks.splice(insertIndex, 0, newTrack);
 			for (const element of elementsToAdd) {
@@ -137,18 +145,43 @@ export class PasteCommand extends Command {
 	getPastedElements(): { trackId: string; elementId: string }[] {
 		return this.pastedElements;
 	}
+
+	private getPastedElementId(index: number): string {
+		const existingId = this.pastedElementIds[index];
+		if (existingId) {
+			return existingId;
+		}
+		const nextId = generateUUID();
+		this.pastedElementIds[index] = nextId;
+		return nextId;
+	}
+
+	private getPastedTrackId({ sourceTrackId }: { sourceTrackId: string }): string {
+		const existingId = this.pastedTrackIdsBySourceTrackId.get(sourceTrackId);
+		if (existingId) {
+			return existingId;
+		}
+		const nextId = generateUUID();
+		this.pastedTrackIdsBySourceTrackId.set(sourceTrackId, nextId);
+		return nextId;
+	}
+}
+
+interface IndexedClipboardItem {
+	index: number;
+	item: ClipboardItem;
 }
 
 function groupClipboardItemsByTrackId({
 	clipboardItems,
 }: {
-	clipboardItems: ClipboardItem[];
-}): Map<string, ClipboardItem[]> {
-	const groupedItems = new Map<string, ClipboardItem[]>();
+	clipboardItems: IndexedClipboardItem[];
+}): Map<string, IndexedClipboardItem[]> {
+	const groupedItems = new Map<string, IndexedClipboardItem[]>();
 
 	for (const item of clipboardItems) {
-		const existingItems = groupedItems.get(item.trackId) ?? [];
-		groupedItems.set(item.trackId, [...existingItems, item]);
+		const existingItems = groupedItems.get(item.item.trackId) ?? [];
+		groupedItems.set(item.item.trackId, [...existingItems, item]);
 	}
 
 	return groupedItems;
@@ -158,20 +191,22 @@ function buildPastedElements({
 	items,
 	minStart,
 	time,
+	resolveElementId,
 }: {
-	items: ClipboardItem[];
+	items: IndexedClipboardItem[];
 	minStart: number;
 	time: number;
+	resolveElementId: (index: number) => string;
 }): TimelineElement[] {
 	const elementsToAdd: TimelineElement[] = [];
 
 	for (const item of items) {
-		const relativeOffset = item.element.startTime - minStart;
+		const relativeOffset = item.item.element.startTime - minStart;
 		const startTime = Math.max(0, time + relativeOffset);
-		const newElementId = generateUUID();
+		const newElementId = resolveElementId(item.index);
 
 		elementsToAdd.push({
-			...item.element,
+			...item.item.element,
 			id: newElementId,
 			startTime,
 		} as TimelineElement);
@@ -273,12 +308,13 @@ function canPlaceElementsOnTrack({
 function buildTrackWithElements({
 	trackType,
 	elements,
+	trackId,
 }: {
 	trackType: ClipboardItem["trackType"];
 	elements: TimelineElement[];
+	trackId: string;
 }): TimelineTrack {
-	const newTrackId = generateUUID();
-	const newTrackBase = buildEmptyTrack({ id: newTrackId, type: trackType });
+	const newTrackBase = buildEmptyTrack({ id: trackId, type: trackType });
 	return {
 		...newTrackBase,
 		elements,

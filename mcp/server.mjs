@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -12,6 +13,8 @@ import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const bridgeEnvFileRelativePath = "apps/web/.env.local";
+const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
 
 const projectIdSchema = z
 	.string()
@@ -36,6 +39,14 @@ const filePathSchema = z
 	.trim()
 	.min(1)
 	.describe("Absolute path to a local media file.");
+const urlSchema = z.string().trim().url().describe("HTTPS media URL.");
+const bytesSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.describe("Base64-encoded media bytes.");
+const fileNameSchema = z.string().trim().min(1);
+const mimeTypeSchema = z.string().trim().min(1);
 
 const mediaIdSchema = z.string().trim().min(1).describe("Codecut media ID.");
 const languageSchema = z
@@ -66,6 +77,152 @@ const transcribeInputSchema = {
 	modelId: modelIdSchema,
 };
 
+const timelineWindowInputSchema = {
+	startTime: secondsSchema.optional(),
+	endTime: secondsSchema.optional(),
+};
+
+const inspectTimelineInputSchema = {
+	projectId: projectIdSchema,
+	startTime: secondsSchema,
+	endTime: secondsSchema.optional(),
+	frameCount: z.number().int().min(1).max(16).optional(),
+};
+
+const transcriptInputSchema = {
+	projectId: projectIdSchema,
+	language: languageSchema,
+	modelId: modelIdSchema,
+	...timelineWindowInputSchema,
+	includeFrames: z.boolean().optional(),
+};
+
+const rippleDeleteRangeSchema = z
+	.object({
+		startTime: secondsSchema,
+		endTime: secondsSchema,
+	})
+	.strict()
+	.refine(
+		(range) => range.endTime > range.startTime,
+		"range endTime must be greater than range startTime",
+	);
+
+const transformSchema = z
+	.object({
+		scale: z.number().positive(),
+		position: z.object({ x: z.number(), y: z.number() }).strict(),
+		rotate: z.number(),
+		flipX: z.boolean().optional(),
+		flipY: z.boolean().optional(),
+	})
+	.strict();
+
+const clipPropertiesSchema = z
+	.object({
+		duration: z.number().positive().optional(),
+		trimStart: secondsSchema.optional(),
+		trimEnd: secondsSchema.optional(),
+		opacity: z.number().min(0).max(1).optional(),
+		volume: z.number().min(0).max(1).optional(),
+		muted: z.boolean().optional(),
+		hidden: z.boolean().optional(),
+		playbackRate: z.number().positive().optional(),
+		transform: transformSchema.optional(),
+		content: z.string().optional(),
+		fontSize: z.number().positive().optional(),
+		fontFamily: z.string().min(1).optional(),
+		color: z.string().min(1).optional(),
+		backgroundColor: z.string().min(1).optional(),
+		textAlign: z.enum(["left", "center", "right"]).optional(),
+		fontWeight: z.enum(["normal", "bold"]).optional(),
+		fontStyle: z.enum(["normal", "italic"]).optional(),
+		textDecoration: z.enum(["none", "underline", "line-through"]).optional(),
+	})
+	.strict();
+
+const textStrokeSchema = z
+	.object({
+		color: z.string().min(1),
+		width: z.number().nonnegative(),
+	})
+	.strict();
+
+const textShadowSchema = z
+	.object({
+		color: z.string().min(1),
+		blur: z.number().nonnegative(),
+		offsetX: z.number(),
+		offsetY: z.number(),
+	})
+	.strict();
+
+const textEntrySchema = z
+	.object({
+		startTime: secondsSchema,
+		duration: z.number().positive(),
+		content: z.string().min(1),
+		name: z.string().min(1).optional(),
+		transform: transformSchema.optional(),
+		opacity: z.number().min(0).max(1).optional(),
+		fontSize: z.number().positive().optional(),
+		fontFamily: z.string().min(1).optional(),
+		color: z.string().min(1).optional(),
+		backgroundColor: z.string().min(1).optional(),
+		textAlign: z.enum(["left", "center", "right"]).optional(),
+		fontWeight: z.enum(["normal", "bold"]).optional(),
+		fontStyle: z.enum(["normal", "italic"]).optional(),
+		textDecoration: z.enum(["none", "underline", "line-through"]).optional(),
+		boxWidth: z.number().positive().optional(),
+		stroke: textStrokeSchema.optional(),
+		shadow: textShadowSchema.optional(),
+		backgroundOpacity: z.number().min(0).max(1).optional(),
+		backgroundPaddingX: z.number().nonnegative().optional(),
+		backgroundPaddingY: z.number().nonnegative().optional(),
+		backgroundBorderRadius: z.number().nonnegative().optional(),
+	})
+	.strict();
+
+const captionStyleSchema = z
+	.object({
+		preset: z
+			.enum([
+				"short-form-bold",
+				"black-bar",
+				"talking-head-pop",
+				"tutorial-clean",
+				"documentary-soft",
+				"product-punch",
+				"lifestyle-warm",
+				"cinematic-serif",
+			])
+			.optional(),
+		position: z.enum(["lower-safe", "center"]).optional(),
+	})
+	.strict();
+
+const keyframeInterpolationSchema = z.enum(["linear", "hold"]);
+const scalarKeyframeSchema = z
+	.object({
+		time: secondsSchema,
+		value: z.number(),
+		interpolation: keyframeInterpolationSchema.optional(),
+	})
+	.strict();
+const positionKeyframeSchema = z
+	.object({
+		time: secondsSchema,
+		value: z.object({ x: z.number(), y: z.number() }).strict(),
+		interpolation: keyframeInterpolationSchema.optional(),
+	})
+	.strict();
+const keyframePropertySchema = z.enum([
+	"opacity",
+	"transform.position",
+	"transform.scale",
+	"transform.rotate",
+]);
+
 export const CODECUT_MCP_TOOLS = [
 	{
 		name: "get_project_info",
@@ -87,10 +244,18 @@ export const CODECUT_MCP_TOOLS = [
 		name: "import_media",
 		title: "Import Codecut Media",
 		description:
-			"Import one absolute local media file into one explicit Codecut executor project.",
+			"Import one local media file, HTTPS URL, or base64 payload into one explicit Codecut executor project.",
 		inputSchema: {
 			projectId: projectIdSchema,
-			filePath: filePathSchema,
+			filePath: filePathSchema.optional(),
+			url: urlSchema.optional(),
+			bytes: bytesSchema.optional(),
+			fileName: fileNameSchema.optional(),
+			mimeType: mimeTypeSchema.optional(),
+			lastModified: z.number().optional(),
+			duration: z.number().positive().optional(),
+			width: z.number().positive().optional(),
+			height: z.number().positive().optional(),
 		},
 		readOnly: false,
 	},
@@ -111,6 +276,18 @@ export const CODECUT_MCP_TOOLS = [
 		readOnly: true,
 	},
 	{
+		name: "build_visual_context",
+		title: "Build Codecut Visual Context",
+		description:
+			"Build visual evidence for one imported video asset through the Codecut local executor.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			mediaId: mediaIdSchema,
+			targetAspectRatio: z.enum(["9:16", "16:9", "1:1"]),
+		},
+		readOnly: true,
+	},
+	{
 		name: "inspect_video_range",
 		title: "Inspect Codecut Video Range",
 		description:
@@ -125,6 +302,22 @@ export const CODECUT_MCP_TOOLS = [
 		readOnly: true,
 	},
 	{
+		name: "inspect_timeline",
+		title: "Inspect Codecut Timeline",
+		description:
+			"Render sampled composited timeline frames without exporting a full video.",
+		inputSchema: inspectTimelineInputSchema,
+		readOnly: true,
+	},
+	{
+		name: "get_transcript",
+		title: "Get Codecut Timeline Transcript",
+		description:
+			"Read segment-level transcript mapped onto the currently edited timeline.",
+		inputSchema: transcriptInputSchema,
+		readOnly: true,
+	},
+	{
 		name: "build_post_cut_captions",
 		title: "Build Codecut Post-Cut Captions",
 		description:
@@ -133,6 +326,31 @@ export const CODECUT_MCP_TOOLS = [
 			projectId: projectIdSchema,
 			language: languageSchema,
 			modelId: modelIdSchema,
+		},
+		readOnly: true,
+	},
+	{
+		name: "list_models",
+		title: "List Codecut Models",
+		description:
+			"List the model contracts currently callable through the Codecut local executor.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			type: z.enum(["transcription", "digital_human"]).optional(),
+		},
+		readOnly: true,
+	},
+	{
+		name: "search_media",
+		title: "Search Codecut Media",
+		description:
+			"Search media metadata and cached spoken transcript segments without running implicit indexing.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			query: z.string().trim().min(1),
+			scope: z.enum(["metadata", "spoken", "both"]).optional(),
+			mediaId: mediaIdSchema.optional(),
+			limit: z.number().int().positive().optional(),
 		},
 		readOnly: true,
 	},
@@ -177,6 +395,134 @@ export const CODECUT_MCP_TOOLS = [
 			replaceExisting: z
 				.boolean()
 				.describe("Whether Codecut should replace the existing timeline."),
+		},
+		readOnly: false,
+	},
+	{
+		name: "add_texts",
+		title: "Add Codecut Texts",
+		description:
+			"Add one or more text elements to an existing or newly created text track.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			trackId: z.string().min(1).optional(),
+			entries: z.array(textEntrySchema).min(1),
+		},
+		readOnly: false,
+	},
+	{
+		name: "add_captions",
+		title: "Add Codecut Captions",
+		description:
+			"Transcribe the edited timeline audio and add segment-level captions as text elements.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			language: languageSchema,
+			modelId: modelIdSchema,
+			captionStyle: captionStyleSchema.optional(),
+		},
+		readOnly: false,
+	},
+	{
+		name: "insert_clips",
+		title: "Insert Codecut Clips",
+		description:
+			"Insert one or more media clips into an existing track and ripple later elements on that track.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			trackId: z.string().min(1),
+			atTime: secondsSchema,
+			clips: z
+				.array(
+					z
+						.object({
+							mediaId: mediaIdSchema,
+							duration: z.number().positive(),
+							trimStart: secondsSchema.optional(),
+							trimEnd: secondsSchema.optional(),
+							playbackRate: z.number().positive().optional(),
+							name: z.string().min(1).optional(),
+						})
+						.strict(),
+				)
+				.min(1),
+		},
+		readOnly: false,
+	},
+	{
+		name: "move_clips",
+		title: "Move Codecut Clips",
+		description:
+			"Move clips by stable element ID to another track and/or start time.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			moves: z
+				.array(
+					z
+						.object({
+							elementId: z.string().min(1),
+							toTrackId: z.string().min(1).optional(),
+							startTime: secondsSchema.optional(),
+						})
+						.strict(),
+				)
+				.min(1),
+		},
+		readOnly: false,
+	},
+	{
+		name: "remove_clips",
+		title: "Remove Codecut Clips",
+		description: "Remove clips by stable element ID without ripple.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			elementIds: z.array(z.string().min(1)).min(1),
+		},
+		readOnly: false,
+	},
+	{
+		name: "split_clip",
+		title: "Split Codecut Clip",
+		description: "Split one clip by element ID at a timeline time.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			elementId: z.string().min(1),
+			atTime: secondsSchema,
+		},
+		readOnly: false,
+	},
+	{
+		name: "set_clip_properties",
+		title: "Set Codecut Clip Properties",
+		description: "Set whitelisted clip properties by stable element ID.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			elementId: z.string().min(1),
+			properties: clipPropertiesSchema,
+		},
+		readOnly: false,
+	},
+	{
+		name: "set_keyframes",
+		title: "Set Codecut Keyframes",
+		description:
+			"Replace or clear keyframes for one whitelisted element property.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			elementId: z.string().min(1),
+			property: keyframePropertySchema,
+			keyframes: z.array(z.union([scalarKeyframeSchema, positionKeyframeSchema])),
+		},
+		readOnly: false,
+	},
+	{
+		name: "ripple_delete_ranges",
+		title: "Ripple Delete Codecut Ranges",
+		description:
+			"Delete timeline second ranges and ripple all tracks left by the removed duration.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			ranges: z.array(rippleDeleteRangeSchema).min(1),
 		},
 		readOnly: false,
 	},
@@ -265,6 +611,19 @@ export const CODECUT_MCP_TOOLS = [
 		inputSchema: projectOnlyInputSchema,
 		readOnly: true,
 	},
+	{
+		name: "get_timeline_state_v2",
+		title: "Get Codecut Timeline State V2",
+		description:
+			"Read the current timeline state v2 from one explicit Codecut executor project.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			...timelineWindowInputSchema,
+			includeFrames: z.boolean().optional(),
+			includeReferencedMedia: z.boolean().optional(),
+		},
+		readOnly: true,
+	},
 ];
 
 function requireProjectId(args) {
@@ -302,6 +661,22 @@ function requireRawBooleanArg(args, key) {
 	return args[key];
 }
 
+function optionalBooleanArg(args, key) {
+	if (args?.[key] === undefined) return undefined;
+	if (typeof args[key] !== "boolean") {
+		throw new Error(`${key} must be boolean`);
+	}
+	return args[key];
+}
+
+function optionalNumberArg(args, key) {
+	if (args?.[key] === undefined) return undefined;
+	if (typeof args[key] !== "number") {
+		throw new Error(`${key} must be number`);
+	}
+	return args[key];
+}
+
 function buildSendArgs({ projectId, toolName, args }) {
 	return [
 		"scripts/codex-bridge.mjs",
@@ -313,6 +688,26 @@ function buildSendArgs({ projectId, toolName, args }) {
 		"--args-json",
 		JSON.stringify(args),
 	];
+}
+
+function appendOptionalCliArgs(command, args, mappings) {
+	for (const [sourceKey, flag] of mappings) {
+		if (args[sourceKey] !== undefined) {
+			command.push(flag, String(args[sourceKey]));
+		}
+	}
+	return command;
+}
+
+function countImportSources(args) {
+	return ["filePath", "url", "bytes"].filter((key) => args?.[key]).length;
+}
+
+function writeBytesImportFile(bytes) {
+	const directory = mkdtempSync(join(tmpdir(), "codecut-mcp-import-"));
+	const filePath = join(directory, "payload.base64");
+	writeFileSync(filePath, String(bytes), "utf8");
+	return filePath;
 }
 
 export function buildBridgeCliArgs(toolName, args = {}) {
@@ -331,6 +726,31 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--args-json",
 				"{}",
 			];
+		case "get_timeline_state_v2":
+			return buildSendArgs({
+				projectId,
+				toolName: "get_timeline_state",
+				args: {
+					format: "v2",
+					...(optionalNumberArg(args, "startTime") === undefined
+						? {}
+						: { startTime: optionalNumberArg(args, "startTime") }),
+					...(optionalNumberArg(args, "endTime") === undefined
+						? {}
+						: { endTime: optionalNumberArg(args, "endTime") }),
+					...(optionalBooleanArg(args, "includeFrames") === undefined
+						? {}
+						: { includeFrames: optionalBooleanArg(args, "includeFrames") }),
+					...(optionalBooleanArg(args, "includeReferencedMedia") === undefined
+						? {}
+						: {
+								includeReferencedMedia: optionalBooleanArg(
+									args,
+									"includeReferencedMedia",
+								),
+							}),
+				},
+			});
 		case "transcribe_media":
 			return [
 				"scripts/codex-bridge.mjs",
@@ -357,6 +777,17 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--model-id",
 				requireStringArg(args, "modelId"),
 			];
+		case "build_visual_context":
+			return [
+				"scripts/codex-bridge.mjs",
+				"build-visual-context",
+				"--project-id",
+				projectId,
+				"--media-id",
+				requireStringArg(args, "mediaId"),
+				"--target-aspect-ratio",
+				requireStringArg(args, "targetAspectRatio"),
+			];
 		case "inspect_video_range": {
 			const command = [
 				"scripts/codex-bridge.mjs",
@@ -375,6 +806,38 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			}
 			return command;
 		}
+		case "inspect_timeline":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					startTime: Number(requireNumberArg(args, "startTime")),
+					...(optionalNumberArg(args, "endTime") === undefined
+						? {}
+						: { endTime: optionalNumberArg(args, "endTime") }),
+					...(optionalNumberArg(args, "frameCount") === undefined
+						? {}
+						: { frameCount: optionalNumberArg(args, "frameCount") }),
+				},
+			});
+		case "get_transcript":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					language: requireStringArg(args, "language"),
+					modelId: requireStringArg(args, "modelId"),
+					...(optionalNumberArg(args, "startTime") === undefined
+						? {}
+						: { startTime: optionalNumberArg(args, "startTime") }),
+					...(optionalNumberArg(args, "endTime") === undefined
+						? {}
+						: { endTime: optionalNumberArg(args, "endTime") }),
+					...(optionalBooleanArg(args, "includeFrames") === undefined
+						? {}
+						: { includeFrames: optionalBooleanArg(args, "includeFrames") }),
+				},
+			});
 		case "build_post_cut_captions":
 			return [
 				"scripts/codex-bridge.mjs",
@@ -386,6 +849,31 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--model-id",
 				requireStringArg(args, "modelId"),
 			];
+		case "list_models":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					...(args.type === undefined ? {} : { type: requireStringArg(args, "type") }),
+				},
+			});
+		case "search_media":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					query: requireStringArg(args, "query"),
+					...(args.scope === undefined
+						? {}
+						: { scope: requireStringArg(args, "scope") }),
+					...(args.mediaId === undefined
+						? {}
+						: { mediaId: requireStringArg(args, "mediaId") }),
+					...(optionalNumberArg(args, "limit") === undefined
+						? {}
+						: { limit: optionalNumberArg(args, "limit") }),
+				},
+			});
 		case "validate_edit_plan":
 			return [
 				"scripts/codex-bridge.mjs",
@@ -405,17 +893,65 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				requireStringArg(args, "planJsonFile"),
 			];
 		case "import_media":
-			if (!args.filePath) {
-				throw new Error("filePath is required");
+			if (countImportSources(args) !== 1) {
+				throw new Error("import_media requires exactly one source");
 			}
-			return [
+			if (args.filePath) {
+				const command = [
+					"scripts/codex-bridge.mjs",
+					"import-media",
+					"--project-id",
+					projectId,
+					"--file-path",
+					String(args.filePath),
+				];
+				return appendOptionalCliArgs(command, args, [
+					["duration", "--duration"],
+					["width", "--width"],
+					["height", "--height"],
+				]);
+			}
+			if (args.url) {
+				const command = [
+					"scripts/codex-bridge.mjs",
+					"import-media",
+					"--project-id",
+					projectId,
+					"--url",
+					String(args.url),
+				];
+				return appendOptionalCliArgs(command, args, [
+					["fileName", "--file-name"],
+					["mimeType", "--mime-type"],
+					["lastModified", "--last-modified"],
+					["duration", "--duration"],
+					["width", "--width"],
+					["height", "--height"],
+				]);
+			}
+			if (!args.fileName) {
+				throw new Error("fileName is required for bytes import");
+			}
+			if (!args.mimeType) {
+				throw new Error("mimeType is required for bytes import");
+			}
+			return appendOptionalCliArgs([
 				"scripts/codex-bridge.mjs",
 				"import-media",
 				"--project-id",
 				projectId,
-				"--file-path",
-				String(args.filePath),
-			];
+				"--bytes-base64-file",
+				writeBytesImportFile(args.bytes),
+				"--file-name",
+				String(args.fileName),
+				"--mime-type",
+				String(args.mimeType),
+			], args, [
+				["lastModified", "--last-modified"],
+				["duration", "--duration"],
+				["width", "--width"],
+				["height", "--height"],
+			]);
 		case "apply_edit_plan":
 			if (!args.planJsonFile) {
 				throw new Error("planJsonFile is required");
@@ -450,6 +986,90 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--replace-existing",
 				String(args.replaceExisting),
 			];
+		case "add_texts":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					...(args.trackId === undefined
+						? {}
+						: { trackId: requireStringArg(args, "trackId") }),
+					entries: args.entries,
+				},
+			});
+		case "add_captions":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					language: requireStringArg(args, "language"),
+					modelId: requireStringArg(args, "modelId"),
+					...(args.captionStyle === undefined
+						? {}
+						: { captionStyle: args.captionStyle }),
+				},
+			});
+		case "insert_clips":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					trackId: requireStringArg(args, "trackId"),
+					atTime: Number(requireNumberArg(args, "atTime")),
+					clips: args.clips,
+				},
+			});
+		case "move_clips":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: { moves: args.moves },
+			});
+		case "remove_clips":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: { elementIds: args.elementIds },
+			});
+		case "split_clip":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					elementId: requireStringArg(args, "elementId"),
+					atTime: Number(requireNumberArg(args, "atTime")),
+				},
+			});
+		case "set_clip_properties":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					elementId: requireStringArg(args, "elementId"),
+					properties: args.properties,
+				},
+			});
+		case "set_keyframes":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					elementId: requireStringArg(args, "elementId"),
+					property: requireStringArg(args, "property"),
+					keyframes: args.keyframes,
+				},
+			});
+		case "ripple_delete_ranges":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					ranges: args.ranges.map((range) => [
+						range.startTime,
+						range.endTime,
+					]),
+				},
+			});
 		case "create_text_background_effect":
 			return buildSendArgs({
 				projectId,
@@ -581,6 +1201,47 @@ function normalizeCliError({ toolName, error }) {
 	};
 }
 
+function unquoteEnvValue(value) {
+	const trimmed = value.trim();
+	if (
+		(trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+		(trimmed.startsWith("'") && trimmed.endsWith("'"))
+	) {
+		return trimmed.slice(1, -1);
+	}
+	return trimmed;
+}
+
+function readBridgeEnvFile(cwd) {
+	const envPath = resolve(cwd, bridgeEnvFileRelativePath);
+	if (!existsSync(envPath)) {
+		return {};
+	}
+	const entries = {};
+	const raw = readFileSync(envPath, "utf8");
+	for (const [index, rawLine] of raw.split(/\r?\n/).entries()) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith("#")) continue;
+		const separatorIndex = line.indexOf("=");
+		if (separatorIndex === -1) {
+			throw new Error(
+				`Invalid ${bridgeEnvFileRelativePath} line ${index + 1}: expected KEY=value`,
+			);
+		}
+		const key = line.slice(0, separatorIndex).trim();
+		if (!key.startsWith(bridgeEnvPrefix)) continue;
+		entries[key] = unquoteEnvValue(line.slice(separatorIndex + 1));
+	}
+	return entries;
+}
+
+export function buildBridgeProcessEnv({ cwd = pluginRoot, env = process.env } = {}) {
+	return {
+		...readBridgeEnvFile(cwd),
+		...env,
+	};
+}
+
 export async function callBridgeCliTool(
 	toolName,
 	args,
@@ -590,7 +1251,7 @@ export async function callBridgeCliTool(
 	try {
 		const { stdout, stderr } = await execFileImpl(process.execPath, cliArgs, {
 			cwd,
-			env,
+			env: buildBridgeProcessEnv({ cwd, env }),
 			maxBuffer: 50 * 1024 * 1024,
 		});
 		return normalizeCliResult({ toolName, stdout, stderr });

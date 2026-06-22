@@ -34,6 +34,7 @@ export class StickerNode extends VisualNode<StickerNodeParams> {
 			source: image,
 			sourceWidth: image.width || image.naturalWidth || 200,
 			sourceHeight: image.height || image.naturalHeight || 200,
+			time,
 		});
 	}
 }

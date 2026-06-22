@@ -54,5 +54,20 @@ jobs:
       - name: Lint
         run: bun run lint:web
 
+      - name: Typecheck
+        run: bun run typecheck:web
+
       - name: Run tests
         run: bun test
+
+      - name: Check focused coverage
+        if: matrix.os == 'ubuntu-latest'
+        run: bun run coverage:focused
+
+      - name: Install Playwright Chromium
+        if: matrix.os == 'ubuntu-latest'
+        run: bun x playwright install --with-deps chromium
+
+      - name: Run Playwright smoke
+        if: matrix.os == 'ubuntu-latest'
+        run: bun run test:e2e

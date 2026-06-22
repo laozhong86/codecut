@@ -28,6 +28,7 @@ export class VideoNode extends VisualNode<VideoNodeParams> {
 				source: frame.canvas,
 				sourceWidth: frame.canvas.width,
 				sourceHeight: frame.canvas.height,
+				time,
 			});
 		}
 	}
