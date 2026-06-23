@@ -13,6 +13,7 @@ node_modules
 .codecut-workspace/
 apps/web/.codecut-executor/
 outputs/
+output/
 tmp/
 
 .env*
