@@ -108,6 +108,7 @@ describe("Codecut MCP server contract", () => {
 		);
 		expect(openTool.readOnly).toBe(true);
 		expect(openTool.modelVisible).toBe(true);
+		expect(openTool.description).toContain("uiLanguage");
 		expect(openTool.meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
@@ -115,6 +116,9 @@ describe("Codecut MCP server contract", () => {
 
 		const html = await serverModule.readCodecutWorkspaceHtml();
 		for (const marker of [
+			"WORKSPACE_I18N",
+			"navigator.language",
+			"项目名称",
 			'id="project-name"',
 			'id="project-id"',
 			'id="media-file-path"',
@@ -151,6 +155,23 @@ describe("Codecut MCP server contract", () => {
 		expect(result._meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
+		});
+	});
+
+	test("keeps workspace UI language separate from caption language", () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "Creator Launch",
+			locale: "zh-CN",
+			captionLanguage: "auto",
+		});
+
+		expect(result.structuredContent.intentDefaults).toMatchObject({
+			uiLanguage: "zh-CN",
+			captionLanguage: "auto",
+		});
+		expect(result._meta.widgetData.intentDefaults).toMatchObject({
+			uiLanguage: "zh-CN",
+			captionLanguage: "auto",
 		});
 	});
 

@@ -106,6 +106,8 @@ const workspaceOpenInputSchema = {
 	targetAspectRatio: targetAspectRatioSchema.optional(),
 	durationGoalSeconds: z.number().optional(),
 	captionLanguage: z.string().trim().optional(),
+	locale: z.string().trim().optional(),
+	uiLanguage: z.string().trim().optional(),
 	output: workspaceOutputSchema.partial().optional(),
 };
 
@@ -733,7 +735,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent defaults.",
+			"Render a CodeCut setup confirmation widget with editable intent defaults. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1038,6 +1040,7 @@ function buildWorkspaceIntentDefaults(input = {}) {
 				? input.durationGoalSeconds
 				: 60,
 		captionLanguage: String(input.captionLanguage || "auto"),
+		uiLanguage: normalizeWorkspaceUiLanguage(input.uiLanguage || input.locale || ""),
 		output: {
 			format: input.output?.format || "mp4",
 			quality: input.output?.quality || "high",
@@ -1049,6 +1052,12 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		brief: String(input.brief || ""),
 		successCriteria: String(input.successCriteria || ""),
 	};
+}
+
+function normalizeWorkspaceUiLanguage(value) {
+	const normalized = String(value || "").trim().toLowerCase();
+	if (!normalized) return "";
+	return normalized.startsWith("zh") ? "zh-CN" : "en";
 }
 
 function buildWorkspaceProjectSlug(projectName) {
