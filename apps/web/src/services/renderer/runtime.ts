@@ -25,6 +25,7 @@ export type RendererVideoFrame = {
 
 export type RendererRuntime = {
 	createCanvas(params: { width: number; height: number }): RendererCanvas;
+	ensureFontFamily?(params: { fontFamily: string }): Promise<void> | void;
 	loadImage(params: { url?: string; file?: File }): Promise<RendererImage>;
 	loadSticker(params: {
 		iconName: string;

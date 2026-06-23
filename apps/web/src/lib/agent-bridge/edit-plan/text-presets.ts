@@ -1,4 +1,5 @@
 import type { buildTextElement } from "@/lib/timeline/element-utils";
+import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
 import type {
 	EditPlan,
 	EditPlanCaptionStyle,
@@ -36,7 +37,7 @@ export function resolveTitleStylePreset({
 }): TextElementRaw {
 	if (preset === "lower_title") {
 		return {
-			fontFamily: "Inter",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 8,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -53,7 +54,7 @@ export function resolveTitleStylePreset({
 	}
 
 	return {
-		fontFamily: "Inter",
+		fontFamily: CODECUT_CJK_FONT_FAMILY,
 		fontSize: 10,
 		fontWeight: "bold",
 		color: "#ffffff",
@@ -106,7 +107,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "talking-head-pop") {
 		return {
-			fontFamily: "Montserrat",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 7,
 			fontWeight: "bold",
 			color: "#fff3b0",

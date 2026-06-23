@@ -458,7 +458,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: "Montserrat",
+			fontFamily: "CodecutCJK",
 			fontSize: 7,
 			fontWeight: "bold",
 			color: "#fff3b0",
@@ -499,7 +499,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[0]).toMatchObject({
 			content: "Stop wasting effort",
-			fontFamily: "Inter",
+			fontFamily: "CodecutCJK",
 			fontSize: 10,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -549,7 +549,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "talking-head-pop",
 				expected: {
-					fontFamily: "Montserrat",
+					fontFamily: "CodecutCJK",
 					fontSize: 7,
 					fontWeight: "bold",
 					color: "#fff3b0",

@@ -4356,7 +4356,7 @@ describe("codex executor", () => {
 			content: "hello world",
 			startTime: 11,
 			duration: 1,
-			fontFamily: "Montserrat",
+			fontFamily: "CodecutCJK",
 			fontSize: 7,
 			fontWeight: "bold",
 			color: "#fff3b0",
