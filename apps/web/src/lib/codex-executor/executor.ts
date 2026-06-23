@@ -2313,6 +2313,77 @@ function runningHubVoiceSourceFileName({ mimeType }: { mimeType: string }): stri
 	throw new Error(`RunningHub returned unsupported audio MIME type: ${mimeType}`);
 }
 
+function parseTimelineReadyWavAudio({
+	audioBytes,
+}: {
+	audioBytes: Buffer;
+}): { duration: number } {
+	if (
+		audioBytes.byteLength < 44 ||
+		audioBytes.subarray(0, 4).toString("ascii") !== "RIFF" ||
+		audioBytes.subarray(8, 12).toString("ascii") !== "WAVE"
+	) {
+		throw new Error("RunningHub voice WAV result is not a RIFF/WAVE file");
+	}
+
+	let offset = 12;
+	let byteRate: number | null = null;
+	let dataSize: number | null = null;
+	while (offset + 8 <= audioBytes.byteLength) {
+		const chunkId = audioBytes.subarray(offset, offset + 4).toString("ascii");
+		const chunkSize = audioBytes.readUInt32LE(offset + 4);
+		const chunkDataOffset = offset + 8;
+		const nextOffset = chunkDataOffset + chunkSize + (chunkSize % 2);
+		if (chunkDataOffset + chunkSize > audioBytes.byteLength) {
+			throw new Error("RunningHub voice WAV result has a truncated chunk");
+		}
+
+		if (chunkId === "fmt ") {
+			if (chunkSize < 16) {
+				throw new Error("RunningHub voice WAV result has an invalid fmt chunk");
+			}
+			const audioFormat = audioBytes.readUInt16LE(chunkDataOffset);
+			const channelCount = audioBytes.readUInt16LE(chunkDataOffset + 2);
+			const sampleRate = audioBytes.readUInt32LE(chunkDataOffset + 4);
+			const parsedByteRate = audioBytes.readUInt32LE(chunkDataOffset + 8);
+			const blockAlign = audioBytes.readUInt16LE(chunkDataOffset + 12);
+			const bitsPerSample = audioBytes.readUInt16LE(chunkDataOffset + 14);
+			if (audioFormat !== 1 && audioFormat !== 3) {
+				throw new Error(
+					`RunningHub voice WAV result uses unsupported audio format: ${audioFormat}`,
+				);
+			}
+			if (
+				channelCount <= 0 ||
+				sampleRate <= 0 ||
+				parsedByteRate <= 0 ||
+				blockAlign <= 0 ||
+				bitsPerSample <= 0
+			) {
+				throw new Error("RunningHub voice WAV result has invalid audio metadata");
+			}
+			byteRate = parsedByteRate;
+		}
+		if (chunkId === "data") {
+			dataSize = chunkSize;
+		}
+
+		offset = nextOffset;
+	}
+
+	if (!byteRate) {
+		throw new Error("RunningHub voice WAV result is missing a fmt chunk");
+	}
+	if (!dataSize) {
+		throw new Error("RunningHub voice WAV result is missing audio data");
+	}
+	const duration = dataSize / byteRate;
+	if (!Number.isFinite(duration) || duration <= 0) {
+		throw new Error("RunningHub voice WAV result has invalid duration");
+	}
+	return { duration };
+}
+
 function convertDecodedRunningHubSampleToF32({
 	sample,
 	AudioSample,
@@ -2368,6 +2439,15 @@ async function normalizeRunningHubVoiceAudio({
 	audioBytes: Buffer;
 	mimeType: string;
 }): Promise<{ audioBytes: Buffer; mimeType: "audio/wav"; duration: number }> {
+	if (mimeType === "audio/wav" || mimeType === "audio/x-wav") {
+		const parsedWav = parseTimelineReadyWavAudio({ audioBytes });
+		return {
+			audioBytes,
+			mimeType: "audio/wav",
+			duration: parsedWav.duration,
+		};
+	}
+
 	const [
 		webcodecs,
 		{
