@@ -4701,6 +4701,83 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("add_captions writes segment-level captions from edited audio clips", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "audio-1",
+					name: "voice.wav",
+					type: "audio",
+					mimeType: "audio/wav",
+					duration: 12,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/voice.wav",
+				},
+			],
+			tracks: [
+				{
+					id: "audio-track-1",
+					type: "audio",
+					name: "Voice",
+					muted: false,
+					elements: [
+						{
+							id: "audio-clip-1",
+							type: "audio",
+							name: "Voice",
+							mediaId: "audio-1",
+							startTime: 3,
+							duration: 4,
+							trimStart: 2,
+							trimEnd: 6,
+							sourceType: "upload",
+							volume: 1,
+							muted: false,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_captions",
+				args: {
+					language: "auto",
+					modelId: "whisper-tiny",
+				},
+			}),
+			transcribeMediaRange: async ({ mediaAsset, range }) => {
+				expect(mediaAsset.id).toBe("audio-1");
+				expect(range).toEqual({ start: 2, end: 6 });
+				return {
+					text: "searchable transcript",
+					segments: [{ text: "searchable transcript", start: 0.5, end: 2.5 }],
+					language: "auto",
+					modelId: "whisper-tiny",
+				};
+			},
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const textTrack = state.tracks.find((track) => track.type === "text");
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				source: "edited_timeline_audio",
+				captionCount: 1,
+				revision: 2,
+			},
+		});
+		expect(textTrack?.elements[0]).toMatchObject({
+			type: "text",
+			content: "searchable transcript",
+			startTime: 3.5,
+			duration: 2,
+		});
+	});
+
 	test("list_models returns current callable model contracts without mutating state", async () => {
 		await seedDraftState({ tracks: [] });
 		const before = await getExecutorProjectState({ projectId });
