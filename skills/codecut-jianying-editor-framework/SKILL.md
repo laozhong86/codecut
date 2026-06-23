@@ -33,14 +33,17 @@ expose atomic primitives only.
 
 Choose one path before running commands:
 
-For new creative jobs with missing setup fields, route through the
-`open_codecut_workspace` MCP tool so the user sees the Codecut workspace setup
-widget first. Text clarification is only a fallback when the workspace widget
-tool is unavailable in the current Codex tool surface.
+For new creative jobs with missing setup fields, call
+`open_codecut_workspace` directly from the MCP tool surface before reading
+local files, loading stage skills, running shell commands, or sending text-only
+questions. Use `tool_search` only if the widget tool is not visible. After
+widget submission, route the submitted setup through `codecut-requirement-intake`
+before executor mutation.
 
 | Request shape | Required stage |
 | --- | --- |
-| New creative job, new source material, remote URL, local media path, "make a short", "剪辑", "提取到本地" | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` first; it should open `open_codecut_workspace` when setup fields are missing. |
+| New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", "提取到本地" | Call `open_codecut_workspace` directly before loading child skills or shell. After widget submission, use `codecut-requirement-intake` to pass or block the execution gate. |
+| New creative job with explicit setup fields already provided | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` before executor mutation. |
 | TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition after intake passes, or before intake only when source facts are needed to ask useful questions. |
 | Source needs download, file copy, workspace init, or ffprobe audit | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest`. |
 | Finished/reference videos, "learn this editing style", "复刻模板", reference-derived template draft/import/application | **REQUIRED SUB-SKILL:** Use `codecut-reference-template` before EditPlan authoring or executor mutation. |
