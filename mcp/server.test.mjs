@@ -15,7 +15,7 @@ function setupIntent(overrides = {}) {
 	return {
 		projectId: "launch-cut-001",
 		projectName: "Launch Cut",
-		mediaSource: { kind: "filePath", filePath: "/tmp/source.mp4" },
+		mediaSources: [{ kind: "filePath", filePath: "/tmp/source.mp4" }],
 		targetAspectRatio: "9:16",
 		durationGoalSeconds: 60,
 		captionLanguage: "auto",
@@ -47,6 +47,7 @@ describe("Codecut MCP server contract", () => {
 			"list_models",
 			"search_media",
 			"import_system_template_script",
+			"delete_system_template_script",
 			"validate_edit_plan",
 			"preview_edit_plan",
 			"apply_edit_plan",
@@ -90,6 +91,7 @@ describe("Codecut MCP server contract", () => {
 		expect(readOnlyByTool.get("list_models")).toBe(true);
 		expect(readOnlyByTool.get("search_media")).toBe(true);
 		expect(readOnlyByTool.get("import_system_template_script")).toBe(false);
+		expect(readOnlyByTool.get("delete_system_template_script")).toBe(false);
 		expect(readOnlyByTool.get("add_texts")).toBe(false);
 		expect(readOnlyByTool.get("add_captions")).toBe(false);
 		expect(readOnlyByTool.get("set_keyframes")).toBe(false);
@@ -99,7 +101,9 @@ describe("Codecut MCP server contract", () => {
 		expect(serverModule.CODECUT_WORKSPACE_RESOURCE_URI).toMatch(
 			/^ui:\/\/codecut\/.+\/workspace\.html$/,
 		);
-		expect(serverModule.CODECUT_WORKSPACE_TOOLS.map((tool) => tool.name)).toEqual([
+		expect(
+			serverModule.CODECUT_WORKSPACE_TOOLS.map((tool) => tool.name),
+		).toEqual([
 			"open_codecut_workspace",
 			"inspect_codecut_setup",
 			"submit_codecut_setup",
@@ -111,6 +115,7 @@ describe("Codecut MCP server contract", () => {
 		expect(openTool.readOnly).toBe(true);
 		expect(openTool.modelVisible).toBe(true);
 		expect(openTool.description).toContain("uiLanguage");
+		expect(openTool.inputSchema.projectId).toBeUndefined();
 		expect(openTool.meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
@@ -121,14 +126,30 @@ describe("Codecut MCP server contract", () => {
 			"WORKSPACE_I18N",
 			"navigator.language",
 			"项目名称",
+			'class="section-heading"',
+			'aria-labelledby="project-section-title"',
 			'id="project-name"',
-			'id="project-id"',
-			'id="media-file-path"',
-			'id="media-url"',
+			'id="media-sources"',
+			'id="media-file-picker"',
+			'type="file"',
+			"multiple",
+			'id="add-media-source-button"',
 			'id="target-aspect-ratio"',
 			'id="duration-goal-seconds"',
 			'id="caption-language"',
+			'id="brief-options"',
+			'id="brief-label"',
+			'aria-labelledby="brief-label"',
+			'id="success-criteria-options"',
+			'id="success-criteria-label"',
+			'aria-labelledby="success-criteria-label"',
 			'id="success-criteria"',
+			"renderMediaSources",
+			"renderChoiceOptions",
+			"collectChoiceText",
+			"handlePickedFiles",
+			"appendPickedFileRows",
+			'fields.mediaFilePicker.addEventListener("change", handlePickedFiles)',
 			'callTool("inspect_codecut_setup"',
 			'callTool("submit_codecut_setup"',
 			"openExternal",
@@ -136,12 +157,53 @@ describe("Codecut MCP server contract", () => {
 		]) {
 			expect(html).toContain(marker);
 		}
+		for (const marker of [
+			'data-i18n-placeholder="projectNamePlaceholder"',
+			'data-i18n-placeholder="filePathPlaceholder"',
+			'data-i18n-placeholder="urlPlaceholder"',
+			'data-i18n-placeholder="briefCustomPlaceholder"',
+			'data-i18n-placeholder="successCriteriaCustomPlaceholder"',
+			'<select id="duration-goal-seconds"',
+			'<select id="caption-language"',
+			'data-field="mimeType"',
+			'value="15"',
+			'value="30"',
+			'value="45"',
+			'value="60"',
+			'value="90"',
+			'value="120"',
+			'value="zh-CN"',
+			'value="en"',
+			"setSelectValue",
+		]) {
+			expect(html).toContain(marker);
+		}
+		expect(html).not.toContain("<legend");
+		expect(html).not.toContain('id="project-id"');
+		expect(html).not.toContain('data-i18n="projectId"');
+		expect(html).not.toContain('id="media-file-path"');
+		expect(html).not.toContain('id="media-url"');
+		expect(html).not.toContain('<input id="duration-goal-seconds"');
+		expect(html).not.toContain('<input id="caption-language"');
 	});
 
 	test("opens the workspace with structured defaults and widget metadata", () => {
 		const result = serverModule.openCodecutWorkspace({
 			projectName: "Creator Launch",
 			brief: "Make a concise vertical launch cut.",
+			briefOptions: ["Keep the launch hook", "Remove repeated setup"],
+			successCriteriaOptions: [
+				"Hook appears before 3s",
+				"Captions remain readable",
+			],
+			mediaSources: [
+				{ kind: "filePath", filePath: "/tmp/creator-launch-a.mp4" },
+				{
+					kind: "url",
+					url: "https://cdn.example.com/creator-launch-b.mp4",
+					mimeType: "video/mp4",
+				},
+			],
 			targetAspectRatio: "9:16",
 			durationGoalSeconds: 45,
 		});
@@ -149,6 +211,19 @@ describe("Codecut MCP server contract", () => {
 		expect(result.structuredContent.intentDefaults).toMatchObject({
 			projectName: "Creator Launch",
 			brief: "Make a concise vertical launch cut.",
+			briefOptions: ["Keep the launch hook", "Remove repeated setup"],
+			successCriteriaOptions: [
+				"Hook appears before 3s",
+				"Captions remain readable",
+			],
+			mediaSources: [
+				{ kind: "filePath", filePath: "/tmp/creator-launch-a.mp4" },
+				{
+					kind: "url",
+					url: "https://cdn.example.com/creator-launch-b.mp4",
+					mimeType: "video/mp4",
+				},
+			],
 			targetAspectRatio: "9:16",
 			durationGoalSeconds: 45,
 			captionLanguage: "auto",
@@ -157,6 +232,38 @@ describe("Codecut MCP server contract", () => {
 		expect(result._meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
+		});
+	});
+
+	test("opens the workspace with localized default reference intent", () => {
+		const english = serverModule.openCodecutWorkspace({});
+		expect(english.structuredContent.intentDefaults.projectName).toBe(
+			"CodeCut Project",
+		);
+		expect(english.structuredContent.intentDefaults.projectId).toMatch(
+			/^codecut-project-[a-z0-9]+$/,
+		);
+
+		const chinese = serverModule.openCodecutWorkspace({ locale: "zh-CN" });
+		expect(chinese.structuredContent.intentDefaults.projectName).toBe(
+			"CodeCut 项目",
+		);
+		expect(chinese.structuredContent.intentDefaults.projectId).toMatch(
+			/^codecut-[a-z0-9]+$/,
+		);
+		expect(chinese.structuredContent.intentDefaults).toMatchObject({
+			brief: "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
+			briefOptions: [
+				"剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
+			],
+			successCriteria:
+				"开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
+			successCriteriaOptions: [
+				"开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
+			],
+			captionLanguage: "auto",
+			durationGoalSeconds: 60,
+			output: { format: "mp4", quality: "high", includeAudio: true },
 		});
 	});
 
@@ -187,10 +294,16 @@ describe("Codecut MCP server contract", () => {
 			kind: "filePath",
 			filePath: "/tmp/creator-launch.mp4",
 		});
+		expect(result.structuredContent.intentDefaults.mediaSources).toEqual([
+			{ kind: "filePath", filePath: "/tmp/creator-launch.mp4" },
+		]);
 		expect(result._meta.widgetData.intentDefaults.mediaSource).toEqual({
 			kind: "filePath",
 			filePath: "/tmp/creator-launch.mp4",
 		});
+		expect(result._meta.widgetData.intentDefaults.mediaSources).toEqual([
+			{ kind: "filePath", filePath: "/tmp/creator-launch.mp4" },
+		]);
 	});
 
 	test("rejects conflicting workspace open filePath aliases", () => {
@@ -204,17 +317,28 @@ describe("Codecut MCP server contract", () => {
 	});
 
 	test("inspects setup inputs without mutation and reports blockers", async () => {
-		const filePath = join(await mkdtemp(join(tmpdir(), "codecut-widget-")), "source.mp4");
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const filePath = join(directory, "source.mp4");
+		const secondFilePath = join(directory, "second.mp4");
 		await writeFile(filePath, "video");
+		await writeFile(secondFilePath, "video");
 		const bridgeCalls = [];
 		const bridgeToolImpl = async (toolName) => {
 			bridgeCalls.push(toolName);
-			return { structuredContent: { projects: [{ projectId: "existing-cut" }] } };
+			return {
+				structuredContent: { projects: [{ projectId: "existing-cut" }] },
+			};
 		};
 
 		try {
 			const ready = await serverModule.inspectCodecutSetup(
-				setupIntent({ mediaSource: { kind: "filePath", filePath } }),
+				setupIntent({
+					mediaSources: [
+						{ kind: "filePath", filePath },
+						{ kind: "filePath", filePath: secondFilePath },
+						{ kind: "url", url: "https://cdn.example.com/source.mp4" },
+					],
+				}),
 				{ bridgeToolImpl },
 			);
 			expect(ready.status).toBe("ready");
@@ -225,13 +349,18 @@ describe("Codecut MCP server contract", () => {
 				["invalid project id", setupIntent({ projectId: "../bad" })],
 				["missing project name", setupIntent({ projectName: " " })],
 				["missing brief", setupIntent({ brief: "" })],
+				["missing media sources", setupIntent({ mediaSources: [] })],
 				[
 					"non-https url",
-					setupIntent({ mediaSource: { kind: "url", url: "http://example.com/a.mp4" } }),
+					setupIntent({
+						mediaSources: [{ kind: "url", url: "http://example.com/a.mp4" }],
+					}),
 				],
 				[
 					"missing local file",
-					setupIntent({ mediaSource: { kind: "filePath", filePath: "/tmp/missing.mp4" } }),
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath: "/tmp/missing.mp4" }],
+					}),
 				],
 				["bad aspect ratio", setupIntent({ targetAspectRatio: "4:5" })],
 				["bad duration", setupIntent({ durationGoalSeconds: 0 })],
@@ -241,10 +370,13 @@ describe("Codecut MCP server contract", () => {
 					bridgeToolImpl,
 				});
 				expect(blocked.status, label).toBe("blocked");
-				expect(blocked.checks.some((check) => !check.ok), label).toBe(true);
+				expect(
+					blocked.checks.some((check) => !check.ok),
+					label,
+				).toBe(true);
 			}
 		} finally {
-			await rm(filePath.replace(/\/source\.mp4$/, ""), {
+			await rm(directory, {
 				recursive: true,
 				force: true,
 			});
@@ -252,8 +384,11 @@ describe("Codecut MCP server contract", () => {
 	});
 
 	test("submits setup by creating project, importing media, and reading latest revision", async () => {
-		const filePath = join(await mkdtemp(join(tmpdir(), "codecut-widget-")), "source.mp4");
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const filePath = join(directory, "source.mp4");
+		const secondFilePath = join(directory, "second.mp4");
 		await writeFile(filePath, "video");
+		await writeFile(secondFilePath, "video");
 		const calls = [];
 		const bridgeToolImpl = async (toolName, args) => {
 			calls.push({ toolName, args });
@@ -263,10 +398,10 @@ describe("Codecut MCP server contract", () => {
 			if (toolName === "create_project") {
 				return {
 					structuredContent: {
-						projectId: "launch-cut-001",
+						projectId: "launch-cut-canonical",
 						name: "Launch Cut",
 						revision: 1,
-						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-001",
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
 					},
 				};
 			}
@@ -277,7 +412,20 @@ describe("Codecut MCP server contract", () => {
 						results: [
 							{
 								success: true,
-								data: { assets: [{ id: "media-1", name: "source.mp4" }] },
+								data: {
+									assets: [
+										{
+											id:
+												args.filePath === secondFilePath
+													? "media-2"
+													: "media-1",
+											name:
+												args.filePath === secondFilePath
+													? "second.mp4"
+													: "source.mp4",
+										},
+									],
+								},
 							},
 						],
 					},
@@ -295,7 +443,12 @@ describe("Codecut MCP server contract", () => {
 
 		try {
 			const result = await serverModule.submitCodecutSetup(
-				setupIntent({ mediaSource: { kind: "filePath", filePath } }),
+				setupIntent({
+					mediaSources: [
+						{ kind: "filePath", filePath },
+						{ kind: "filePath", filePath: secondFilePath },
+					],
+				}),
 				{ bridgeToolImpl },
 			);
 
@@ -303,24 +456,56 @@ describe("Codecut MCP server contract", () => {
 				"list_projects",
 				"create_project",
 				"import_media",
+				"import_media",
 				"get_project_info",
 			]);
+			expect(
+				calls
+					.filter((call) => call.toolName === "import_media")
+					.map((call) => call.args),
+			).toEqual([
+				{ projectId: "launch-cut-canonical", filePath },
+				{ projectId: "launch-cut-canonical", filePath: secondFilePath },
+			]);
+			expect(
+				calls.find((call) => call.toolName === "get_project_info")?.args,
+			).toEqual({
+				projectId: "launch-cut-canonical",
+			});
 			expect(result.structuredContent).toMatchObject({
 				status: "created",
-				projectId: "launch-cut-001",
+				projectId: "launch-cut-canonical",
 				projectName: "Launch Cut",
 				revision: 2,
-				editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-001",
-				importedMedia: { id: "media-1", name: "source.mp4" },
+				editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+				intent: {
+					projectId: "launch-cut-canonical",
+				},
+				importedMedia: [
+					{ id: "media-1", name: "source.mp4" },
+					{ id: "media-2", name: "second.mp4" },
+				],
 			});
 			expect(result.structuredContent.continuePrompt).toContain(
 				"$codecut-jianying-editor-framework",
 			);
-			expect(result.structuredContent.continuePrompt).toContain("get_project_info");
-			expect(result.structuredContent.continuePrompt).toContain("list_media_assets");
-			expect(result.structuredContent.continuePrompt).toContain("get_timeline_state_v2");
+			expect(result.structuredContent.continuePrompt).toContain(
+				"get_project_info",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"list_media_assets",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"get_timeline_state_v2",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"launch-cut-canonical",
+			);
+			expect(result.structuredContent.continuePrompt).not.toContain(
+				"launch-cut-001",
+			);
 		} finally {
-			await rm(filePath.replace(/\/source\.mp4$/, ""), {
+			await rm(directory, {
 				recursive: true,
 				force: true,
 			});
@@ -328,10 +513,14 @@ describe("Codecut MCP server contract", () => {
 	});
 
 	test("keeps created project context visible when import fails", async () => {
-		const filePath = join(await mkdtemp(join(tmpdir(), "codecut-widget-")), "source.mp4");
+		const filePath = join(
+			await mkdtemp(join(tmpdir(), "codecut-widget-")),
+			"source.mp4",
+		);
 		await writeFile(filePath, "video");
 		const bridgeToolImpl = async (toolName) => {
-			if (toolName === "list_projects") return { structuredContent: { projects: [] } };
+			if (toolName === "list_projects")
+				return { structuredContent: { projects: [] } };
 			if (toolName === "create_project") {
 				return {
 					structuredContent: {
@@ -353,7 +542,7 @@ describe("Codecut MCP server contract", () => {
 
 		try {
 			const result = await serverModule.submitCodecutSetup(
-				setupIntent({ mediaSource: { kind: "filePath", filePath } }),
+				setupIntent({ mediaSources: [{ kind: "filePath", filePath }] }),
 				{ bridgeToolImpl },
 			);
 
@@ -540,6 +729,23 @@ describe("Codecut MCP server contract", () => {
 			"project-1",
 			"--template-json-file",
 			"/tmp/local-template-script.json",
+			"--confirmed-by-user",
+			"true",
+		]);
+
+		expect(
+			buildBridgeCliArgs("delete_system_template_script", {
+				projectId: "project-1",
+				templateId: "proof-demo-cut",
+				confirmedByUser: true,
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"delete-system-template-script",
+			"--project-id",
+			"project-1",
+			"--template-id",
+			"proof-demo-cut",
 			"--confirmed-by-user",
 			"true",
 		]);

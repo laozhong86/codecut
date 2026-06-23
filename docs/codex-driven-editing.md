@@ -397,17 +397,40 @@ Rules:
 - Use seconds for all source and timeline fields.
 - Mark every transcript segment as `keep` or `drop`.
 - Every `drop` decision must include `dropReason`.
+- Every `drop` decision must include `risk: "low" | "high"`.
 - `keep` decisions must not include `dropReason`.
 - Source ranges must be sorted, non-overlapping, and have
   `sourceEnd > sourceStart`.
 - Do not auto-fix overlapping, reversed, or unlabeled decisions.
 - Do not use audio VAD as a semantic deletion substitute.
+- Drop earlier restarts or repeats and keep the later complete version unless
+  the user explicitly asks to keep the earlier take.
+- If a script, outline, or article draft is available, use it only as semantic
+  alignment evidence. Do not run word-by-word diffs against the script; instead
+  check whether the retained take covers the intended meaning.
+- Compare source duration with transcript coverage before projection. Leading or
+  trailing untranscribed audio longer than 0.3 seconds must be represented as an
+  explicit keep/drop decision or reported as a cleanup blocker.
+  `rebuildTimelineFromSpeechCleanup()` fails fast when the first or last
+  decision leaves that coverage gap unclassified.
+- For every `drop` decision, classify each dropped range as low or high risk.
+  Low-risk drops are pauses, exact prefix repeats, or very short filler tokens
+  with no standalone meaning. High-risk drops are full-sentence removals,
+  repeated openings with divergent endings, or long repeated spans.
+- High-risk drops require explicit retained-meaning evidence in the decision
+  `retainedMeaningEvidence`, proving that a kept segment preserves the dropped
+  segment's useful meaning. Use `reason` for the human-readable deletion
+  rationale.
 - Count filler removal only from explicit `drop` decisions with
   `dropReason: "filler"`. Do not infer filler counts from words such as
   "um", "uh", "嗯", or "额" inside kept text.
 - Do not claim word-level precision unless the selected transcription model
   supports word timestamps.
 - Apply only the generated EditPlan v1 projection through `apply_edit_plan`.
+- After the clip-only cleanup plan is applied, prefer `build_post_cut_captions`
+  or the equivalent `build-post-cut-captions` CLI path to rebuild captions from
+  the edited timeline audio. Do not reuse source captions when edited audio
+  transcription is available.
 
 The cleanup report is an execution artifact. It is not persisted in project
 storage in the first implementation phase.

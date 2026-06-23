@@ -49,9 +49,11 @@
         background: #ffffff;
       }
 
-      legend {
-        padding: 0 4px;
+      .section-heading {
+        margin: 0;
+        font-size: 15px;
         font-weight: 650;
+        line-height: 1.35;
       }
 
       label {
@@ -86,11 +88,47 @@
       }
 
       .actions,
-      .result-actions {
+      .result-actions,
+      .row-actions {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
         align-items: center;
+      }
+
+      .media-sources,
+      .choice-options {
+        display: grid;
+        gap: 10px;
+      }
+
+      .media-source-row {
+        display: grid;
+        gap: 10px;
+        padding: 10px;
+        border: 1px solid #e1e6e2;
+        border-radius: 6px;
+        background: #f8faf8;
+      }
+
+      .file-picker-input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .choice-options label {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        font-weight: 500;
+      }
+
+      .choice-options input {
+        width: auto;
+        margin-top: 2px;
       }
 
       button,
@@ -184,63 +222,57 @@
       <p data-i18n="subtitle">Confirm the editing intent, validate local setup, then create the executor project.</p>
 
       <form id="workspace-form">
-        <fieldset>
-          <legend data-i18n="project">Project</legend>
-          <div class="grid">
-            <label>
-              <span data-i18n="projectName">Project name</span>
-              <input id="project-name" name="projectName" autocomplete="off">
-            </label>
-            <label>
-              <span data-i18n="projectId">Project ID</span>
-              <input id="project-id" name="projectId" autocomplete="off" spellcheck="false">
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend data-i18n="source">Source</legend>
+        <fieldset aria-labelledby="project-section-title">
+          <h2 id="project-section-title" class="section-heading" data-i18n="project">Project</h2>
           <label>
-            <span data-i18n="mediaSource">Media source</span>
-            <select id="media-source-kind">
-              <option value="filePath" data-i18n="localFilePath">Local file path</option>
-              <option value="url" data-i18n="httpsUrl">HTTPS URL</option>
-            </select>
+            <span data-i18n="projectName">Project name</span>
+            <input id="project-name" name="projectName" autocomplete="off" data-i18n-placeholder="projectNamePlaceholder">
           </label>
-          <label id="file-path-row">
-            <span data-i18n="absoluteFilePath">Absolute file path</span>
-            <input id="media-file-path" name="mediaFilePath" spellcheck="false">
-          </label>
-          <div id="url-row" class="grid hidden">
-            <label>
-              <span data-i18n="httpsUrl">HTTPS URL</span>
-              <input id="media-url" name="mediaUrl" spellcheck="false">
-            </label>
-            <label>
-              <span data-i18n="mimeType">MIME type</span>
-              <input id="media-mime-type" name="mediaMimeType" placeholder="video/mp4">
-            </label>
+        </fieldset>
+
+        <fieldset aria-labelledby="source-section-title">
+          <h2 id="source-section-title" class="section-heading" data-i18n="source">Source</h2>
+          <div id="media-sources" class="media-sources"></div>
+          <input id="media-file-picker" class="file-picker-input" type="file" multiple>
+          <p id="file-picker-selection" class="muted"></p>
+          <div class="row-actions">
+            <button id="add-media-source-button" class="secondary" type="button" data-i18n="addMediaSource">Add source</button>
+            <button id="media-file-picker-button" class="secondary" type="button" data-i18n="chooseFiles">Choose files</button>
           </div>
         </fieldset>
 
-        <fieldset>
-          <legend data-i18n="output">Output</legend>
+        <fieldset aria-labelledby="output-section-title">
+          <h2 id="output-section-title" class="section-heading" data-i18n="output">Output</h2>
           <div class="grid">
             <label>
               <span data-i18n="targetAspectRatio">Target aspect ratio</span>
               <select id="target-aspect-ratio" name="targetAspectRatio">
-                <option value="9:16">9:16</option>
-                <option value="16:9">16:9</option>
-                <option value="1:1">1:1</option>
+                <option value="9:16" data-i18n="aspectVertical">9:16</option>
+                <option value="16:9" data-i18n="aspectHorizontal">16:9</option>
+                <option value="1:1" data-i18n="aspectSquare">1:1</option>
               </select>
             </label>
             <label>
               <span data-i18n="durationGoalSeconds">Duration goal seconds</span>
-              <input id="duration-goal-seconds" name="durationGoalSeconds" type="number" min="1" step="1">
+              <select id="duration-goal-seconds" name="durationGoalSeconds">
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="45">45</option>
+                <option value="60">60</option>
+                <option value="90">90</option>
+                <option value="120">120</option>
+              </select>
             </label>
             <label>
               <span data-i18n="captionLanguage">Caption language</span>
-              <input id="caption-language" name="captionLanguage" value="auto">
+              <select id="caption-language" name="captionLanguage">
+                <option value="auto" data-i18n="captionAuto">auto</option>
+                <option value="zh-CN" data-i18n="captionChinese">Chinese</option>
+                <option value="en" data-i18n="captionEnglish">English</option>
+                <option value="ja" data-i18n="captionJapanese">Japanese</option>
+                <option value="ko" data-i18n="captionKorean">Korean</option>
+                <option value="es" data-i18n="captionSpanish">Spanish</option>
+              </select>
             </label>
             <label>
               <span data-i18n="format">Format</span>
@@ -268,16 +300,18 @@
           </div>
         </fieldset>
 
-        <fieldset>
-          <legend data-i18n="intent">Intent</legend>
-          <label>
-            <span data-i18n="brief">Brief</span>
-            <textarea id="brief" name="brief"></textarea>
-          </label>
-          <label>
-            <span data-i18n="successCriteria">Success criteria</span>
-            <textarea id="success-criteria" name="successCriteria"></textarea>
-          </label>
+        <fieldset aria-labelledby="intent-section-title">
+          <h2 id="intent-section-title" class="section-heading" data-i18n="intent">Intent</h2>
+          <div>
+            <span id="brief-label" data-i18n="brief">Brief</span>
+            <div id="brief-options" class="choice-options"></div>
+            <textarea id="brief" name="brief" aria-labelledby="brief-label" data-i18n-placeholder="briefCustomPlaceholder"></textarea>
+          </div>
+          <div>
+            <span id="success-criteria-label" data-i18n="successCriteria">Success criteria</span>
+            <div id="success-criteria-options" class="choice-options"></div>
+            <textarea id="success-criteria" name="successCriteria" aria-labelledby="success-criteria-label" data-i18n-placeholder="successCriteriaCustomPlaceholder"></textarea>
+          </div>
         </fieldset>
 
         <section class="status" aria-live="polite">
@@ -306,17 +340,33 @@
             subtitle: "Confirm the editing intent, validate local setup, then create the executor project.",
             project: "Project",
             projectName: "Project name",
-            projectId: "Project ID",
+            projectNamePlaceholder: "CodeCut Project",
             source: "Source",
             mediaSource: "Media source",
             localFilePath: "Local file path",
             httpsUrl: "HTTPS URL",
             absoluteFilePath: "Absolute file path",
+            addMediaSource: "Add source",
+            chooseFiles: "Choose files",
+            removeMediaSource: "Remove source",
+            selectedFiles: "Selected files",
+            selectedFilesNeedAbsolutePath: "Selected files were added below. If a path is not absolute, paste the full local path before inspecting.",
+            filePathPlaceholder: "/Users/me/Movies/source.mp4",
+            urlPlaceholder: "https://example.com/source.mp4",
             mimeType: "MIME type",
             output: "Output",
             targetAspectRatio: "Target aspect ratio",
+            aspectVertical: "9:16 vertical",
+            aspectHorizontal: "16:9 horizontal",
+            aspectSquare: "1:1 square",
             durationGoalSeconds: "Duration goal seconds",
             captionLanguage: "Caption language",
+            captionAuto: "auto",
+            captionChinese: "Chinese",
+            captionEnglish: "English",
+            captionJapanese: "Japanese",
+            captionKorean: "Korean",
+            captionSpanish: "Spanish",
             format: "Format",
             quality: "Quality",
             qualityLow: "low",
@@ -328,7 +378,11 @@
             no: "false",
             intent: "Intent",
             brief: "Brief",
+            briefPlaceholder: "Cut a clear short with the key message, readable captions, and natural audio.",
+            briefCustomPlaceholder: "Add custom brief details.",
             successCriteria: "Success criteria",
+            successCriteriaPlaceholder: "Clear hook, tight pacing, readable captions, export-ready ending.",
+            successCriteriaCustomPlaceholder: "Add custom success criteria.",
             notInspected: "Not inspected",
             inspectBeforeSubmit: "Run inspection before submitting.",
             inspectSetup: "Inspect setup",
@@ -357,17 +411,33 @@
             subtitle: "确认剪辑需求，检查本地环境，然后创建执行器项目。",
             project: "项目",
             projectName: "项目名称",
-            projectId: "项目 ID",
+            projectNamePlaceholder: "CodeCut 项目",
             source: "素材",
             mediaSource: "素材来源",
             localFilePath: "本地文件路径",
             httpsUrl: "HTTPS 链接",
             absoluteFilePath: "绝对文件路径",
+            addMediaSource: "添加素材",
+            chooseFiles: "选择文件",
+            removeMediaSource: "移除素材",
+            selectedFiles: "已选择文件",
+            selectedFilesNeedAbsolutePath: "已把选择的文件加入下方素材列表。如果路径不是绝对路径，请先补全本地完整路径再检查。",
+            filePathPlaceholder: "/Users/x/Movies/source.mp4",
+            urlPlaceholder: "https://example.com/source.mp4",
             mimeType: "MIME 类型",
             output: "输出",
             targetAspectRatio: "目标画幅",
+            aspectVertical: "9:16 竖屏",
+            aspectHorizontal: "16:9 横屏",
+            aspectSquare: "1:1 方形",
             durationGoalSeconds: "目标时长（秒）",
             captionLanguage: "字幕语言",
+            captionAuto: "自动识别",
+            captionChinese: "中文",
+            captionEnglish: "英文",
+            captionJapanese: "日文",
+            captionKorean: "韩文",
+            captionSpanish: "西班牙文",
             format: "格式",
             quality: "质量",
             qualityLow: "低",
@@ -379,7 +449,11 @@
             no: "否",
             intent: "剪辑需求",
             brief: "需求说明",
+            briefPlaceholder: "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
+            briefCustomPlaceholder: "补充自定义需求。",
             successCriteria: "成功标准",
+            successCriteriaPlaceholder: "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
+            successCriteriaCustomPlaceholder: "补充自定义成功标准。",
             notInspected: "未检查",
             inspectBeforeSubmit: "创建项目前需要先检查。",
             inspectSetup: "检查设置",
@@ -408,13 +482,11 @@
         const fields = {
           form: document.getElementById("workspace-form"),
           projectName: document.getElementById("project-name"),
-          projectId: document.getElementById("project-id"),
-          mediaSourceKind: document.getElementById("media-source-kind"),
-          filePathRow: document.getElementById("file-path-row"),
-          urlRow: document.getElementById("url-row"),
-          mediaFilePath: document.getElementById("media-file-path"),
-          mediaUrl: document.getElementById("media-url"),
-          mediaMimeType: document.getElementById("media-mime-type"),
+          mediaSources: document.getElementById("media-sources"),
+          mediaFilePicker: document.getElementById("media-file-picker"),
+          mediaFilePickerButton: document.getElementById("media-file-picker-button"),
+          filePickerSelection: document.getElementById("file-picker-selection"),
+          addMediaSourceButton: document.getElementById("add-media-source-button"),
           targetAspectRatio: document.getElementById("target-aspect-ratio"),
           durationGoalSeconds: document.getElementById("duration-goal-seconds"),
           captionLanguage: document.getElementById("caption-language"),
@@ -422,7 +494,9 @@
           outputQuality: document.getElementById("output-quality"),
           includeAudio: document.getElementById("include-audio"),
           brief: document.getElementById("brief"),
+          briefOptions: document.getElementById("brief-options"),
           successCriteria: document.getElementById("success-criteria"),
+          successCriteriaOptions: document.getElementById("success-criteria-options"),
           statusTitle: document.getElementById("status-title"),
           statusMessage: document.getElementById("status-message"),
           checks: document.getElementById("checks"),
@@ -432,7 +506,7 @@
           followUp: document.getElementById("follow-up"),
         };
 
-        let projectIdEdited = false;
+        let currentProjectId = "";
         let lastInspectionReady = false;
         let activeLanguage = "en";
 
@@ -452,6 +526,9 @@
           document.documentElement.lang = activeLanguage;
           document.querySelectorAll("[data-i18n]").forEach((node) => {
             node.textContent = t(node.dataset.i18n);
+          });
+          document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+            node.placeholder = t(node.dataset.i18nPlaceholder);
           });
         }
 
@@ -477,47 +554,202 @@
 
         function applyDefaults(defaults) {
           fields.projectName.value = defaults.projectName || "";
-          fields.projectId.value = defaults.projectId || slugify(defaults.projectName);
-          const mediaSource = defaults.mediaSource || {};
-          fields.mediaSourceKind.value = mediaSource.kind === "url" ? "url" : "filePath";
-          fields.mediaFilePath.value = mediaSource.filePath || "";
-          fields.mediaUrl.value = mediaSource.url || "";
-          fields.mediaMimeType.value = mediaSource.mimeType || "";
-          fields.targetAspectRatio.value = defaults.targetAspectRatio || "9:16";
-          fields.durationGoalSeconds.value = Number(defaults.durationGoalSeconds || 60);
-          fields.captionLanguage.value = defaults.captionLanguage || "auto";
-          fields.outputFormat.value = defaults.output?.format || "mp4";
-          fields.outputQuality.value = defaults.output?.quality || "high";
-          fields.includeAudio.value = defaults.output?.includeAudio === false ? "false" : "true";
-          fields.brief.value = defaults.brief || "";
-          fields.successCriteria.value = defaults.successCriteria || "";
-          updateSourceRows();
+          currentProjectId = defaults.projectId || slugify(fields.projectName.value);
+          renderMediaSources(defaults.mediaSources || [defaults.mediaSource || { kind: "filePath", filePath: "" }]);
+          setSelectValue(fields.targetAspectRatio, defaults.targetAspectRatio || "9:16");
+          setSelectValue(fields.durationGoalSeconds, String(Number(defaults.durationGoalSeconds || 60)));
+          setSelectValue(fields.captionLanguage, defaults.captionLanguage || "auto");
+          setSelectValue(fields.outputFormat, defaults.output?.format || "mp4");
+          setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
+          setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
+          renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t("briefPlaceholder")]);
+          renderChoiceOptions(
+            fields.successCriteriaOptions,
+            defaults.successCriteriaOptions || [defaults.successCriteria || t("successCriteriaPlaceholder")],
+          );
+          fields.brief.value = "";
+          fields.successCriteria.value = "";
+          invalidateInspection();
         }
 
-        function updateSourceRows() {
-          const isUrl = fields.mediaSourceKind.value === "url";
-          fields.filePathRow.classList.toggle("hidden", isUrl);
-          fields.urlRow.classList.toggle("hidden", !isUrl);
+        function setSelectValue(select, value) {
+          const normalized = String(value || "");
+          if (!normalized) return;
+          const hasOption = Array.from(select.options).some((option) => option.value === normalized);
+          if (!hasOption) {
+            const option = document.createElement("option");
+            option.value = normalized;
+            option.textContent = normalized;
+            select.appendChild(option);
+          }
+          select.value = normalized;
+        }
+
+        function invalidateInspection() {
           lastInspectionReady = false;
           fields.submitButton.disabled = true;
         }
 
-        function collectIntent() {
-          const sourceKind = fields.mediaSourceKind.value;
-          const mediaSource = sourceKind === "url"
-            ? {
+        function renderMediaSources(mediaSources) {
+          fields.mediaSources.innerHTML = "";
+          const normalized = Array.isArray(mediaSources) && mediaSources.length
+            ? mediaSources
+            : [{ kind: "filePath", filePath: "" }];
+          normalized.forEach((mediaSource) => appendMediaSourceRow(mediaSource));
+        }
+
+        function appendMediaSourceRow(mediaSource = { kind: "filePath", filePath: "" }) {
+          const row = document.createElement("div");
+          row.className = "media-source-row";
+          row.innerHTML = `
+            <label>
+              <span data-i18n="mediaSource">${escapeHtml(t("mediaSource"))}</span>
+              <select data-field="kind">
+                <option value="filePath">${escapeHtml(t("localFilePath"))}</option>
+                <option value="url">${escapeHtml(t("httpsUrl"))}</option>
+              </select>
+            </label>
+            <label data-role="filePath">
+              <span data-i18n="absoluteFilePath">${escapeHtml(t("absoluteFilePath"))}</span>
+              <input data-field="filePath" spellcheck="false" data-i18n-placeholder="filePathPlaceholder" placeholder="${escapeAttribute(t("filePathPlaceholder"))}">
+            </label>
+            <div data-role="url" class="grid hidden">
+              <label>
+                <span data-i18n="httpsUrl">${escapeHtml(t("httpsUrl"))}</span>
+                <input data-field="url" spellcheck="false" data-i18n-placeholder="urlPlaceholder" placeholder="${escapeAttribute(t("urlPlaceholder"))}">
+              </label>
+              <label>
+                <span data-i18n="mimeType">${escapeHtml(t("mimeType"))}</span>
+                <select data-field="mimeType">
+                  <option value="video/mp4">video/mp4</option>
+                  <option value="video/webm">video/webm</option>
+                  <option value="video/quicktime">video/quicktime</option>
+                </select>
+              </label>
+            </div>
+            <div class="row-actions">
+              <button class="secondary" type="button" data-action="remove-source">${escapeHtml(t("removeMediaSource"))}</button>
+            </div>
+          `;
+          const kind = row.querySelector('[data-field="kind"]');
+          const filePath = row.querySelector('[data-field="filePath"]');
+          const url = row.querySelector('[data-field="url"]');
+          const mimeType = row.querySelector('[data-field="mimeType"]');
+          kind.value = mediaSource.kind === "url" ? "url" : "filePath";
+          filePath.value = mediaSource.filePath || "";
+          url.value = mediaSource.url || "";
+          setSelectValue(mimeType, mediaSource.mimeType || "video/mp4");
+          kind.addEventListener("change", () => {
+            updateMediaSourceRow(row);
+            invalidateInspection();
+          });
+          row.querySelector('[data-action="remove-source"]').addEventListener("click", () => {
+            if (fields.mediaSources.children.length > 1) {
+              row.remove();
+              invalidateInspection();
+            }
+          });
+          fields.mediaSources.appendChild(row);
+          updateMediaSourceRow(row);
+        }
+
+        function updateMediaSourceRow(row) {
+          const isUrl = row.querySelector('[data-field="kind"]').value === "url";
+          row.querySelector('[data-role="filePath"]').classList.toggle("hidden", isUrl);
+          row.querySelector('[data-role="url"]').classList.toggle("hidden", !isUrl);
+        }
+
+        function collectMediaSources() {
+          return Array.from(fields.mediaSources.querySelectorAll(".media-source-row")).map((row) => {
+            const kind = row.querySelector('[data-field="kind"]').value;
+            if (kind === "url") {
+              const mimeType = row.querySelector('[data-field="mimeType"]').value.trim();
+              return {
                 kind: "url",
-                url: fields.mediaUrl.value.trim(),
-                ...(fields.mediaMimeType.value.trim() ? { mimeType: fields.mediaMimeType.value.trim() } : {}),
-              }
-            : {
-                kind: "filePath",
-                filePath: fields.mediaFilePath.value.trim(),
+                url: row.querySelector('[data-field="url"]').value.trim(),
+                ...(mimeType ? { mimeType } : {}),
               };
+            }
+            return {
+              kind: "filePath",
+              filePath: row.querySelector('[data-field="filePath"]').value.trim(),
+            };
+          });
+        }
+
+        function appendPickedFileRows(files) {
+          const pickedFiles = Array.from(files || []);
+          if (!pickedFiles.length) return;
+          const hasExistingSource = collectMediaSources().some((source) => {
+            if (source.kind === "url") return Boolean(source.url);
+            return Boolean(source.filePath);
+          });
+          if (!hasExistingSource) {
+            fields.mediaSources.innerHTML = "";
+          }
+          for (const file of pickedFiles) {
+            appendMediaSourceRow({ kind: "filePath", filePath: pickedFilePath(file) });
+          }
+        }
+
+        function pickedFilePath(file) {
+          const filePath = file?.path;
+          if (typeof filePath === "string" && filePath.trim()) {
+            return filePath.trim();
+          }
+          return file?.name || "";
+        }
+
+        function handlePickedFiles() {
+          const files = Array.from(fields.mediaFilePicker.files || []);
+          const names = files.map((file) => file.name).filter(Boolean);
+          fields.filePickerSelection.textContent = names.length
+            ? `${t("selectedFiles")}: ${names.join(", ")}. ${t("selectedFilesNeedAbsolutePath")}`
+            : "";
+          appendPickedFileRows(files);
+          invalidateInspection();
+        }
+
+        function renderChoiceOptions(container, options) {
+          container.innerHTML = "";
+          for (const optionText of normalizeChoiceOptions(options)) {
+            const label = document.createElement("label");
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = true;
+            checkbox.value = optionText;
+            const span = document.createElement("span");
+            span.textContent = optionText;
+            label.append(checkbox, span);
+            container.appendChild(label);
+          }
+        }
+
+        function normalizeChoiceOptions(options) {
+          return [
+            ...new Set(
+              (Array.isArray(options) ? options : [])
+                .map((option) => String(option || "").trim())
+                .filter(Boolean),
+            ),
+          ];
+        }
+
+        function collectChoiceText(container, customField) {
+          const selected = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+            .map((input) => input.value.trim())
+            .filter(Boolean);
+          const custom = customField.value.trim();
+          return [...selected, ...(custom ? [custom] : [])].join("\n");
+        }
+
+        function collectIntent() {
+          const mediaSources = collectMediaSources();
           return {
-            projectId: fields.projectId.value.trim(),
+            projectId: currentProjectId || slugify(fields.projectName.value),
             projectName: fields.projectName.value.trim(),
-            mediaSource,
+            mediaSource: mediaSources[0],
+            mediaSources,
             targetAspectRatio: fields.targetAspectRatio.value,
             durationGoalSeconds: Number(fields.durationGoalSeconds.value),
             captionLanguage: fields.captionLanguage.value.trim() || "auto",
@@ -526,8 +758,8 @@
               quality: fields.outputQuality.value,
               includeAudio: fields.includeAudio.value === "true",
             },
-            brief: fields.brief.value.trim(),
-            successCriteria: fields.successCriteria.value.trim(),
+            brief: collectChoiceText(fields.briefOptions, fields.brief),
+            successCriteria: collectChoiceText(fields.successCriteriaOptions, fields.successCriteria),
           };
         }
 
@@ -623,13 +855,21 @@
         }
 
         function renderSuccess(payload) {
-          const mediaId = payload.importedMedia?.id || payload.importedMedia?.mediaId || "";
+          const importedMedia = Array.isArray(payload.importedMedia)
+            ? payload.importedMedia
+            : payload.importedMedia
+              ? [payload.importedMedia]
+              : [];
+          const mediaIds = importedMedia
+            .map((media) => media?.id || media?.mediaId)
+            .filter(Boolean)
+            .join(", ");
           fields.result.classList.remove("hidden");
           fields.result.innerHTML = `
             <h2>${escapeHtml(t("projectCreated"))}</h2>
             <p><strong>projectId:</strong> <code>${escapeHtml(payload.projectId)}</code></p>
             <p><strong>revision:</strong> <code>${escapeHtml(String(payload.revision))}</code></p>
-            <p><strong>mediaId:</strong> <code>${escapeHtml(mediaId)}</code></p>
+            <p><strong>mediaId:</strong> <code>${escapeHtml(mediaIds)}</code></p>
             <p><strong>editorUrl:</strong> <code>${escapeHtml(payload.editorUrl || "")}</code></p>
             <div class="result-actions">
               <a class="button" id="open-editor-link" href="${escapeAttribute(payload.editorUrl || "#")}" target="_blank" rel="noreferrer">${escapeHtml(t("openEditor"))}</a>
@@ -692,19 +932,19 @@
         }
 
         fields.projectName.addEventListener("input", () => {
-          if (!projectIdEdited) fields.projectId.value = slugify(fields.projectName.value);
-          lastInspectionReady = false;
-          fields.submitButton.disabled = true;
+          currentProjectId = slugify(fields.projectName.value);
+          invalidateInspection();
         });
-        fields.projectId.addEventListener("input", () => {
-          projectIdEdited = true;
-          lastInspectionReady = false;
-          fields.submitButton.disabled = true;
+        fields.addMediaSourceButton.addEventListener("click", () => {
+          appendMediaSourceRow();
+          invalidateInspection();
         });
-        fields.mediaSourceKind.addEventListener("change", updateSourceRows);
+        fields.mediaFilePickerButton.addEventListener("click", () => {
+          fields.mediaFilePicker.click();
+        });
+        fields.mediaFilePicker.addEventListener("change", handlePickedFiles);
         fields.form.addEventListener("input", () => {
-          lastInspectionReady = false;
-          fields.submitButton.disabled = true;
+          invalidateInspection();
         });
         fields.inspectButton.addEventListener("click", inspect);
         fields.form.addEventListener("submit", submit);

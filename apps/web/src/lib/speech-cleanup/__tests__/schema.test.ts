@@ -1,7 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { SpeechCleanupPlanSchema } from "../schema";
 
-function validPlan() {
+interface MutableSpeechCleanupPlanInput {
+	version: number;
+	projectId: string;
+	sourceMediaId: string;
+	target: {
+		durationSec: number;
+		aspectRatio: string;
+	};
+	decisions: Array<Record<string, unknown>>;
+	rationale: string;
+}
+
+function validPlan(): MutableSpeechCleanupPlanInput {
 	return {
 		version: 2,
 		projectId: "project-1",
@@ -18,6 +30,7 @@ function validPlan() {
 				sourceEnd: 1.2,
 				action: "drop",
 				dropReason: "restart",
+				risk: "low",
 				reason: "Speaker restarts the sentence.",
 			},
 			{
@@ -43,6 +56,41 @@ describe("SpeechCleanupPlanSchema", () => {
 	test("rejects a drop decision without dropReason", () => {
 		const plan = validPlan();
 		delete plan.decisions[0].dropReason;
+
+		const result = SpeechCleanupPlanSchema.safeParse(plan);
+
+		expect(result.success).toBe(false);
+	});
+
+	test("rejects a drop decision without risk classification", () => {
+		const plan = validPlan();
+		delete plan.decisions[0].risk;
+
+		const result = SpeechCleanupPlanSchema.safeParse(plan);
+
+		expect(result.success).toBe(false);
+	});
+
+	test("accepts a high-risk drop with retained-meaning evidence", () => {
+		const plan = validPlan();
+		plan.decisions[0] = {
+			...plan.decisions[0],
+			risk: "high",
+			retainedMeaningEvidence:
+				"seg-2 keeps the complete claim after the abandoned restart.",
+		};
+
+		const result = SpeechCleanupPlanSchema.safeParse(plan);
+
+		expect(result.success).toBe(true);
+	});
+
+	test("rejects a high-risk drop without retained-meaning evidence", () => {
+		const plan = validPlan();
+		plan.decisions[0] = {
+			...plan.decisions[0],
+			risk: "high",
+		};
 
 		const result = SpeechCleanupPlanSchema.safeParse(plan);
 

@@ -12,6 +12,12 @@ interface SystemTemplateScriptService {
 	}: {
 		template: LocalTemplateScriptRecord;
 	}): Promise<LocalTemplateScriptRecord>;
+	getTemplate({
+		id,
+	}: {
+		id: string;
+	}): Promise<LocalTemplateScriptRecord | null>;
+	deleteTemplate({ id }: { id: string }): Promise<void>;
 	listTemplates(): Promise<LocalTemplateScriptRecord[]>;
 }
 
@@ -52,6 +58,53 @@ export async function executeImportSystemTemplateScriptTool({
 	};
 }
 
+export async function executeDeleteSystemTemplateScriptTool({
+	args,
+	service = localTemplateScriptService,
+}: {
+	args: Record<string, unknown>;
+	service?: SystemTemplateScriptService;
+}): Promise<AgentToolResult> {
+	if (args.confirmedByUser !== true) {
+		return {
+			success: false,
+			message:
+				"Template delete requires explicit user confirmation before removing a Codecut system template.",
+		};
+	}
+
+	if (typeof args.templateId !== "string" || args.templateId.trim() === "") {
+		return {
+			success: false,
+			message: "templateId is required to delete a Codecut system template.",
+		};
+	}
+
+	const templateId = args.templateId.trim();
+	const template = await service.getTemplate({ id: templateId });
+	if (!template) {
+		return {
+			success: false,
+			message: `System template script not found: ${templateId}.`,
+		};
+	}
+
+	await service.deleteTemplate({ id: templateId });
+	const templates = await service.listTemplates();
+
+	return {
+		success: true,
+		message: `Deleted system template script "${template.name}" (${template.id}).`,
+		data: {
+			templateId: template.id,
+			name: template.name,
+			templateCount: templates.length,
+			sourceOfTruth: "codecut-system-template-library",
+			visibleInTemplatesUi: false,
+		},
+	};
+}
+
 export const importSystemTemplateScriptTool: AgentTool = {
 	name: "import_system_template_script",
 	description:
@@ -78,4 +131,32 @@ export const importSystemTemplateScriptTool: AgentTool = {
 	},
 };
 
-export const systemTemplateTools: AgentTool[] = [importSystemTemplateScriptTool];
+export const deleteSystemTemplateScriptTool: AgentTool = {
+	name: "delete_system_template_script",
+	description:
+		"Delete one user-confirmed Codecut system template script from the Templates UI library. Use only for explicit cleanup or user-requested removal.",
+	requiresConfirmation: true,
+	parameters: {
+		type: "object",
+		properties: {
+			confirmedByUser: {
+				type: "boolean",
+				description:
+					"Must be true only after the user explicitly confirmed deleting this exact system template.",
+			},
+			templateId: {
+				type: "string",
+				description: "The exact Codecut system template script ID to delete.",
+			},
+		},
+		required: ["confirmedByUser", "templateId"],
+	},
+	async execute(args) {
+		return executeDeleteSystemTemplateScriptTool({ args });
+	},
+};
+
+export const systemTemplateTools: AgentTool[] = [
+	importSystemTemplateScriptTool,
+	deleteSystemTemplateScriptTool,
+];

@@ -1,7 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import {
+	mkdir,
+	readdir,
+	readFile,
+	rename,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
+import { promisify } from "node:util";
 import { z } from "zod";
 import { applyEditPlanToEditor } from "@/lib/agent-bridge/edit-plan/apply";
 import { validateEditPlan } from "@/lib/agent-bridge/edit-plan/validate";
@@ -81,6 +91,8 @@ import type {
 } from "@/types/timeline";
 import { generateUUID } from "@/utils/id";
 
+const execFileAsync = promisify(execFile);
+
 type ExecutorToolName =
 	| "get_project_info"
 	| "update_project_settings"
@@ -124,6 +136,7 @@ interface ExecutorMediaAsset {
 	duration?: number;
 	width?: number;
 	height?: number;
+	fps?: number;
 	size: number;
 	lastModified: number;
 	path: string;
@@ -642,6 +655,19 @@ export type ExecutorGenerateDigitalHuman = (params: {
 
 type ExecutorExportFormat = "mp4" | "webm";
 type ExecutorExportQuality = "low" | "medium" | "high" | "very_high";
+type ExecutorOutputProbe = {
+	format: ExecutorExportFormat;
+	duration: number;
+	width: number;
+	height: number;
+	videoTrackCount: number;
+	audioTrackCount: number;
+};
+type FfprobeStream = {
+	codec_type?: unknown;
+	width?: unknown;
+	height?: unknown;
+};
 
 export type ExecutorExportProject = (params: {
 	state: ExecutorProjectState;
@@ -649,6 +675,13 @@ export type ExecutorExportProject = (params: {
 	quality: ExecutorExportQuality;
 	includeAudio: boolean;
 }) => Promise<ArrayBuffer | Uint8Array>;
+
+export type ExecutorProbeExportedFile = (params: {
+	outputFile: string;
+	format: ExecutorExportFormat;
+	expectedWidth: number;
+	expectedHeight: number;
+}) => Promise<ExecutorOutputProbe>;
 
 function executorRoot(): string {
 	return (
@@ -680,6 +713,28 @@ function projectsDirectory(): string {
 	return join(executorRoot(), "projects");
 }
 
+export class ExecutorProjectNotFoundError extends Error {
+	constructor(projectId: string) {
+		super(`Executor project "${projectId}" was not found.`);
+		this.name = "ExecutorProjectNotFoundError";
+	}
+}
+
+export function isExecutorProjectNotFoundError(
+	error: unknown,
+): error is ExecutorProjectNotFoundError {
+	return error instanceof ExecutorProjectNotFoundError;
+}
+
+function isNodeErrorWithCode(error: unknown, code: string): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		error.code === code
+	);
+}
+
 function projectStatePath({ projectId }: { projectId: string }): string {
 	return join(projectDirectory({ projectId }), "project.json");
 }
@@ -708,11 +763,25 @@ function transcriptCachePath({
 
 async function writeJson({ path, value }: { path: string; value: unknown }) {
 	await mkdir(dirname(path), { recursive: true });
-	await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+	const tempPath = join(
+		dirname(path),
+		`.${Date.now()}.${generateUUID()}.${process.pid}.tmp`,
+	);
+	await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, {
+		encoding: "utf8",
+		flag: "wx",
+	});
+	await rename(tempPath, path);
 }
 
 async function readJson<T>({ path }: { path: string }): Promise<T> {
-	return JSON.parse(await readFile(path, "utf8")) as T;
+	const content = await readFile(path, "utf8");
+	try {
+		return JSON.parse(content) as T;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Invalid JSON.";
+		throw new Error(`Invalid JSON file "${path}": ${message}`);
+	}
 }
 
 type TranscriptCacheEntry = {
@@ -798,6 +867,8 @@ async function toMediaAsset(asset: ExecutorMediaAsset): Promise<MediaAsset> {
 		duration: asset.duration,
 		width: asset.width,
 		height: asset.height,
+		fps: asset.fps,
+		sourcePath: asset.path,
 		file: await fileForMediaAsset(asset),
 	};
 }
@@ -1144,12 +1215,7 @@ async function readProjectStatusOrNull({
 			path: projectStatusPath({ projectId }),
 		});
 	} catch (error) {
-		if (
-			typeof error === "object" &&
-			error !== null &&
-			"code" in error &&
-			error.code === "ENOENT"
-		) {
+		if (isNodeErrorWithCode(error, "ENOENT")) {
 			return null;
 		}
 		throw error;
@@ -1165,8 +1231,11 @@ async function loadProjectState({
 		return await readJson<ExecutorProjectState>({
 			path: projectStatePath({ projectId }),
 		});
-	} catch {
-		throw new Error(`Executor project "${projectId}" was not found.`);
+	} catch (error) {
+		if (isNodeErrorWithCode(error, "ENOENT")) {
+			throw new ExecutorProjectNotFoundError(projectId);
+		}
+		throw error;
 	}
 }
 
@@ -1285,7 +1354,10 @@ export async function getExecutorStatus({
 		return await readJson<ExecutorStatus>({
 			path: projectStatusPath({ projectId }),
 		});
-	} catch {
+	} catch (error) {
+		if (!isNodeErrorWithCode(error, "ENOENT")) {
+			throw error;
+		}
 		const state = await loadProjectState({ projectId });
 		return {
 			projectId,
@@ -1662,14 +1734,100 @@ function exportBytesToBuffer(bytes: ArrayBuffer | Uint8Array): Buffer {
 	return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
+function assertExportFormatProbe({
+	expected,
+	actual,
+}: {
+	expected: ExecutorExportFormat;
+	actual: string;
+}) {
+	if (expected === "mp4" && actual.includes("mp4")) return;
+	if (expected === "webm" && actual.includes("webm")) return;
+	throw new Error(`Export probe expected ${expected}, got ${actual || "unknown"}.`);
+}
+
+function readPositiveNumber({
+	value,
+	message,
+}: {
+	value: unknown;
+	message: string;
+}): number {
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		throw new Error(message);
+	}
+	return parsed;
+}
+
+const probeExportedFileWithFfprobe: ExecutorProbeExportedFile = async ({
+	outputFile,
+	format,
+	expectedWidth,
+	expectedHeight,
+}) => {
+	const { stdout } = await execFileAsync("ffprobe", [
+		"-v",
+		"error",
+		"-print_format",
+		"json",
+		"-show_entries",
+		"format=format_name,duration:stream=codec_type,width,height",
+		outputFile,
+	]);
+	const payload = JSON.parse(String(stdout));
+	const formatName = String(payload?.format?.format_name ?? "");
+	assertExportFormatProbe({ expected: format, actual: formatName });
+	const duration = readPositiveNumber({
+		value: payload?.format?.duration,
+		message: "Export probe could not read a positive duration.",
+	});
+	const streams: FfprobeStream[] = Array.isArray(payload?.streams)
+		? payload.streams
+		: [];
+	const videoStreams = streams.filter(
+		(stream) => stream?.codec_type === "video",
+	);
+	const audioStreams = streams.filter(
+		(stream) => stream?.codec_type === "audio",
+	);
+	const primaryVideo = videoStreams[0];
+	if (!primaryVideo) {
+		throw new Error("Export probe did not find a video stream.");
+	}
+	const width = readPositiveNumber({
+		value: primaryVideo.width,
+		message: "Export probe could not read a positive video width.",
+	});
+	const height = readPositiveNumber({
+		value: primaryVideo.height,
+		message: "Export probe could not read a positive video height.",
+	});
+	if (width !== expectedWidth || height !== expectedHeight) {
+		throw new Error(
+			`Export probe dimensions ${width}x${height} do not match canvas ${expectedWidth}x${expectedHeight}.`,
+		);
+	}
+	return {
+		format,
+		duration,
+		width,
+		height,
+		videoTrackCount: videoStreams.length,
+		audioTrackCount: audioStreams.length,
+	};
+};
+
 async function runExportProject({
 	state,
 	args,
 	exportProject,
+	probeExportedFile,
 }: {
 	state: ExecutorProjectState;
 	args: Record<string, unknown>;
 	exportProject: ExecutorExportProject;
+	probeExportedFile: ExecutorProbeExportedFile;
 }) {
 	const parsed = exportProjectArgsSchema.parse(args);
 	const format = requireExportFormat(parsed.format);
@@ -1700,6 +1858,12 @@ async function runExportProject({
 		throw new Error("Local exporter returned an empty file.");
 	}
 	await writeFile(parsed.outputFile, bytes);
+	const outputProbe = await probeExportedFile({
+		outputFile: parsed.outputFile,
+		format,
+		expectedWidth: state.project.settings.canvasSize.width,
+		expectedHeight: state.project.settings.canvasSize.height,
+	});
 
 	return {
 		success: true,
@@ -1711,6 +1875,7 @@ async function runExportProject({
 			includeAudio: parsed.includeAudio,
 			revision: state.revision,
 			totalDuration,
+			outputProbe,
 		},
 	};
 }
@@ -3285,6 +3450,7 @@ async function executeCommand({
 	env,
 	generateDigitalHuman,
 	exportProject,
+	probeExportedFile,
 }: {
 	state: ExecutorProjectState;
 	command: ExecutorCommand;
@@ -3296,6 +3462,7 @@ async function executeCommand({
 	env: Record<string, string | undefined>;
 	generateDigitalHuman: ExecutorGenerateDigitalHuman;
 	exportProject: ExecutorExportProject;
+	probeExportedFile: ExecutorProbeExportedFile;
 }) {
 	if (command.tool === "get_project_info") {
 		return runGetProjectInfo({ state, lastStatus });
@@ -3422,7 +3589,12 @@ async function executeCommand({
 		});
 	}
 	if (command.tool === "export_project") {
-		return runExportProject({ state, args: command.args, exportProject });
+		return runExportProject({
+			state,
+			args: command.args,
+			exportProject,
+			probeExportedFile,
+		});
 	}
 	if (command.tool === "verify_timeline") {
 		return runVerifyTimeline({ state, args: command.args });
@@ -3476,6 +3648,7 @@ export async function executeCodexExecutorEnvelope({
 	env = process.env,
 	generateDigitalHuman = defaultGenerateDigitalHuman,
 	exportProject = defaultExportProject,
+	probeExportedFile = probeExportedFileWithFfprobe,
 }: {
 	envelope: unknown;
 	transcribeMedia?: ExecutorTranscribeMedia;
@@ -3485,6 +3658,7 @@ export async function executeCodexExecutorEnvelope({
 	env?: Record<string, string | undefined>;
 	generateDigitalHuman?: ExecutorGenerateDigitalHuman;
 	exportProject?: ExecutorExportProject;
+	probeExportedFile?: ExecutorProbeExportedFile;
 }) {
 	const parsedEnvelope = envelopeSchema.parse(envelope);
 	const state = await loadProjectState({ projectId: parsedEnvelope.projectId });
@@ -3510,11 +3684,12 @@ export async function executeCodexExecutorEnvelope({
 				transcribeMedia,
 				probeAudio,
 				transcribeMediaRange,
-					inspectVideoRange,
-					env,
-					generateDigitalHuman,
-					exportProject,
-				});
+				inspectVideoRange,
+				env,
+				generateDigitalHuman,
+				exportProject,
+				probeExportedFile,
+			});
 			const success = result.success !== false;
 			const message =
 				"message" in result ? result.message : `${command.tool} completed.`;

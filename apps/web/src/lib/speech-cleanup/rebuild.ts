@@ -7,12 +7,14 @@ import {
 	type RebuiltSpeechCaption,
 	type SpeechCleanupDecision,
 	type SpeechCleanupDropReason,
+	type SpeechCleanupDropRisk,
 	type SpeechCleanupPlan,
 	type SpeechCleanupStats,
 	type SpeechCleanupVerification,
 } from "./schema";
 
 const TIME_TOLERANCE_SECONDS = 0.001;
+const TRANSCRIPT_COVERAGE_TOLERANCE_SECONDS = 0.3;
 
 export interface SpeechCleanupResult {
 	plan: SpeechCleanupPlan;
@@ -57,12 +59,38 @@ function assertDecisionOrder({
 	}
 }
 
+function assertTranscriptCoverage({
+	decisions,
+	sourceDuration,
+}: {
+	decisions: SpeechCleanupDecision[];
+	sourceDuration: number;
+}) {
+	const firstDecision = decisions[0];
+	const lastDecision = decisions[decisions.length - 1];
+
+	const leadingGap = roundTime(firstDecision.sourceStart);
+	const trailingGap = roundTime(sourceDuration - lastDecision.sourceEnd);
+
+	if (leadingGap > TRANSCRIPT_COVERAGE_TOLERANCE_SECONDS) {
+		throw new Error(
+			"SpeechCleanupPlan must classify leading untranscribed audio longer than 0.3 seconds.",
+		);
+	}
+	if (trailingGap > TRANSCRIPT_COVERAGE_TOLERANCE_SECONDS) {
+		throw new Error(
+			"SpeechCleanupPlan must classify trailing untranscribed audio longer than 0.3 seconds.",
+		);
+	}
+}
+
 function buildStats({
 	decisions,
 }: {
 	decisions: SpeechCleanupDecision[];
 }): SpeechCleanupStats {
 	const dropReasons: Partial<Record<SpeechCleanupDropReason, number>> = {};
+	const dropRisks: Partial<Record<SpeechCleanupDropRisk, number>> = {};
 	let keep = 0;
 	let drop = 0;
 
@@ -75,6 +103,7 @@ function buildStats({
 		drop += 1;
 		dropReasons[decision.dropReason] =
 			(dropReasons[decision.dropReason] ?? 0) + 1;
+		dropRisks[decision.risk] = (dropRisks[decision.risk] ?? 0) + 1;
 	}
 
 	return {
@@ -82,6 +111,7 @@ function buildStats({
 		keep,
 		drop,
 		dropReasons,
+		dropRisks,
 	};
 }
 
@@ -161,6 +191,7 @@ export function rebuildTimelineFromSpeechCleanup({
 		assertSourceBounds({ decision, sourceDuration });
 	}
 	assertDecisionOrder({ decisions: parsed.decisions });
+	assertTranscriptCoverage({ decisions: parsed.decisions, sourceDuration });
 
 	const keepDecisions = parsed.decisions.filter(
 		(decision) => decision.action === "keep",

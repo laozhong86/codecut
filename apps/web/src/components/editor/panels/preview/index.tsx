@@ -64,6 +64,7 @@ function RenderTreeController() {
 			duration,
 			canvasSize: { width, height },
 			background: activeProject.settings.background,
+			frameRate: activeProject.settings.fps,
 		});
 
 		editor.renderer.setRenderTree({ renderTree });
@@ -72,6 +73,7 @@ function RenderTreeController() {
 		mediaAssets,
 		activeProject?.derivedAssets,
 		activeProject?.settings.background,
+		activeProject?.settings.fps,
 		width,
 		height,
 	]);

@@ -118,6 +118,8 @@ async function buildRendererMediaAssets({
 			duration: asset.duration,
 			width: asset.width,
 			height: asset.height,
+			fps: asset.fps,
+			sourcePath: asset.path,
 			file: await fileForExecutorMediaAsset({ asset }),
 		})),
 	);
@@ -326,6 +328,7 @@ export const exportProjectWithNodeRenderer: ExecutorExportProject = async ({
 		derivedAssets: state.derivedAssets,
 		duration,
 		background,
+		frameRate: fps,
 	});
 	const runtime = createNodeRendererRuntime();
 	const renderer = new CanvasRenderer({

@@ -62,6 +62,7 @@ export class RendererManager {
 				duration,
 				canvasSize,
 				background: activeProject.settings.background,
+				frameRate: exportFps,
 			});
 
 			const exporter = new SceneExporter({

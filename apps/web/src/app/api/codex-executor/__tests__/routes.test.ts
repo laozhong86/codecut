@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { readFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextRequest } from "next/server";
@@ -346,5 +346,54 @@ describe("codex executor API routes", () => {
 		expect(statusResponse.status).toBe(401);
 		expect(projectResponse.status).toBe(401);
 		expect(mediaResponse.status).toBe(401);
+	});
+
+	test("fails fast when status.json has appended corruption", async () => {
+		await postProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: { projectId: "project-1", name: "Codex cut" },
+			}),
+		);
+		const statusPath = join(stateDir, "projects", "project-1", "status.json");
+		const originalStatus = await readFile(statusPath, "utf8");
+		await writeFile(
+			statusPath,
+			`${originalStatus}\n  "revision": 5\n}\n`,
+			"utf8",
+		);
+
+		const statusResponse = await getStatus(
+			request({
+				url: `${origin}/api/codex-executor/status?projectId=project-1`,
+				headers: { authorization: `Bearer ${token}` },
+			}),
+		);
+		const commandResponse = await postCommands(
+			request({
+				url: `${origin}/api/codex-executor/commands`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					envelope: {
+						version: 1,
+						projectId: "project-1",
+						source: "codex",
+						commands: [{ id: "cmd-1", tool: "get_project_info", args: {} }],
+					},
+				},
+			}),
+		);
+
+		expect(statusResponse.status).toBe(500);
+		expect(await statusResponse.json()).toMatchObject({
+			error: expect.stringContaining("status.json"),
+		});
+		expect(commandResponse.status).toBe(500);
+		expect(await commandResponse.json()).toMatchObject({
+			error: expect.stringContaining("status.json"),
+		});
 	});
 });

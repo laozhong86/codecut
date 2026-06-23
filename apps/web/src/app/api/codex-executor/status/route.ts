@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { validateExecutorReadAccess } from "@/lib/codex-executor/auth";
-import { getExecutorStatus } from "@/lib/codex-executor/executor";
+import {
+	getExecutorStatus,
+	isExecutorProjectNotFoundError,
+} from "@/lib/codex-executor/executor";
 
 export async function GET(request: NextRequest) {
 	const projectId = request.nextUrl.searchParams.get("projectId");
@@ -19,7 +22,7 @@ export async function GET(request: NextRequest) {
 	} catch (error) {
 		return NextResponse.json(
 			{ error: error instanceof Error ? error.message : "Project not found." },
-			{ status: 404 },
+			{ status: isExecutorProjectNotFoundError(error) ? 404 : 500 },
 		);
 	}
 }

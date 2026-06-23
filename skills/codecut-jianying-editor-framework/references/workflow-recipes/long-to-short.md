@@ -89,7 +89,7 @@ If transcript is unavailable for speech-led content, stop and report the missing
 - Duration: 30-60 seconds.
 - Aspect ratio: 9:16 when the user asks for TikTok, Reels, Shorts, or short video. Apply it through `update_project_settings`; do not treat the EditPlan target field as execution proof.
 - Captions: concise transcript-derived captions only after the cut is stable.
-- Speech cleanup: `dropReason` is required for `drop` decisions and forbidden for `keep` decisions. Filler counts come only from `dropReason: "filler"`, not marker words inside kept text.
+- Speech cleanup: `dropReason` and `risk: "low" | "high"` are required for `drop` decisions and forbidden for `keep` decisions. High-risk drops require `retainedMeaningEvidence`. Filler counts come only from `dropReason: "filler"`, not marker words inside kept text.
 - Landscape-to-vertical reframe: prefer centered `cover` only when visual preflight proves the subject and burned-in captions are safe. Use `vertical_face_safe_crop_above_burned_captions` as the planning template for talking-head sources where the old bottom caption band should be cropped out.
 - Caption policy: new captions must avoid old burned-in captions; Do not use `black-bar` as a subtitle mask.
 

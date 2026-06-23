@@ -27,6 +27,11 @@ subtitle engine, smart crop model, TTS system, BGM generator, or automatic
 marketplace template. Unsupported reference behaviors must be named as runtime
 gaps, not silently downgraded.
 
+A draft is not import-ready if it only names a high-level style while speech,
+subtitles, or visible marketing copy drove the reference. When speech or copy is
+present, the reusable template must come from a granular evidence breakdown, not
+from visual mood alone.
+
 ## Required Routing
 
 | User request | Required route |
@@ -44,11 +49,22 @@ gaps, not silently downgraded.
 1. Confirm the template purpose: future material type, business goal, output
    platform/aspect ratio, and whether the user wants this template to become a
    default trigger.
-2. Gather evidence from every reference video: duration, dimensions, transcript
-   when speech matters, visual/contact-sheet proof when visual style matters,
-   and any user-provided business/product facts.
-3. Extract only reusable decisions:
+2. Gather evidence from every reference video: duration, dimensions, audio
+   presence, transcript via `transcribe_media` / `get_transcript` when speech
+   matters, visible-copy/OCR evidence when on-screen text matters,
+   visual/contact-sheet proof when visual style matters, and any user-provided
+   business/product facts.
+3. Apply the speech-or-copy evidence gate: when a reference contains
+   voiceover, dialogue, subtitles, or visible claim copy, create a
+   `Per-Reference Beat And Copy Breakdown` before writing the template JSON. The
+   breakdown must include time range, narration or spoken transcript, on-screen
+   caption or visible copy, visual action, editing function, reusable template
+   rule, evidence source, and confidence. If transcript/copy evidence is
+   unavailable, stop and ask whether to collect it or continue as a visual-only
+   draft that is not import-ready.
+4. Extract only reusable decisions:
    - opening hook pattern
+   - narration/caption copy architecture and claim progression
    - story or proof sequence
    - pacing and approximate beat lengths
    - cut density and transition policy
@@ -56,15 +72,15 @@ gaps, not silently downgraded.
    - framing/aspect/crop policy and unverified reframe risk
    - audio role using only existing or importable audio assets
    - verification checks required after applying the template
-4. Classify the trigger type as one supported system template trigger:
+5. Classify the trigger type as one supported system template trigger:
    `talking-head-short`, `tutorial-demo`, `product-proof-ad`,
    `narrated-broll`, `subtitle-pass`, `timeline-inspection`, or `custom`.
-5. Write a template package with:
-   - `reference-analysis.md`
+6. Write a template package with:
+   - `reference-analysis.md`, including `Per-Reference Beat And Copy Breakdown`
    - `local-template-script.json`
    - `template-fields.md` for the Codecut Templates dialog
-6. Validate the package against `references/template-script-contract.md`.
-7. Stop and ask the user to confirm whether this exact draft should be imported
+7. Validate the package against `references/template-script-contract.md`.
+8. Stop and ask the user to confirm whether this exact draft should be imported
    into Codecut system templates. Include the template ID, name, trigger types,
    default trigger choice, and draft path. Do not import before confirmation.
 
@@ -114,11 +130,25 @@ Codecut evidence and contracts. Move unsupported reference effects into an
 `unsupportedRuntimeGaps` section in `reference-analysis.md`; do not put them
 inside template steps as if they are executable.
 
+`reference-analysis.md` must include `Per-Reference Beat And Copy Breakdown`
+when speech, subtitles, or visible copy appear in the references. Use a table or
+structured list with these fields: source, time range, narration or spoken
+transcript, on-screen caption or visible copy, visual action, editing function,
+reusable template rule, evidence source, and confidence. If the result is a
+visual-only draft because transcript or copy evidence is missing, label it
+`not import-ready` and do not ask for system-template import confirmation until
+the user accepts that limitation or provides evidence.
+
 ## Completion Standard
 
 For template derivation, completion requires:
 
 - accessible reference evidence summary
+- speech-or-copy evidence gate result
+- per-reference beat and copy breakdown when voiceover, subtitles, or visible
+  copy matter
+- narration/caption copy architecture, including hook, proof, explanation,
+  reveal, CTA, or explicit statement that a role is absent
 - chosen trigger type and rationale
 - reusable editing technique list
 - `local-template-script.json`

@@ -1488,6 +1488,18 @@ describe("codex executor", () => {
 				expect(includeAudio).toBe(true);
 				return Buffer.from("mp4-bytes");
 			},
+			probeExportedFile: async ({ outputFile: probedFile, format }) => {
+				expect(probedFile).toBe(outputFile);
+				expect(format).toBe("mp4");
+				return {
+					format: "mp4",
+					duration: 12,
+					width: 1080,
+					height: 1920,
+					videoTrackCount: 1,
+					audioTrackCount: 1,
+				};
+			},
 		});
 
 		expect(await readFile(outputFile, "utf8")).toBe("mp4-bytes");
@@ -1501,6 +1513,14 @@ describe("codex executor", () => {
 				includeAudio: true,
 				revision: state.revision,
 				totalDuration: 12,
+				outputProbe: {
+					format: "mp4",
+					duration: 12,
+					width: 1080,
+					height: 1920,
+					videoTrackCount: 1,
+					audioTrackCount: 1,
+				},
 			},
 		});
 	});
@@ -1596,8 +1616,19 @@ describe("codex executor", () => {
 				includeAudio: false,
 				revision: 2,
 				totalDuration: 1,
+				outputProbe: {
+					format: "mp4",
+					width: 320,
+					height: 180,
+					videoTrackCount: 1,
+					audioTrackCount: 0,
+				},
 			},
 		});
+		const exportData = resultData<{
+			outputProbe: { duration: number };
+		}>(result.results[0]);
+		expect(exportData.outputProbe.duration).toBeGreaterThan(0);
 		const outputBytes = await readFile(outputFile);
 		expect(outputBytes.byteLength).toBeGreaterThan(0);
 		expect(outputBytes.subarray(4, 8).toString("utf8")).toBe("ftyp");
@@ -4722,10 +4753,10 @@ describe("codex executor", () => {
 			startTime: 11,
 			duration: 1,
 			fontFamily: "CodecutCJK",
-			fontSize: 7,
+			fontSize: 5.8,
 			fontWeight: "bold",
 			color: "#fff3b0",
-			transform: { scale: 1, position: { x: 0, y: 300 }, rotate: 0 },
+			transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
 		});
 	});
 

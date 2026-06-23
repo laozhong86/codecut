@@ -8,6 +8,7 @@ import type {
 	TrackTransition,
 	TransitionType,
 } from "@/types/timeline";
+import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
 import { applyEditPlanToEditor } from "../apply";
 import type { EditPlan } from "../schema";
 
@@ -377,17 +378,17 @@ describe("applyEditPlanToEditor", () => {
 		});
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: "Poppins",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 6,
 			fontWeight: "bold",
 			color: "#ffffff",
 			stroke: { color: "#000000", width: 3 },
 			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
 			backgroundColor: "transparent",
-			boxWidth: 42,
+			boxWidth: 44,
 			transform: {
 				scale: 1,
-				position: { x: 0, y: 300 },
+				position: { x: 0, y: 520 },
 				rotate: 0,
 			},
 		});
@@ -416,7 +417,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: "Roboto",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -426,7 +427,7 @@ describe("applyEditPlanToEditor", () => {
 			backgroundPaddingX: 24,
 			backgroundPaddingY: 12,
 			backgroundBorderRadius: 8,
-			boxWidth: 42,
+			boxWidth: 44,
 			transform: {
 				scale: 1,
 				position: { x: 0, y: 0 },
@@ -459,16 +460,16 @@ describe("applyEditPlanToEditor", () => {
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
 			fontFamily: "CodecutCJK",
-			fontSize: 7,
+			fontSize: 5.8,
 			fontWeight: "bold",
 			color: "#fff3b0",
-			stroke: { color: "#101010", width: 4 },
-			shadow: { color: "#000000", offsetX: 0, offsetY: 3, blur: 6 },
+			stroke: { color: "#101010", width: 3 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 5 },
 			backgroundColor: "transparent",
-			boxWidth: 42,
+			boxWidth: 44,
 			transform: {
 				scale: 1,
-				position: { x: 0, y: 300 },
+				position: { x: 0, y: 520 },
 				rotate: 0,
 			},
 		});
@@ -527,7 +528,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "short-form-bold",
 				expected: {
-					fontFamily: "Poppins",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 6,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -538,7 +539,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "black-bar",
 				expected: {
-					fontFamily: "Roboto",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -549,18 +550,18 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "talking-head-pop",
 				expected: {
-					fontFamily: "CodecutCJK",
-					fontSize: 7,
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontSize: 5.8,
 					fontWeight: "bold",
 					color: "#fff3b0",
-					stroke: { color: "#101010", width: 4 },
+					stroke: { color: "#101010", width: 3 },
 					backgroundColor: "transparent",
 				},
 			},
 			{
 				preset: "tutorial-clean",
 				expected: {
-					fontFamily: "Inter",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "normal",
 					color: "#ffffff",
@@ -571,7 +572,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "documentary-soft",
 				expected: {
-					fontFamily: "Noto Serif SC",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "bold",
 					color: "#f8fafc",
@@ -582,8 +583,8 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "product-punch",
 				expected: {
-					fontFamily: "Smiley Sans",
-					fontSize: 7,
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontSize: 6,
 					fontWeight: "bold",
 					color: "#ffe45c",
 					stroke: { color: "#111111", width: 4 },
@@ -593,7 +594,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "lifestyle-warm",
 				expected: {
-					fontFamily: "LXGW WenKai",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 6,
 					fontWeight: "bold",
 					color: "#fff7ed",
@@ -604,7 +605,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "cinematic-serif",
 				expected: {
-					fontFamily: "Noto Serif SC",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "bold",
 					color: "#f8fafc",
@@ -642,10 +643,10 @@ describe("applyEditPlanToEditor", () => {
 
 			expect(textElements[1]).toMatchObject({
 				content: "This is the key insight.",
-				boxWidth: 42,
+				boxWidth: 44,
 				transform: {
 					scale: 1,
-					position: { x: 0, y: 300 },
+					position: { x: 0, y: 520 },
 					rotate: 0,
 				},
 				...captionCase.expected,
@@ -729,9 +730,9 @@ describe("applyEditPlanToEditor", () => {
 			editor,
 		});
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			success: false,
-			message: "EditPlan schema is invalid.",
+			path: "captionStyle.preset",
 		});
 		expect(editor.timeline.getTracks()).toEqual([videoTrack()]);
 	});

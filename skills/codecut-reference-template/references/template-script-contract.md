@@ -9,6 +9,11 @@ A Local Template Script JSON file is a draft Codex planning script until the
 user confirms import. It is not timeline state, an EditPlan extension, a hidden
 fallback, or a runtime template effect.
 
+A draft derived from speech, subtitles, or visible marketing copy is not
+import-ready until the copy has been decomposed into reusable editing logic. Do
+not turn a reference video into a generic visual style template while skipping
+the words that carry the hook, proof, explanation, reveal, or call to action.
+
 The runtime schema is implemented in `apps/web/src/lib/template-scripts/schema.ts`.
 The Codecut system template library uses the same schema and is the source of
 truth after import. The current UI shows system templates through the Projects
@@ -47,10 +52,37 @@ Include:
 
 - reference sources and accessibility status
 - evidence quality: metadata, transcript, visual proof, product facts
+- `Per-Reference Beat And Copy Breakdown` when speech, subtitles, or visible
+  copy appear in the references
+- narration/caption copy architecture and claim progression
 - reusable style rules
 - non-reusable one-off content
 - unsupported runtime gaps
 - confidence level and why
+
+#### Per-Reference Beat And Copy Breakdown
+
+Apply this speech-or-copy evidence gate before writing `local-template-script.json`:
+
+- If the reference contains voiceover, dialogue, subtitles, or visible claim
+  copy, collect transcript/copy evidence with current tools such as
+  `transcribe_media`, `get_transcript`, OCR, visual context, or user-provided
+  transcripts.
+- If the copy cannot be collected, either stop and request evidence or label the
+  output as a visual-only draft that is not import-ready.
+
+For each reference, include a table or structured list with:
+
+| Field | Requirement |
+| --- | --- |
+| source | Reference filename or URL. |
+| time range | Approximate start/end for the beat. |
+| narration or spoken transcript | Verbatim or close paraphrase from transcript evidence; write "none" only when no speech occurs. |
+| on-screen caption or visible copy | Visible subtitle, metric, label, CTA, or claim copy; write "none" only when absent. |
+| visual action | What the viewer sees in that beat. |
+| editing function | Hook, proof, setup, reveal, explanation, objection handling, CTA, rhythm reset, or transition. |
+| reusable template rule | The repeatable editing decision that can guide future material. |
+| evidence source and confidence | Transcript, OCR, visual context, contact sheet, user facts, plus high/medium/low confidence. |
 
 ### `local-template-script.json`
 
