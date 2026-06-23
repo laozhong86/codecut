@@ -67,6 +67,11 @@ interface PostCutCaptionData extends Record<string, unknown> {
 	}>;
 }
 
+const DEFAULT_POST_CUT_CAPTION_STYLE = {
+	preset: "talking-head-pop",
+	position: "lower-safe",
+} satisfies EditPlanCaptionStyle;
+
 function roundCaptionSeconds(value: number): number {
 	return Math.round((value + Number.EPSILON) * 1000) / 1000;
 }
@@ -257,7 +262,12 @@ async function buildPostCutCaptionsData({
 			const startTime = roundCaptionSeconds(element.startTime + relativeStart);
 			const endTime = roundCaptionSeconds(element.startTime + relativeEnd);
 			captions.push(
-				...buildPostCutCaptionEntries({ text, startTime, endTime }),
+				...buildPostCutCaptionEntries({
+					text,
+					startTime,
+					endTime,
+					captionStyle: DEFAULT_POST_CUT_CAPTION_STYLE,
+				}),
 			);
 		}
 
@@ -276,10 +286,7 @@ async function buildPostCutCaptionsData({
 			source,
 			language,
 			modelId,
-			captionStyle: {
-				preset: "talking-head-pop",
-				position: "lower-safe",
-			},
+			captionStyle: DEFAULT_POST_CUT_CAPTION_STYLE,
 			captions,
 			trace,
 		},

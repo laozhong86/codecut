@@ -168,6 +168,7 @@ describe("codex bridge CLI helpers", () => {
 		expect(
 			buildGetTranscriptEnvelope({
 				projectId: "project-1",
+				granularity: "word",
 				language: "auto",
 				modelId: "whisper-base",
 				startTime: 0,
@@ -179,6 +180,7 @@ describe("codex bridge CLI helpers", () => {
 				projectId: "project-1",
 				tool: "get_transcript",
 				args: {
+					granularity: "word",
 					language: "auto",
 					modelId: "whisper-base",
 					startTime: 0,
@@ -187,18 +189,28 @@ describe("codex bridge CLI helpers", () => {
 				},
 			}),
 		);
-		expect(() =>
-			buildGetTranscriptEnvelope({
-				projectId: "project-1",
-				language: "",
-				modelId: "whisper-base",
-			}),
-		).toThrow("--language is required");
-		expect(() =>
-			buildGetTranscriptEnvelope({
-				projectId: "project-1",
-				language: "auto",
-				modelId: "whisper-base",
+			expect(() =>
+				buildGetTranscriptEnvelope({
+					projectId: "project-1",
+					granularity: "segment",
+					language: "",
+					modelId: "whisper-base",
+				}),
+			).toThrow("--language is required");
+			expect(() =>
+				buildGetTranscriptEnvelope({
+					projectId: "project-1",
+					granularity: "sentence",
+					language: "auto",
+					modelId: "whisper-base",
+				}),
+			).toThrow("--granularity must be segment or word");
+			expect(() =>
+				buildGetTranscriptEnvelope({
+					projectId: "project-1",
+					granularity: "segment",
+					language: "auto",
+					modelId: "whisper-base",
 				startTime: 10,
 				endTime: 0,
 			}),
@@ -282,13 +294,17 @@ describe("codex bridge CLI helpers", () => {
 		expect(
 			buildRippleDeleteRangesEnvelope({
 				projectId: "project-1",
+				scope: { type: "track", trackId: "track-1" },
 				ranges: [[1, 3]],
 			}),
 		).toEqual(
 			buildCommandEnvelope({
 				projectId: "project-1",
 				tool: "ripple_delete_ranges",
-				args: { ranges: [[1, 3]] },
+				args: {
+					scope: { type: "track", trackId: "track-1" },
+					ranges: [[1, 3]],
+				},
 			}),
 		);
 		expect(() =>
@@ -315,11 +331,25 @@ describe("codex bridge CLI helpers", () => {
 		expect(() =>
 			buildRippleDeleteRangesEnvelope({
 				projectId: "project-1",
+				scope: { type: "track", trackId: "track-1" },
 				ranges: [[3, 1]],
 			}),
 		).toThrow(
 			"--ranges entries must be [start, end] with end greater than start",
 		);
+		expect(() =>
+			buildRippleDeleteRangesEnvelope({
+				projectId: "project-1",
+				ranges: [[1, 3]],
+			}),
+		).toThrow("--scope is required");
+		expect(() =>
+			buildRippleDeleteRangesEnvelope({
+				projectId: "project-1",
+				scope: { type: "track", trackId: "" },
+				ranges: [[1, 3]],
+			}),
+		).toThrow("--scope.trackId is required for track scope");
 	});
 
 	test("builds an export command only from explicit export options", () => {

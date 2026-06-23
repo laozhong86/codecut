@@ -165,6 +165,7 @@ const videoQualityReportInputSchema = {
 
 const transcriptInputSchema = {
 	projectId: projectIdSchema,
+	granularity: z.enum(["segment", "word"]),
 	language: languageSchema,
 	modelId: modelIdSchema,
 	...timelineWindowInputSchema,
@@ -181,6 +182,14 @@ const rippleDeleteRangeSchema = z
 		(range) => range.endTime > range.startTime,
 		"range endTime must be greater than range startTime",
 	);
+
+const rippleDeleteScopeSchema = z.discriminatedUnion("type", [
+	z.object({ type: z.literal("timeline") }).strict(),
+	z.object({ type: z.literal("track"), trackId: z.string().min(1) }).strict(),
+	z
+		.object({ type: z.literal("element"), elementId: z.string().min(1) })
+		.strict(),
+]);
 
 const transformSchema = z
 	.object({
@@ -443,7 +452,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "get_transcript",
 		title: "Get Codecut Timeline Transcript",
 		description:
-			"Read segment-level transcript mapped onto the currently edited timeline.",
+			"Read segment-level or word-level transcript mapped onto the currently edited timeline. Use word granularity for filler, dead-air, retake, and repeated-word cleanup. Word mode requires real word timestamps and fails instead of falling back to segment estimates.",
 		inputSchema: transcriptInputSchema,
 		readOnly: true,
 	},
@@ -681,9 +690,10 @@ export const CODECUT_MCP_TOOLS = [
 		name: "ripple_delete_ranges",
 		title: "Ripple Delete Codecut Ranges",
 		description:
-			"Delete timeline second ranges and ripple all tracks left by the removed duration.",
+			"Delete timeline second ranges with an explicit scope and ripple only the scoped target. Bare ranges without explicit scope are invalid.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			scope: rippleDeleteScopeSchema,
 			ranges: z.array(rippleDeleteRangeSchema).min(1),
 		},
 		readOnly: false,
@@ -1776,6 +1786,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				projectId,
 				toolName,
 				args: {
+					granularity: requireStringArg(args, "granularity"),
 					language: requireStringArg(args, "language"),
 					modelId: requireStringArg(args, "modelId"),
 					...(optionalNumberArg(args, "startTime") === undefined
@@ -2039,6 +2050,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				projectId,
 				toolName,
 				args: {
+					scope: args.scope,
 					ranges: args.ranges.map((range) => [
 						range.startTime,
 						range.endTime,
