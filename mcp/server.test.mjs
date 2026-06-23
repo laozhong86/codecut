@@ -111,6 +111,7 @@ describe("Codecut MCP server contract", () => {
 		expect(openTool.readOnly).toBe(true);
 		expect(openTool.modelVisible).toBe(true);
 		expect(openTool.description).toContain("uiLanguage");
+		expect(openTool.inputSchema.projectId).toBeUndefined();
 		expect(openTool.meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
@@ -124,7 +125,6 @@ describe("Codecut MCP server contract", () => {
 			'class="section-heading"',
 			'aria-labelledby="project-section-title"',
 			'id="project-name"',
-			'id="project-id"',
 			'id="media-file-path"',
 			'id="media-url"',
 			'id="target-aspect-ratio"',
@@ -139,6 +139,8 @@ describe("Codecut MCP server contract", () => {
 			expect(html).toContain(marker);
 		}
 		expect(html).not.toContain("<legend");
+		expect(html).not.toContain('id="project-id"');
+		expect(html).not.toContain('data-i18n="projectId"');
 	});
 
 	test("opens the workspace with structured defaults and widget metadata", () => {
@@ -161,6 +163,24 @@ describe("Codecut MCP server contract", () => {
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
 		});
+	});
+
+	test("opens the workspace with a localized default project name", () => {
+		const english = serverModule.openCodecutWorkspace({});
+		expect(english.structuredContent.intentDefaults.projectName).toBe(
+			"CodeCut Project",
+		);
+		expect(english.structuredContent.intentDefaults.projectId).toMatch(
+			/^codecut-project-[a-z0-9]+$/,
+		);
+
+		const chinese = serverModule.openCodecutWorkspace({ locale: "zh-CN" });
+		expect(chinese.structuredContent.intentDefaults.projectName).toBe(
+			"CodeCut 项目",
+		);
+		expect(chinese.structuredContent.intentDefaults.projectId).toMatch(
+			/^codecut-[a-z0-9]+$/,
+		);
 	});
 
 	test("keeps workspace UI language separate from caption language", () => {

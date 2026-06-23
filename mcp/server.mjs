@@ -102,7 +102,6 @@ const workspaceIntentInputSchema = {
 
 const workspaceOpenInputSchema = {
 	projectName: z.string().trim().optional(),
-	projectId: z.string().trim().optional(),
 	brief: z.string().optional(),
 	successCriteria: z.string().optional(),
 	filePath: z.string().trim().optional(),
@@ -757,7 +756,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent defaults. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1043,7 +1042,10 @@ export async function submitCodecutSetup(
 }
 
 function buildWorkspaceIntentDefaults(input = {}) {
-	const projectName = String(input.projectName || "").trim();
+	const uiLanguage = normalizeWorkspaceUiLanguage(input.uiLanguage || input.locale || "");
+	const projectName =
+		String(input.projectName || "").trim() ||
+		defaultWorkspaceProjectName(uiLanguage);
 	const filePath = resolveWorkspaceOpenFilePath(input);
 	const url = String(input.url || "").trim();
 	return {
@@ -1062,7 +1064,7 @@ function buildWorkspaceIntentDefaults(input = {}) {
 				? input.durationGoalSeconds
 				: 60,
 		captionLanguage: String(input.captionLanguage || "auto"),
-		uiLanguage: normalizeWorkspaceUiLanguage(input.uiLanguage || input.locale || ""),
+		uiLanguage,
 		output: {
 			format: input.output?.format || "mp4",
 			quality: input.output?.quality || "high",
@@ -1074,6 +1076,10 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		brief: String(input.brief || ""),
 		successCriteria: String(input.successCriteria || ""),
 	};
+}
+
+function defaultWorkspaceProjectName(uiLanguage) {
+	return uiLanguage === "zh-CN" ? "CodeCut 项目" : "CodeCut Project";
 }
 
 function resolveWorkspaceOpenFilePath(input = {}) {
