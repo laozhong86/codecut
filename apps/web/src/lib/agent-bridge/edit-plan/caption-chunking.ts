@@ -2,7 +2,7 @@ import type { EditPlanCaption } from "./schema";
 
 const POST_CUT_CAPTION_MAX_DURATION_SECONDS = 4;
 const POST_CUT_CAPTION_MAX_LATIN_CHARS = 52;
-const POST_CUT_CAPTION_MAX_CJK_CHARS = 22;
+const POST_CUT_CAPTION_MAX_CJK_CHARS = 8;
 
 function roundCaptionSeconds(value: number): number {
 	return Math.round((value + Number.EPSILON) * 1000) / 1000;
@@ -29,6 +29,21 @@ function splitByCharacters(text: string, maxCharacters: number): string[] {
 	return chunks;
 }
 
+function splitByBalancedCharacters(
+	text: string,
+	maxCharacters: number,
+): string[] {
+	const characters = Array.from(text);
+	const partCount = Math.ceil(characters.length / maxCharacters);
+	const chunks: string[] = [];
+	for (let index = 0; index < partCount; index += 1) {
+		const start = Math.round((characters.length * index) / partCount);
+		const end = Math.round((characters.length * (index + 1)) / partCount);
+		chunks.push(characters.slice(start, end).join(""));
+	}
+	return chunks;
+}
+
 function splitByCharacterLimit({
 	text,
 	maxCharacters,
@@ -37,7 +52,7 @@ function splitByCharacterLimit({
 	maxCharacters: number;
 }): string[] {
 	if (countCharacters(text) <= maxCharacters) return [text];
-	if (!/\s/.test(text)) return splitByCharacters(text, maxCharacters);
+	if (!/\s/.test(text)) return splitByBalancedCharacters(text, maxCharacters);
 
 	const chunks: string[] = [];
 	let current = "";

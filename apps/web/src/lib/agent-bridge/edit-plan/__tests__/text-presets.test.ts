@@ -122,6 +122,30 @@ describe("caption style presets", () => {
 		expect(captionBottomY).toBeLessThanOrEqual(1600);
 	});
 
+	test("talking-head-pop keeps common Chinese opinion captions out of three-line layouts", () => {
+		const samples = [
+			"你连议价权都没有",
+			"平台越大你输得越惨",
+			"你在平台上认识的资源是冲着平台来的",
+			"另一种是掌握客户资产、口碑和经验",
+			"不能做成漂亮履历的项目不是项目",
+		];
+
+		for (const content of samples) {
+			const { layout } = layoutPresetCaption({
+				content,
+				preset: "talking-head-pop",
+			});
+			const lines = layout.lines.map((line) =>
+				line.runs.map((run) => run.text).join(""),
+			);
+			const lastLineLength = Array.from(lines.at(-1) ?? "").length;
+
+			expect(lines.length, content).toBeLessThanOrEqual(2);
+			expect(lastLineLength, content).toBeGreaterThan(2);
+		}
+	});
+
 	test("all caption presets keep Chinese subtitles in a conventional lower-third layout", () => {
 		expect(implementedCaptionPresets).toHaveLength(8);
 

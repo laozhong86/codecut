@@ -9,6 +9,9 @@ Use this recipe when the user asks for subtitles, caption cleanup, subtitle timi
 - Captions fit inside the generated timeline.
 - Text stays on text tracks.
 - `get_timeline_state` confirms caption element count and timing bounds.
+- `build_video_quality_report` passes `layout.captionLines`: captions render
+  within two lines and multi-line captions do not end with a 1-2 character
+  orphan line.
 
 ## Required Context
 
@@ -47,7 +50,9 @@ confirms a translation overlay or duplicate-language caption.
    - Do not place source transcript timestamps directly on the edited timeline.
    - If a transcript segment crosses a clip boundary, stop and either regenerate captions from edited audio or choose transcript-aligned cuts.
 5. Normalize caption text for readability:
-   - Chinese: short phrases, usually 10-18 characters.
+   - Chinese: short phrases. For vertical talking-head captions, prefer phrase
+     chunks that the current preset renders as one or two balanced lines; avoid
+     three-line captions and 1-2 character orphan last lines.
    - English: short phrase groups, usually 3-7 words.
 6. Select the caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` as the fallback.
 7. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`.
@@ -103,6 +108,20 @@ node scripts/codex-bridge.mjs send \
   --tool get_timeline_state \
   --args-json '{}'
 ```
+
+Run a quality report before export when captions are present:
+
+```bash
+node scripts/codex-bridge.mjs build-video-quality-report \
+  --project-id <id> \
+  --plan-json-file /absolute/path/final-edit-plan.json \
+  --start-time 0 \
+  --end-time <timeline-duration-seconds> \
+  --frame-count 6
+```
+
+Stop if `layout.captionLines` fails. Fix the caption text or selected preset,
+then re-apply the final EditPlan and re-run the report.
 
 Do not add a hidden one-step caption mutation command. A future convenience
 command may be named `caption-edit-plan`, but it must output a final EditPlan

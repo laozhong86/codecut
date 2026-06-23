@@ -4677,6 +4677,66 @@ describe("codex executor", () => {
 		expect(after).toEqual(before);
 	});
 
+	test("build_video_quality_report fails captions that render beyond two lines", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const badCaptionPlan = {
+			...plan,
+			captions: [
+				{
+					text: "你在平台上认识的资源是冲着平台来的但是离开以后就没有了",
+					startTime: 0,
+					duration: 1,
+				},
+			],
+			captionStyle: {
+				preset: "talking-head-pop",
+				position: "lower-safe",
+			},
+		};
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: badCaptionPlan,
+				},
+			}),
+		});
+		expect(applyResult.results[0]).toMatchObject({ success: true });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan: badCaptionPlan,
+					inspection: { startTime: 0, endTime: 1, frameCount: 2 },
+				},
+			}),
+		});
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: fail",
+			data: {
+				status: "fail",
+				checks: expect.arrayContaining([
+					expect.objectContaining({
+						id: "layout.captionLines",
+						status: "fail",
+						evidence: expect.objectContaining({
+							overLimit: [
+								expect.objectContaining({
+									kind: "caption",
+									index: 0,
+									lineCount: 3,
+								}),
+							],
+						}),
+					}),
+				]),
+			},
+		});
+	});
+
 	test("build_video_quality_report fails when caption readback is missing", async () => {
 		const { plan } = await createAppliedQualityFixture();
 		const state = await getExecutorProjectState({ projectId });
@@ -5596,7 +5656,7 @@ describe("codex executor", () => {
 			startTime: 11,
 			duration: 1,
 			fontFamily: "CodecutCJK",
-			fontSize: 5.8,
+			fontSize: 4.8,
 			fontWeight: "bold",
 			color: "#fff3b0",
 			transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
