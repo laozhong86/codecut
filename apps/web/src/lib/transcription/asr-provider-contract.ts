@@ -22,6 +22,21 @@ export const LOCAL_SEGMENT_ASR_QUALITY: TranscriptionQuality = {
 	warnings: ["word timestamps unavailable"],
 };
 
+export const LOCAL_WORD_ASR_CAPABILITIES: TranscriptionProviderCapabilities = {
+	segments: true,
+	words: true,
+	timestamps: {
+		segments: true,
+		words: true,
+	},
+	confidence: false,
+};
+
+export const LOCAL_WORD_ASR_QUALITY: TranscriptionQuality = {
+	confidence: null,
+	warnings: [],
+};
+
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
@@ -206,5 +221,19 @@ export function cloneLocalSegmentAsrQuality(): TranscriptionQuality {
 	return {
 		...LOCAL_SEGMENT_ASR_QUALITY,
 		warnings: [...LOCAL_SEGMENT_ASR_QUALITY.warnings],
+	};
+}
+
+export function cloneLocalWordAsrCapabilities(): TranscriptionProviderCapabilities {
+	return {
+		...LOCAL_WORD_ASR_CAPABILITIES,
+		timestamps: { ...LOCAL_WORD_ASR_CAPABILITIES.timestamps },
+	};
+}
+
+export function cloneLocalWordAsrQuality(): TranscriptionQuality {
+	return {
+		...LOCAL_WORD_ASR_QUALITY,
+		warnings: [...LOCAL_WORD_ASR_QUALITY.warnings],
 	};
 }

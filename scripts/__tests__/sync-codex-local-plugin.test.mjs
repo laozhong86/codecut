@@ -126,6 +126,7 @@ enabled = true
 
 		expect(args).toContain("--delete");
 		expect(args).toContain("--checksum");
+		expect(args).toContain("--omit-dir-times");
 		expect(args).toContain("--dry-run");
 		expect(args).toContain("--exclude=.git");
 		expect(args).toContain("--exclude=.git/");

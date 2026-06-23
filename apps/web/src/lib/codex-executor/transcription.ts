@@ -8,12 +8,15 @@ import {
 import {
 	cloneLocalSegmentAsrCapabilities,
 	cloneLocalSegmentAsrQuality,
+	cloneLocalWordAsrCapabilities,
+	cloneLocalWordAsrQuality,
 } from "@/lib/transcription/asr-provider-contract";
 import type {
 	TranscriptionLanguage,
 	TranscriptionModelId,
 	TranscriptionResult,
 	TranscriptionSegment,
+	TranscriptionWord,
 } from "@/types/transcription";
 
 const SAMPLE_RATE = 16000;
@@ -31,6 +34,8 @@ export interface ExecutorTranscriptionRange {
 	end: number;
 }
 
+export type ExecutorTranscriptGranularity = "segment" | "word";
+
 export type ExecutorTranscribeMedia = ({
 	mediaAsset,
 	language,
@@ -46,11 +51,13 @@ export type ExecutorTranscribeMediaRange = ({
 	language,
 	modelId,
 	range,
+	timestampGranularity,
 }: {
 	mediaAsset: ExecutorTranscriptionMedia;
 	language: TranscriptionLanguage;
 	modelId: TranscriptionModelId;
 	range: ExecutorTranscriptionRange;
+	timestampGranularity?: ExecutorTranscriptGranularity;
 }) => Promise<TranscriptionResult & { modelId?: string }>;
 
 export function parseExecutorTranscriptionLanguage(
@@ -281,6 +288,55 @@ function normalizeSegments({
 	return segments;
 }
 
+function normalizeWords({
+	output,
+	text,
+}: {
+	output: unknown;
+	text: string;
+}): TranscriptionWord[] {
+	const chunks =
+		typeof output === "object" && output && "chunks" in output
+			? (output as { chunks?: unknown }).chunks
+			: undefined;
+	if (!Array.isArray(chunks)) {
+		if (text.trim().length === 0) return [];
+		throw new Error("Local ASR word output must include timestamp chunks.");
+	}
+
+	const words: TranscriptionWord[] = [];
+	chunks.forEach((chunk, index) => {
+		if (!chunk || typeof chunk !== "object") {
+			throw new Error(`Local ASR word chunk ${index} must be an object.`);
+		}
+		const wordText =
+			"text" in chunk && typeof chunk.text === "string" ? chunk.text : "";
+		const timestamp =
+			"timestamp" in chunk && Array.isArray(chunk.timestamp)
+				? chunk.timestamp
+				: null;
+		if (!timestamp || timestamp.length < 2) {
+			throw new Error(
+				`Local ASR word chunk ${index} must include timestamps.`,
+			);
+		}
+		const start = Number(timestamp[0] ?? 0);
+		const end = Number(timestamp[1] ?? timestamp[0] ?? 0);
+		if (!Number.isFinite(start) || !Number.isFinite(end)) {
+			throw new Error(
+				`Local ASR word chunk ${index} timestamps must be finite.`,
+			);
+		}
+		if (end < start) {
+			throw new Error(
+				`Local ASR word chunk ${index} end must not be before start.`,
+			);
+		}
+		words.push({ text: wordText, start, end });
+	});
+	return words;
+}
+
 export const transcribeMediaWithNodeRuntime: ExecutorTranscribeMedia = async ({
 	mediaAsset,
 	language,
@@ -297,11 +353,13 @@ async function runTranscriptionWithNodeRuntime({
 	language,
 	modelId,
 	range,
+	timestampGranularity = "segment",
 }: {
 	mediaAsset: ExecutorTranscriptionMedia;
 	language: TranscriptionLanguage;
 	modelId: TranscriptionModelId;
 	range?: ExecutorTranscriptionRange;
+	timestampGranularity?: ExecutorTranscriptGranularity;
 }) {
 	const model = TRANSCRIPTION_MODELS.find((entry) => entry.id === modelId);
 	if (!model) {
@@ -331,7 +389,7 @@ async function runTranscriptionWithNodeRuntime({
 		stride_length_s: isDistilWhisper ? 3 : DEFAULT_STRIDE_SECONDS,
 		language: language === "auto" ? undefined : language,
 		task: "transcribe",
-		return_timestamps: true,
+		return_timestamps: timestampGranularity === "word" ? "word" : true,
 		force_full_sequences: false,
 	});
 	const result = Array.isArray(output) ? output[0] : output;
@@ -346,15 +404,30 @@ async function runTranscriptionWithNodeRuntime({
 	return {
 		text,
 		segments: normalizeSegments({ output: result, text }),
+		...(timestampGranularity === "word"
+			? { words: normalizeWords({ output: result, text }) }
+			: {}),
 		language,
 		modelId,
-		capabilities: cloneLocalSegmentAsrCapabilities(),
-		quality: cloneLocalSegmentAsrQuality(),
+		capabilities:
+			timestampGranularity === "word"
+				? cloneLocalWordAsrCapabilities()
+				: cloneLocalSegmentAsrCapabilities(),
+		quality:
+			timestampGranularity === "word"
+				? cloneLocalWordAsrQuality()
+				: cloneLocalSegmentAsrQuality(),
 	};
 }
 
 export const transcribeMediaRangeWithNodeRuntime: ExecutorTranscribeMediaRange =
-	async ({ mediaAsset, language, modelId, range }) => {
+	async ({
+		mediaAsset,
+		language,
+		modelId,
+		range,
+		timestampGranularity,
+	}) => {
 		if (!range) {
 			throw new Error("Transcription range is required.");
 		}
@@ -364,6 +437,7 @@ export const transcribeMediaRangeWithNodeRuntime: ExecutorTranscribeMediaRange =
 			language,
 			modelId,
 			range,
+			timestampGranularity,
 		});
 	};
 

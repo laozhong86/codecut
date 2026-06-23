@@ -37,7 +37,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs get-timeline-state-v2 --project-id <id> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>] [--include-referenced-media <true|false>]",
 		"  node scripts/codex-bridge.mjs inspect-timeline --project-id <id> --start-time <seconds> [--end-time <seconds>] [--frame-count <1..16>]",
 		"  node scripts/codex-bridge.mjs build-video-quality-report --project-id <id> --plan-json-file /absolute/path/edit-plan.json --start-time <seconds> --end-time <seconds> --frame-count <1..16>",
-		"  node scripts/codex-bridge.mjs get-transcript --project-id <id> --language <auto|code> --model-id <model> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>]",
+		"  node scripts/codex-bridge.mjs get-transcript --project-id <id> --granularity <segment|word> --language <auto|code> --model-id <model> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>]",
 		"  node scripts/codex-bridge.mjs add-texts --project-id <id> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs add-captions --project-id <id> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs insert-clips --project-id <id> --args-json '<json>'",
@@ -895,6 +895,28 @@ function validateRanges(ranges) {
 	return ranges.map(([start, end]) => [Number(start), Number(end)]);
 }
 
+function validateRippleDeleteScope(scope) {
+	if (!scope || typeof scope !== "object" || Array.isArray(scope)) {
+		throw new Error("--scope is required");
+	}
+	if (scope.type === "timeline") {
+		return { type: "timeline" };
+	}
+	if (scope.type === "track") {
+		if (typeof scope.trackId !== "string" || scope.trackId.trim() === "") {
+			throw new Error("--scope.trackId is required for track scope");
+		}
+		return { type: "track", trackId: scope.trackId };
+	}
+	if (scope.type === "element") {
+		if (typeof scope.elementId !== "string" || scope.elementId.trim() === "") {
+			throw new Error("--scope.elementId is required for element scope");
+		}
+		return { type: "element", elementId: scope.elementId };
+	}
+	throw new Error("--scope.type must be timeline, track, or element");
+}
+
 function optionalTimelineWindow({ startTime, endTime, frameCount }) {
 	const args = {};
 	if (startTime !== undefined) {
@@ -1231,12 +1253,16 @@ export async function buildVideoQualityReportEnvelope({
 
 export function buildGetTranscriptEnvelope({
 	projectId,
+	granularity,
 	language,
 	modelId,
 	startTime,
 	endTime,
 	includeFrames,
 }) {
+	if (granularity !== "segment" && granularity !== "word") {
+		throw new Error("--granularity must be segment or word");
+	}
 	if (!language) {
 		throw new Error("--language is required");
 	}
@@ -1247,6 +1273,7 @@ export function buildGetTranscriptEnvelope({
 		projectId,
 		tool: "get_transcript",
 		args: {
+			granularity,
 			language,
 			modelId,
 			...optionalTimelineWindow({ startTime, endTime }),
@@ -1491,11 +1518,14 @@ export function buildDeleteSystemTemplateScriptEnvelope({
 	});
 }
 
-export function buildRippleDeleteRangesEnvelope({ projectId, ranges }) {
+export function buildRippleDeleteRangesEnvelope({ projectId, scope, ranges }) {
 	return buildCommandEnvelope({
 		projectId,
 		tool: "ripple_delete_ranges",
-		args: { ranges: validateRanges(ranges) },
+		args: {
+			scope: validateRippleDeleteScope(scope),
+			ranges: validateRanges(ranges),
+		},
 	});
 }
 
@@ -2554,6 +2584,7 @@ export async function runCli({
 	} else if (command === "get-transcript") {
 		envelope = buildGetTranscriptEnvelope({
 			projectId: flags.projectId,
+			granularity: flags.granularity,
 			language: flags.language,
 			modelId: flags.modelId,
 			startTime:

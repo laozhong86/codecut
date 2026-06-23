@@ -205,6 +205,11 @@ interface ExecutorCommand {
 	args: Record<string, unknown>;
 }
 
+const DEFAULT_POST_CUT_CAPTION_STYLE = {
+	preset: "talking-head-pop",
+	position: "lower-safe",
+} satisfies EditPlanCaptionStyle;
+
 const commandSchema = z
 	.object({
 		id: z.string().min(1),
@@ -385,6 +390,7 @@ const buildPostCutCaptionsArgsSchema = z
 	.object({
 		language: z.unknown(),
 		modelId: z.unknown(),
+		captionStyle: EditPlanCaptionStyleSchema.optional(),
 	})
 	.strict();
 
@@ -453,6 +459,7 @@ const listModelsArgsSchema = z
 
 const getTranscriptArgsSchema = z
 	.object({
+		granularity: z.enum(["segment", "word"]),
 		language: z.unknown(),
 		modelId: z.unknown(),
 		startTime: z.number().nonnegative().optional(),
@@ -610,6 +617,21 @@ const searchMediaArgsSchema = z
 
 const rippleDeleteRangesArgsSchema = z
 	.object({
+		scope: z.discriminatedUnion("type", [
+			z.object({ type: z.literal("timeline") }).strict(),
+			z
+				.object({
+					type: z.literal("track"),
+					trackId: z.string().min(1),
+				})
+				.strict(),
+			z
+				.object({
+					type: z.literal("element"),
+					elementId: z.string().min(1),
+				})
+				.strict(),
+		]),
 		ranges: z
 			.array(
 				z
@@ -3185,13 +3207,21 @@ async function runGetTranscript({
 				language,
 				modelId,
 				range: { start: sourceStart, end: sourceEnd },
+				timestampGranularity: parsed.granularity,
 			});
 			assertAsrProviderResult(result, `get_transcript clip ${element.id}`);
-			const segments = [];
-			const segmentFrames = [];
-			for (const segment of result.segments) {
-				const absoluteSourceStart = sourceStart + segment.start;
-				const absoluteSourceEnd = sourceStart + segment.end;
+			if (parsed.granularity === "word" && !result.words) {
+				throw new Error(
+					`get_transcript word granularity requires ASR word timestamps for clip "${element.id}".`,
+				);
+			}
+			const transcriptUnits =
+				parsed.granularity === "word" ? (result.words ?? []) : result.segments;
+			const rows = [];
+			const rowFrames = [];
+			for (const unit of transcriptUnits) {
+				const absoluteSourceStart = sourceStart + unit.start;
+				const absoluteSourceEnd = sourceStart + unit.end;
 				const clippedSourceStart = Math.max(absoluteSourceStart, sourceStart);
 				const clippedSourceEnd = Math.min(absoluteSourceEnd, sourceEnd);
 				if (clippedSourceEnd <= clippedSourceStart) continue;
@@ -3211,15 +3241,15 @@ async function runGetTranscript({
 					element.trimStart +
 					(clippedTimelineEnd - element.startTime) * playbackRate;
 				const row = [
-					segment.text,
+					unit.text,
 					roundTimelineSeconds(clippedTimelineStart),
 					roundTimelineSeconds(clippedTimelineEnd),
 					roundTimelineSeconds(rowSourceStart),
 					roundTimelineSeconds(rowSourceEnd),
 				];
-				segments.push(row);
+				rows.push(row);
 				if (parsed.includeFrames) {
-					segmentFrames.push([
+					rowFrames.push([
 						secondsToFrame(row[1] as number, fps),
 						secondsToFrame(row[2] as number, fps),
 						secondsToFrame(row[3] as number, fps),
@@ -3231,29 +3261,42 @@ async function runGetTranscript({
 				clipId: element.id,
 				trackId: track.id,
 				mediaId: element.mediaId,
-				segments,
-				...(parsed.includeFrames ? { segmentFrames } : {}),
+				...(parsed.granularity === "word"
+					? { words: rows }
+					: { segments: rows }),
+				...(parsed.includeFrames
+					? parsed.granularity === "word"
+						? { wordFrames: rowFrames }
+						: { segmentFrames: rowFrames }
+					: {}),
 			});
 		}
 	}
 	const segmentCount = clips.reduce(
-		(total, clip) => total + clip.segments.length,
+		(total, clip) =>
+			total +
+			(parsed.granularity === "word"
+				? ((clip as { words: unknown[] }).words.length)
+				: ((clip as { segments: unknown[] }).segments.length)),
 		0,
 	);
+	const rowFormat = [
+		"text",
+		"startTime",
+		"endTime",
+		"sourceStart",
+		"sourceEnd",
+	];
 	return {
 		success: true,
-		message: `Transcript has ${segmentCount} segment(s) from ${clips.length} clip(s).`,
+		message: `Transcript has ${segmentCount} ${parsed.granularity} row(s) from ${clips.length} clip(s).`,
 		data: {
 			revision: state.revision,
 			language,
 			modelId,
-			segmentFormat: [
-				"text",
-				"startTime",
-				"endTime",
-				"sourceStart",
-				"sourceEnd",
-			],
+			...(parsed.granularity === "word"
+				? { wordFormat: rowFormat }
+				: { segmentFormat: rowFormat }),
 			...(parsed.includeFrames
 				? {
 						frameFormat: [
@@ -3283,6 +3326,7 @@ async function runBuildPostCutCaptions({
 		state,
 		language: parseExecutorTranscriptionLanguage(parsed.language),
 		modelId: parseExecutorTranscriptionModelId(parsed.modelId),
+		captionStyle: parsed.captionStyle ?? DEFAULT_POST_CUT_CAPTION_STYLE,
 		transcribeMediaRange,
 	});
 	if (!result.success) return result;
@@ -3443,11 +3487,13 @@ async function buildPostCutCaptionsData({
 	state,
 	language,
 	modelId,
+	captionStyle = DEFAULT_POST_CUT_CAPTION_STYLE,
 	transcribeMediaRange,
 }: {
 	state: ExecutorProjectState;
 	language: ReturnType<typeof parseExecutorTranscriptionLanguage>;
 	modelId: ReturnType<typeof parseExecutorTranscriptionModelId>;
+	captionStyle?: EditPlanCaptionStyle;
 	transcribeMediaRange: ExecutorTranscribeMediaRange;
 }): Promise<
 	| {
@@ -3509,6 +3555,8 @@ async function buildPostCutCaptionsData({
 		: clips.some(({ element }) => element.type === "audio")
 			? "edited_timeline_audio"
 			: "edited_video_clip_audio";
+	const aspectRatio = aspectRatioForState(state);
+	const canvasSize = state.project.settings.canvasSize;
 
 	const captions: Array<{
 		text: string;
@@ -3601,7 +3649,14 @@ async function buildPostCutCaptionsData({
 			const startTime = roundTimelineSeconds(element.startTime + relativeStart);
 			const endTime = roundTimelineSeconds(element.startTime + relativeEnd);
 			captions.push(
-				...buildPostCutCaptionEntries({ text, startTime, endTime }),
+				...buildPostCutCaptionEntries({
+					text,
+					startTime,
+					endTime,
+					captionStyle,
+					aspectRatio,
+					canvasSize,
+				}),
 			);
 		}
 
@@ -3620,10 +3675,7 @@ async function buildPostCutCaptionsData({
 			source,
 			language,
 			modelId,
-			captionStyle: {
-				preset: "talking-head-pop",
-				position: "lower-safe",
-			},
+			captionStyle,
 			captions,
 			trace,
 		},
@@ -3666,14 +3718,12 @@ async function runAddCaptions({
 	transcribeMediaRange: ExecutorTranscribeMediaRange;
 }) {
 	const parsed = addCaptionsArgsSchema.parse(args);
-	const captionStyle = parsed.captionStyle ?? {
-		preset: "talking-head-pop",
-		position: "lower-safe",
-	};
+	const captionStyle = parsed.captionStyle ?? DEFAULT_POST_CUT_CAPTION_STYLE;
 	const captions = await buildPostCutCaptionsData({
 		state,
 		language: parseExecutorTranscriptionLanguage(parsed.language),
 		modelId: parseExecutorTranscriptionModelId(parsed.modelId),
+		captionStyle,
 		transcribeMediaRange,
 	});
 	if (!captions.success) return captions;
@@ -3943,7 +3993,11 @@ async function runRippleDeleteRanges({
 	args: Record<string, unknown>;
 }) {
 	const parsed = rippleDeleteRangesArgsSchema.parse(args);
-	const summary = rippleDeleteRanges({ state, ranges: parsed.ranges });
+	const summary = rippleDeleteRanges({
+		state,
+		scope: parsed.scope,
+		ranges: parsed.ranges,
+	});
 	await saveProjectState({ state });
 	return {
 		success: true,

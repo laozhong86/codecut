@@ -111,6 +111,21 @@ function asrContractFields() {
 	};
 }
 
+function wordAsrContractFields() {
+	return {
+		capabilities: {
+			segments: true,
+			words: true,
+			timestamps: { segments: true, words: true },
+			confidence: false,
+		},
+		quality: {
+			confidence: null,
+			warnings: [],
+		},
+	};
+}
+
 function personMask(overrides: Partial<DerivedAsset> = {}): DerivedAsset {
 	return {
 		id: "mask-1",
@@ -4932,6 +4947,7 @@ describe("codex executor", () => {
 			envelope: envelope({
 				tool: "get_transcript",
 				args: {
+					granularity: "segment",
 					language: "auto",
 					modelId: "whisper-tiny",
 					includeFrames: true,
@@ -5026,6 +5042,7 @@ describe("codex executor", () => {
 			envelope: envelope({
 				tool: "get_transcript",
 				args: {
+					granularity: "segment",
 					language: "auto",
 					modelId: "whisper-tiny",
 					includeFrames: true,
@@ -5055,6 +5072,202 @@ describe("codex executor", () => {
 				],
 			},
 		});
+	});
+
+	test("get_transcript requires explicit transcript granularity", async () => {
+		await seedDraftState({ tracks: [] });
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_transcript",
+				args: {
+					language: "auto",
+					modelId: "whisper-tiny",
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({ success: false });
+		expect(
+			String((result.results[0] as { message?: unknown }).message),
+		).toContain("granularity");
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
+	test("get_transcript maps word timestamps through trim playbackRate and timeline position", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "media-1",
+					name: "talk.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 30,
+					width: 1920,
+					height: 1080,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/talk.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Talk",
+							mediaId: "media-1",
+							startTime: 10,
+							duration: 4,
+							trimStart: 20,
+							trimEnd: 28,
+							playbackRate: 2,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_transcript",
+				args: {
+					granularity: "word",
+					language: "auto",
+					modelId: "whisper-tiny",
+					includeFrames: true,
+				},
+			}),
+			transcribeMediaRange: async ({ range }) => {
+				expect(range).toEqual({ start: 20, end: 28 });
+				return {
+					text: "hello again",
+					segments: [{ text: "hello again", start: 1, end: 3 }],
+					words: [
+						{ text: "hello", start: 1, end: 1.5 },
+						{ text: "again", start: 2, end: 3 },
+					],
+					language: "auto",
+					modelId: "whisper-tiny",
+					...wordAsrContractFields(),
+				};
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				revision: 1,
+				wordFormat: [
+					"text",
+					"startTime",
+					"endTime",
+					"sourceStart",
+					"sourceEnd",
+				],
+				frameFormat: [
+					"startFrame",
+					"endFrame",
+					"sourceStartFrame",
+					"sourceEndFrame",
+				],
+				clips: [
+					{
+						clipId: "clip-1",
+						trackId: "video-track-1",
+						mediaId: "media-1",
+						words: [
+							["hello", 10.5, 10.75, 21, 21.5],
+							["again", 11, 11.5, 22, 23],
+						],
+						wordFrames: [
+							[315, 323, 630, 645],
+							[330, 345, 660, 690],
+						],
+					},
+				],
+			},
+		});
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
+	test("get_transcript word mode fails fast when ASR returns no word timestamps", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "media-1",
+					name: "talk.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 30,
+					width: 1920,
+					height: 1080,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/talk.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Talk",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 5,
+							trimStart: 0,
+							trimEnd: 5,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_transcript",
+				args: {
+					granularity: "word",
+					language: "auto",
+					modelId: "whisper-tiny",
+				},
+			}),
+			transcribeMediaRange: async () => ({
+				text: "hello",
+				segments: [{ text: "hello", start: 1, end: 2 }],
+				language: "auto",
+				modelId: "whisper-tiny",
+				...asrContractFields(),
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({ success: false });
+		expect(
+			String((result.results[0] as { message?: unknown }).message),
+		).toContain("word timestamps");
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
 	});
 
 	test("insert_clips ripples later elements on the target track", async () => {
@@ -5331,6 +5544,132 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("split_clip preserves linear keyframe continuity at the cut", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Clip",
+							mediaId: "media-1",
+							startTime: 2,
+							duration: 6,
+							trimStart: 10,
+							trimEnd: 16,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+							keyframes: {
+								opacity: [
+									{ time: 0, value: 1, interpolation: "linear" },
+									{ time: 6, value: 0, interpolation: "linear" },
+								],
+								"transform.position": [
+									{
+										time: 0,
+										value: { x: 0, y: 0 },
+										interpolation: "linear",
+									},
+									{
+										time: 6,
+										value: { x: 60, y: 30 },
+										interpolation: "linear",
+									},
+								],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "split_clip",
+				args: { elementId: "clip-1", atTime: 5 },
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const [left, right] = state.tracks[0].elements;
+
+		expect(left.keyframes?.opacity).toEqual([
+			{ time: 0, value: 1, interpolation: "linear" },
+			{ time: 3, value: 0.5, interpolation: "linear" },
+		]);
+		expect(right.keyframes?.opacity).toEqual([
+			{ time: 0, value: 0.5, interpolation: "linear" },
+			{ time: 3, value: 0, interpolation: "linear" },
+		]);
+		expect(left.keyframes?.["transform.position"]).toEqual([
+			{ time: 0, value: { x: 0, y: 0 }, interpolation: "linear" },
+			{ time: 3, value: { x: 30, y: 15 }, interpolation: "linear" },
+		]);
+		expect(right.keyframes?.["transform.position"]).toEqual([
+			{ time: 0, value: { x: 30, y: 15 }, interpolation: "linear" },
+			{ time: 3, value: { x: 60, y: 30 }, interpolation: "linear" },
+		]);
+	});
+
+	test("split_clip preserves hold keyframe value at the cut", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Clip",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 6,
+							trimStart: 0,
+							trimEnd: 6,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+							keyframes: {
+								opacity: [
+									{ time: 0, value: 1, interpolation: "hold" },
+									{ time: 4, value: 0.2, interpolation: "hold" },
+								],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "split_clip",
+				args: { elementId: "clip-1", atTime: 3 },
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const [left, right] = state.tracks[0].elements;
+
+		expect(left.keyframes?.opacity).toEqual([
+			{ time: 0, value: 1, interpolation: "hold" },
+			{ time: 3, value: 1, interpolation: "hold" },
+		]);
+		expect(right.keyframes?.opacity).toEqual([
+			{ time: 0, value: 1, interpolation: "hold" },
+			{ time: 1, value: 0.2, interpolation: "hold" },
+		]);
+	});
+
 	test("set_clip_properties updates only whitelisted element properties", async () => {
 		await seedDraftState({
 			tracks: [
@@ -5420,7 +5759,50 @@ describe("codex executor", () => {
 		expect(await getExecutorProjectState({ projectId })).toEqual(beforeInvalid);
 	});
 
-	test("ripple_delete_ranges cuts ranges and shifts later timeline content", async () => {
+	test("ripple_delete_ranges rejects ranges without an explicit scope", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Clip 1",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 4,
+							trimStart: 0,
+							trimEnd: 4,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "ripple_delete_ranges",
+				args: { ranges: [[1, 3]] },
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({ success: false });
+		expect(
+			String((result.results[0] as { message?: unknown }).message),
+		).toContain("scope");
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
+	test("ripple_delete_ranges cuts timeline-scoped ranges and shifts all tracks", async () => {
 		await seedDraftState({
 			tracks: [
 				{
@@ -5463,7 +5845,7 @@ describe("codex executor", () => {
 		const result = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "ripple_delete_ranges",
-				args: { ranges: [[1, 3]] },
+				args: { scope: { type: "timeline" }, ranges: [[1, 3]] },
 			}),
 		});
 		const state = await getExecutorProjectState({ projectId });
@@ -5496,6 +5878,248 @@ describe("codex executor", () => {
 			id: "clip-2",
 			startTime: 3,
 		});
+	});
+
+	test("ripple_delete_ranges track scope cuts and shifts only the target track", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Target Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Clip 1",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 4,
+							trimStart: 0,
+							trimEnd: 4,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+						{
+							id: "clip-2",
+							type: "video",
+							name: "Clip 2",
+							mediaId: "media-1",
+							startTime: 5,
+							duration: 2,
+							trimStart: 5,
+							trimEnd: 7,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+				{
+					id: "track-2",
+					type: "video",
+					name: "Untouched Track",
+					isMain: false,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "broll-1",
+							type: "video",
+							name: "B-roll",
+							mediaId: "media-1",
+							startTime: 5,
+							duration: 2,
+							trimStart: 5,
+							trimEnd: 7,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "ripple_delete_ranges",
+				args: {
+					scope: { type: "track", trackId: "track-1" },
+					ranges: [[1, 3]],
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				changedElementIds: ["clip-1", "clip-2"],
+				revision: 2,
+				totalDuration: 7,
+			},
+		});
+		expect(state.tracks[0].elements).toEqual([
+			expect.objectContaining({
+				id: "clip-1",
+				startTime: 0,
+				duration: 1,
+				trimStart: 0,
+				trimEnd: 1,
+			}),
+			expect.objectContaining({
+				startTime: 1,
+				duration: 1,
+				trimStart: 3,
+				trimEnd: 4,
+			}),
+			expect.objectContaining({
+				id: "clip-2",
+				startTime: 3,
+			}),
+		]);
+		expect(state.tracks[1].elements).toEqual([
+			expect.objectContaining({ id: "broll-1", startTime: 5 }),
+		]);
+	});
+
+	test("ripple_delete_ranges element scope cuts only the target element", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Clip 1",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 4,
+							trimStart: 0,
+							trimEnd: 4,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+						{
+							id: "clip-2",
+							type: "video",
+							name: "Clip 2",
+							mediaId: "media-1",
+							startTime: 5,
+							duration: 2,
+							trimStart: 5,
+							trimEnd: 7,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "ripple_delete_ranges",
+				args: {
+					scope: { type: "element", elementId: "clip-1" },
+					ranges: [[1, 3]],
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				changedElementIds: ["clip-1"],
+				revision: 2,
+				totalDuration: 7,
+			},
+		});
+		expect(state.tracks[0].elements).toEqual([
+			expect.objectContaining({
+				id: "clip-1",
+				startTime: 0,
+				duration: 1,
+				trimStart: 0,
+				trimEnd: 1,
+			}),
+			expect.objectContaining({
+				startTime: 1,
+				duration: 1,
+				trimStart: 3,
+				trimEnd: 4,
+			}),
+			expect.objectContaining({
+				id: "clip-2",
+				startTime: 5,
+				duration: 2,
+			}),
+		]);
+	});
+
+	test("ripple_delete_ranges rebases keyframes for retained segments", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Clip",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 6,
+							trimStart: 0,
+							trimEnd: 6,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+							keyframes: {
+								opacity: [
+									{ time: 0, value: 1, interpolation: "linear" },
+									{ time: 6, value: 0, interpolation: "linear" },
+								],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "ripple_delete_ranges",
+				args: {
+					scope: { type: "element", elementId: "clip-1" },
+					ranges: [[2, 4]],
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const [left, right] = state.tracks[0].elements;
+
+		expect(left.keyframes?.opacity).toEqual([
+			{ time: 0, value: 1, interpolation: "linear" },
+			{ time: 2, value: 0.667, interpolation: "linear" },
+		]);
+		expect(right.keyframes?.opacity).toEqual([
+			{ time: 0, value: 0.333, interpolation: "linear" },
+			{ time: 2, value: 0, interpolation: "linear" },
+		]);
 	});
 
 	test("add_texts creates a top text track and returns created ids", async () => {

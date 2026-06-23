@@ -120,6 +120,11 @@ type AddTextElementsSummary = MutationSummary & {
 	createdTrackId?: string;
 };
 
+type RippleDeleteScope =
+	| { type: "timeline" }
+	| { type: "track"; trackId: string }
+	| { type: "element"; elementId: string };
+
 function cloneTracks(tracks: TimelineTrack[]): TimelineTrack[] {
 	return structuredClone(tracks) as TimelineTrack[];
 }
@@ -449,6 +454,188 @@ export function removeClips({
 	return commitTracks({ state, tracks, removedElementIds });
 }
 
+function roundKeyframeNumber(value: number): number {
+	return Math.round((value + Number.EPSILON) * 1000) / 1000;
+}
+
+function cloneKeyframeAtTime({
+	keyframe,
+	time,
+}: {
+	keyframe: ScalarKeyframe | PositionKeyframe;
+	time: number;
+}): ScalarKeyframe | PositionKeyframe {
+	if (
+		typeof keyframe.value === "object" &&
+		keyframe.value !== null &&
+		"x" in keyframe.value &&
+		"y" in keyframe.value
+	) {
+		return {
+			time: roundKeyframeNumber(time),
+			value: {
+				x: roundKeyframeNumber(keyframe.value.x),
+				y: roundKeyframeNumber(keyframe.value.y),
+			},
+			interpolation: keyframe.interpolation ?? "linear",
+		};
+	}
+	return {
+		time: roundKeyframeNumber(time),
+		value: roundKeyframeNumber(keyframe.value as number),
+		interpolation: keyframe.interpolation ?? "linear",
+	};
+}
+
+function interpolateKeyframeValue({
+	left,
+	right,
+	ratio,
+}: {
+	left: ScalarKeyframe | PositionKeyframe;
+	right: ScalarKeyframe | PositionKeyframe;
+	ratio: number;
+}): ScalarKeyframe["value"] | PositionKeyframe["value"] {
+	if (
+		typeof left.value === "object" &&
+		left.value !== null &&
+		typeof right.value === "object" &&
+		right.value !== null
+	) {
+		return {
+			x: roundKeyframeNumber(
+				left.value.x + (right.value.x - left.value.x) * ratio,
+			),
+			y: roundKeyframeNumber(
+				left.value.y + (right.value.y - left.value.y) * ratio,
+			),
+		};
+	}
+	return roundKeyframeNumber(
+		(left.value as number) + ((right.value as number) - (left.value as number)) * ratio,
+	);
+}
+
+function sampleKeyframeTrack({
+	keyframes,
+	time,
+}: {
+	keyframes: Array<ScalarKeyframe | PositionKeyframe>;
+	time: number;
+}): ScalarKeyframe | PositionKeyframe {
+	const sorted = [...keyframes].sort((left, right) => left.time - right.time);
+	const exact = sorted.find((keyframe) => keyframe.time === time);
+	if (exact) return cloneKeyframeAtTime({ keyframe: exact, time });
+	const first = sorted[0];
+	const last = sorted[sorted.length - 1];
+	if (!first || !last) {
+		throw new Error("Cannot sample an empty keyframe track.");
+	}
+	if (time <= first.time) return cloneKeyframeAtTime({ keyframe: first, time });
+	if (time >= last.time) return cloneKeyframeAtTime({ keyframe: last, time });
+
+	const rightIndex = sorted.findIndex((keyframe) => keyframe.time > time);
+	const right = sorted[rightIndex] as ScalarKeyframe | PositionKeyframe;
+	const left = sorted[rightIndex - 1] as ScalarKeyframe | PositionKeyframe;
+	const interpolation = left.interpolation ?? "linear";
+	if (interpolation === "hold" || right.time === left.time) {
+		return cloneKeyframeAtTime({ keyframe: left, time });
+	}
+	const ratio = (time - left.time) / (right.time - left.time);
+	const value = interpolateKeyframeValue({ left, right, ratio });
+	return {
+		time: roundKeyframeNumber(time),
+		value,
+		interpolation,
+	} as ScalarKeyframe | PositionKeyframe;
+}
+
+function keyframeTrackForSegment({
+	keyframes,
+	segmentStartOffset,
+	segmentEndOffset,
+	originalDuration,
+}: {
+	keyframes: Array<ScalarKeyframe | PositionKeyframe>;
+	segmentStartOffset: number;
+	segmentEndOffset: number;
+	originalDuration: number;
+}): Array<ScalarKeyframe | PositionKeyframe> {
+	const segmentDuration = segmentEndOffset - segmentStartOffset;
+	if (segmentDuration <= 0 || keyframes.length === 0) return [];
+	const byTime = new Map<number, ScalarKeyframe | PositionKeyframe>();
+	const add = (keyframe: ScalarKeyframe | PositionKeyframe) => {
+		byTime.set(roundKeyframeNumber(keyframe.time), keyframe);
+	};
+
+	add(
+		cloneKeyframeAtTime({
+			keyframe: sampleKeyframeTrack({
+				keyframes,
+				time: segmentStartOffset,
+			}),
+			time: 0,
+		}),
+	);
+
+	for (const keyframe of keyframes) {
+		if (keyframe.time > segmentStartOffset && keyframe.time <= segmentEndOffset) {
+			add(
+				cloneKeyframeAtTime({
+					keyframe,
+					time: keyframe.time - segmentStartOffset,
+				}),
+			);
+		}
+	}
+
+	const segmentEndTime = roundKeyframeNumber(segmentDuration);
+	if (segmentEndOffset < originalDuration && !byTime.has(segmentEndTime)) {
+		add(
+			cloneKeyframeAtTime({
+				keyframe: sampleKeyframeTrack({
+					keyframes,
+					time: segmentEndOffset,
+				}),
+				time: segmentDuration,
+			}),
+		);
+	}
+
+	return [...byTime.values()].sort((left, right) => left.time - right.time);
+}
+
+function keyframesForElementSegment({
+	element,
+	segmentStart,
+	segmentEnd,
+}: {
+	element: TimelineElement;
+	segmentStart: number;
+	segmentEnd: number;
+}): TimelineElementKeyframes | undefined {
+	if (!element.keyframes) return undefined;
+	const nextKeyframes: Partial<TimelineElementKeyframes> = {};
+	const segmentStartOffset = segmentStart - element.startTime;
+	const segmentEndOffset = segmentEnd - element.startTime;
+
+	for (const [property, keyframes] of Object.entries(element.keyframes)) {
+		const rebased = keyframeTrackForSegment({
+			keyframes: keyframes as Array<ScalarKeyframe | PositionKeyframe>,
+			segmentStartOffset,
+			segmentEndOffset,
+			originalDuration: element.duration,
+		});
+		if (rebased.length > 0) {
+			(nextKeyframes as Record<string, unknown>)[property] = rebased;
+		}
+	}
+
+	return Object.keys(nextKeyframes).length > 0
+		? (nextKeyframes as TimelineElementKeyframes)
+		: undefined;
+}
+
 export function splitClip({
 	state,
 	elementId,
@@ -473,6 +660,11 @@ export function splitClip({
 		...element,
 		duration: leftDuration,
 		trimEnd: splitSourceTime,
+		keyframes: keyframesForElementSegment({
+			element,
+			segmentStart: element.startTime,
+			segmentEnd: atTime,
+		}),
 	} as TimelineElement;
 	const right = {
 		...element,
@@ -480,6 +672,11 @@ export function splitClip({
 		startTime: atTime,
 		duration: rightDuration,
 		trimStart: splitSourceTime,
+		keyframes: keyframesForElementSegment({
+			element,
+			segmentStart: atTime,
+			segmentEnd: elementEnd,
+		}),
 	} as TimelineElement;
 	track.elements.splice(index, 1, left as never, right as never);
 	return commitTracks({
@@ -739,6 +936,24 @@ function keptSegmentsForElement({
 	return segments;
 }
 
+function clipRangesToElement({
+	element,
+	ranges,
+}: {
+	element: TimelineElement;
+	ranges: Array<[number, number]>;
+}): Array<[number, number]> {
+	const elementStart = element.startTime;
+	const elementEnd = element.startTime + element.duration;
+	return ranges.flatMap(([start, end]) => {
+		const clippedStart = Math.max(start, elementStart);
+		const clippedEnd = Math.min(end, elementEnd);
+		return clippedEnd > clippedStart
+			? ([[clippedStart, clippedEnd]] as Array<[number, number]>)
+			: [];
+	});
+}
+
 function segmentElement({
 	element,
 	segment,
@@ -765,14 +980,21 @@ function segmentElement({
 		duration: segmentEnd - segmentStart,
 		trimStart,
 		trimEnd,
+		keyframes: keyframesForElementSegment({
+			element,
+			segmentStart,
+			segmentEnd,
+		}),
 	} as TimelineElement;
 }
 
 export function rippleDeleteRanges({
 	state,
+	scope,
 	ranges,
 }: {
 	state: ExecutorProjectState;
+	scope: RippleDeleteScope;
 	ranges: Array<[number, number]>;
 }): MutationSummary & { removedRanges: Array<[number, number]> } {
 	const mergedRanges = mergeRanges(ranges);
@@ -781,12 +1003,27 @@ export function rippleDeleteRanges({
 	const changedElementIds: string[] = [];
 	const removedElementIds: string[] = [];
 
-	for (const track of tracks) {
+	const tracksToProcess =
+		scope.type === "timeline"
+			? tracks
+			: scope.type === "track"
+				? [findTrack({ tracks, trackId: scope.trackId })]
+				: [findElementLocation({ tracks, elementId: scope.elementId }).track];
+
+	for (const track of tracksToProcess) {
 		const nextElements: TimelineElement[] = [];
 		for (const element of track.elements as TimelineElement[]) {
+			if (scope.type === "element" && element.id !== scope.elementId) {
+				nextElements.push(element);
+				continue;
+			}
+			const effectiveRanges =
+				scope.type === "element"
+					? clipRangesToElement({ element, ranges: mergedRanges })
+					: mergedRanges;
 			const segments = keptSegmentsForElement({
 				element,
-				ranges: mergedRanges,
+				ranges: effectiveRanges,
 			});
 			if (segments.length === 0) {
 				removedElementIds.push(element.id);
@@ -798,7 +1035,7 @@ export function rippleDeleteRanges({
 					element,
 					segment,
 					keepOriginalId: index === 0,
-					ranges: mergedRanges,
+					ranges: effectiveRanges,
 				});
 				if (index > 0) {
 					createdElementIds.push(nextElement.id);

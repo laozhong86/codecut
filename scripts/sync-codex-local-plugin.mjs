@@ -247,6 +247,7 @@ export function buildRsyncArgs({ sourceRoot, cacheRoot, dryRun = false }) {
 	return [
 		"-a",
 		"--checksum",
+		"--omit-dir-times",
 		"--delete",
 		...(dryRun ? ["--dry-run"] : []),
 		...EXCLUDES.flatMap((pattern) => [`--exclude=${pattern}`]),

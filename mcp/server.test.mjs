@@ -74,16 +74,42 @@ describe("Codecut MCP server contract", () => {
 		]);
 	});
 
-	test("uses host-compatible object ranges for ripple delete input", () => {
+	test("requires scoped host-compatible object ranges for ripple delete input", () => {
 		const tool = CODECUT_MCP_TOOLS.find(
 			(candidate) => candidate.name === "ripple_delete_ranges",
 		);
 
+		expect(tool?.description).toContain("explicit scope");
+		expect(tool?.inputSchema.scope.safeParse({ type: "timeline" }).success).toBe(
+			true,
+		);
+		expect(
+			tool?.inputSchema.scope.safeParse({ type: "track", trackId: "track-1" })
+				.success,
+		).toBe(true);
+		expect(
+			tool?.inputSchema.scope.safeParse({
+				type: "element",
+				elementId: "clip-1",
+			}).success,
+		).toBe(true);
 		expect(
 			tool?.inputSchema.ranges.safeParse([{ startTime: 1, endTime: 3 }])
 				.success,
 		).toBe(true);
 		expect(tool?.inputSchema.ranges.safeParse([[1, 3]]).success).toBe(false);
+	});
+
+	test("requires transcript granularity in the public MCP schema", () => {
+		const tool = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "get_transcript",
+		);
+
+		expect(tool?.description).toContain("word-level");
+		expect(tool?.inputSchema.granularity.safeParse("segment").success).toBe(
+			true,
+		);
+		expect(tool?.inputSchema.granularity.safeParse("word").success).toBe(true);
 	});
 
 	test("marks search and model catalog tools as read-only", () => {
@@ -1051,6 +1077,7 @@ describe("Codecut MCP server contract", () => {
 		expect(
 			buildBridgeCliArgs("ripple_delete_ranges", {
 				projectId: "project-1",
+				scope: { type: "track", trackId: "track-1" },
 				ranges: [{ startTime: 1, endTime: 3 }],
 			}),
 		).toEqual([
@@ -1061,7 +1088,10 @@ describe("Codecut MCP server contract", () => {
 			"--tool",
 			"ripple_delete_ranges",
 			"--args-json",
-			JSON.stringify({ ranges: [[1, 3]] }),
+			JSON.stringify({
+				scope: { type: "track", trackId: "track-1" },
+				ranges: [[1, 3]],
+			}),
 		]);
 	});
 
@@ -1184,6 +1214,7 @@ describe("Codecut MCP server contract", () => {
 		expect(
 			buildBridgeCliArgs("get_transcript", {
 				projectId: "project-1",
+				granularity: "word",
 				language: "auto",
 				modelId: "whisper-base",
 				startTime: 0,
@@ -1199,6 +1230,7 @@ describe("Codecut MCP server contract", () => {
 			"get_transcript",
 			"--args-json",
 			JSON.stringify({
+				granularity: "word",
 				language: "auto",
 				modelId: "whisper-base",
 				startTime: 0,
