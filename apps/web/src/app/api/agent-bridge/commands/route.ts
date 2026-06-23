@@ -6,6 +6,7 @@ import {
 } from "@/lib/agent-bridge/queue";
 import { validateBridgeBrowserOrigin } from "@/lib/agent-bridge/origin";
 import { BridgeEnvelopeSchema } from "@/lib/agent-bridge/schema";
+import { validateExecutorBrowserBridgeToken } from "@/lib/codex-executor/auth";
 
 const postBodySchema = z
 	.object({
@@ -68,6 +69,11 @@ export async function GET(request: NextRequest) {
 			{ status: 400 },
 		);
 	}
+	const browserTokenError = await validateExecutorBrowserBridgeToken({
+		request,
+		projectId,
+	});
+	if (browserTokenError) return browserTokenError;
 
 	const items = takePendingBridgeQueueItems({
 		projectId,
@@ -79,6 +85,7 @@ export async function GET(request: NextRequest) {
 			id: item.id,
 			envelope: item.envelope,
 			status: item.status,
+			claimToken: item.claimToken,
 		})),
 	});
 }

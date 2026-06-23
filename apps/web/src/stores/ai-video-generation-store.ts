@@ -11,7 +11,7 @@ import type { VideoTaskStatus } from "@/lib/ai/providers/types";
 import { pollVideoTask } from "@/lib/ai/providers/seedance";
 import { processMediaAssets } from "@/lib/media/processing";
 import { uploadReferenceImage } from "@/lib/media/upload-reference";
-import { fetchWithProxyFallback } from "@/lib/media/url-import";
+import { fetchRemoteUrlDirect } from "@/lib/media/url-import";
 import { useAISettingsStore } from "./ai-settings-store";
 import { useAIGenerationHistoryStore } from "./ai-generation-history-store";
 import { generateUUID } from "@/utils/id";
@@ -87,7 +87,7 @@ async function downloadAndAddToAssets({
 	updateVideo({ videoId, updates: { assetStatus: "adding" } });
 
 	try {
-		const blob = await fetchWithProxyFallback({ url: videoUrl });
+		const blob = await fetchRemoteUrlDirect({ url: videoUrl });
 		const filename = `ai-video-${videoId.slice(0, 8)}.mp4`;
 		const file = new File([blob], filename, {
 			type: blob.type || "video/mp4",

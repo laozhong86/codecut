@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
@@ -131,6 +132,7 @@ interface ExecutorMediaAsset {
 export interface ExecutorProjectState {
 	version: 1;
 	revision: number;
+	browserBridgeToken: string;
 	project: {
 		id: string;
 		name: string;
@@ -655,8 +657,23 @@ function executorRoot(): string {
 	);
 }
 
+function requireSafeProjectId({ projectId }: { projectId: string }): string {
+	if (
+		!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(projectId) ||
+		projectId === "." ||
+		projectId === ".."
+	) {
+		throw new Error("projectId must be a safe identifier.");
+	}
+	return projectId;
+}
+
 function projectDirectory({ projectId }: { projectId: string }): string {
-	return join(executorRoot(), "projects", projectId);
+	return join(
+		executorRoot(),
+		"projects",
+		requireSafeProjectId({ projectId }),
+	);
 }
 
 function projectsDirectory(): string {
@@ -1164,6 +1181,7 @@ export async function createExecutorProject({
 	const state: ExecutorProjectState = {
 		version: 1,
 		revision: 1,
+		browserBridgeToken: randomUUID(),
 		project: {
 			id: projectId,
 			name,
@@ -1197,6 +1215,18 @@ export async function getExecutorProjectState({
 	projectId: string;
 }): Promise<ExecutorProjectState> {
 	return loadProjectState({ projectId });
+}
+
+export async function getExecutorBrowserBridgeToken({
+	projectId,
+}: {
+	projectId: string;
+}): Promise<string> {
+	const state = await loadProjectState({ projectId });
+	if (!state.browserBridgeToken) {
+		throw new Error(`Executor project "${projectId}" has no browser bridge token.`);
+	}
+	return state.browserBridgeToken;
 }
 
 export async function getExecutorProjectSnapshot({

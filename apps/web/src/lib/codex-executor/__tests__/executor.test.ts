@@ -326,6 +326,16 @@ describe("codex executor", () => {
 		process.env.CODECUT_EXECUTOR_STATE_DIR = stateDir;
 	});
 
+	test("rejects project IDs that escape the executor projects directory", async () => {
+		await expect(
+			createExecutorProject({ projectId: "../escape", name: "Escape" }),
+		).rejects.toThrow("projectId must be a safe identifier.");
+
+		expect(await Bun.file(join(stateDir, "escape", "project.json")).exists()).toBe(
+			false,
+		);
+	});
+
 	test("lists imported media through the local executor", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 		await executeCodexExecutorEnvelope({

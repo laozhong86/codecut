@@ -52,7 +52,14 @@ describe("AgentBridgeProvider polling", () => {
 
 			if (url.startsWith("/api/agent-bridge/commands")) {
 				return jsonResponse({
-					items: [{ id: "item-1", envelope, status: "claimed" }],
+					items: [
+						{
+							id: "item-1",
+							envelope,
+							status: "claimed",
+							claimToken: "claim-token-1",
+						},
+					],
 				});
 			}
 
@@ -66,6 +73,7 @@ describe("AgentBridgeProvider polling", () => {
 
 		await pollAgentBridgeOnce({
 			projectId: "project-123",
+			bridgeToken: "browser-token-1",
 			fetchImpl,
 			executeEnvelope: async ({ envelope }) => {
 				executedProjectIds.push(envelope.projectId);
@@ -80,11 +88,22 @@ describe("AgentBridgeProvider polling", () => {
 			expect(JSON.parse(String(fetchCalls[0].init?.body))).toEqual({
 				projectId: "project-123",
 			});
+			expect(fetchCalls[0].init?.headers).toMatchObject({
+				"x-codecut-editor-bridge-token": "browser-token-1",
+			});
 			expect(fetchCalls[1].url).toBe(
 				"/api/agent-bridge/commands?projectId=project-123",
 			);
+			expect(fetchCalls[1].init?.headers).toMatchObject({
+				"x-codecut-editor-bridge-token": "browser-token-1",
+			});
 			expect(executedProjectIds).toEqual(["project-123"]);
-		expect(postedBodies).toEqual([{ id: "item-1", results }]);
+		expect(fetchCalls[2].init?.headers).toMatchObject({
+			"x-codecut-editor-bridge-token": "browser-token-1",
+		});
+		expect(postedBodies).toEqual([
+			{ id: "item-1", claimToken: "claim-token-1", results },
+		]);
 	});
 
 	test("does not execute commands when claim request fails", async () => {
@@ -93,6 +112,7 @@ describe("AgentBridgeProvider polling", () => {
 
 		await pollAgentBridgeOnce({
 			projectId: "project-123",
+			bridgeToken: "browser-token-1",
 			fetchImpl: async () => {
 				fetchCount += 1;
 				if (fetchCount === 1) {

@@ -86,13 +86,16 @@ describe("codex executor API routes", () => {
 		const statusResponse = await getStatus(
 			request({
 				url: `${origin}/api/codex-executor/status?projectId=project-1`,
+				headers: { authorization: `Bearer ${token}` },
 			}),
 		);
 
 		expect(createResponse.status).toBe(200);
 		expect(await createResponse.json()).toMatchObject({
 			projectId: "project-1",
-			editorUrl: "http://127.0.0.1:4100/en/editor/project-1",
+			editorUrl: expect.stringMatching(
+				/^http:\/\/127\.0\.0\.1:4100\/en\/editor\/project-1#bridgeToken=.+/,
+			),
 		});
 		expect(commandResponse.status).toBe(200);
 		expect(await commandResponse.json()).toMatchObject({
@@ -109,13 +112,17 @@ describe("codex executor API routes", () => {
 	});
 
 	test("exposes read-only project snapshots and media bytes for the editor page", async () => {
-		await postProjects(
+		const createResponse = await postProjects(
 			request({
 				url: `${origin}/api/codex-executor/projects`,
 				method: "POST",
 				headers: { authorization: `Bearer ${token}` },
 				body: { projectId: "project-1", name: "Codex cut" },
 			}),
+		);
+		const created = await createResponse.json();
+		const bridgeToken = decodeURIComponent(
+			new URL(created.editorUrl).hash.replace("#bridgeToken=", ""),
 		);
 
 		const importResponse = await postCommands(
@@ -154,11 +161,19 @@ describe("codex executor API routes", () => {
 		const projectResponse = await getProject(
 			request({
 				url: `${origin}/api/codex-executor/project?projectId=project-1`,
+				headers: { "x-codecut-editor-bridge-token": bridgeToken },
 			}),
 		);
 		const mediaResponse = await getMedia(
 			request({
 				url: `${origin}/api/codex-executor/media?projectId=project-1&mediaId=${mediaId}`,
+				headers: { "x-codecut-editor-bridge-token": bridgeToken },
+			}),
+		);
+		const statusResponse = await getStatus(
+			request({
+				url: `${origin}/api/codex-executor/status?projectId=project-1`,
+				headers: { "x-codecut-editor-bridge-token": bridgeToken },
 			}),
 		);
 
@@ -176,6 +191,11 @@ describe("codex executor API routes", () => {
 		expect(mediaResponse.status).toBe(200);
 		expect(mediaResponse.headers.get("content-type")).toBe("video/mp4");
 		expect(await mediaResponse.text()).toBe("video bytes");
+		expect(statusResponse.status).toBe(200);
+		expect(await statusResponse.json()).toMatchObject({
+			projectId: "project-1",
+			status: "succeeded",
+		});
 	});
 
 	test("lists renames and deletes executor projects", async () => {
@@ -205,6 +225,7 @@ describe("codex executor API routes", () => {
 		const renamedResponse = await getProject(
 			request({
 				url: `${origin}/api/codex-executor/project?projectId=project-1`,
+				headers: { authorization: `Bearer ${token}` },
 			}),
 		);
 		const deleteResponse = await deleteProject(
@@ -249,5 +270,69 @@ describe("codex executor API routes", () => {
 		);
 
 		expect(response.status).toBe(401);
+	});
+
+	test("rejects executor readback without the local bridge token", async () => {
+		await postProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: { projectId: "project-1", name: "Codex cut" },
+			}),
+		);
+
+		const importResponse = await postCommands(
+			request({
+				url: `${origin}/api/codex-executor/commands`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					envelope: {
+						version: 1,
+						projectId: "project-1",
+						source: "codex",
+						commands: [
+							{
+								id: "cmd-1",
+								tool: "import_media_file",
+								args: {
+									fileName: "clip.mp4",
+									mimeType: "video/mp4",
+									base64: Buffer.from("video bytes").toString("base64"),
+									size: Buffer.byteLength("video bytes"),
+									lastModified: 1,
+									duration: 10,
+									width: 1920,
+									height: 1080,
+								},
+							},
+						],
+					},
+				},
+			}),
+		);
+		const imported = await importResponse.json();
+		const mediaId = imported.results[0].data.assets[0].id;
+
+		const statusResponse = await getStatus(
+			request({
+				url: `${origin}/api/codex-executor/status?projectId=project-1`,
+			}),
+		);
+		const projectResponse = await getProject(
+			request({
+				url: `${origin}/api/codex-executor/project?projectId=project-1`,
+			}),
+		);
+		const mediaResponse = await getMedia(
+			request({
+				url: `${origin}/api/codex-executor/media?projectId=project-1&mediaId=${mediaId}`,
+			}),
+		);
+
+		expect(statusResponse.status).toBe(401);
+		expect(projectResponse.status).toBe(401);
+		expect(mediaResponse.status).toBe(401);
 	});
 });

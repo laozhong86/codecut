@@ -9,7 +9,7 @@ import type { AIVideoProvider } from "@/lib/ai/providers/types";
 import { pollVideoTask } from "@/lib/ai/providers/seedance";
 import { processMediaAssets } from "@/lib/media/processing";
 import { uploadMediaAssetAsReference } from "@/lib/media/upload-reference";
-import { fetchWithProxyFallback } from "@/lib/media/url-import";
+import { fetchRemoteUrlDirect } from "@/lib/media/url-import";
 import {
 	createThumbnailDataUrl,
 	storeHistoryImage,
@@ -60,7 +60,7 @@ async function urlToFile({
 		return new File([bytes], filename, { type: detectedMime });
 	}
 
-	const blob = await fetchWithProxyFallback({ url });
+	const blob = await fetchRemoteUrlDirect({ url });
 	return new File([blob], filename, { type: blob.type || mimeType });
 }
 
@@ -110,7 +110,7 @@ async function addImageToHistory({
 	}
 
 	try {
-		const blob = await fetchWithProxyFallback({ url: imageUrl });
+		const blob = await fetchRemoteUrlDirect({ url: imageUrl });
 		await storeHistoryImage({ id: entryId, blob, createdAt });
 	} catch {
 		// proceed without storing blob

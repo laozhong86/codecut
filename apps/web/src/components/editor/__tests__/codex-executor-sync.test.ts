@@ -6,6 +6,8 @@ import {
 	applyCodexExecutorSnapshot,
 	EXECUTOR_STATUS_DOT_CLASS,
 	getExecutorStatusDotState,
+	loadCodexExecutorSnapshot,
+	loadCodexExecutorStatus,
 	shouldSyncExecutorRevision,
 } from "../codex-executor-sync";
 
@@ -123,10 +125,63 @@ describe("applyCodexExecutorSnapshot", () => {
 		globalThis.fetch = originalFetch;
 	});
 
+	test("loads executor snapshots with the browser bridge token", async () => {
+		const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
+		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+			fetchCalls.push({ url: String(input), init });
+			return new Response(
+				JSON.stringify({ ...executorSnapshot(), mediaAssets: [] }),
+				{ headers: { "content-type": "application/json" } },
+			);
+		}) as unknown as typeof fetch;
+
+		await loadCodexExecutorSnapshot({
+			projectId: "project-1",
+			bridgeToken: "browser-token-1",
+		});
+
+		expect(fetchCalls).toHaveLength(1);
+		expect(fetchCalls[0].url).toBe(
+			"/api/codex-executor/project?projectId=project-1",
+		);
+		expect(fetchCalls[0].init?.headers).toMatchObject({
+			"x-codecut-editor-bridge-token": "browser-token-1",
+		});
+	});
+
+	test("loads executor status with the browser bridge token", async () => {
+		const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
+		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+			fetchCalls.push({ url: String(input), init });
+			return new Response(
+				JSON.stringify({
+					projectId: "project-1",
+					status: "succeeded",
+					message: "ok",
+					updatedAt: "2026-06-21T00:00:00.000Z",
+				}),
+				{ headers: { "content-type": "application/json" } },
+			);
+		}) as unknown as typeof fetch;
+
+		await loadCodexExecutorStatus({
+			projectId: "project-1",
+			bridgeToken: "browser-token-1",
+		});
+
+		expect(fetchCalls).toHaveLength(1);
+		expect(fetchCalls[0].url).toBe(
+			"/api/codex-executor/status?projectId=project-1",
+		);
+		expect(fetchCalls[0].init?.headers).toMatchObject({
+			"x-codecut-editor-bridge-token": "browser-token-1",
+		});
+	});
+
 	test("hydrates media assets with the executor media blob before syncing", async () => {
-		const requestedUrls: string[] = [];
-		globalThis.fetch = (async (input: RequestInfo | URL) => {
-			requestedUrls.push(String(input));
+		const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
+		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+			fetchCalls.push({ url: String(input), init });
 			return new Response(new Blob(["video-bytes"], { type: "video/mp4" }));
 		}) as unknown as typeof fetch;
 		const capturedAssets: MediaAsset[][] = [];
@@ -134,11 +189,16 @@ describe("applyCodexExecutorSnapshot", () => {
 		await applyCodexExecutorSnapshot({
 			editor: editorStub({ capturedAssets }),
 			snapshot: executorSnapshot(),
+			bridgeToken: "browser-token-1",
 		});
 
-		expect(requestedUrls).toEqual([
+		expect(fetchCalls).toHaveLength(1);
+		expect(fetchCalls[0].url).toBe(
 			"/api/codex-executor/media?projectId=project-1&mediaId=media-1&revision=7",
-		]);
+		);
+		expect(fetchCalls[0].init?.headers).toMatchObject({
+			"x-codecut-editor-bridge-token": "browser-token-1",
+		});
 		expect(capturedAssets).toHaveLength(1);
 		expect(capturedAssets[0][0].file.size).toBe(11);
 		expect(capturedAssets[0][0].url).toBe(

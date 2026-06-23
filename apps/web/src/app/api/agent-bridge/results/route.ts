@@ -6,10 +6,12 @@ import {
 } from "@/lib/agent-bridge/queue";
 import { validateBridgeBrowserOrigin } from "@/lib/agent-bridge/origin";
 import { BridgeCommandResultSchema } from "@/lib/agent-bridge/schema";
+import { validateExecutorBrowserBridgeToken } from "@/lib/codex-executor/auth";
 
 const postBodySchema = z
 	.object({
 		id: z.string().min(1),
+		claimToken: z.string().min(1),
 		results: z.array(BridgeCommandResultSchema),
 	})
 	.strict();
@@ -46,6 +48,18 @@ export async function POST(request: NextRequest) {
 			{ status: 400 },
 		);
 	}
+	const queuedItem = getBridgeQueueItem({ id: parsedBody.data.id });
+	if (!queuedItem) {
+		return NextResponse.json(
+			{ error: "Bridge command not found." },
+			{ status: 404 },
+		);
+	}
+	const browserTokenError = await validateExecutorBrowserBridgeToken({
+		request,
+		projectId: queuedItem.projectId,
+	});
+	if (browserTokenError) return browserTokenError;
 
 	try {
 		const item = completeBridgeQueueItem(parsedBody.data);
@@ -68,7 +82,7 @@ export async function POST(request: NextRequest) {
 						? error.message
 						: "Bridge result could not be stored.",
 			},
-			{ status: 409 },
+			{ status: 401 },
 		);
 	}
 }

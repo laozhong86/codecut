@@ -23,6 +23,10 @@ export function validateBridgeBrowserOrigin(
 	const origin = request.headers.get("origin");
 	const referer = request.headers.get("referer");
 
+	if (!origin && !referer) {
+		return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+	}
+
 	if (origin && !allowedOrigins.has(origin)) {
 		return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 	}
