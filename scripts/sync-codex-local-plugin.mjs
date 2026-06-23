@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
-import { access, readFile, rm } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
+const BRIDGE_ENV_PREFIX = "CODECUT_AGENT_BRIDGE_";
 const EXCLUDES = [
 	".git",
 	".git/",
@@ -75,6 +76,60 @@ async function pathExists(path) {
 async function readJson(path) {
 	const raw = await readFile(path, "utf8");
 	return JSON.parse(raw);
+}
+
+function parseBridgeEnv(raw) {
+	const entries = [];
+	for (const [index, rawLine] of raw.split(/\r?\n/).entries()) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith("#")) continue;
+		const separatorIndex = line.indexOf("=");
+		if (separatorIndex === -1) {
+			throw new Error(
+				`Invalid apps/web/.env.local line ${index + 1}: expected KEY=value`,
+			);
+		}
+		const key = line.slice(0, separatorIndex).trim();
+		if (!key.startsWith(BRIDGE_ENV_PREFIX)) continue;
+		entries.push([key, line.slice(separatorIndex + 1).trim()]);
+	}
+	return entries;
+}
+
+async function syncBridgeEnvFile({ sourceRoot, cacheRoot, dryRun }) {
+	const sourceEnvPath = join(sourceRoot, "apps/web/.env.local");
+	if (!(await pathExists(sourceEnvPath))) {
+		return {
+			status: "skipped",
+			reason: "source-env-missing",
+			sourceEnvPath,
+			cacheEnvPath: join(cacheRoot, "apps/web/.env.local"),
+		};
+	}
+
+	const entries = parseBridgeEnv(await readFile(sourceEnvPath, "utf8"));
+	const cacheEnvPath = join(cacheRoot, "apps/web/.env.local");
+	if (entries.length === 0) {
+		return {
+			status: "skipped",
+			reason: "source-bridge-env-missing",
+			sourceEnvPath,
+			cacheEnvPath,
+		};
+	}
+
+	const content = `${entries.map(([key, value]) => `${key}=${value}`).join("\n")}\n`;
+	if (!dryRun) {
+		await mkdir(dirname(cacheEnvPath), { recursive: true });
+		await writeFile(cacheEnvPath, content, "utf8");
+	}
+
+	return {
+		status: dryRun ? "dry-run" : "synced",
+		sourceEnvPath,
+		cacheEnvPath,
+		keys: entries.map(([key]) => key),
+	};
 }
 
 async function readPluginManifest({ sourceRoot }) {
@@ -230,6 +285,11 @@ export async function runSync({
 	});
 	await removeStaleCacheMetadata({ cacheRoot: plan.cacheRoot, dryRun });
 	await execFileImpl("rsync", rsyncArgs);
+	const bridgeEnv = await syncBridgeEnvFile({
+		sourceRoot: plan.sourceRoot,
+		cacheRoot: plan.cacheRoot,
+		dryRun,
+	});
 
 	const summary = {
 		status: dryRun ? "dry-run" : "synced",
@@ -239,6 +299,7 @@ export async function runSync({
 		sourceRoot: plan.sourceRoot,
 		cacheRoot: plan.cacheRoot,
 		excluded: EXCLUDES,
+		bridgeEnv,
 		reloadGuidance: buildReloadGuidance({ dryRun }),
 	};
 	stdout(JSON.stringify(summary, null, 2));

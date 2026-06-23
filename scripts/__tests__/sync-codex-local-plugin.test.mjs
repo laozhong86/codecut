@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -161,6 +161,64 @@ enabled = true
 						"Codex loads plugins from the installed cache, but running sessions and MCP server processes may keep old tool schemas or server code until a new session starts.",
 				},
 			});
+		} finally {
+			await rm(sourceRoot, { recursive: true, force: true });
+			await rm(homeRoot, { recursive: true, force: true });
+		}
+	});
+
+	test("syncs only Codecut bridge env into the installed cache", async () => {
+		const sourceRoot = await createPluginSource();
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-sync-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
+		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
+		await writeFile(
+			join(sourceRoot, "apps/web/.env.local"),
+			[
+				"CODECUT_AGENT_BRIDGE_URL=http://127.0.0.1:4100",
+				"CODECUT_AGENT_BRIDGE_TOKEN=source-token",
+				"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=120000",
+				"CODECUT_AGENT_BRIDGE_INTERVAL_MS=1000",
+				"UNRELATED_PROVIDER_SECRET=do-not-copy",
+			].join("\n"),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "apps/web/.env.local"),
+			"CODECUT_AGENT_BRIDGE_URL=http://127.0.0.1:4102\n",
+			"utf8",
+		);
+		await writeFile(
+			join(homeRoot, "config.toml"),
+			'[plugins."codecut@local-opc"]\nenabled = true\n',
+			"utf8",
+		);
+
+		try {
+			const result = await runSync({
+				sourceRoot,
+				homeDir: homeRoot,
+				configPath: join(homeRoot, "config.toml"),
+				execFileImpl: async () => ({ stdout: "", stderr: "" }),
+				stdout: () => {},
+			});
+
+			const cachedEnv = await readFile(
+				join(result.cacheRoot, "apps/web/.env.local"),
+				"utf8",
+			);
+			expect(cachedEnv).toContain(
+				"CODECUT_AGENT_BRIDGE_URL=http://127.0.0.1:4100",
+			);
+			expect(cachedEnv).toContain("CODECUT_AGENT_BRIDGE_TOKEN=source-token");
+			expect(cachedEnv).toContain("CODECUT_AGENT_BRIDGE_TIMEOUT_MS=120000");
+			expect(cachedEnv).toContain("CODECUT_AGENT_BRIDGE_INTERVAL_MS=1000");
+			expect(cachedEnv).not.toContain("UNRELATED_PROVIDER_SECRET");
+			expect(cachedEnv).not.toContain("4102");
 		} finally {
 			await rm(sourceRoot, { recursive: true, force: true });
 			await rm(homeRoot, { recursive: true, force: true });

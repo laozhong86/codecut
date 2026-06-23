@@ -15,6 +15,8 @@ const requiredConfig = [
 	"CODECUT_AGENT_BRIDGE_TIMEOUT_MS",
 	"CODECUT_AGENT_BRIDGE_INTERVAL_MS",
 ];
+const bridgeEnvFileRelativePath = "apps/web/.env.local";
+const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
 const execFileAsync = promisify(execFile);
 const importBytesBase64MaxBytes = 15 * 1024 * 1024;
 
@@ -344,6 +346,142 @@ function parseRsyncChangedPaths(output) {
 		});
 }
 
+function unquoteEnvValue(value) {
+	const trimmed = value.trim();
+	if (
+		(trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+		(trimmed.startsWith("'") && trimmed.endsWith("'"))
+	) {
+		return trimmed.slice(1, -1);
+	}
+	return trimmed;
+}
+
+async function readBridgeEnvEntries(envPath) {
+	if (!(await pathExists(envPath))) {
+		return null;
+	}
+	const entries = {};
+	const raw = await readFile(envPath, "utf8");
+	for (const [index, rawLine] of raw.split(/\r?\n/).entries()) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith("#")) continue;
+		const separatorIndex = line.indexOf("=");
+		if (separatorIndex === -1) {
+			throw new Error(
+				`Invalid ${bridgeEnvFileRelativePath} line ${index + 1}: expected KEY=value`,
+			);
+		}
+		const key = line.slice(0, separatorIndex).trim();
+		if (!key.startsWith(bridgeEnvPrefix)) continue;
+		entries[key] = unquoteEnvValue(line.slice(separatorIndex + 1));
+	}
+	return entries;
+}
+
+function redactBridgeEnv(entries) {
+	return Object.fromEntries(
+		requiredConfig.map((key) => [
+			key,
+			key === "CODECUT_AGENT_BRIDGE_TOKEN"
+				? { present: Boolean(entries?.[key]) }
+				: (entries?.[key] ?? null),
+		]),
+	);
+}
+
+async function checkCacheBridgeEnv({ cwd, cacheRoot, sourceOk, cacheOk }) {
+	const sourceEnvPath = join(cwd, bridgeEnvFileRelativePath);
+	const cacheEnvPath = cacheRoot
+		? join(cacheRoot, bridgeEnvFileRelativePath)
+		: null;
+	if (!sourceOk || !cacheOk || !cacheRoot) {
+		return doctorCheck({
+			id: "cache_bridge_env",
+			ok: false,
+			message:
+				"Source and installed cache must be valid before checking bridge env sync.",
+			data: { sourceOk, cacheOk, cacheRoot },
+		});
+	}
+
+	try {
+		const sourceEntries = await readBridgeEnvEntries(sourceEnvPath);
+		const cacheEntries = await readBridgeEnvEntries(cacheEnvPath);
+		if (!sourceEntries || !cacheEntries) {
+			return doctorCheck({
+				id: "cache_bridge_env",
+				ok: false,
+				message:
+					"Source and installed cache bridge env files must both exist.",
+				data: {
+					sourceEnvPath,
+					cacheEnvPath,
+					sourceExists: Boolean(sourceEntries),
+					cacheExists: Boolean(cacheEntries),
+				},
+			});
+		}
+
+		const sourceMissing = requiredConfig.filter((key) => !sourceEntries[key]);
+		const cacheMissing = requiredConfig.filter((key) => !cacheEntries[key]);
+		if (sourceMissing.length > 0 || cacheMissing.length > 0) {
+			return doctorCheck({
+				id: "cache_bridge_env",
+				ok: false,
+				message:
+					"Source and installed cache bridge env files must include all required CODECUT_AGENT_BRIDGE_* keys.",
+				data: {
+					sourceEnvPath,
+					cacheEnvPath,
+					sourceMissing,
+					cacheMissing,
+					source: redactBridgeEnv(sourceEntries),
+					cache: redactBridgeEnv(cacheEntries),
+				},
+			});
+		}
+
+		const mismatched = requiredConfig.filter(
+			(key) => sourceEntries[key] !== cacheEntries[key],
+		);
+		if (mismatched.length > 0) {
+			return doctorCheck({
+				id: "cache_bridge_env",
+				ok: false,
+				message:
+					"Installed Codecut plugin cache bridge env does not match source apps/web/.env.local.",
+				data: {
+					sourceEnvPath,
+					cacheEnvPath,
+					mismatched,
+					source: redactBridgeEnv(sourceEntries),
+					cache: redactBridgeEnv(cacheEntries),
+				},
+			});
+		}
+
+		return doctorCheck({
+			id: "cache_bridge_env",
+			ok: true,
+			message: "Installed Codecut plugin cache bridge env matches source.",
+			data: {
+				sourceEnvPath,
+				cacheEnvPath,
+				source: redactBridgeEnv(sourceEntries),
+				cache: redactBridgeEnv(cacheEntries),
+			},
+		});
+	} catch (error) {
+		return doctorCheck({
+			id: "cache_bridge_env",
+			ok: false,
+			message: `Bridge env sync check failed: ${error instanceof Error ? error.message : String(error)}`,
+			data: { sourceEnvPath, cacheEnvPath },
+		});
+	}
+}
+
 async function checkPluginSync({
 	cwd,
 	cacheRoot,
@@ -622,6 +760,12 @@ export async function runInstallDoctor({
 			sourceOk: source.check.ok,
 			cacheOk: cache.check.ok,
 			execFileImpl,
+		}),
+		await checkCacheBridgeEnv({
+			cwd,
+			cacheRoot: cache.cacheRoot,
+			sourceOk: source.check.ok,
+			cacheOk: cache.check.ok,
 		}),
 		environment.check,
 		await nodeRendererProbe({ cwd }),
