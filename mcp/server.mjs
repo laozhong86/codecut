@@ -1094,13 +1094,29 @@ function buildWorkspaceIntentDefaults(input = {}) {
 					? input.output.includeAudio
 					: true,
 		},
-		brief: String(input.brief || ""),
-		successCriteria: String(input.successCriteria || ""),
+		brief:
+			String(input.brief || "").trim() ||
+			defaultWorkspaceBrief(uiLanguage),
+		successCriteria:
+			String(input.successCriteria || "").trim() ||
+			defaultWorkspaceSuccessCriteria(uiLanguage),
 	};
 }
 
 function defaultWorkspaceProjectName(uiLanguage) {
 	return uiLanguage === "zh-CN" ? "CodeCut 项目" : "CodeCut Project";
+}
+
+function defaultWorkspaceBrief(uiLanguage) {
+	return uiLanguage === "zh-CN"
+		? "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。"
+		: "Cut a clear short with the key message, readable captions, and natural audio.";
+}
+
+function defaultWorkspaceSuccessCriteria(uiLanguage) {
+	return uiLanguage === "zh-CN"
+		? "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。"
+		: "Clear hook; tight pacing; readable captions; ending is ready for more edits or export.";
 }
 
 function resolveWorkspaceOpenFilePath(input = {}) {

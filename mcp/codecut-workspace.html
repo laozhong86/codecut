@@ -190,7 +190,7 @@
           <h2 id="project-section-title" class="section-heading" data-i18n="project">Project</h2>
           <label>
             <span data-i18n="projectName">Project name</span>
-            <input id="project-name" name="projectName" autocomplete="off">
+            <input id="project-name" name="projectName" autocomplete="off" data-i18n-placeholder="projectNamePlaceholder">
           </label>
         </fieldset>
 
@@ -205,16 +205,20 @@
           </label>
           <label id="file-path-row">
             <span data-i18n="absoluteFilePath">Absolute file path</span>
-            <input id="media-file-path" name="mediaFilePath" spellcheck="false">
+            <input id="media-file-path" name="mediaFilePath" spellcheck="false" data-i18n-placeholder="filePathPlaceholder">
           </label>
           <div id="url-row" class="grid hidden">
             <label>
               <span data-i18n="httpsUrl">HTTPS URL</span>
-              <input id="media-url" name="mediaUrl" spellcheck="false">
+              <input id="media-url" name="mediaUrl" spellcheck="false" data-i18n-placeholder="urlPlaceholder">
             </label>
             <label>
               <span data-i18n="mimeType">MIME type</span>
-              <input id="media-mime-type" name="mediaMimeType" placeholder="video/mp4">
+              <select id="media-mime-type" name="mediaMimeType">
+                <option value="video/mp4">video/mp4</option>
+                <option value="video/webm">video/webm</option>
+                <option value="video/quicktime">video/quicktime</option>
+              </select>
             </label>
           </div>
         </fieldset>
@@ -225,18 +229,32 @@
             <label>
               <span data-i18n="targetAspectRatio">Target aspect ratio</span>
               <select id="target-aspect-ratio" name="targetAspectRatio">
-                <option value="9:16">9:16</option>
-                <option value="16:9">16:9</option>
-                <option value="1:1">1:1</option>
+                <option value="9:16" data-i18n="aspectVertical">9:16</option>
+                <option value="16:9" data-i18n="aspectHorizontal">16:9</option>
+                <option value="1:1" data-i18n="aspectSquare">1:1</option>
               </select>
             </label>
             <label>
               <span data-i18n="durationGoalSeconds">Duration goal seconds</span>
-              <input id="duration-goal-seconds" name="durationGoalSeconds" type="number" min="1" step="1">
+              <select id="duration-goal-seconds" name="durationGoalSeconds">
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="45">45</option>
+                <option value="60">60</option>
+                <option value="90">90</option>
+                <option value="120">120</option>
+              </select>
             </label>
             <label>
               <span data-i18n="captionLanguage">Caption language</span>
-              <input id="caption-language" name="captionLanguage" value="auto">
+              <select id="caption-language" name="captionLanguage">
+                <option value="auto" data-i18n="captionAuto">auto</option>
+                <option value="zh-CN" data-i18n="captionChinese">Chinese</option>
+                <option value="en" data-i18n="captionEnglish">English</option>
+                <option value="ja" data-i18n="captionJapanese">Japanese</option>
+                <option value="ko" data-i18n="captionKorean">Korean</option>
+                <option value="es" data-i18n="captionSpanish">Spanish</option>
+              </select>
             </label>
             <label>
               <span data-i18n="format">Format</span>
@@ -268,11 +286,11 @@
           <h2 id="intent-section-title" class="section-heading" data-i18n="intent">Intent</h2>
           <label>
             <span data-i18n="brief">Brief</span>
-            <textarea id="brief" name="brief"></textarea>
+            <textarea id="brief" name="brief" data-i18n-placeholder="briefPlaceholder"></textarea>
           </label>
           <label>
             <span data-i18n="successCriteria">Success criteria</span>
-            <textarea id="success-criteria" name="successCriteria"></textarea>
+            <textarea id="success-criteria" name="successCriteria" data-i18n-placeholder="successCriteriaPlaceholder"></textarea>
           </label>
         </fieldset>
 
@@ -302,16 +320,28 @@
             subtitle: "Confirm the editing intent, validate local setup, then create the executor project.",
             project: "Project",
             projectName: "Project name",
+            projectNamePlaceholder: "CodeCut Project",
             source: "Source",
             mediaSource: "Media source",
             localFilePath: "Local file path",
             httpsUrl: "HTTPS URL",
             absoluteFilePath: "Absolute file path",
+            filePathPlaceholder: "/Users/me/Movies/source.mp4",
+            urlPlaceholder: "https://example.com/source.mp4",
             mimeType: "MIME type",
             output: "Output",
             targetAspectRatio: "Target aspect ratio",
+            aspectVertical: "9:16 vertical",
+            aspectHorizontal: "16:9 horizontal",
+            aspectSquare: "1:1 square",
             durationGoalSeconds: "Duration goal seconds",
             captionLanguage: "Caption language",
+            captionAuto: "auto",
+            captionChinese: "Chinese",
+            captionEnglish: "English",
+            captionJapanese: "Japanese",
+            captionKorean: "Korean",
+            captionSpanish: "Spanish",
             format: "Format",
             quality: "Quality",
             qualityLow: "low",
@@ -323,7 +353,9 @@
             no: "false",
             intent: "Intent",
             brief: "Brief",
+            briefPlaceholder: "Cut a clear short with the key message, readable captions, and natural audio.",
             successCriteria: "Success criteria",
+            successCriteriaPlaceholder: "Clear hook, tight pacing, readable captions, export-ready ending.",
             notInspected: "Not inspected",
             inspectBeforeSubmit: "Run inspection before submitting.",
             inspectSetup: "Inspect setup",
@@ -352,16 +384,28 @@
             subtitle: "确认剪辑需求，检查本地环境，然后创建执行器项目。",
             project: "项目",
             projectName: "项目名称",
+            projectNamePlaceholder: "CodeCut 项目",
             source: "素材",
             mediaSource: "素材来源",
             localFilePath: "本地文件路径",
             httpsUrl: "HTTPS 链接",
             absoluteFilePath: "绝对文件路径",
+            filePathPlaceholder: "/Users/x/Movies/source.mp4",
+            urlPlaceholder: "https://example.com/source.mp4",
             mimeType: "MIME 类型",
             output: "输出",
             targetAspectRatio: "目标画幅",
+            aspectVertical: "9:16 竖屏",
+            aspectHorizontal: "16:9 横屏",
+            aspectSquare: "1:1 方形",
             durationGoalSeconds: "目标时长（秒）",
             captionLanguage: "字幕语言",
+            captionAuto: "自动识别",
+            captionChinese: "中文",
+            captionEnglish: "英文",
+            captionJapanese: "日文",
+            captionKorean: "韩文",
+            captionSpanish: "西班牙文",
             format: "格式",
             quality: "质量",
             qualityLow: "低",
@@ -373,7 +417,9 @@
             no: "否",
             intent: "剪辑需求",
             brief: "需求说明",
+            briefPlaceholder: "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
             successCriteria: "成功标准",
+            successCriteriaPlaceholder: "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
             notInspected: "未检查",
             inspectBeforeSubmit: "创建项目前需要先检查。",
             inspectSetup: "检查设置",
@@ -446,6 +492,9 @@
           document.querySelectorAll("[data-i18n]").forEach((node) => {
             node.textContent = t(node.dataset.i18n);
           });
+          document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+            node.placeholder = t(node.dataset.i18nPlaceholder);
+          });
         }
 
         function initialDefaults() {
@@ -475,16 +524,29 @@
           fields.mediaSourceKind.value = mediaSource.kind === "url" ? "url" : "filePath";
           fields.mediaFilePath.value = mediaSource.filePath || "";
           fields.mediaUrl.value = mediaSource.url || "";
-          fields.mediaMimeType.value = mediaSource.mimeType || "";
-          fields.targetAspectRatio.value = defaults.targetAspectRatio || "9:16";
-          fields.durationGoalSeconds.value = Number(defaults.durationGoalSeconds || 60);
-          fields.captionLanguage.value = defaults.captionLanguage || "auto";
-          fields.outputFormat.value = defaults.output?.format || "mp4";
-          fields.outputQuality.value = defaults.output?.quality || "high";
-          fields.includeAudio.value = defaults.output?.includeAudio === false ? "false" : "true";
-          fields.brief.value = defaults.brief || "";
-          fields.successCriteria.value = defaults.successCriteria || "";
+          setSelectValue(fields.mediaMimeType, mediaSource.mimeType || "video/mp4");
+          setSelectValue(fields.targetAspectRatio, defaults.targetAspectRatio || "9:16");
+          setSelectValue(fields.durationGoalSeconds, String(Number(defaults.durationGoalSeconds || 60)));
+          setSelectValue(fields.captionLanguage, defaults.captionLanguage || "auto");
+          setSelectValue(fields.outputFormat, defaults.output?.format || "mp4");
+          setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
+          setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
+          fields.brief.value = defaults.brief || t("briefPlaceholder");
+          fields.successCriteria.value = defaults.successCriteria || t("successCriteriaPlaceholder");
           updateSourceRows();
+        }
+
+        function setSelectValue(select, value) {
+          const normalized = String(value || "");
+          if (!normalized) return;
+          const hasOption = Array.from(select.options).some((option) => option.value === normalized);
+          if (!hasOption) {
+            const option = document.createElement("option");
+            option.value = normalized;
+            option.textContent = normalized;
+            select.appendChild(option);
+          }
+          select.value = normalized;
         }
 
         function updateSourceRows() {
