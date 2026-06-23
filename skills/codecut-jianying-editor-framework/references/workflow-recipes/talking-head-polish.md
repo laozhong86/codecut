@@ -12,6 +12,7 @@ Use this recipe when the user asks to tighten a talking-head video, remove fille
 - Captions come from post-cut captions when edited audio transcription is available.
 - Timeline verification proves the generated clips are in source order unless the user asked for reordering.
 - Filler removal counts come only from explicit `drop` decisions with `dropReason: "filler"`.
+- The first kept range remains coherent without hidden prior context when the result will be used as a short-form clip.
 
 ## Required Context
 
@@ -42,6 +43,8 @@ Codecut currently targets transcript-first polish. If silence spans are not avai
 ## Product Rules
 
 - Prefer clarity over maximum compression.
+- Use this recipe for tightening the selected speech. If the user needs a platform short, product proof, tutorial structure, or the best excerpt from a long source, route through `long-to-short` candidate scoring first, then use speech cleanup only for the selected ranges.
+- Do not create a fast-paced short by deleting setup that the first kept sentence still depends on. Widen the range or route to story restructure instead.
 - Keep source order unless the user asks for a story restructure.
 - Do not add BGM, effects, or title cards unless requested and supported by the current tool surface.
 - Do not reuse source captions after speech cleanup when edited audio transcription is available.
@@ -54,6 +57,7 @@ Codecut currently targets transcript-first polish. If silence spans are not avai
 - Source duration and transcript coverage disagree, and the uncovered audio cannot be safely represented as keep/drop.
 - A high-risk drop cannot show that a retained segment preserves the useful meaning.
 - The user asks for automated filler removal based on silence detection, but no silence/audio-event data exists.
+- The requested result requires selecting the best story excerpt rather than tightening an already selected speech range.
 
 ## Report Back
 
