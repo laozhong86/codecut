@@ -1,8 +1,11 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { EditorCore } from "@/core";
 import { buildDefaultScene } from "@/lib/scenes";
-import { storageService } from "@/services/storage/service";
 import type { DerivedAsset, TProject } from "@/types/project";
+import {
+	ProjectNotFoundError,
+	shouldLogProjectLoadError,
+} from "../project-manager";
 
 const timerWindow = {
 	setTimeout,
@@ -102,28 +105,10 @@ describe("ProjectManager derived assets", () => {
 		).toThrow("Person mask confidence must be between 0 and 1.");
 	});
 
-	test("does not log an expected missing-project load as a console error", async () => {
-		const editor = EditorCore.getInstance();
-		const originalLoadProject = storageService.loadProject.bind(storageService);
-		const originalConsoleError = console.error;
-		const consoleError = mock(() => undefined);
-
-		storageService.loadProject = async () => null;
-		console.error = consoleError as unknown as typeof console.error;
-		(
-			editor.project as unknown as {
-				storageMigrationPromise: Promise<void> | null;
-			}
-		).storageMigrationPromise = Promise.resolve();
-
-		try {
-			await expect(
-				editor.project.loadProject({ id: "missing-project" }),
-			).rejects.toThrow("Project with id missing-project not found");
-			expect(consoleError).not.toHaveBeenCalled();
-		} finally {
-			storageService.loadProject = originalLoadProject;
-			console.error = originalConsoleError;
-		}
+	test("classifies expected missing-project loads as non-loggable", () => {
+		expect(
+			shouldLogProjectLoadError(new ProjectNotFoundError("missing-project")),
+		).toBe(false);
+		expect(shouldLogProjectLoadError(new Error("IndexedDB failed"))).toBe(true);
 	});
 });

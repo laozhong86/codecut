@@ -45,6 +45,10 @@ export class ProjectNotFoundError extends Error {
 	}
 }
 
+export function shouldLogProjectLoadError(error: unknown): boolean {
+	return !(error instanceof ProjectNotFoundError);
+}
+
 export class ProjectManager {
 	private active: TProject | null = null;
 	private savedProjects: TProjectMetadata[] = [];
@@ -170,7 +174,7 @@ export class ProjectManager {
 				}
 			}
 		} catch (error) {
-			if (!(error instanceof ProjectNotFoundError)) {
+			if (shouldLogProjectLoadError(error)) {
 				console.error("Failed to load project:", error);
 			}
 			throw error;
