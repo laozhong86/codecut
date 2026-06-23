@@ -29,6 +29,9 @@ or output decisions, hand back to `codecut-requirement-intake`.
 - Save the original request.
 - Copy local source files into `01-assets/`.
 - Download remote source material only when explicitly requested or needed for material audit.
+- For TikTok video, photo, share, author, or `@handle` sources, route the
+  TikTok-specific acquisition through `codecut-tiktok-downloader`, then resume
+  this material audit stage.
 - Run `node scripts/codecut-workspace.mjs probe-assets`.
 - Write material facts into `02-inventory/material-audit.md`.
 
@@ -44,6 +47,10 @@ actions:
 - `codecut-workspace write-doc`
 
 For YouTube source extraction, use a local download tool only after separating download failure from Codecut failure. Record source URL, title, duration, dimensions, local file path, and download limitations.
+
+For TikTok source extraction, use `codecut-tiktok-downloader` instead of
+embedding TikTok-specific backend rules here. Record its `download_manifest.json`
+path and downloaded file paths before probing the assets.
 
 ## Stop Conditions
 

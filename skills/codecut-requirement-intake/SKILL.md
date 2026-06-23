@@ -89,6 +89,13 @@ A remote URL is not the same as the local-file fast path.
 
 For YouTube or other remote URLs, confirm output form, platform, aspect ratio, and caption policy before timeline mutation. Download/probe can happen first only when it improves material audit or the user explicitly requested local extraction.
 
+For TikTok video URLs, photo URLs, share links, author pages, or `@handle`
+inputs, use `codecut-tiktok-downloader` for source acquisition only after the
+required intent gate passes, unless the user explicitly requested source-only
+download or TikTok material facts are needed to ask useful questions. TikTok
+download success does not pass requirement intake and does not permit executor
+mutation commands.
+
 ## Required Question Format
 
 Ask at most five questions. Each question must provide choices and exactly one recommended option.

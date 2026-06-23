@@ -41,6 +41,7 @@ tool is unavailable in the current Codex tool surface.
 | Request shape | Required stage |
 | --- | --- |
 | New creative job, new source material, remote URL, local media path, "make a short", "剪辑", "提取到本地" | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` first; it should open `open_codecut_workspace` when setup fields are missing. |
+| TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition after intake passes, or before intake only when source facts are needed to ask useful questions. |
 | Source needs download, file copy, workspace init, or ffprobe audit | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest`. |
 | Finished/reference videos, "learn this editing style", "复刻模板", reference-derived template draft/import/application | **REQUIRED SUB-SKILL:** Use `codecut-reference-template` before EditPlan authoring or executor mutation. |
 | Transcript, VideoContext, candidate clips, decision ledger, or EditPlan authoring | Read `references/editing-intent-router.md` and exactly one workflow recipe. |
