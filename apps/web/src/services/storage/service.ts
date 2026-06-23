@@ -257,6 +257,7 @@ class StorageService {
 			fps: mediaAsset.fps,
 			thumbnailUrl: mediaAsset.thumbnailUrl,
 			ephemeral: mediaAsset.ephemeral,
+			spokenScript: mediaAsset.spokenScript,
 		};
 
 		await mediaMetadataAdapter.set(mediaAsset.id, metadata);
@@ -308,6 +309,7 @@ class StorageService {
 			fps: metadata.fps,
 			thumbnailUrl: metadata.thumbnailUrl,
 			ephemeral: metadata.ephemeral,
+			spokenScript: metadata.spokenScript,
 		};
 	}
 

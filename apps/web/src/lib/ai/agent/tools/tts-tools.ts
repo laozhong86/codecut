@@ -54,6 +54,18 @@ export const generateSpeechTool: AgentTool = {
 				description:
 					"When true and textElementId is provided, the text element's duration will be updated to match the generated audio duration. Useful for aligning subtitles with speech. Defaults to false.",
 			},
+			captionLines: {
+				type: "array",
+				items: { type: "string" },
+				description:
+					"Optional final caption lines for the generated TTS script. Use when caption line breaks have already been reviewed; otherwise Codecut derives sentence-level lines from text.",
+			},
+			protectedTerms: {
+				type: "array",
+				items: { type: "string" },
+				description:
+					"Optional exact terms that must remain present in the generated TTS script metadata, such as prices, brand names, names, or short uppercase phrases.",
+			},
 		},
 		required: [],
 	},
@@ -104,6 +116,14 @@ export const generateSpeechTool: AgentTool = {
 		}
 
 		const voice = (args.voice as string | undefined) ?? "default";
+		const captionLines = Array.isArray(args.captionLines)
+			? args.captionLines.filter((line): line is string => typeof line === "string")
+			: undefined;
+		const protectedTerms = Array.isArray(args.protectedTerms)
+			? args.protectedTerms.filter(
+					(term): term is string => typeof term === "string",
+				)
+			: undefined;
 
 		try {
 			const { duration } = await generateAndInsertSpeech({
@@ -111,6 +131,8 @@ export const generateSpeechTool: AgentTool = {
 				text: textContent,
 				startTime,
 				voice,
+				captionLines,
+				protectedTerms,
 			});
 
 			if (alignTextDuration && linkedTrackId && linkedElementId) {

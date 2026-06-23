@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { MediaAsset } from "@/types/assets";
+import type { SpokenScriptData } from "@/services/storage/types";
 import type { DerivedAsset } from "@/types/project";
 import type { TimelineTrack } from "@/types/timeline";
 import { BridgeToolNameSchema } from "@/lib/agent-bridge/schema";
@@ -260,6 +261,118 @@ describe("Codex deterministic editing tools", () => {
 		expect(addedAssets).toHaveLength(1);
 		expect(addedAssets[0].projectId).toBe("project-123");
 		expect(addedAssets[0].asset.name).toBe("intro.mp4");
+	});
+
+	test("import_media_file preserves explicit scripted TTS metadata for audio assets", async () => {
+		const addedAssets: Array<{
+			projectId: string;
+			asset: Omit<MediaAsset, "id">;
+		}> = [];
+		const editor = {
+			project: {
+				getActive: () => ({ metadata: { id: "project-123" } }),
+			},
+			media: {
+				addMediaAsset: async ({
+					projectId,
+					asset,
+				}: {
+					projectId: string;
+					asset: Omit<MediaAsset, "id">;
+				}) => {
+					addedAssets.push({ projectId, asset });
+					return "media-imported-1";
+				},
+			},
+		};
+		const spokenScript: SpokenScriptData = {
+			source: "tts",
+			text: "A pizza portion costs $2.34. Venmo that ASAP.",
+			captions: ["A pizza portion costs $2.34.", "Venmo that ASAP."],
+			protectedTerms: ["$2.34", "Venmo"],
+		};
+
+		const result = await executeImportMediaFileTool({
+			args: {
+				fileName: "tts.mp3",
+				mimeType: "audio/mpeg",
+				base64: Buffer.from("audio-bytes").toString("base64"),
+				size: 11,
+				lastModified: 123,
+				spokenScript,
+			},
+			editor,
+			processFiles: async ({ files }) => {
+				const [file] = Array.from(files);
+				return [
+					{
+						name: file.name,
+						type: "audio",
+						file,
+						duration: 8,
+						url: "blob:imported",
+					},
+				];
+			},
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			data: { assets: [{ id: "media-imported-1", type: "audio" }] },
+		});
+		expect(addedAssets[0].asset.spokenScript).toEqual(spokenScript);
+	});
+
+	test("import_media_file rejects scripted TTS metadata for non-audio assets before mutating media", async () => {
+		let addCount = 0;
+		const editor = {
+			project: {
+				getActive: () => ({ metadata: { id: "project-123" } }),
+			},
+			media: {
+				addMediaAsset: async () => {
+					addCount += 1;
+					return "media-imported-1";
+				},
+			},
+		};
+
+		const result = await executeImportMediaFileTool({
+			args: {
+				fileName: "source.mp4",
+				mimeType: "video/mp4",
+				base64: Buffer.from("video-bytes").toString("base64"),
+				size: 11,
+				lastModified: 123,
+				spokenScript: {
+					source: "tts",
+					text: "This should only attach to audio.",
+					captions: ["This should only attach to audio."],
+				},
+			},
+			editor,
+			processFiles: async ({ files }) => {
+				const [file] = Array.from(files);
+				return [
+					{
+						name: file.name,
+						type: "video",
+						file,
+						duration: 42,
+						width: 1920,
+						height: 1080,
+						fps: 30,
+						url: "blob:imported",
+					},
+				];
+			},
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "spokenScript can only be attached to imported audio assets.",
+		});
+		expect(addCount).toBe(0);
 	});
 
 	test("import_media_file fails before mutating media when payload size is invalid", async () => {
