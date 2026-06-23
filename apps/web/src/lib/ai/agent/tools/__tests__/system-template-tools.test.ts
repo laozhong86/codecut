@@ -6,7 +6,10 @@ import {
 	type LocalTemplateScriptRecord,
 } from "@/lib/template-scripts/service";
 import { getToolByName } from "../index";
-import { executeImportSystemTemplateScriptTool } from "../system-template-tools";
+import {
+	executeDeleteSystemTemplateScriptTool,
+	executeImportSystemTemplateScriptTool,
+} from "../system-template-tools";
 
 class MemoryAdapter<T extends { id: string }> implements StorageAdapter<T> {
 	private records = new Map<string, T>();
@@ -119,5 +122,64 @@ describe("system template script tools", () => {
 		expect((await service.listTemplates()).map((template) => template.id)).toEqual([
 			"proof-demo-cut",
 		]);
+	});
+
+	test("registers the system template delete tool for cleanup use", () => {
+		const tool = getToolByName({ name: "delete_system_template_script" });
+
+		expect(tool?.name).toBe("delete_system_template_script");
+		expect(tool?.requiresConfirmation).toBe(true);
+	});
+
+	test("refuses to delete a system template without explicit user confirmation", async () => {
+		const service = new LocalTemplateScriptService({
+			adapter: new MemoryAdapter<LocalTemplateScriptRecord>(),
+		});
+		await service.registerTemplate({ template: buildTemplate() });
+
+		const result = await executeDeleteSystemTemplateScriptTool({
+			args: {
+				confirmedByUser: false,
+				templateId: "proof-demo-cut",
+			},
+			service,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message:
+				"Template delete requires explicit user confirmation before removing a Codecut system template.",
+		});
+		expect((await service.listTemplates()).map((template) => template.id)).toEqual([
+			"proof-demo-cut",
+		]);
+	});
+
+	test("deletes a confirmed system template from the Codecut system template library", async () => {
+		const service = new LocalTemplateScriptService({
+			adapter: new MemoryAdapter<LocalTemplateScriptRecord>(),
+		});
+		await service.registerTemplate({ template: buildTemplate() });
+
+		const result = await executeDeleteSystemTemplateScriptTool({
+			args: {
+				confirmedByUser: true,
+				templateId: "proof-demo-cut",
+			},
+			service,
+		});
+
+		expect(result).toEqual({
+			success: true,
+			message: 'Deleted system template script "Proof demo cut" (proof-demo-cut).',
+			data: {
+				templateId: "proof-demo-cut",
+				name: "Proof demo cut",
+				templateCount: 0,
+				sourceOfTruth: "codecut-system-template-library",
+				visibleInTemplatesUi: false,
+			},
+		});
+		expect(await service.listTemplates()).toEqual([]);
 	});
 });

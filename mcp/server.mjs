@@ -34,6 +34,11 @@ const templateJsonFileSchema = z
 	.trim()
 	.min(1)
 	.describe("Absolute path to a confirmed LocalTemplateScript JSON draft file.");
+const templateIdSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.describe("Exact Codecut system template script ID.");
 
 const verificationJsonFileSchema = z
 	.string()
@@ -437,6 +442,22 @@ export const CODECUT_MCP_TOOLS = [
 				.literal(true)
 				.describe(
 					"Must be true only after the user explicitly confirmed this exact template draft for import.",
+				),
+		},
+		readOnly: false,
+	},
+	{
+		name: "delete_system_template_script",
+		title: "Delete Codecut System Template Script",
+		description:
+			"Delete one user-confirmed Codecut system template script from the Templates UI library for explicit cleanup or removal.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			templateId: templateIdSchema,
+			confirmedByUser: z
+				.literal(true)
+				.describe(
+					"Must be true only after the user explicitly confirmed deleting this exact system template.",
 				),
 		},
 		readOnly: false,
@@ -1598,6 +1619,18 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--confirmed-by-user",
 				"true",
 			];
+		case "delete_system_template_script":
+			requireConfirmedByUser(args);
+			return [
+				"scripts/codex-bridge.mjs",
+				"delete-system-template-script",
+				"--project-id",
+				projectId,
+				"--template-id",
+				requireStringArg(args, "templateId"),
+				"--confirmed-by-user",
+				"true",
+			];
 		case "validate_edit_plan":
 			return [
 				"scripts/codex-bridge.mjs",
@@ -2057,6 +2090,7 @@ export function createCodecutMcpServer() {
 						tool.name === "apply_edit_plan" ||
 						tool.name === "apply_narrated_remix_plan" ||
 						tool.name === "import_system_template_script" ||
+						tool.name === "delete_system_template_script" ||
 						tool.name === "create_text_background_effect" ||
 						tool.name === "create_human_pip_effect" ||
 						tool.name === "generate_digital_human" ||
