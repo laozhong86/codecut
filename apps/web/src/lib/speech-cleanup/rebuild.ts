@@ -14,6 +14,7 @@ import {
 } from "./schema";
 
 const TIME_TOLERANCE_SECONDS = 0.001;
+const TRANSCRIPT_COVERAGE_TOLERANCE_SECONDS = 0.3;
 
 export interface SpeechCleanupResult {
 	plan: SpeechCleanupPlan;
@@ -55,6 +56,31 @@ function assertDecisionOrder({
 			throw new Error("SpeechCleanup decisions must not overlap.");
 		}
 		previousEnd = decision.sourceEnd;
+	}
+}
+
+function assertTranscriptCoverage({
+	decisions,
+	sourceDuration,
+}: {
+	decisions: SpeechCleanupDecision[];
+	sourceDuration: number;
+}) {
+	const firstDecision = decisions[0];
+	const lastDecision = decisions[decisions.length - 1];
+
+	if (firstDecision.sourceStart > TRANSCRIPT_COVERAGE_TOLERANCE_SECONDS) {
+		throw new Error(
+			"SpeechCleanupPlan must classify leading untranscribed audio longer than 0.3 seconds.",
+		);
+	}
+	if (
+		sourceDuration - lastDecision.sourceEnd >
+		TRANSCRIPT_COVERAGE_TOLERANCE_SECONDS
+	) {
+		throw new Error(
+			"SpeechCleanupPlan must classify trailing untranscribed audio longer than 0.3 seconds.",
+		);
 	}
 }
 
@@ -165,6 +191,7 @@ export function rebuildTimelineFromSpeechCleanup({
 		assertSourceBounds({ decision, sourceDuration });
 	}
 	assertDecisionOrder({ decisions: parsed.decisions });
+	assertTranscriptCoverage({ decisions: parsed.decisions, sourceDuration });
 
 	const keepDecisions = parsed.decisions.filter(
 		(decision) => decision.action === "keep",

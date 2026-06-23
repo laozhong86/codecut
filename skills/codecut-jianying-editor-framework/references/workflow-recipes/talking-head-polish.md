@@ -27,7 +27,7 @@ Codecut currently targets transcript-first polish. If silence spans are not avai
 1. Complete the main P0 CLI Runtime Gate and executor readiness check.
 2. Run `get_project_info` and `list_media_assets`.
 3. Transcribe the selected audio/video asset.
-4. Compare source duration against transcript coverage; represent leading or trailing untranscribed audio longer than 0.3 seconds as an explicit keep/drop decision or report the blocker.
+4. Compare source duration against transcript coverage; represent leading or trailing untranscribed audio longer than 0.3 seconds as an explicit keep/drop decision or report the blocker. `rebuildTimelineFromSpeechCleanup()` fails fast when that coverage gap is unclassified.
 5. Generate a strict SpeechCleanupPlan v2 from transcript evidence.
 6. Mark each classified transcript segment as `keep` or `drop`; every `drop` needs `dropReason`, and every `keep` must omit `dropReason`.
 7. For restarts and repeats, drop earlier restarts or repeats and keep the later complete take unless the user explicitly prefers the earlier version.

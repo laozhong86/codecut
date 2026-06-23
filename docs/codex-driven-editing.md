@@ -411,6 +411,8 @@ Rules:
 - Compare source duration with transcript coverage before projection. Leading or
   trailing untranscribed audio longer than 0.3 seconds must be represented as an
   explicit keep/drop decision or reported as a cleanup blocker.
+  `rebuildTimelineFromSpeechCleanup()` fails fast when the first or last
+  decision leaves that coverage gap unclassified.
 - For every `drop` decision, classify each dropped range as low or high risk.
   Low-risk drops are pauses, exact prefix repeats, or very short filler tokens
   with no standalone meaning. High-risk drops are full-sentence removals,
