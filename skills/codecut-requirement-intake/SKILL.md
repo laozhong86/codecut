@@ -44,6 +44,28 @@ Allowed before this gate passes:
 - download or probe remote material only when the user explicitly asked to extract it locally or the material facts are needed to ask useful questions
 - write `intent-analysis.md`, `clarification-questions.md`, `assumptions.md`, and material audit files
 
+## Workspace Widget First
+
+For new creative jobs with missing setup fields, use the
+`open_codecut_workspace` MCP tool before sending text-only questions. Pass any
+known setup fields from the user request, such as project name, source path or
+URL, brief, output form, platform, aspect ratio, caption language, UI language,
+and browser preview intent.
+
+If `open_codecut_workspace` is not visible in the current callable tool
+surface, use `tool_search` with the query `open_codecut_workspace Codecut
+workspace setup widget`, then call the returned
+`mcp__codecut_mcp.open_codecut_workspace` tool.
+
+The workspace widget is the primary collection surface. It lets the user review
+and submit the setup, then `submit_codecut_setup` sends the follow-up prompt
+that opens the Codex in-app browser and continues execution.
+
+If the workspace widget tool is unavailable after tool discovery, report that
+widget intake is unavailable, then ask the required text-only questions with
+choices. Do not create, import, transcribe, or mutate the timeline before
+either widget submission or explicit text answers pass this gate.
+
 ## Key Fields
 
 Check these fields for every new creative job:
@@ -149,7 +171,8 @@ Assumptions: <list, if any>
 Next stage: <material-ingest|edit-planning|executor-apply|timeline-inspection>
 ```
 
-When blocked, report only the questions and do not run executor commands.
+When blocked and the workspace widget tool is unavailable, report only the
+questions and do not run executor commands.
 
 ## Common Mistakes
 
