@@ -201,7 +201,7 @@ enabled = true
 		}
 	});
 
-	test("syncs only Codecut bridge env into the installed cache", async () => {
+	test("syncs required Codecut bridge and RunningHub runtime env into the installed cache", async () => {
 		const sourceRoot = await createPluginSource();
 		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-sync-home-"));
 		const cacheRoot = join(
@@ -218,6 +218,7 @@ enabled = true
 				"CODECUT_AGENT_BRIDGE_TOKEN=source-token",
 				"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=120000",
 				"CODECUT_AGENT_BRIDGE_INTERVAL_MS=1000",
+				"RUNNINGHUB_API_KEY=runninghub-secret",
 				"UNRELATED_PROVIDER_SECRET=do-not-copy",
 			].join("\n"),
 			"utf8",
@@ -252,8 +253,16 @@ enabled = true
 			expect(cachedEnv).toContain("CODECUT_AGENT_BRIDGE_TOKEN=source-token");
 			expect(cachedEnv).toContain("CODECUT_AGENT_BRIDGE_TIMEOUT_MS=120000");
 			expect(cachedEnv).toContain("CODECUT_AGENT_BRIDGE_INTERVAL_MS=1000");
+			expect(cachedEnv).toContain("RUNNINGHUB_API_KEY=runninghub-secret");
 			expect(cachedEnv).not.toContain("UNRELATED_PROVIDER_SECRET");
 			expect(cachedEnv).not.toContain("4102");
+			expect(result.bridgeEnv.keys).toEqual([
+				"CODECUT_AGENT_BRIDGE_URL",
+				"CODECUT_AGENT_BRIDGE_TOKEN",
+				"CODECUT_AGENT_BRIDGE_TIMEOUT_MS",
+				"CODECUT_AGENT_BRIDGE_INTERVAL_MS",
+				"RUNNINGHUB_API_KEY",
+			]);
 			expect(result.verifiedChecksums).toEqual([
 				".codex-plugin/plugin.json",
 				"mcp/server.mjs",

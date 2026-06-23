@@ -1042,6 +1042,38 @@ describe("codex executor", () => {
 		expect(savedBytes.subarray(8, 12).toString("utf8")).toBe("WAVE");
 	});
 
+	test("generate_runninghub_voice_design rejects invalid WAV results before saving", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_runninghub_voice_design",
+				args: {
+					text: "欢迎来到今天的测试",
+					emotionPrompt: "温柔、稳定的中文播客女声",
+				},
+			}),
+			env: { RUNNINGHUB_API_KEY: "rh-key" },
+			generateVoiceDesign: async () => ({
+				taskId: "voice-task-invalid-wav",
+				audioBytes: Buffer.from("not a wav"),
+				mimeType: "audio/wav",
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "generate_runninghub_voice_design",
+			success: false,
+			message: "RunningHub voice WAV result is not a RIFF/WAVE file",
+		});
+		const state = await getExecutorProjectState({ projectId });
+		expect(
+			state.mediaAssets.some((item) =>
+				item.name.includes("voice-task-invalid-wav"),
+			),
+		).toBe(false);
+	});
+
 	test("generate_runninghub_voice_clone clones from an absolute local audio path", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 		const tempDir = await mkdtemp(join(tmpdir(), "voice-clone-"));
