@@ -11,6 +11,17 @@ Material ingest collects source facts. It does not decide the final platform, as
 
 For new creative jobs, use `codecut-requirement-intake` first unless material facts are needed to ask better questions.
 
+## Stage Ownership
+
+This skill owns source material facts only: local file reachability, remote
+download/probe limitations, workspace asset filing, ffprobe inventory, and
+material-audit handoff.
+
+It does not pass requirement intake, choose creative strategy, infer platform or
+aspect ratio defaults, write EditPlans, import into the executor, mutate the
+timeline, or verify completed edits. If material facts reveal missing business
+or output decisions, hand back to `codecut-requirement-intake`.
+
 ## Responsibilities
 
 - Reserve the project ID.
@@ -23,12 +34,14 @@ For new creative jobs, use `codecut-requirement-intake` first unless material fa
 
 ## Allowed Commands
 
-```bash
-node scripts/codecut-workspace.mjs init --project-id <id> --name "<business project name>" --user-message "<original request>"
-node scripts/codecut-workspace.mjs add-assets --project-id <id> --file /absolute/path/source.mp4
-node scripts/codecut-workspace.mjs probe-assets --project-id <id>
-node scripts/codecut-workspace.mjs write-doc --project-id <id> --kind material-audit --content-file /absolute/path/material-audit.md
-```
+Use the complete `codecut-workspace` command contract in
+`../../docs/codex-driven-editing.md`. This stage may run only these workspace
+actions:
+
+- `codecut-workspace init`
+- `codecut-workspace add-assets`
+- `codecut-workspace probe-assets`
+- `codecut-workspace write-doc`
 
 For YouTube source extraction, use a local download tool only after separating download failure from Codecut failure. Record source URL, title, duration, dimensions, local file path, and download limitations.
 

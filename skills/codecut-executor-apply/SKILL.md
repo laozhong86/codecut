@@ -9,19 +9,22 @@ description: Use when a confirmed Codecut editing plan is ready for local execut
 
 Executor apply mutates Codecut state. Use it only after requirement intake passes for new creative jobs.
 
+## Stage Ownership
+
+This skill owns executor readiness and execution: fixed local runtime checks,
+bridge env loading, doctor checks, media import, template import after explicit
+confirmation, EditPlan/NarratedRemixPlan application, caption build, timeline
+readback, and export proof.
+
+It does not confirm missing user requirements, collect source material facts,
+derive reference-template strategy, select clips, or decide creative workflow.
+The full command contract lives in `../../docs/codex-driven-editing.md`; this
+skill keeps the minimum command surface needed to operate the current executor.
+
 ## Runtime Gate
 
-Use the fixed MVP origin:
-
-```bash
-curl -fsS -o /dev/null http://127.0.0.1:4100/en/projects
-```
-
-If unavailable:
-
-```bash
-bun run dev:web
-```
+Use the fixed MVP origin `http://127.0.0.1:4100/en/projects` and run the
+complete Local Web Service Gate from `../../docs/codex-driven-editing.md`.
 
 Do not switch ports.
 
@@ -46,49 +49,47 @@ Do not print token values.
 
 ## Required Command Order
 
-```bash
-node scripts/codex-bridge.mjs create-project --project-id <id> --name "<business project name>"
-node scripts/codex-bridge.mjs doctor-install --project-id <id>
-node scripts/codex-bridge.mjs doctor --project-id <id>
-node scripts/codex-bridge.mjs send --project-id <id> --tool get_project_info --args-json '{}'
-node scripts/codex-bridge.mjs send --project-id <id> --tool list_media_assets --args-json '{}'
-```
+Use the complete command forms in `../../docs/codex-driven-editing.md`. The
+minimum execution order is:
+
+1. local service gate
+2. bridge env load from `apps/web/.env.local`
+3. `create-project` with a concrete business project name
+4. `doctor-install`
+5. `doctor`
+6. `get_project_info`
+7. `list_media_assets`
 
 Import only when needed:
 
-```bash
-node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/source.mp4
-```
+Use `import-media` from the docs after the source material path is known.
 
-Import a user-confirmed reference-derived template draft into Codecut system
-templates only after explicit confirmation:
-
-```bash
-node scripts/codex-bridge.mjs import-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true
-```
+For reference-derived template draft imports, rely on
+`codecut-reference-template` for the confirmation gate and run
+`import-system-template-script` from the docs only with `confirmedByUser: true`.
 
 Apply a strict implemented EditPlan:
 
-```bash
-node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing true
-```
+Use `validate-edit-plan`, `preview-edit-plan`, and `apply-plan` from the docs.
 
 Verify:
 
-```bash
-node scripts/codex-bridge.mjs send --project-id <id> --tool get_timeline_state --args-json '{}'
-```
+Use `verify-timeline` and `get_timeline_state` from the docs.
 
 For fresh-session spokenScript/readback acceptance on an existing scripted
 project, run the read-only smoke command with explicit expected evidence:
 
-```bash
-node scripts/codex-bridge.mjs fresh-session-smoke --project-id <id> --scripted-media-name <name> --expected-caption-line-count <n> --expected-protected-term-count <n> --expected-caption-texts-json '["$2.34","Venmo that ASAP"]'
-```
+Use `fresh-session-smoke` from the docs.
 
 ## Failure Rule
 
 Do not continue after `doctor-install`, `doctor`, `fresh-session-smoke`, `import-media`, `import-system-template-script`, `transcribe`, `build-post-cut-captions`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
+
+Advanced MCP repair tools such as `insert_clips`, `add_texts`,
+`add_captions`, `move_clips`, `remove_clips`, `split_clip`,
+`set_clip_properties`, `set_keyframes`, and `ripple_delete_ranges` are not the
+default generated-edit path. Use them only after timeline readback identifies a
+specific repair or the user explicitly asks for a direct low-level edit.
 
 ## Completion
 

@@ -188,11 +188,9 @@ Before import, show the user:
 - unsupported runtime gaps
 - path to the draft JSON
 
-Import only after explicit confirmation, then run:
-
-```bash
-node scripts/codex-bridge.mjs import-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true
-```
+Import only after explicit confirmation. Use the
+`import-system-template-script` command contract in
+`../../../docs/codex-driven-editing.md` and keep `confirmedByUser: true`.
 
 After import, apply future user requests from the Codecut system template
 library, not from the draft file path.

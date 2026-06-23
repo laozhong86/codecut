@@ -709,6 +709,16 @@ node scripts/codex-bridge.mjs import-media \
 
 The local file path stays on the Codex side. The CLI reads the file bytes and sends a base64 payload through the local bridge; very large source videos can hit local request size or timeout limits.
 
+Import a user-confirmed reference-derived template draft into Codecut system
+templates only after explicit confirmation:
+
+```bash
+node scripts/codex-bridge.mjs import-system-template-script \
+  --project-id <id> \
+  --template-json-file /absolute/path/local-template-script.json \
+  --confirmed-by-user true
+```
+
 Transcribe an existing imported media asset:
 
 ```bash
@@ -809,6 +819,18 @@ node scripts/codex-bridge.mjs send \
   --project-id <id> \
   --tool get_timeline_state \
   --args-json '{}'
+```
+
+Run read-only fresh-session spokenScript/readback acceptance on an existing
+scripted project with explicit expected evidence:
+
+```bash
+node scripts/codex-bridge.mjs fresh-session-smoke \
+  --project-id <id> \
+  --scripted-media-name <name> \
+  --expected-caption-line-count <n> \
+  --expected-protected-term-count <n> \
+  --expected-caption-texts-json '["$2.34","Venmo that ASAP"]'
 ```
 
 Build an EditPlan quality report without mutating the timeline:
