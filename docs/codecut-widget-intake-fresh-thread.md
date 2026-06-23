@@ -15,6 +15,11 @@ The validation thread must not run shell commands, write files, download media,
 create projects, import media, transcribe, mutate timelines, or send text-only
 fallback questions.
 
+For missing setup fields, the expected first Codecut action is the widget MCP
+call itself. Reading local skill files first is a failure because it means
+startup routing has not given Codex enough instruction to enter widget intake
+without shell.
+
 ## Checklist
 
 1. Confirm the active plugin source:
@@ -59,10 +64,10 @@ The expected callable tool is
 [@codecut](plugin://codecut@local-opc) Validate intake behavior: I have a local
 video to edit into one 1-minute short. Do not download, do not edit, do not
 write files, do not inspect skills, do not read local files, and do not run
-shell commands. The only allowed tool call is
-codecut_mcp.open_codecut_workspace. If editing setup fields are missing, use the
-normal Codecut plugin intake path and render the setup widget instead of sending
-text questions.
+shell commands. Use tool_search only if open_codecut_workspace is not visible.
+The only allowed Codecut MCP tool call is codecut_mcp.open_codecut_workspace.
+If editing setup fields are missing, use the normal Codecut plugin intake path
+and render the setup widget instead of sending text questions.
 ```
 
 6. Inspect the fresh thread with `read_thread` and verify it contains:

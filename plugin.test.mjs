@@ -144,6 +144,7 @@ describe("Codecut plugin startup guidance", () => {
 			"utf8",
 		);
 		const startupPrompt = pluginManifest.interface.defaultPrompt.join("\n");
+		const normalizedRouterSkill = routerSkill.replace(/\r\n/g, "\n");
 
 		for (const content of [
 			startupPrompt,
@@ -164,6 +165,16 @@ describe("Codecut plugin startup guidance", () => {
 		expect(intakeSkill).toContain("tool_search");
 		expect(intakeSkill).toContain("mcp__codecut_mcp.open_codecut_workspace");
 		expect(intakeSkill).toContain("text-only questions");
+		expect(startupPrompt).toContain("before reading local files");
+		expect(startupPrompt).toContain("loading stage skills");
+		expect(startupPrompt).toContain("running shell commands");
+		expect(normalizedRouterSkill).toContain("before reading\nlocal files");
+		expect(routerSkill).toContain("loading stage skills");
+		expect(routerSkill).toContain("running shell commands");
+		expect(routerSkill).toContain("before loading child skills or shell");
+		expect(routerSkill).not.toContain(
+			"Use `codecut-requirement-intake` first; it should open",
+		);
 	});
 
 	test("documents fresh-thread widget intake verification", async () => {
@@ -179,7 +190,10 @@ describe("Codecut plugin startup guidance", () => {
 			expect(content).toContain("open_codecut_workspace");
 		}
 		expect(checklist).toContain("do not inspect skills");
-		expect(checklist).toContain("The only allowed tool call is");
+		expect(checklist).toContain(
+			"Use tool_search only if open_codecut_workspace is not visible",
+		);
+		expect(checklist).toContain("The only allowed Codecut MCP tool call is");
 	});
 
 	test("keeps bridge env command details on the executor surface", async () => {

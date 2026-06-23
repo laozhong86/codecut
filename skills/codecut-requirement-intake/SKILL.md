@@ -46,11 +46,13 @@ Allowed before this gate passes:
 
 ## Workspace Widget First
 
-For new creative jobs with missing setup fields, use the
-`open_codecut_workspace` MCP tool before sending text-only questions. Pass any
-known setup fields from the user request, such as project name, source path or
-URL, brief, output form, platform, aspect ratio, caption language, UI language,
-and browser preview intent.
+For new creative jobs with missing setup fields, the plugin startup prompt and
+framework router should call the `open_codecut_workspace` MCP tool before this
+stage skill is loaded through shell. If this skill is already loaded, call the
+same tool before sending text-only questions. Pass any known setup fields from
+the user request, such as project name, source path or URL, brief, output form,
+platform, aspect ratio, caption language, UI language, and browser preview
+intent.
 
 If `open_codecut_workspace` is not visible in the current callable tool
 surface, use `tool_search` with the query `open_codecut_workspace Codecut
