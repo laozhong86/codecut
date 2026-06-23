@@ -350,6 +350,7 @@
             chooseFiles: "Choose files",
             removeMediaSource: "Remove source",
             selectedFiles: "Selected files",
+            selectedFilesNeedAbsolutePath: "Selected files were added below. If a path is not absolute, paste the full local path before inspecting.",
             filePathPlaceholder: "/Users/me/Movies/source.mp4",
             urlPlaceholder: "https://example.com/source.mp4",
             mimeType: "MIME type",
@@ -420,6 +421,7 @@
             chooseFiles: "选择文件",
             removeMediaSource: "移除素材",
             selectedFiles: "已选择文件",
+            selectedFilesNeedAbsolutePath: "已把选择的文件加入下方素材列表。如果路径不是绝对路径，请先补全本地完整路径再检查。",
             filePathPlaceholder: "/Users/x/Movies/source.mp4",
             urlPlaceholder: "https://example.com/source.mp4",
             mimeType: "MIME 类型",
@@ -675,6 +677,39 @@
           });
         }
 
+        function appendPickedFileRows(files) {
+          const pickedFiles = Array.from(files || []);
+          if (!pickedFiles.length) return;
+          const hasExistingSource = collectMediaSources().some((source) => {
+            if (source.kind === "url") return Boolean(source.url);
+            return Boolean(source.filePath);
+          });
+          if (!hasExistingSource) {
+            fields.mediaSources.innerHTML = "";
+          }
+          for (const file of pickedFiles) {
+            appendMediaSourceRow({ kind: "filePath", filePath: pickedFilePath(file) });
+          }
+        }
+
+        function pickedFilePath(file) {
+          const filePath = file?.path;
+          if (typeof filePath === "string" && filePath.trim()) {
+            return filePath.trim();
+          }
+          return file?.name || "";
+        }
+
+        function handlePickedFiles() {
+          const files = Array.from(fields.mediaFilePicker.files || []);
+          const names = files.map((file) => file.name).filter(Boolean);
+          fields.filePickerSelection.textContent = names.length
+            ? `${t("selectedFiles")}: ${names.join(", ")}. ${t("selectedFilesNeedAbsolutePath")}`
+            : "";
+          appendPickedFileRows(files);
+          invalidateInspection();
+        }
+
         function renderChoiceOptions(container, options) {
           container.innerHTML = "";
           for (const optionText of normalizeChoiceOptions(options)) {
@@ -907,12 +942,7 @@
         fields.mediaFilePickerButton.addEventListener("click", () => {
           fields.mediaFilePicker.click();
         });
-        fields.mediaFilePicker.addEventListener("change", () => {
-          const names = Array.from(fields.mediaFilePicker.files || []).map((file) => file.name);
-          fields.filePickerSelection.textContent = names.length
-            ? `${t("selectedFiles")}: ${names.join(", ")}`
-            : "";
-        });
+        fields.mediaFilePicker.addEventListener("change", handlePickedFiles);
         fields.form.addEventListener("input", () => {
           invalidateInspection();
         });
