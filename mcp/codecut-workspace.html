@@ -180,54 +180,54 @@
   </head>
   <body>
     <main>
-      <h1>CodeCut Workspace</h1>
-      <p>Confirm the editing intent, validate local setup, then create the executor project.</p>
+      <h1 data-i18n="title">CodeCut Workspace</h1>
+      <p data-i18n="subtitle">Confirm the editing intent, validate local setup, then create the executor project.</p>
 
       <form id="workspace-form">
         <fieldset>
-          <legend>Project</legend>
+          <legend data-i18n="project">Project</legend>
           <div class="grid">
             <label>
-              Project name
+              <span data-i18n="projectName">Project name</span>
               <input id="project-name" name="projectName" autocomplete="off">
             </label>
             <label>
-              Project ID
+              <span data-i18n="projectId">Project ID</span>
               <input id="project-id" name="projectId" autocomplete="off" spellcheck="false">
             </label>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>Source</legend>
+          <legend data-i18n="source">Source</legend>
           <label>
-            Media source
+            <span data-i18n="mediaSource">Media source</span>
             <select id="media-source-kind">
-              <option value="filePath">Local file path</option>
-              <option value="url">HTTPS URL</option>
+              <option value="filePath" data-i18n="localFilePath">Local file path</option>
+              <option value="url" data-i18n="httpsUrl">HTTPS URL</option>
             </select>
           </label>
           <label id="file-path-row">
-            Absolute file path
+            <span data-i18n="absoluteFilePath">Absolute file path</span>
             <input id="media-file-path" name="mediaFilePath" spellcheck="false">
           </label>
           <div id="url-row" class="grid hidden">
             <label>
-              HTTPS URL
+              <span data-i18n="httpsUrl">HTTPS URL</span>
               <input id="media-url" name="mediaUrl" spellcheck="false">
             </label>
             <label>
-              MIME type
+              <span data-i18n="mimeType">MIME type</span>
               <input id="media-mime-type" name="mediaMimeType" placeholder="video/mp4">
             </label>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>Output</legend>
+          <legend data-i18n="output">Output</legend>
           <div class="grid">
             <label>
-              Target aspect ratio
+              <span data-i18n="targetAspectRatio">Target aspect ratio</span>
               <select id="target-aspect-ratio" name="targetAspectRatio">
                 <option value="9:16">9:16</option>
                 <option value="16:9">16:9</option>
@@ -235,60 +235,60 @@
               </select>
             </label>
             <label>
-              Duration goal seconds
+              <span data-i18n="durationGoalSeconds">Duration goal seconds</span>
               <input id="duration-goal-seconds" name="durationGoalSeconds" type="number" min="1" step="1">
             </label>
             <label>
-              Caption language
+              <span data-i18n="captionLanguage">Caption language</span>
               <input id="caption-language" name="captionLanguage" value="auto">
             </label>
             <label>
-              Format
+              <span data-i18n="format">Format</span>
               <select id="output-format" name="outputFormat">
                 <option value="mp4">mp4</option>
                 <option value="webm">webm</option>
               </select>
             </label>
             <label>
-              Quality
+              <span data-i18n="quality">Quality</span>
               <select id="output-quality" name="outputQuality">
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-                <option value="very_high">very_high</option>
+                <option value="low" data-i18n="qualityLow">low</option>
+                <option value="medium" data-i18n="qualityMedium">medium</option>
+                <option value="high" data-i18n="qualityHigh">high</option>
+                <option value="very_high" data-i18n="qualityVeryHigh">very_high</option>
               </select>
             </label>
             <label>
-              Include audio
+              <span data-i18n="includeAudio">Include audio</span>
               <select id="include-audio" name="includeAudio">
-                <option value="true">true</option>
-                <option value="false">false</option>
+                <option value="true" data-i18n="yes">true</option>
+                <option value="false" data-i18n="no">false</option>
               </select>
             </label>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>Intent</legend>
+          <legend data-i18n="intent">Intent</legend>
           <label>
-            Brief
+            <span data-i18n="brief">Brief</span>
             <textarea id="brief" name="brief"></textarea>
           </label>
           <label>
-            Success criteria
+            <span data-i18n="successCriteria">Success criteria</span>
             <textarea id="success-criteria" name="successCriteria"></textarea>
           </label>
         </fieldset>
 
         <section class="status" aria-live="polite">
-          <strong id="status-title">Not inspected</strong>
-          <p id="status-message" class="muted">Run inspection before submitting.</p>
+          <strong id="status-title" data-i18n="notInspected">Not inspected</strong>
+          <p id="status-message" class="muted" data-i18n="inspectBeforeSubmit">Run inspection before submitting.</p>
           <ul id="checks" class="checks"></ul>
         </section>
 
         <div class="actions">
-          <button id="inspect-button" class="secondary" type="button">Inspect setup</button>
-          <button id="submit-button" type="submit" disabled>Create project</button>
+          <button id="inspect-button" class="secondary" type="button" data-i18n="inspectSetup">Inspect setup</button>
+          <button id="submit-button" type="submit" disabled data-i18n="createProject">Create project</button>
         </div>
       </form>
 
@@ -299,6 +299,111 @@
     <script>
       (() => {
         "use strict";
+
+        const WORKSPACE_I18N = {
+          en: {
+            title: "CodeCut Workspace",
+            subtitle: "Confirm the editing intent, validate local setup, then create the executor project.",
+            project: "Project",
+            projectName: "Project name",
+            projectId: "Project ID",
+            source: "Source",
+            mediaSource: "Media source",
+            localFilePath: "Local file path",
+            httpsUrl: "HTTPS URL",
+            absoluteFilePath: "Absolute file path",
+            mimeType: "MIME type",
+            output: "Output",
+            targetAspectRatio: "Target aspect ratio",
+            durationGoalSeconds: "Duration goal seconds",
+            captionLanguage: "Caption language",
+            format: "Format",
+            quality: "Quality",
+            qualityLow: "low",
+            qualityMedium: "medium",
+            qualityHigh: "high",
+            qualityVeryHigh: "very_high",
+            includeAudio: "Include audio",
+            yes: "true",
+            no: "false",
+            intent: "Intent",
+            brief: "Brief",
+            successCriteria: "Success criteria",
+            notInspected: "Not inspected",
+            inspectBeforeSubmit: "Run inspection before submitting.",
+            inspectSetup: "Inspect setup",
+            createProject: "Create project",
+            ready: "Ready",
+            blocked: "Blocked",
+            ok: "OK",
+            setupReady: "Setup can create a project and import media.",
+            setupBlocked: "Resolve the failed checks before creating a project.",
+            inspecting: "Inspecting",
+            inspectingDetail: "Checking project, media, and local bridge.",
+            creating: "Creating",
+            creatingDetail: "Creating project and importing media.",
+            setupFailed: "CodeCut setup failed.",
+            projectCreated: "Project created",
+            openEditor: "Open editor",
+            continuing: "Continuing in Codex...",
+            followUpSent: "Follow-up sent to Codex.",
+            followUpUnavailable: "window.openai.sendFollowUpMessage is unavailable.",
+            retryFollowUp: "Retry follow-up",
+            openaiUnavailable: "window.openai is unavailable.",
+            callToolUnavailable: "window.openai.callTool is unavailable.",
+          },
+          "zh-CN": {
+            title: "CodeCut 工作区",
+            subtitle: "确认剪辑需求，检查本地环境，然后创建执行器项目。",
+            project: "项目",
+            projectName: "项目名称",
+            projectId: "项目 ID",
+            source: "素材",
+            mediaSource: "素材来源",
+            localFilePath: "本地文件路径",
+            httpsUrl: "HTTPS 链接",
+            absoluteFilePath: "绝对文件路径",
+            mimeType: "MIME 类型",
+            output: "输出",
+            targetAspectRatio: "目标画幅",
+            durationGoalSeconds: "目标时长（秒）",
+            captionLanguage: "字幕语言",
+            format: "格式",
+            quality: "质量",
+            qualityLow: "低",
+            qualityMedium: "中",
+            qualityHigh: "高",
+            qualityVeryHigh: "很高",
+            includeAudio: "包含音频",
+            yes: "是",
+            no: "否",
+            intent: "剪辑需求",
+            brief: "需求说明",
+            successCriteria: "成功标准",
+            notInspected: "未检查",
+            inspectBeforeSubmit: "创建项目前需要先检查。",
+            inspectSetup: "检查设置",
+            createProject: "创建项目",
+            ready: "可创建",
+            blocked: "已阻塞",
+            ok: "通过",
+            setupReady: "当前设置可以创建项目并导入素材。",
+            setupBlocked: "请先解决失败检查项，再创建项目。",
+            inspecting: "检查中",
+            inspectingDetail: "正在检查项目、素材和本地桥接服务。",
+            creating: "创建中",
+            creatingDetail: "正在创建项目并导入素材。",
+            setupFailed: "CodeCut 设置失败。",
+            projectCreated: "项目已创建",
+            openEditor: "打开编辑器",
+            continuing: "正在继续交给 Codex...",
+            followUpSent: "已发送后续任务给 Codex。",
+            followUpUnavailable: "window.openai.sendFollowUpMessage 不可用。",
+            retryFollowUp: "重试发送后续任务",
+            openaiUnavailable: "window.openai 不可用。",
+            callToolUnavailable: "window.openai.callTool 不可用。",
+          },
+        };
 
         const fields = {
           form: document.getElementById("workspace-form"),
@@ -329,6 +434,26 @@
 
         let projectIdEdited = false;
         let lastInspectionReady = false;
+        let activeLanguage = "en";
+
+        function normalizeUiLanguage(value) {
+          const language = String(value || "").trim().toLowerCase();
+          return language.startsWith("zh") ? "zh-CN" : "en";
+        }
+
+        function t(key) {
+          return WORKSPACE_I18N[activeLanguage]?.[key] || WORKSPACE_I18N.en[key] || key;
+        }
+
+        function applyLanguage(defaults) {
+          activeLanguage = normalizeUiLanguage(
+            defaults.uiLanguage || defaults.locale || navigator.language,
+          );
+          document.documentElement.lang = activeLanguage;
+          document.querySelectorAll("[data-i18n]").forEach((node) => {
+            node.textContent = t(node.dataset.i18n);
+          });
+        }
 
         function initialDefaults() {
           const api = window.openai || {};
@@ -408,14 +533,14 @@
 
         async function callTool(name, args) {
           const api = window.openai;
-          if (!api) throw new Error("window.openai is unavailable.");
+          if (!api) throw new Error(t("openaiUnavailable"));
           if (typeof api.callTool === "function") {
             return api.callTool(name, args);
           }
           if (typeof api.callServerTool === "function") {
             return api.callServerTool({ name, arguments: args });
           }
-          throw new Error("window.openai.callTool is unavailable.");
+          throw new Error(t("callToolUnavailable"));
         }
 
         function structuredContent(result) {
@@ -426,16 +551,16 @@
           const ready = payload.status === "ready";
           lastInspectionReady = ready;
           fields.submitButton.disabled = !ready;
-          fields.statusTitle.textContent = ready ? "Ready" : "Blocked";
+          fields.statusTitle.textContent = ready ? t("ready") : t("blocked");
           fields.statusTitle.className = ready ? "ok" : "blocked";
           fields.statusMessage.textContent = ready
-            ? "Setup can create a project and import media."
-            : "Resolve the failed checks before creating a project.";
+            ? t("setupReady")
+            : t("setupBlocked");
           fields.checks.innerHTML = "";
           for (const check of payload.checks || []) {
             const item = document.createElement("li");
             const title = document.createElement("strong");
-            title.textContent = `${check.ok ? "OK" : "Blocked"}: ${check.label}`;
+            title.textContent = `${check.ok ? t("ok") : t("blocked")}: ${check.label}`;
             title.className = check.ok ? "ok" : "blocked";
             item.appendChild(title);
             if (check.detail) {
@@ -450,16 +575,16 @@
 
         async function inspect() {
           fields.inspectButton.disabled = true;
-          fields.statusTitle.textContent = "Inspecting";
+          fields.statusTitle.textContent = t("inspecting");
           fields.statusTitle.className = "";
-          fields.statusMessage.textContent = "Checking project, media, and local bridge.";
+          fields.statusMessage.textContent = t("inspectingDetail");
           try {
             const result = await callTool("inspect_codecut_setup", collectIntent());
             renderInspection(structuredContent(result));
           } catch (error) {
             lastInspectionReady = false;
             fields.submitButton.disabled = true;
-            fields.statusTitle.textContent = "Blocked";
+            fields.statusTitle.textContent = t("blocked");
             fields.statusTitle.className = "blocked";
             fields.statusMessage.textContent = error instanceof Error ? error.message : String(error);
           } finally {
@@ -475,20 +600,20 @@
           }
           fields.submitButton.disabled = true;
           fields.inspectButton.disabled = true;
-          fields.statusTitle.textContent = "Creating";
+          fields.statusTitle.textContent = t("creating");
           fields.statusTitle.className = "";
-          fields.statusMessage.textContent = "Creating project and importing media.";
+          fields.statusMessage.textContent = t("creatingDetail");
           try {
             const result = await callTool("submit_codecut_setup", collectIntent());
             const payload = structuredContent(result);
             if (result?.isError || payload.status !== "created") {
-              throw new Error(payload.error || "CodeCut setup failed.");
+              throw new Error(payload.error || t("setupFailed"));
             }
             renderSuccess(payload);
             await openEditor(payload.editorUrl);
             await sendFollowUp(payload.continuePrompt);
           } catch (error) {
-            fields.statusTitle.textContent = "Blocked";
+            fields.statusTitle.textContent = t("blocked");
             fields.statusTitle.className = "blocked";
             fields.statusMessage.textContent = error instanceof Error ? error.message : String(error);
           } finally {
@@ -501,13 +626,13 @@
           const mediaId = payload.importedMedia?.id || payload.importedMedia?.mediaId || "";
           fields.result.classList.remove("hidden");
           fields.result.innerHTML = `
-            <h2>Project created</h2>
+            <h2>${escapeHtml(t("projectCreated"))}</h2>
             <p><strong>projectId:</strong> <code>${escapeHtml(payload.projectId)}</code></p>
             <p><strong>revision:</strong> <code>${escapeHtml(String(payload.revision))}</code></p>
             <p><strong>mediaId:</strong> <code>${escapeHtml(mediaId)}</code></p>
             <p><strong>editorUrl:</strong> <code>${escapeHtml(payload.editorUrl || "")}</code></p>
             <div class="result-actions">
-              <a class="button" id="open-editor-link" href="${escapeAttribute(payload.editorUrl || "#")}" target="_blank" rel="noreferrer">Open editor</a>
+              <a class="button" id="open-editor-link" href="${escapeAttribute(payload.editorUrl || "#")}" target="_blank" rel="noreferrer">${escapeHtml(t("openEditor"))}</a>
             </div>
           `;
           document.getElementById("open-editor-link").addEventListener("click", (event) => {
@@ -532,14 +657,14 @@
 
         async function sendFollowUp(prompt) {
           fields.followUp.classList.remove("hidden");
-          fields.followUp.innerHTML = "<strong>Continuing in Codex...</strong>";
+          fields.followUp.innerHTML = `<strong>${escapeHtml(t("continuing"))}</strong>`;
           try {
             const api = window.openai || {};
             if (typeof api.sendFollowUpMessage !== "function") {
-              throw new Error("window.openai.sendFollowUpMessage is unavailable.");
+              throw new Error(t("followUpUnavailable"));
             }
             await api.sendFollowUpMessage({ prompt });
-            fields.followUp.innerHTML = "<strong class=\"ok\">Follow-up sent to Codex.</strong>";
+            fields.followUp.innerHTML = `<strong class="ok">${escapeHtml(t("followUpSent"))}</strong>`;
           } catch (error) {
             fields.followUp.innerHTML = "";
             const title = document.createElement("strong");
@@ -549,7 +674,7 @@
             pre.textContent = prompt || "";
             const retry = document.createElement("button");
             retry.type = "button";
-            retry.textContent = "Retry follow-up";
+            retry.textContent = t("retryFollowUp");
             retry.addEventListener("click", () => sendFollowUp(prompt));
             fields.followUp.append(title, pre, retry);
           }
@@ -584,7 +709,9 @@
         fields.inspectButton.addEventListener("click", inspect);
         fields.form.addEventListener("submit", submit);
 
-        applyDefaults(initialDefaults());
+        const defaults = initialDefaults();
+        applyLanguage(defaults);
+        applyDefaults(defaults);
       })();
     </script>
   </body>
