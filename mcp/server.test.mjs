@@ -140,9 +140,32 @@ describe("Codecut MCP server contract", () => {
 		]) {
 			expect(html).toContain(marker);
 		}
+		for (const marker of [
+			'data-i18n-placeholder="projectNamePlaceholder"',
+			'data-i18n-placeholder="filePathPlaceholder"',
+			'data-i18n-placeholder="urlPlaceholder"',
+			'data-i18n-placeholder="briefPlaceholder"',
+			'data-i18n-placeholder="successCriteriaPlaceholder"',
+			'<select id="duration-goal-seconds"',
+			'<select id="caption-language"',
+			'<select id="media-mime-type"',
+			'value="15"',
+			'value="30"',
+			'value="45"',
+			'value="60"',
+			'value="90"',
+			'value="120"',
+			'value="zh-CN"',
+			'value="en"',
+			"setSelectValue",
+		]) {
+			expect(html).toContain(marker);
+		}
 		expect(html).not.toContain("<legend");
 		expect(html).not.toContain('id="project-id"');
 		expect(html).not.toContain('data-i18n="projectId"');
+		expect(html).not.toContain('<input id="duration-goal-seconds"');
+		expect(html).not.toContain('<input id="caption-language"');
 	});
 
 	test("opens the workspace with structured defaults and widget metadata", () => {
@@ -167,7 +190,7 @@ describe("Codecut MCP server contract", () => {
 		});
 	});
 
-	test("opens the workspace with a localized default project name", () => {
+	test("opens the workspace with localized default reference intent", () => {
 		const english = serverModule.openCodecutWorkspace({});
 		expect(english.structuredContent.intentDefaults.projectName).toBe(
 			"CodeCut Project",
@@ -183,6 +206,14 @@ describe("Codecut MCP server contract", () => {
 		expect(chinese.structuredContent.intentDefaults.projectId).toMatch(
 			/^codecut-[a-z0-9]+$/,
 		);
+		expect(chinese.structuredContent.intentDefaults).toMatchObject({
+			brief: "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
+			successCriteria:
+				"开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
+			captionLanguage: "auto",
+			durationGoalSeconds: 60,
+			output: { format: "mp4", quality: "high", includeAudio: true },
+		});
 	});
 
 	test("keeps workspace UI language separate from caption language", () => {
