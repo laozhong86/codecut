@@ -1221,6 +1221,7 @@ describe("codex executor", () => {
 								sourceStart: 10,
 								sourceEnd: 22,
 								timelineStart: 0,
+								sourceCrop: { x: 690, y: 0, width: 540, height: 960 },
 								reason: "Hook",
 							},
 						],
@@ -1269,6 +1270,7 @@ describe("codex executor", () => {
 								trimEnd: 22,
 								visual: {
 									opacity: 1,
+									sourceCrop: { x: 690, y: 0, width: 540, height: 960 },
 									transform: { position: { x: 0, y: 0 }, scale: 1 },
 								},
 							},
@@ -1875,6 +1877,7 @@ describe("codex executor", () => {
 								sourceStart: 10,
 								sourceEnd: 22,
 								timelineStart: 0,
+								sourceCrop: { x: 690, y: 0, width: 540, height: 960 },
 								reason: "Hook",
 							},
 						],
@@ -1907,6 +1910,17 @@ describe("codex executor", () => {
 				expect(format).toBe("mp4");
 				expect(quality).toBe("high");
 				expect(includeAudio).toBe(true);
+				expect(exportState.tracks).toMatchObject([
+					{
+						type: "video",
+						elements: [
+							{
+								type: "video",
+								sourceCrop: { x: 690, y: 0, width: 540, height: 960 },
+							},
+						],
+					},
+				]);
 				return Buffer.from("mp4-bytes");
 			},
 			probeExportedFile: async ({ outputFile: probedFile, format }) => {
@@ -2144,6 +2158,7 @@ describe("codex executor", () => {
 										position: { x: 0, y: 0 },
 										rotate: 0,
 									},
+									sourceCrop: { x: 8, y: 0, width: 48, height: 36 },
 									opacity: 1,
 									playbackRate: 1,
 									reversed: false,

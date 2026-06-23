@@ -326,6 +326,81 @@ describe("applyEditPlanToEditor", () => {
 		expect(videoElements[1]?.transform.scale).toBe(1);
 	});
 
+	test("applies sourceCrop as readable video state", () => {
+		const editor = fakeEditor();
+		const plan = structuredClone(validPlan());
+		plan.clips[0] = {
+			...plan.clips[0],
+			sourceCrop: { x: 690, y: 0, width: 540, height: 960 },
+		};
+
+		const result = applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const videoElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "video" ? track.elements : []));
+
+		expect(result).toMatchObject({ success: true });
+		expect(videoElements[0]).toMatchObject({
+			type: "video",
+			sourceCrop: { x: 690, y: 0, width: 540, height: 960 },
+			transform: {
+				scale: 1,
+				position: { x: 0, y: 0 },
+				rotate: 0,
+			},
+		});
+		expect(videoElements[1]).not.toHaveProperty("sourceCrop");
+	});
+
+	test("applies sourceCrop cover-to-canvas as an explicit cover transform", () => {
+		const editor = fakeEditor();
+		const plan = structuredClone(validPlan());
+		plan.clips[0] = {
+			...plan.clips[0],
+			sourceCrop: {
+				x: 0,
+				y: 0,
+				width: 1280,
+				height: 720,
+				fit: "cover-to-canvas",
+			},
+		};
+
+		const result = applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const videoElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "video" ? track.elements : []));
+
+		expect(result).toMatchObject({ success: true });
+		expect(videoElements[0]).toMatchObject({
+			type: "video",
+			sourceCrop: {
+				x: 0,
+				y: 0,
+				width: 1280,
+				height: 720,
+				fit: "cover-to-canvas",
+			},
+			transform: {
+				position: { x: 0, y: 0 },
+				rotate: 0,
+			},
+		});
+		expect(videoElements[0]?.transform.scale).toBeCloseTo(3.16049, 4);
+	});
+
 	test("inserts title and captions on a text track", () => {
 		const editor = fakeEditor();
 

@@ -55,6 +55,9 @@ export function serializeElementVisualProperties(element: TimelineElement) {
 				...(element.type === "video" && element.mask
 					? { mask: element.mask }
 					: {}),
+				...(element.type === "video" && element.sourceCrop
+					? { sourceCrop: element.sourceCrop }
+					: {}),
 				...(element.type === "sticker" && element.color !== undefined
 					? { color: element.color }
 					: {}),

@@ -3,6 +3,7 @@ import { validateTextRichSpans } from "@/services/renderer/nodes/text-layout";
 import { EditPlanSchema, type EditPlan } from "./schema";
 
 const TIMED_TEXT_TOLERANCE_SECONDS = 0.001;
+const ASPECT_RATIO_TOLERANCE = 0.001;
 
 export type EditPlanValidationResult =
 	| { success: true; normalizedPlan: EditPlan }
@@ -95,6 +96,29 @@ function getClipTimelineEnd({
 	clip: EditPlan["clips"][number];
 }): number {
 	return clip.timelineStart + getClipDuration({ clip });
+}
+
+function targetAspectRatioValue({
+	aspectRatio,
+}: {
+	aspectRatio: EditPlan["target"]["aspectRatio"];
+}): number {
+	if (aspectRatio === "9:16") return 9 / 16;
+	if (aspectRatio === "1:1") return 1;
+	return 16 / 9;
+}
+
+function hasPositiveSourceDimensions({
+	sourceMedia,
+}: {
+	sourceMedia: MediaAsset;
+}): boolean {
+	return (
+		typeof sourceMedia.width === "number" &&
+		sourceMedia.width > 0 &&
+		typeof sourceMedia.height === "number" &&
+		sourceMedia.height > 0
+	);
 }
 
 function timedTextExceeds({
@@ -207,6 +231,9 @@ export function validateEditPlan({
 	}
 
 	const hasCoverFit = normalizedPlan.clips.some((clip) => clip.fit === "cover");
+	const firstSourceCropIndex = normalizedPlan.clips.findIndex(
+		(clip) => clip.sourceCrop !== undefined,
+	);
 	if (hasCoverFit && sourceMedia.type !== "video") {
 		const index = normalizedPlan.clips.findIndex(
 			(clip) => clip.fit === "cover",
@@ -225,6 +252,18 @@ export function validateEditPlan({
 	) {
 		return fail({
 			message: "EditPlan cover fit requires source media dimensions.",
+			path: "sourceMediaId",
+		});
+	}
+	if (firstSourceCropIndex !== -1 && sourceMedia.type !== "video") {
+		return fail({
+			message: "EditPlan sourceCrop requires video source media.",
+			path: `clips[${firstSourceCropIndex}].sourceCrop`,
+		});
+	}
+	if (firstSourceCropIndex !== -1 && !hasPositiveSourceDimensions({ sourceMedia })) {
+		return fail({
+			message: "EditPlan sourceCrop requires source media dimensions.",
 			path: "sourceMediaId",
 		});
 	}
@@ -251,6 +290,62 @@ export function validateEditPlan({
 				message: "EditPlan clip sourceEnd exceeds source media duration.",
 				path: `clips[${index}].sourceEnd`,
 			});
+		}
+		if (clip.sourceCrop) {
+			if (clip.fit !== undefined) {
+				return fail({
+					message: "EditPlan sourceCrop cannot be combined with clip fit.",
+					path: `clips[${index}].fit`,
+				});
+			}
+			const crop = clip.sourceCrop;
+			if (
+				!Number.isFinite(crop.x) ||
+				!Number.isFinite(crop.y) ||
+				!Number.isFinite(crop.width) ||
+				!Number.isFinite(crop.height)
+			) {
+				return fail({
+					message: "EditPlan sourceCrop values must be finite numbers.",
+					path: `clips[${index}].sourceCrop`,
+				});
+			}
+			if (crop.width <= 0 || crop.height <= 0) {
+				return fail({
+					message: "EditPlan sourceCrop width and height must be positive.",
+					path: `clips[${index}].sourceCrop`,
+				});
+			}
+			if (crop.x < 0 || crop.y < 0) {
+				return fail({
+					message: "EditPlan sourceCrop x and y must be non-negative.",
+					path: `clips[${index}].sourceCrop`,
+				});
+			}
+			if (
+				crop.x + crop.width > (sourceMedia.width ?? 0) ||
+				crop.y + crop.height > (sourceMedia.height ?? 0)
+			) {
+				return fail({
+					message:
+						"EditPlan sourceCrop rectangle must stay within source media dimensions.",
+					path: `clips[${index}].sourceCrop`,
+				});
+			}
+			const cropRatio = crop.width / crop.height;
+			const targetRatio = targetAspectRatioValue({
+				aspectRatio: normalizedPlan.target.aspectRatio,
+			});
+			if (
+				crop.fit !== "cover-to-canvas" &&
+				Math.abs(cropRatio - targetRatio) > ASPECT_RATIO_TOLERANCE
+			) {
+				return fail({
+					message:
+						"EditPlan sourceCrop aspect ratio must match target.aspectRatio or set sourceCrop.fit to cover-to-canvas.",
+					path: `clips[${index}].sourceCrop`,
+				});
+			}
 		}
 		clipDurationTotal += clip.sourceEnd - clip.sourceStart;
 	}

@@ -171,6 +171,7 @@ function buildVisualElementNode({
 				transform: element.transform,
 				opacity: element.opacity,
 				keyframes: element.keyframes,
+				sourceCrop: videoElement.sourceCrop,
 				playbackRate: videoElement.playbackRate,
 				reversed: videoElement.reversed,
 			};
@@ -192,6 +193,7 @@ function buildVisualElementNode({
 			transform: element.transform,
 			opacity: element.opacity,
 			keyframes: element.keyframes,
+			sourceCrop: videoElement.sourceCrop,
 			playbackRate: videoElement.playbackRate,
 			reversed: videoElement.reversed,
 		});

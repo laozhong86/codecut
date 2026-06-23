@@ -97,6 +97,10 @@ Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview
 - For horizontal sources converted to vertical shorts, use
   `vertical_face_safe_crop_above_burned_captions` only when current visual
   evidence supports that policy.
+- When that policy can be represented as a fixed source rectangle, use EditPlan
+  `sourceCrop` and verify `visual.sourceCrop` in `get_timeline_state`.
+- If the needed crop cannot be represented natively, present the runtime-gap
+  versus one-time fallback MP4 choice instead of silently baking a fallback.
 - Do not use `black-bar` as a subtitle mask. It is a caption style only.
 - Caption timing must declare a post-cut caption source. Prefer edited audio transcription through `build-post-cut-captions`; use source transcript remap only when every source segment maps cleanly into selected clips.
 

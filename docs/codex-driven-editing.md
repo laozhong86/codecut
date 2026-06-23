@@ -250,6 +250,13 @@ Codex sends exactly one editing plan format to Codecut:
     sourceEnd: number,
     timelineStart: number,
     fit?: "cover",
+    sourceCrop?: {
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      fit?: "cover-to-canvas"
+    },
     reason: string
   }>,
   title?: {
@@ -328,6 +335,23 @@ Codex sends exactly one editing plan format to Codecut:
 ```
 
 Codecut validates and executes this plan. If validation fails, Codecut returns a structured error. Codex must generate a corrected plan and retry.
+
+`clips[].sourceCrop` is the only native explicit source crop in EditPlan v1. It
+is allowed only on video source media with known dimensions. The rectangle must
+stay within source pixels, have positive width and height, and match
+`target.aspectRatio` unless `sourceCrop.fit` is explicitly
+`cover-to-canvas`. Do not combine `sourceCrop` with `clips[].fit`.
+
+Use `sourceCrop` when visual evidence supports cropping old burned-in subtitles
+out of the source pixels while keeping new subtitles as editable text tracks.
+After apply, verify `visual.sourceCrop` through `get_timeline_state` and use
+native export for MP4 output. If the requested reframe needs a face anchor,
+animated crop, arbitrary transform, or any source crop that cannot be expressed
+by this field, stop and present exactly two choices: wait for native Codecut
+capability, or generate a one-time fallback MP4. A chosen fallback must be
+recorded in project documentation with the reason, command, verification, and
+limitations; baked subtitles are not editable and `build_video_quality_report`
+cannot inspect them as timeline text captions.
 
 When `captions` contains one or more items, Codex must include
 `captionStyle`. When `captions` is empty or omitted, `captionStyle` must be
@@ -602,7 +626,12 @@ After application, Codex must verify `get_timeline_state` proof fields:
     later tool returns those facts explicitly.
 28. Codex writes verification notes under `06-verification/`.
 29. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
-30. If export is requested, Codex calls `export` with explicit output path and overwrite policy. If the local renderer runtime is unavailable, report that runtime gap.
+30. Before any long render or MP4 export, Codex reruns `doctor-install` and
+    `doctor` so source, installed plugin cache, bridge env, and executor
+    readiness are fresh before expensive work begins.
+31. If export is requested, Codex calls `export` with explicit output path and
+    overwrite policy. If the local renderer runtime is unavailable, report that
+    runtime gap.
 
 ```bash
 node scripts/codex-bridge.mjs build-visual-context \
@@ -890,6 +919,18 @@ node scripts/codex-bridge.mjs export \
 `export` is executor-native and writes only to the local `--output-file`. It
 does not trigger browser download. If the current server runtime lacks a
 Node-compatible renderer, the command fails fast and reports that runtime gap.
+
+Before running this command for a long render, rerun:
+
+```bash
+node scripts/codex-bridge.mjs doctor-install --project-id <id>
+```
+
+```bash
+node scripts/codex-bridge.mjs doctor --project-id <id>
+```
+
+Do not start the render if either freshness gate fails.
 
 ## Failure Handling
 

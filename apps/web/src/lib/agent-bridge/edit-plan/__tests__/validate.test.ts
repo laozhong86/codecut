@@ -122,6 +122,147 @@ describe("validateEditPlan", () => {
 		expect(result.normalizedPlan.clips[0]?.fit).toBe("cover");
 	});
 
+	test("accepts matching-ratio sourceCrop clips for video source media", () => {
+		const plan = structuredClone(validPlan());
+		plan.clips[0] = {
+			...plan.clips[0],
+			sourceCrop: { x: 690, y: 0, width: 540, height: 960 },
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.normalizedPlan.clips[0]?.sourceCrop).toEqual({
+			x: 690,
+			y: 0,
+			width: 540,
+			height: 960,
+		});
+	});
+
+	test("accepts sourceCrop aspect mismatch only when cover-to-canvas is explicit", () => {
+		const plan = structuredClone(validPlan());
+		plan.clips[0] = {
+			...plan.clips[0],
+			sourceCrop: {
+				x: 0,
+				y: 0,
+				width: 1280,
+				height: 720,
+				fit: "cover-to-canvas",
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.normalizedPlan.clips[0]?.sourceCrop?.fit).toBe(
+			"cover-to-canvas",
+		);
+	});
+
+	test("rejects sourceCrop for audio source media", () => {
+		const plan = {
+			...validPlan(),
+			sourceMediaId: "audio-1",
+			clips: [
+				{
+					id: "clip-1",
+					sourceStart: 0,
+					sourceEnd: 30,
+					timelineStart: 0,
+					sourceCrop: { x: 0, y: 0, width: 540, height: 960 },
+					reason: "Audio excerpt.",
+				},
+			],
+			captions: undefined,
+			captionStyle: undefined,
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [audioAsset({ duration: 120 })],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan sourceCrop requires video source media.",
+			path: "clips[0].sourceCrop",
+		});
+	});
+
+	test("rejects sourceCrop outside source dimensions", () => {
+		const plan = structuredClone(validPlan());
+		plan.clips[0] = {
+			...plan.clips[0],
+			sourceCrop: { x: 1600, y: 0, width: 540, height: 960 },
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan sourceCrop rectangle must stay within source media dimensions.",
+			path: "clips[0].sourceCrop",
+		});
+	});
+
+	test("rejects sourceCrop with non-positive dimensions", () => {
+		const plan = structuredClone(validPlan());
+		plan.clips[0] = {
+			...plan.clips[0],
+			sourceCrop: { x: 690, y: 0, width: 0, height: 960 },
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan sourceCrop width and height must be positive.",
+			path: "clips[0].sourceCrop",
+		});
+	});
+
+	test("rejects sourceCrop aspect mismatch without cover-to-canvas", () => {
+		const plan = structuredClone(validPlan());
+		plan.clips[0] = {
+			...plan.clips[0],
+			sourceCrop: { x: 0, y: 0, width: 1280, height: 720 },
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message:
+				"EditPlan sourceCrop aspect ratio must match target.aspectRatio or set sourceCrop.fit to cover-to-canvas.",
+			path: "clips[0].sourceCrop",
+		});
+	});
+
 	test("rejects cover fit when source video dimensions are missing", () => {
 		const plan = validPlan();
 		plan.clips[0] = {

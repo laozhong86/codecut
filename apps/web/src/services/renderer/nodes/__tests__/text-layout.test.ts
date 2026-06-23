@@ -125,6 +125,21 @@ describe("text rich span layout", () => {
 		]);
 	});
 
+	test("avoids one or two character final Chinese caption lines", () => {
+		const layout = createTextLayout({
+			content: "如果你和公司坐在一张桌子上",
+			richSpans: [],
+			maxWidth: 11,
+			measureText,
+		});
+
+		const renderedLines = layout.lines.map((line) =>
+			line.runs.map((run) => run.text).join(""),
+		);
+
+		expect(renderedLines).toEqual(["如果你和公司", "坐在一张桌子上"]);
+	});
+
 	test("sanitizes spans when content becomes shorter", () => {
 		const result = sanitizeTextRichSpansForContent({
 			content: "ab",
