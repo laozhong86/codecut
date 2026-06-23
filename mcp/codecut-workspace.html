@@ -49,9 +49,11 @@
         background: #ffffff;
       }
 
-      legend {
-        padding: 0 4px;
+      .section-heading {
+        margin: 0;
+        font-size: 15px;
         font-weight: 650;
+        line-height: 1.35;
       }
 
       label {
@@ -184,8 +186,8 @@
       <p data-i18n="subtitle">Confirm the editing intent, validate local setup, then create the executor project.</p>
 
       <form id="workspace-form">
-        <fieldset>
-          <legend data-i18n="project">Project</legend>
+        <fieldset aria-labelledby="project-section-title">
+          <h2 id="project-section-title" class="section-heading" data-i18n="project">Project</h2>
           <div class="grid">
             <label>
               <span data-i18n="projectName">Project name</span>
@@ -198,8 +200,8 @@
           </div>
         </fieldset>
 
-        <fieldset>
-          <legend data-i18n="source">Source</legend>
+        <fieldset aria-labelledby="source-section-title">
+          <h2 id="source-section-title" class="section-heading" data-i18n="source">Source</h2>
           <label>
             <span data-i18n="mediaSource">Media source</span>
             <select id="media-source-kind">
@@ -223,8 +225,8 @@
           </div>
         </fieldset>
 
-        <fieldset>
-          <legend data-i18n="output">Output</legend>
+        <fieldset aria-labelledby="output-section-title">
+          <h2 id="output-section-title" class="section-heading" data-i18n="output">Output</h2>
           <div class="grid">
             <label>
               <span data-i18n="targetAspectRatio">Target aspect ratio</span>
@@ -268,8 +270,8 @@
           </div>
         </fieldset>
 
-        <fieldset>
-          <legend data-i18n="intent">Intent</legend>
+        <fieldset aria-labelledby="intent-section-title">
+          <h2 id="intent-section-title" class="section-heading" data-i18n="intent">Intent</h2>
           <label>
             <span data-i18n="brief">Brief</span>
             <textarea id="brief" name="brief"></textarea>
