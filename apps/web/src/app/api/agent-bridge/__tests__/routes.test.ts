@@ -209,6 +209,97 @@ describe("agent bridge API routes", () => {
 		});
 	});
 
+	test("rejects browser results with a mismatched claim token as unauthorized", async () => {
+		const id = await enqueueCommand();
+		await getCommands(
+			request({
+				url: `${origin}/api/agent-bridge/commands?projectId=project-123`,
+				headers: {
+					origin,
+					"x-codecut-editor-bridge-token": bridgeToken,
+				},
+			}),
+		);
+
+		const resultResponse = await postResults(
+			request({
+				url: `${origin}/api/agent-bridge/results`,
+				method: "POST",
+				headers: {
+					origin,
+					"x-codecut-editor-bridge-token": bridgeToken,
+				},
+				body: {
+					id,
+					claimToken: "wrong-claim-token",
+					results: [
+						{
+							commandId: "cmd-1",
+							tool: "get_project_info",
+							success: true,
+							message: "forged",
+						},
+					],
+				},
+			}),
+		);
+
+		expect(resultResponse.status).toBe(401);
+	});
+
+	test("returns conflict when browser results are submitted after completion", async () => {
+		const id = await enqueueCommand();
+		const claimResponse = await getCommands(
+			request({
+				url: `${origin}/api/agent-bridge/commands?projectId=project-123`,
+				headers: {
+					origin,
+					"x-codecut-editor-bridge-token": bridgeToken,
+				},
+			}),
+		);
+		const claimPayload = await claimResponse.json();
+		const claimToken = claimPayload.items[0].claimToken;
+		const body = {
+			id,
+			claimToken,
+			results: [
+				{
+					commandId: "cmd-1",
+					tool: "get_project_info",
+					success: true,
+					message: "ok",
+				},
+			],
+		};
+
+		const firstResponse = await postResults(
+			request({
+				url: `${origin}/api/agent-bridge/results`,
+				method: "POST",
+				headers: {
+					origin,
+					"x-codecut-editor-bridge-token": bridgeToken,
+				},
+				body,
+			}),
+		);
+		const secondResponse = await postResults(
+			request({
+				url: `${origin}/api/agent-bridge/results`,
+				method: "POST",
+				headers: {
+					origin,
+					"x-codecut-editor-bridge-token": bridgeToken,
+				},
+				body,
+			}),
+		);
+
+		expect(firstResponse.status).toBe(200);
+		expect(secondResponse.status).toBe(409);
+	});
+
 	test("rejects browser results without the claim token", async () => {
 		const id = await enqueueCommand();
 		await getCommands(

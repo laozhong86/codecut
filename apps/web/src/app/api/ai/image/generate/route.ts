@@ -16,6 +16,16 @@ const proxyRequestSchema = z.object({
 	body: z.record(z.unknown()),
 });
 
+function allowedHeaderNamesForProvider(url: URL): string[] {
+	if (url.href === SEEDREAM_API_URL) {
+		return ["authorization"];
+	}
+	if (url.href.startsWith(GEMINI_API_PREFIX)) {
+		return ["x-goog-api-key"];
+	}
+	throw new UnsafeOutboundUrlError("Unsupported image provider.");
+}
+
 function providerHeaders({
 	url,
 	headers = {},
@@ -23,8 +33,7 @@ function providerHeaders({
 	url: URL;
 	headers?: Record<string, string>;
 }): Record<string, string> {
-	const allowedHeaderNames =
-		url.href === SEEDREAM_API_URL ? ["authorization"] : ["x-goog-api-key"];
+	const allowedHeaderNames = allowedHeaderNamesForProvider(url);
 	const outgoing: Record<string, string> = {
 		"Content-Type": "application/json",
 	};

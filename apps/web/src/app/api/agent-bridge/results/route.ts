@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
 		projectId: queuedItem.projectId,
 	});
 	if (browserTokenError) return browserTokenError;
+	if (queuedItem.claimToken !== parsedBody.data.claimToken) {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+	}
 
 	try {
 		const item = completeBridgeQueueItem(parsedBody.data);
@@ -80,9 +83,9 @@ export async function POST(request: NextRequest) {
 				error:
 					error instanceof Error
 						? error.message
-						: "Bridge result could not be stored.",
+					: "Bridge result could not be stored.",
 			},
-			{ status: 401 },
+			{ status: 409 },
 		);
 	}
 }

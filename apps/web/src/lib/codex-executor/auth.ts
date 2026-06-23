@@ -39,16 +39,8 @@ export async function validateExecutorBrowserBridgeToken({
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
 		return null;
-	} catch (error) {
-		return NextResponse.json(
-			{
-				error:
-					error instanceof Error
-						? error.message
-						: "Executor project was not found.",
-			},
-			{ status: 404 },
-		);
+	} catch {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 }
 

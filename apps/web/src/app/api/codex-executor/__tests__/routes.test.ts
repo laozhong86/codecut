@@ -272,6 +272,18 @@ describe("codex executor API routes", () => {
 		expect(response.status).toBe(401);
 	});
 
+	test("returns a uniform unauthorized response for unknown browser bridge projects", async () => {
+		const response = await getProject(
+			request({
+				url: `${origin}/api/codex-executor/project?projectId=missing-project`,
+				headers: { "x-codecut-editor-bridge-token": "wrong-token" },
+			}),
+		);
+
+		expect(response.status).toBe(401);
+		expect(await response.json()).toEqual({ error: "Unauthorized" });
+	});
+
 	test("rejects executor readback without the local bridge token", async () => {
 		await postProjects(
 			request({

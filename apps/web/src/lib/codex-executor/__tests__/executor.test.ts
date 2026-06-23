@@ -26,6 +26,7 @@ import type { DerivedAsset } from "@/types/project";
 import {
 	createExecutorProject,
 	executeCodexExecutorEnvelope,
+	getExecutorBrowserBridgeToken,
 	getExecutorProjectSnapshot,
 	getExecutorProjectState,
 	getExecutorStatus,
@@ -375,6 +376,23 @@ describe("codex executor", () => {
 				],
 			},
 		});
+	});
+
+	test("lazily adds a browser bridge token to existing executor projects", async () => {
+		await createExecutorProject({ projectId, name: "Legacy Codex cut" });
+		const state = await getExecutorProjectState({ projectId });
+		const { browserBridgeToken: _browserBridgeToken, ...legacyState } = state;
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			`${JSON.stringify(legacyState, null, 2)}\n`,
+			"utf8",
+		);
+
+		const token = await getExecutorBrowserBridgeToken({ projectId });
+		const migratedState = await getExecutorProjectState({ projectId });
+
+		expect(token).toEqual(expect.any(String));
+		expect(migratedState.browserBridgeToken).toBe(token);
 	});
 
 	afterEach(async () => {

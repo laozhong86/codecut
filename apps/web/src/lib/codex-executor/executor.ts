@@ -1224,7 +1224,8 @@ export async function getExecutorBrowserBridgeToken({
 }): Promise<string> {
 	const state = await loadProjectState({ projectId });
 	if (!state.browserBridgeToken) {
-		throw new Error(`Executor project "${projectId}" has no browser bridge token.`);
+		state.browserBridgeToken = randomUUID();
+		await writeJson({ path: projectStatePath({ projectId }), value: state });
 	}
 	return state.browserBridgeToken;
 }
