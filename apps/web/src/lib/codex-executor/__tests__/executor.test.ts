@@ -18,6 +18,7 @@ import {
 	AudioSample,
 	AudioSampleSource,
 	BufferTarget,
+	FlacOutputFormat,
 	Mp3OutputFormat,
 	Output,
 	WavOutputFormat,
@@ -81,6 +82,8 @@ function envelope({
 		| "create_text_background_effect"
 		| "create_human_pip_effect"
 		| "generate_digital_human"
+		| "generate_runninghub_voice_design"
+		| "generate_runninghub_voice_clone"
 		| "export_project"
 		| "verify_timeline"
 		| "get_timeline_state";
@@ -194,7 +197,7 @@ async function createFixtureBareAudio({
 	duration = 1,
 	sampleRate = 48_000,
 }: {
-	format: "mp3" | "wav";
+	format: "flac" | "mp3" | "wav";
 	duration?: number;
 	sampleRate?: number;
 }): Promise<Buffer> {
@@ -209,12 +212,18 @@ async function createFixtureBareAudio({
 	}
 
 	const target = new BufferTarget();
+	const outputFormat =
+		format === "flac"
+			? new FlacOutputFormat()
+			: format === "mp3"
+				? new Mp3OutputFormat()
+				: new WavOutputFormat();
 	const output = new Output({
-		format: format === "mp3" ? new Mp3OutputFormat() : new WavOutputFormat(),
+		format: outputFormat,
 		target,
 	});
 	const audioSource = new AudioSampleSource({
-		codec: format === "mp3" ? "mp3" : "pcm-f32",
+		codec: format === "flac" ? "flac" : format === "mp3" ? "mp3" : "pcm-f32",
 		bitrate: 128_000,
 	});
 	output.addAudioTrack(audioSource);
@@ -776,6 +785,213 @@ describe("codex executor", () => {
 			message: "RUNNINGHUB_API_KEY is required",
 		});
 		expect(JSON.stringify(missingKey)).not.toContain("rh-key");
+	});
+
+	test("generate_runninghub_voice_design creates a local audio media asset", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const voiceBytes = await createFixtureBareAudio({ format: "wav" });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_runninghub_voice_design",
+				args: {
+					text: "欢迎来到今天的测试",
+					emotionPrompt: "温柔、稳定的中文播客女声",
+				},
+			}),
+			env: { RUNNINGHUB_API_KEY: "rh-key" },
+			generateVoiceDesign: async ({ apiKey, request }) => {
+				expect(apiKey).toBe("rh-key");
+				expect(request).toEqual({
+					text: "欢迎来到今天的测试",
+					emotionPrompt: "温柔、稳定的中文播客女声",
+				});
+				return {
+					taskId: "voice-task-1",
+					audioBytes: voiceBytes,
+					mimeType: "audio/wav",
+				};
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "generate_runninghub_voice_design",
+			success: true,
+			message:
+				"Generated RunningHub voice 'runninghub-voice-design-voice-task-1.wav'",
+			data: {
+				taskId: "voice-task-1",
+				provider: "runninghub-voice-design",
+				name: "runninghub-voice-design-voice-task-1.wav",
+			},
+		});
+		expect(
+			typeof resultData<{ mediaId: string }>(result.results[0]).mediaId,
+		).toBe("string");
+		expect(
+			resultData<{ audioPath: string }>(result.results[0]).audioPath,
+		).toContain("generated-voice-");
+
+		const snapshot = await getExecutorProjectSnapshot({ projectId });
+		expect(snapshot.mediaAssets).toContainEqual(
+			expect.objectContaining({
+				name: "runninghub-voice-design-voice-task-1.wav",
+				type: "audio",
+				mimeType: "audio/wav",
+			}),
+		);
+		const asset = snapshot.mediaAssets.find(
+			(item) => item.name === "runninghub-voice-design-voice-task-1.wav",
+		);
+		expect(asset?.size).toBeGreaterThan(0);
+		expect(asset?.duration).toBeGreaterThan(0.9);
+		expect(asset?.duration).toBeLessThan(1.1);
+	});
+
+	test("generate_runninghub_voice_design normalizes FLAC results to timeline-ready WAV", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const flacBytes = await createFixtureBareAudio({
+			format: "flac",
+			duration: 1.25,
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_runninghub_voice_design",
+				args: {
+					text: "欢迎来到今天的测试",
+					emotionPrompt: "温柔、稳定的中文播客女声",
+				},
+			}),
+			env: { RUNNINGHUB_API_KEY: "rh-key" },
+			generateVoiceDesign: async () => ({
+				taskId: "voice-task-flac",
+				audioBytes: flacBytes,
+				mimeType: "audio/x-flac",
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "generate_runninghub_voice_design",
+			success: true,
+			message:
+				"Generated RunningHub voice 'runninghub-voice-design-voice-task-flac.wav'",
+			data: {
+				taskId: "voice-task-flac",
+				provider: "runninghub-voice-design",
+				name: "runninghub-voice-design-voice-task-flac.wav",
+			},
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const asset = state.mediaAssets.find(
+			(item) =>
+				item.id === resultData<{ mediaId: string }>(result.results[0]).mediaId,
+		);
+		expect(asset).toMatchObject({
+			name: "runninghub-voice-design-voice-task-flac.wav",
+			type: "audio",
+			mimeType: "audio/wav",
+		});
+		expect(asset?.duration).toBeGreaterThan(1.2);
+		expect(asset?.duration).toBeLessThan(1.3);
+		const savedBytes = await readFile(asset?.path ?? "");
+		expect(savedBytes.subarray(0, 4).toString("utf8")).toBe("RIFF");
+		expect(savedBytes.subarray(8, 12).toString("utf8")).toBe("WAVE");
+	});
+
+	test("generate_runninghub_voice_clone clones from an absolute local audio path", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const tempDir = await mkdtemp(join(tmpdir(), "voice-clone-"));
+		const referencePath = join(tempDir, "reference.wav");
+		await writeFile(referencePath, await createFixtureBareAudio({ format: "wav" }));
+		const cloneBytes = await createFixtureBareAudio({ format: "wav" });
+
+		try {
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "generate_runninghub_voice_clone",
+					args: {
+						audioPath: referencePath,
+						text: "欢迎来到今天的测试",
+					},
+				}),
+				env: { RUNNINGHUB_API_KEY: "rh-key" },
+				generateVoiceClone: async ({ apiKey, referenceAudioPath, request }) => {
+					expect(apiKey).toBe("rh-key");
+					expect(referenceAudioPath).toBe(referencePath);
+					expect(request).toEqual({
+						text: "欢迎来到今天的测试",
+					});
+					return {
+						taskId: "voice-clone-task-1",
+						audioBytes: cloneBytes,
+						mimeType: "audio/wav",
+					};
+				},
+			});
+
+			expect(result.results[0]).toMatchObject({
+				tool: "generate_runninghub_voice_clone",
+				success: true,
+				message:
+					"Generated RunningHub voice 'runninghub-voice-clone-voice-clone-task-1.wav'",
+				data: {
+					taskId: "voice-clone-task-1",
+					provider: "runninghub-voice-clone",
+					name: "runninghub-voice-clone-voice-clone-task-1.wav",
+				},
+			});
+			expect(
+				typeof resultData<{ mediaId: string }>(result.results[0]).mediaId,
+			).toBe("string");
+			expect(
+				resultData<{ audioPath: string }>(result.results[0]).audioPath,
+			).toContain("generated-voice-");
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	test("generate_runninghub_voice_clone rejects missing API key and invalid reference path", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+
+		const missingKey = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_runninghub_voice_clone",
+				args: {
+					audioPath: "/tmp/reference.wav",
+					text: "hello",
+				},
+			}),
+			env: {},
+			generateVoiceClone: async () => {
+				throw new Error("should not run");
+			},
+		});
+
+		expect(missingKey.results[0]).toMatchObject({
+			success: false,
+			message: "RUNNINGHUB_API_KEY is required",
+		});
+
+		const invalidPath = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_runninghub_voice_clone",
+				args: {
+					audioPath: "relative.wav",
+					text: "hello",
+				},
+			}),
+			env: { RUNNINGHUB_API_KEY: "rh-key" },
+			generateVoiceClone: async () => {
+				throw new Error("should not run");
+			},
+		});
+
+		expect(invalidPath.results[0]).toMatchObject({
+			success: false,
+			message: "audioPath must be an absolute path",
+		});
 	});
 
 	test("applies an EditPlan and exposes timeline state plus run status", async () => {
@@ -5246,6 +5462,16 @@ describe("codex executor", () => {
 					expect.objectContaining({
 						type: "digital_human",
 						id: "runninghub-digital-human",
+					}),
+					expect.objectContaining({
+						type: "voice",
+						id: "runninghub-voice-design",
+						inputs: ["text", "emotionPrompt"],
+					}),
+					expect.objectContaining({
+						type: "voice",
+						id: "runninghub-voice-clone",
+						inputs: ["audioPath", "text"],
 					}),
 				]),
 				defaults: { transcription: "whisper-base" },

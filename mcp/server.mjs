@@ -16,6 +16,7 @@ const execFileAsync = promisify(execFile);
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
+const bridgeAllowedEnvKeys = new Set(["RUNNINGHUB_API_KEY"]);
 const workspaceResourceMimeType = "text/html;profile=mcp-app";
 
 const projectIdSchema = z
@@ -687,6 +688,30 @@ export const CODECUT_MCP_TOOLS = [
 			width: z.number().positive(),
 			height: z.number().positive(),
 			fps: z.number().positive(),
+		},
+		readOnly: false,
+	},
+	{
+		name: "generate_runninghub_voice_design",
+		title: "Generate RunningHub Voice Design",
+		description:
+			"Generate a prompt-only RunningHub voice audio asset through the Codecut local executor.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			text: z.string().trim().min(1),
+			emotionPrompt: z.string().trim().min(1),
+		},
+		readOnly: false,
+	},
+	{
+		name: "generate_runninghub_voice_clone",
+		title: "Generate RunningHub Voice Clone",
+		description:
+			"Generate a RunningHub cloned voice audio asset from one absolute local reference audio path through the Codecut local executor.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			audioPath: filePathSchema,
+			text: z.string().trim().min(1),
 		},
 		readOnly: false,
 	},
@@ -2012,6 +2037,28 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--fps",
 				requireNumberArg(args, "fps"),
 			];
+		case "generate_runninghub_voice_design":
+			return [
+				"scripts/codex-bridge.mjs",
+				"generate-runninghub-voice-design",
+				"--project-id",
+				projectId,
+				"--text",
+				requireStringArg(args, "text"),
+				"--emotion-prompt",
+				requireStringArg(args, "emotionPrompt"),
+			];
+		case "generate_runninghub_voice_clone":
+			return [
+				"scripts/codex-bridge.mjs",
+				"generate-runninghub-voice-clone",
+				"--project-id",
+				projectId,
+				"--audio-path",
+				requireStringArg(args, "audioPath"),
+				"--text",
+				requireStringArg(args, "text"),
+			];
 		case "verify_timeline":
 			return [
 				"scripts/codex-bridge.mjs",
@@ -2122,7 +2169,9 @@ function readBridgeEnvFile(cwd) {
 			);
 		}
 		const key = line.slice(0, separatorIndex).trim();
-		if (!key.startsWith(bridgeEnvPrefix)) continue;
+		if (!key.startsWith(bridgeEnvPrefix) && !bridgeAllowedEnvKeys.has(key)) {
+			continue;
+		}
 		entries[key] = unquoteEnvValue(line.slice(separatorIndex + 1));
 	}
 	return entries;
@@ -2230,6 +2279,8 @@ export function createCodecutMcpServer() {
 						tool.name === "create_text_background_effect" ||
 						tool.name === "create_human_pip_effect" ||
 						tool.name === "generate_digital_human" ||
+						tool.name === "generate_runninghub_voice_design" ||
+						tool.name === "generate_runninghub_voice_clone" ||
 						tool.name === "export_project",
 					idempotentHint: tool.readOnly,
 					openWorldHint: false,

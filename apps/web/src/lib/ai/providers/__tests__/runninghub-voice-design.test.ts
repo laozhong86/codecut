@@ -129,6 +129,7 @@ describe("RunningHub voice design provider", () => {
 		const body = JSON.parse(String(calls[0].init?.body));
 		expect(body).toMatchObject({
 			webappId: "2049802245339918337",
+			apiKey: "rh-key",
 			instanceType: "default",
 			usePersonalQueue: "false",
 		});
@@ -176,6 +177,28 @@ describe("RunningHub voice design provider", () => {
 					),
 			}),
 		).rejects.toThrow("Task not found");
+	});
+
+	test("treats blank RunningHub voice query errorCode as a non-error pending task", async () => {
+		const result = await queryRunningHubVoiceDesignTask({
+			apiKey: "rh-key",
+			taskId: "voice-task-1",
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						taskId: "voice-task-1",
+						status: "RUNNING",
+						errorCode: "",
+						errorMessage: "",
+						results: null,
+					}),
+				),
+		});
+
+		expect(result).toEqual({
+			taskId: "voice-task-1",
+			status: "running",
+		});
 	});
 
 	test("fails fast when RunningHub query succeeds without audio", async () => {

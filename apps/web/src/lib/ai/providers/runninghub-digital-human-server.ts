@@ -86,6 +86,8 @@ async function parseRunningHubJson({
 	const code = payload.code ?? payload.errorCode ?? payload.statusCode;
 	if (
 		code !== undefined &&
+		code !== null &&
+		code !== "" &&
 		code !== 0 &&
 		code !== 200 &&
 		code !== "0" &&
@@ -150,6 +152,7 @@ export async function submitRunningHubDigitalHumanTask({
 		},
 		body: JSON.stringify({
 			webappId: RUNNINGHUB_DIGITAL_HUMAN_APP_ID,
+			apiKey,
 			...buildRunningHubDigitalHumanSubmitBody({
 				imageFileName,
 				audioFileName,

@@ -20,6 +20,8 @@ export const BridgeToolNameSchema = z.enum([
 	"create_text_background_effect",
 	"create_human_pip_effect",
 	"generate_digital_human",
+	"generate_runninghub_voice_design",
+	"generate_runninghub_voice_clone",
 	"import_system_template_script",
 	"delete_system_template_script",
 ]);

@@ -57,6 +57,15 @@ describe("agent bridge schema", () => {
 		expect(result.success).toBe(true);
 	});
 
+	test("accepts the independent RunningHub voice generation tools", () => {
+		expect(
+			BridgeToolNameSchema.safeParse("generate_runninghub_voice_design").success,
+		).toBe(true);
+		expect(
+			BridgeToolNameSchema.safeParse("generate_runninghub_voice_clone").success,
+		).toBe(true);
+	});
+
 	test("accepts the system template import tool", () => {
 		const result = BridgeToolNameSchema.safeParse(
 			"import_system_template_script",

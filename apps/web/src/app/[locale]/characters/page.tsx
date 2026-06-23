@@ -283,26 +283,56 @@ function VoiceCreatorDialog({
 }) {
 	const { t } = useTranslation();
 	const { runningHubApiKey } = useAISettingsStore();
-	const { generateVoice, isGenerating, currentTaskStatus } =
+	const {
+		generateNewVoice,
+		cloneVoiceFromReference,
+		isGenerating,
+		currentTaskStatus,
+	} =
 		useGeneratedVoicesStore();
+	const [mode, setMode] = useState<"new" | "reference">("new");
 	const [text, setText] = useState("");
 	const [emotionPrompt, setEmotionPrompt] = useState("");
+	const [referenceAudioFile, setReferenceAudioFile] = useState<File | null>(
+		null,
+	);
 	const [error, setError] = useState<string | null>(null);
 
 	const hasRunningHubKey = runningHubApiKey.trim().length > 0;
+	const hasReferenceAudio =
+		mode === "new" || (referenceAudioFile !== null && referenceAudioFile.size > 0);
+	const hasRequiredPrompt =
+		mode === "new" ? emotionPrompt.trim().length > 0 : true;
 	const canGenerate =
 		hasRunningHubKey &&
 		text.trim().length > 0 &&
-		emotionPrompt.trim().length > 0 &&
+		hasRequiredPrompt &&
+		hasReferenceAudio &&
 		!isGenerating;
+
+	const handleModeChange = (nextMode: "new" | "reference") => {
+		setMode(nextMode);
+		setError(null);
+	};
 
 	const handleSubmit = async () => {
 		if (!canGenerate) return;
 		setError(null);
 		try {
-			await generateVoice({ text, emotionPrompt });
+			if (mode === "reference") {
+				if (!referenceAudioFile) {
+					throw new Error("Reference audio is required");
+				}
+				await cloneVoiceFromReference({
+					text,
+					referenceAudioFile,
+				});
+			} else {
+				await generateNewVoice({ text, emotionPrompt });
+			}
 			setText("");
 			setEmotionPrompt("");
+			setReferenceAudioFile(null);
 			onOpenChange(false);
 		} catch (submitError) {
 			setError(
@@ -323,6 +353,52 @@ function VoiceCreatorDialog({
 					</DialogDescription>
 				</DialogHeader>
 				<DialogBody>
+					<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+						<Button
+							type="button"
+							variant={mode === "new" ? "secondary" : "outline"}
+							onClick={() => handleModeChange("new")}
+							aria-pressed={mode === "new"}
+							disabled={isGenerating}
+							className="min-h-10 whitespace-normal"
+						>
+							{t("Generate new voice")}
+						</Button>
+						<Button
+							type="button"
+							variant={mode === "reference" ? "secondary" : "outline"}
+							onClick={() => handleModeChange("reference")}
+							aria-pressed={mode === "reference"}
+							disabled={isGenerating}
+							className="min-h-10 whitespace-normal"
+						>
+							{t("Clone from reference audio")}
+						</Button>
+					</div>
+					{mode === "reference" && (
+						<div className="flex flex-col gap-2">
+							<label
+								className="text-sm font-medium"
+								htmlFor="voice-reference-audio"
+							>
+								{t("Reference audio")}
+							</label>
+							<Input
+								id="voice-reference-audio"
+								type="file"
+								accept="audio/mpeg,audio/mp4,audio/wav,audio/x-wav,audio/*"
+								onChange={(event) => {
+									setReferenceAudioFile(event.target.files?.[0] ?? null);
+								}}
+								disabled={isGenerating}
+							/>
+							{referenceAudioFile && (
+								<p className="text-muted-foreground truncate text-xs">
+									{referenceAudioFile.name}
+								</p>
+							)}
+						</div>
+					)}
 					<div className="flex flex-col gap-2">
 						<label className="text-sm font-medium" htmlFor="voice-text">
 							{t("Voice text")}
@@ -335,18 +411,20 @@ function VoiceCreatorDialog({
 							rows={5}
 						/>
 					</div>
-					<div className="flex flex-col gap-2">
-						<label className="text-sm font-medium" htmlFor="voice-emotion">
-							{t("Emotion / voice description")}
-						</label>
-						<Textarea
-							id="voice-emotion"
-							value={emotionPrompt}
-							onChange={(event) => setEmotionPrompt(event.target.value)}
-							disabled={isGenerating}
-							rows={3}
-						/>
-					</div>
+					{mode === "new" && (
+						<div className="flex flex-col gap-2">
+							<label className="text-sm font-medium" htmlFor="voice-emotion">
+								{t("Emotion / voice description")}
+							</label>
+							<Textarea
+								id="voice-emotion"
+								value={emotionPrompt}
+								onChange={(event) => setEmotionPrompt(event.target.value)}
+								disabled={isGenerating}
+								rows={3}
+							/>
+						</div>
+					)}
 					{!hasRunningHubKey && (
 						<p className="text-destructive text-sm">
 							{t("Configure RunningHub API Key in AI Settings first.")}
@@ -455,9 +533,11 @@ function GeneratedVoiceCard({ voice }: { voice: GeneratedVoice }) {
 					{t("Delete")}
 				</Button>
 			</div>
-			<Badge variant="secondary" className="w-fit max-w-full truncate">
-				{voice.emotionPrompt}
-			</Badge>
+			{voice.emotionPrompt && (
+				<Badge variant="secondary" className="w-fit max-w-full truncate">
+					{voice.emotionPrompt}
+				</Badge>
+			)}
 			{audioUrl ? (
 				<audio className="w-full" controls src={audioUrl}>
 					<track kind="captions" />
