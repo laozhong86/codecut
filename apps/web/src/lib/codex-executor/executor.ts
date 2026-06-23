@@ -56,7 +56,21 @@ import {
 	type RunningHubGeneratedDigitalHuman,
 } from "@/lib/ai/providers/runninghub-digital-human-server";
 import { RUNNINGHUB_DIGITAL_HUMAN_PROVIDER_ID } from "@/lib/ai/providers/runninghub-digital-human";
-import type { DigitalHumanGenerationRequest } from "@/lib/ai/providers";
+import {
+	generateRunningHubVoiceCloneFromReferenceAudioPath,
+	type RunningHubGeneratedVoiceClone,
+} from "@/lib/ai/providers/runninghub-voice-clone-server";
+import { RUNNINGHUB_VOICE_CLONE_PROVIDER_ID } from "@/lib/ai/providers/runninghub-voice-clone";
+import {
+	generateRunningHubVoiceDesignFromRequest,
+	type RunningHubGeneratedVoiceDesign,
+} from "@/lib/ai/providers/runninghub-voice-design-server";
+import { RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID } from "@/lib/ai/providers/runninghub-voice-design";
+import type {
+	DigitalHumanGenerationRequest,
+	VoiceCloneRequest,
+	VoiceDesignRequest,
+} from "@/lib/ai/providers";
 import {
 	DEFAULT_TRANSCRIPTION_MODEL,
 	TRANSCRIPTION_LANGUAGES,
@@ -126,6 +140,8 @@ type ExecutorToolName =
 	| "create_text_background_effect"
 	| "create_human_pip_effect"
 	| "generate_digital_human"
+	| "generate_runninghub_voice_design"
+	| "generate_runninghub_voice_clone"
 	| "export_project"
 	| "verify_timeline"
 	| "get_timeline_state";
@@ -223,6 +239,8 @@ const commandSchema = z
 			"create_text_background_effect",
 			"create_human_pip_effect",
 			"generate_digital_human",
+			"generate_runninghub_voice_design",
+			"generate_runninghub_voice_clone",
 			"export_project",
 			"verify_timeline",
 			"get_timeline_state",
@@ -429,7 +447,7 @@ const addCaptionsArgsSchema = z
 
 const listModelsArgsSchema = z
 	.object({
-		type: z.enum(["transcription", "digital_human"]).optional(),
+		type: z.enum(["transcription", "digital_human", "voice"]).optional(),
 	})
 	.strict();
 
@@ -640,6 +658,20 @@ const generateDigitalHumanArgsSchema = z
 	})
 	.strict();
 
+const generateVoiceDesignArgsSchema = z
+	.object({
+		text: z.string().trim().min(1),
+		emotionPrompt: z.string().trim().min(1),
+	})
+	.strict();
+
+const generateVoiceCloneArgsSchema = z
+	.object({
+		audioPath: z.string().trim().min(1),
+		text: z.string().trim().min(1),
+	})
+	.strict();
+
 const exportProjectArgsSchema = z
 	.object({
 		format: z.string().min(1),
@@ -671,6 +703,17 @@ export type ExecutorGenerateDigitalHuman = (params: {
 	audioAsset: RunningHubExecutorMediaAsset;
 	request: DigitalHumanGenerationRequest;
 }) => Promise<RunningHubGeneratedDigitalHuman>;
+
+export type ExecutorGenerateVoiceDesign = (params: {
+	apiKey: string;
+	request: VoiceDesignRequest;
+}) => Promise<RunningHubGeneratedVoiceDesign>;
+
+export type ExecutorGenerateVoiceClone = (params: {
+	apiKey: string;
+	referenceAudioPath: string;
+	request: VoiceCloneRequest;
+}) => Promise<RunningHubGeneratedVoiceClone>;
 
 type ExecutorExportFormat = "mp4" | "webm";
 type ExecutorExportQuality = "low" | "medium" | "high" | "very_high";
@@ -2237,6 +2280,250 @@ function digitalHumanFileName({ taskId }: { taskId: string }): string {
 	return `digital-human-${safeTaskId}.mp4`;
 }
 
+function runningHubAudioExtension({ mimeType }: { mimeType: string }): string {
+	if (mimeType === "audio/wav" || mimeType === "audio/x-wav") return "wav";
+	if (mimeType === "audio/mpeg" || mimeType === "audio/mp3") return "mp3";
+	if (mimeType === "audio/mp4" || mimeType === "audio/x-m4a") return "m4a";
+	if (mimeType === "audio/aac") return "aac";
+	if (mimeType === "audio/ogg") return "ogg";
+	if (mimeType === "audio/flac" || mimeType === "audio/x-flac") return "flac";
+	throw new Error(`RunningHub returned unsupported audio MIME type: ${mimeType}`);
+}
+
+function runningHubVoiceFileName({
+	providerId,
+	taskId,
+	mimeType,
+}: {
+	providerId: string;
+	taskId: string;
+	mimeType: string;
+}): string {
+	const safeTaskId = taskId.replace(/[^a-zA-Z0-9_-]/g, "-");
+	return `${providerId}-${safeTaskId}.${runningHubAudioExtension({ mimeType })}`;
+}
+
+function runningHubVoiceSourceFileName({ mimeType }: { mimeType: string }): string {
+	if (mimeType === "audio/wav" || mimeType === "audio/x-wav") return "source.wav";
+	if (mimeType === "audio/mpeg" || mimeType === "audio/mp3") return "source.mp3";
+	if (mimeType === "audio/mp4" || mimeType === "audio/x-m4a") return "source.m4a";
+	if (mimeType === "audio/aac") return "source.aac";
+	if (mimeType === "audio/ogg") return "source.ogg";
+	if (mimeType === "audio/flac" || mimeType === "audio/x-flac") return "source.flac";
+	throw new Error(`RunningHub returned unsupported audio MIME type: ${mimeType}`);
+}
+
+function convertDecodedRunningHubSampleToF32({
+	sample,
+	AudioSample,
+	timestamp,
+}: {
+	sample: import("mediabunny").AudioSample;
+	AudioSample: typeof import("mediabunny").AudioSample;
+	timestamp: number;
+}): import("mediabunny").AudioSample {
+	const rawBytes = new Uint8Array(sample.allocationSize({ planeIndex: 0 }));
+	sample.copyTo(rawBytes, { planeIndex: 0 });
+	if (sample.format === "f32") {
+		const buffer = rawBytes.buffer.slice(
+			rawBytes.byteOffset,
+			rawBytes.byteOffset + rawBytes.byteLength,
+		) as ArrayBuffer;
+		return new AudioSample({
+			format: "f32",
+			sampleRate: sample.sampleRate,
+			numberOfChannels: sample.numberOfChannels,
+			timestamp,
+			data: buffer,
+		});
+	}
+	if (sample.format === "s16") {
+		const inputSamples = new Int16Array(
+			rawBytes.buffer,
+			rawBytes.byteOffset,
+			rawBytes.byteLength / Int16Array.BYTES_PER_ELEMENT,
+		);
+		const outputSamples = new Float32Array(inputSamples.length);
+		for (let index = 0; index < inputSamples.length; index += 1) {
+			const value = inputSamples[index] ?? 0;
+			outputSamples[index] = value < 0 ? value / 32768 : value / 32767;
+		}
+		return new AudioSample({
+			format: "f32",
+			sampleRate: sample.sampleRate,
+			numberOfChannels: sample.numberOfChannels,
+			timestamp,
+			data: outputSamples.buffer as ArrayBuffer,
+		});
+	}
+	throw new Error(
+		`RunningHub voice WAV normalization does not support decoded sample format: ${sample.format}`,
+	);
+}
+
+async function normalizeRunningHubVoiceAudio({
+	audioBytes,
+	mimeType,
+}: {
+	audioBytes: Buffer;
+	mimeType: string;
+}): Promise<{ audioBytes: Buffer; mimeType: "audio/wav"; duration: number }> {
+	const [
+		webcodecs,
+		{
+			ALL_FORMATS,
+			AudioSample,
+			AudioSampleSink,
+			AudioSampleSource,
+			BlobSource,
+			BufferTarget,
+			Input,
+			Output,
+			WavOutputFormat,
+		},
+	] = await Promise.all([
+		import("@napi-rs/webcodecs"),
+		import("mediabunny"),
+	]);
+	const globals = globalThis as Record<string, unknown>;
+	globals.AudioData ??= webcodecs.AudioData;
+	globals.AudioDecoder ??= webcodecs.AudioDecoder;
+	globals.AudioEncoder ??= webcodecs.AudioEncoder;
+	globals.EncodedAudioChunk ??= webcodecs.EncodedAudioChunk;
+	globals.EncodedVideoChunk ??= webcodecs.EncodedVideoChunk;
+	globals.VideoEncoder ??= webcodecs.VideoEncoder;
+	globals.VideoFrame ??= webcodecs.VideoFrame;
+
+	const arrayBuffer = audioBytes.buffer.slice(
+		audioBytes.byteOffset,
+		audioBytes.byteOffset + audioBytes.byteLength,
+	) as ArrayBuffer;
+	const sourceFile = new File(
+		[arrayBuffer],
+		runningHubVoiceSourceFileName({ mimeType }),
+		{ type: mimeType },
+	);
+	const input = new Input({
+		source: new BlobSource(sourceFile),
+		formats: ALL_FORMATS,
+	});
+	const target = new BufferTarget();
+	const output = new Output({
+		format: new WavOutputFormat(),
+		target,
+	});
+
+	try {
+		const audioTrack = await input.getPrimaryAudioTrack();
+		if (!audioTrack) {
+			throw new Error("RunningHub voice result has no audio track");
+		}
+		if (!(await audioTrack.canDecode())) {
+			throw new Error(
+				`RunningHub voice result cannot be decoded: ${
+					audioTrack.codec || "unknown codec"
+				}`,
+			);
+		}
+
+		const audioSource = new AudioSampleSource({ codec: "pcm-f32" });
+		output.addAudioTrack(audioSource);
+		await output.start();
+		const sink = new AudioSampleSink(audioTrack);
+		let duration = 0;
+		try {
+			for await (const sample of sink.samples()) {
+				let normalizedSample: import("mediabunny").AudioSample | null = null;
+				try {
+					normalizedSample = convertDecodedRunningHubSampleToF32({
+						sample,
+						AudioSample,
+						timestamp: duration,
+					});
+					await audioSource.add(normalizedSample);
+					duration += sample.duration;
+				} finally {
+					normalizedSample?.close();
+					sample.close();
+				}
+			}
+		} finally {
+			audioSource.close();
+		}
+		await output.finalize();
+		if (!target.buffer || target.buffer.byteLength <= 0) {
+			throw new Error("RunningHub voice WAV normalization produced no audio");
+		}
+		if (!Number.isFinite(duration) || duration <= 0) {
+			throw new Error("RunningHub voice WAV normalization produced no duration");
+		}
+		return {
+			audioBytes: Buffer.from(target.buffer),
+			mimeType: "audio/wav",
+			duration,
+		};
+	} finally {
+		input.dispose();
+	}
+}
+
+async function saveGeneratedRunningHubVoiceAsset({
+	state,
+	providerId,
+	taskId,
+	audioBytes,
+	mimeType,
+}: {
+	state: ExecutorProjectState;
+	providerId: string;
+	taskId: string;
+	audioBytes: Buffer;
+	mimeType: string;
+}) {
+	if (audioBytes.byteLength <= 0) {
+		throw new Error("RunningHub returned an empty voice audio file");
+	}
+	const normalizedAudio = await normalizeRunningHubVoiceAudio({
+		audioBytes,
+		mimeType,
+	});
+	const name = runningHubVoiceFileName({
+		providerId,
+		taskId,
+		mimeType: normalizedAudio.mimeType,
+	});
+	const mediaId = `generated-voice-${generateUUID()}`;
+	const mediaPath = join(
+		mediaDirectory({ projectId: state.project.id }),
+		mediaId,
+	);
+	await writeFile(mediaPath, normalizedAudio.audioBytes);
+	const asset: ExecutorMediaAsset = {
+		id: mediaId,
+		name,
+		type: "audio",
+		mimeType: normalizedAudio.mimeType,
+		duration: normalizedAudio.duration,
+		size: normalizedAudio.audioBytes.byteLength,
+		lastModified: Date.now(),
+		path: mediaPath,
+	};
+	state.mediaAssets = [...state.mediaAssets, asset];
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Generated RunningHub voice '${name}'`,
+		data: {
+			mediaId,
+			taskId,
+			provider: providerId,
+			duration: normalizedAudio.duration,
+			audioPath: mediaPath,
+			name,
+		},
+	};
+}
+
 async function runGenerateDigitalHuman({
 	state,
 	args,
@@ -2318,6 +2605,79 @@ async function runGenerateDigitalHuman({
 			name,
 		},
 	};
+}
+
+async function runGenerateRunningHubVoiceDesign({
+	state,
+	args,
+	env,
+	generateVoiceDesign,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	generateVoiceDesign: ExecutorGenerateVoiceDesign;
+}) {
+	const parsed = generateVoiceDesignArgsSchema.parse(args);
+	const apiKey = env.RUNNINGHUB_API_KEY;
+	if (!apiKey) {
+		throw new Error("RUNNINGHUB_API_KEY is required");
+	}
+	const request: VoiceDesignRequest = {
+		text: parsed.text,
+		emotionPrompt: parsed.emotionPrompt,
+	};
+	const generated = await generateVoiceDesign({
+		apiKey,
+		request,
+	});
+	return saveGeneratedRunningHubVoiceAsset({
+		state,
+		providerId: RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID,
+		taskId: generated.taskId,
+		audioBytes: generated.audioBytes,
+		mimeType: generated.mimeType || "audio/mpeg",
+	});
+}
+
+async function runGenerateRunningHubVoiceClone({
+	state,
+	args,
+	env,
+	generateVoiceClone,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	generateVoiceClone: ExecutorGenerateVoiceClone;
+}) {
+	const parsed = generateVoiceCloneArgsSchema.parse(args);
+	const apiKey = env.RUNNINGHUB_API_KEY;
+	if (!apiKey) {
+		throw new Error("RUNNINGHUB_API_KEY is required");
+	}
+	if (!isAbsolute(parsed.audioPath)) {
+		throw new Error("audioPath must be an absolute path");
+	}
+	const audioStats = await stat(parsed.audioPath);
+	if (!audioStats.isFile()) {
+		throw new Error("audioPath must reference a file");
+	}
+	const request: VoiceCloneRequest = {
+		text: parsed.text,
+	};
+	const generated = await generateVoiceClone({
+		apiKey,
+		referenceAudioPath: parsed.audioPath,
+		request,
+	});
+	return saveGeneratedRunningHubVoiceAsset({
+		state,
+		providerId: RUNNINGHUB_VOICE_CLONE_PROVIDER_ID,
+		taskId: generated.taskId,
+		audioBytes: generated.audioBytes,
+		mimeType: generated.mimeType || "audio/mpeg",
+	});
 }
 
 async function runTranscribeMedia({
@@ -3547,6 +3907,25 @@ function runListModels({ args }: { args: Record<string, unknown> }) {
 			},
 		});
 	}
+	if (!parsed.type || parsed.type === "voice") {
+		models.push(
+			{
+				type: "voice",
+				id: RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID,
+				displayName: "RunningHub Voice Design",
+				inputs: ["text", "emotionPrompt"],
+			},
+			{
+				type: "voice",
+				id: RUNNINGHUB_VOICE_CLONE_PROVIDER_ID,
+				displayName: "RunningHub Voice Clone",
+				inputs: ["audioPath", "text"],
+				requiredLocalInputs: {
+					audioPath: "audio",
+				},
+			},
+		);
+	}
 	return {
 		success: true,
 		message: `Found ${models.length} callable model(s).`,
@@ -3673,6 +4052,8 @@ async function executeCommand({
 	inspectVideoRange,
 	env,
 	generateDigitalHuman,
+	generateVoiceDesign,
+	generateVoiceClone,
 	exportProject,
 	probeExportedFile,
 }: {
@@ -3685,6 +4066,8 @@ async function executeCommand({
 	inspectVideoRange: InspectVideoRange;
 	env: Record<string, string | undefined>;
 	generateDigitalHuman: ExecutorGenerateDigitalHuman;
+	generateVoiceDesign: ExecutorGenerateVoiceDesign;
+	generateVoiceClone: ExecutorGenerateVoiceClone;
 	exportProject: ExecutorExportProject;
 	probeExportedFile: ExecutorProbeExportedFile;
 }) {
@@ -3812,6 +4195,22 @@ async function executeCommand({
 			generateDigitalHuman,
 		});
 	}
+	if (command.tool === "generate_runninghub_voice_design") {
+		return runGenerateRunningHubVoiceDesign({
+			state,
+			args: command.args,
+			env,
+			generateVoiceDesign,
+		});
+	}
+	if (command.tool === "generate_runninghub_voice_clone") {
+		return runGenerateRunningHubVoiceClone({
+			state,
+			args: command.args,
+			env,
+			generateVoiceClone,
+		});
+	}
 	if (command.tool === "export_project") {
 		return runExportProject({
 			state,
@@ -3858,6 +4257,26 @@ const defaultGenerateDigitalHuman: ExecutorGenerateDigitalHuman = ({
 		request,
 	});
 
+const defaultGenerateVoiceDesign: ExecutorGenerateVoiceDesign = ({
+	apiKey,
+	request,
+}) =>
+	generateRunningHubVoiceDesignFromRequest({
+		apiKey,
+		request,
+	});
+
+const defaultGenerateVoiceClone: ExecutorGenerateVoiceClone = ({
+	apiKey,
+	referenceAudioPath,
+	request,
+}) =>
+	generateRunningHubVoiceCloneFromReferenceAudioPath({
+		apiKey,
+		referenceAudioPath,
+		request,
+	});
+
 const defaultExportProject: ExecutorExportProject = async (params) => {
 	const { exportProjectWithNodeRenderer } = await import("./node-exporter");
 	return exportProjectWithNodeRenderer(params);
@@ -3871,6 +4290,8 @@ export async function executeCodexExecutorEnvelope({
 	inspectVideoRange = inspectVideoRangeWithNodeRuntime,
 	env = process.env,
 	generateDigitalHuman = defaultGenerateDigitalHuman,
+	generateVoiceDesign = defaultGenerateVoiceDesign,
+	generateVoiceClone = defaultGenerateVoiceClone,
 	exportProject = defaultExportProject,
 	probeExportedFile = probeExportedFileWithFfprobe,
 }: {
@@ -3881,6 +4302,8 @@ export async function executeCodexExecutorEnvelope({
 	inspectVideoRange?: InspectVideoRange;
 	env?: Record<string, string | undefined>;
 	generateDigitalHuman?: ExecutorGenerateDigitalHuman;
+	generateVoiceDesign?: ExecutorGenerateVoiceDesign;
+	generateVoiceClone?: ExecutorGenerateVoiceClone;
 	exportProject?: ExecutorExportProject;
 	probeExportedFile?: ExecutorProbeExportedFile;
 }) {
@@ -3911,6 +4334,8 @@ export async function executeCodexExecutorEnvelope({
 				inspectVideoRange,
 				env,
 				generateDigitalHuman,
+				generateVoiceDesign,
+				generateVoiceClone,
 				exportProject,
 				probeExportedFile,
 			});

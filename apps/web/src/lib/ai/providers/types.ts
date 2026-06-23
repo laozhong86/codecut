@@ -122,3 +122,32 @@ export interface AIVoiceDesignProvider {
 	}): Promise<VoiceDesignTaskResult>;
 	downloadVoiceDesignResult(params: { audioUrl: string }): Promise<Blob>;
 }
+
+export interface VoiceCloneRequest {
+	text: string;
+}
+
+export type VoiceCloneTaskStatus = VideoTaskStatus;
+
+export interface VoiceCloneTaskResult {
+	taskId: string;
+	status: VoiceCloneTaskStatus;
+	audioUrl?: string;
+	error?: string;
+}
+
+export interface AIVoiceCloneProvider {
+	id: string;
+	name: string;
+	description: string;
+	submitVoiceCloneTask(params: {
+		request: VoiceCloneRequest;
+		apiKey: string;
+		referenceAudioFile: File;
+	}): Promise<VoiceCloneTaskResult>;
+	getVoiceCloneTask(params: {
+		taskId: string;
+		apiKey: string;
+	}): Promise<VoiceCloneTaskResult>;
+	downloadVoiceCloneResult(params: { audioUrl: string }): Promise<Blob>;
+}

@@ -64,6 +64,8 @@ describe("Codecut MCP server contract", () => {
 			"create_text_background_effect",
 			"create_human_pip_effect",
 			"generate_digital_human",
+			"generate_runninghub_voice_design",
+			"generate_runninghub_voice_clone",
 			"verify_timeline",
 			"export_project",
 			"get_timeline_state",
@@ -1185,6 +1187,38 @@ describe("Codecut MCP server contract", () => {
 			"--fps",
 			"25",
 		]);
+		expect(
+			buildBridgeCliArgs("generate_runninghub_voice_design", {
+				projectId: "project-1",
+				text: "hello",
+				emotionPrompt: "warm narrator",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"generate-runninghub-voice-design",
+			"--project-id",
+			"project-1",
+			"--text",
+			"hello",
+			"--emotion-prompt",
+			"warm narrator",
+		]);
+		expect(
+			buildBridgeCliArgs("generate_runninghub_voice_clone", {
+				projectId: "project-1",
+				audioPath: "/tmp/reference.wav",
+				text: "hello",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"generate-runninghub-voice-clone",
+			"--project-id",
+			"project-1",
+			"--audio-path",
+			"/tmp/reference.wav",
+			"--text",
+			"hello",
+		]);
 	});
 
 	test("maps validation verification effect and export tools without business logic", () => {
@@ -1333,6 +1367,8 @@ describe("Codecut MCP server contract", () => {
 					"CODECUT_AGENT_BRIDGE_TOKEN=secret-token",
 					"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=30000",
 					"CODECUT_AGENT_BRIDGE_INTERVAL_MS=250",
+					"RUNNINGHUB_API_KEY=runninghub-secret",
+					"UNRELATED_SECRET=must-not-leak",
 				].join("\n"),
 			);
 
@@ -1356,7 +1392,9 @@ describe("Codecut MCP server contract", () => {
 				CODECUT_AGENT_BRIDGE_TOKEN: "secret-token",
 				CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "30000",
 				CODECUT_AGENT_BRIDGE_INTERVAL_MS: "250",
+				RUNNINGHUB_API_KEY: "runninghub-secret",
 			});
+			expect(capturedEnv).not.toHaveProperty("UNRELATED_SECRET");
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}

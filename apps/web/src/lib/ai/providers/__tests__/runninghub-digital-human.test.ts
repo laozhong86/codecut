@@ -208,6 +208,7 @@ describe("RunningHub digital human provider", () => {
 		const body = JSON.parse(String(calls[0].init?.body));
 		expect(body).toMatchObject({
 			webappId: "2052014238952108033",
+			apiKey: "rh-key",
 			instanceType: "default",
 			usePersonalQueue: "false",
 		});
@@ -263,6 +264,28 @@ describe("RunningHub digital human provider", () => {
 					),
 			}),
 		).rejects.toThrow("Task not found");
+	});
+
+	test("treats blank RunningHub query errorCode as a non-error pending task", async () => {
+		const result = await queryRunningHubDigitalHumanTask({
+			apiKey: "rh-key",
+			taskId: "task-1",
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						taskId: "task-1",
+						status: "RUNNING",
+						errorCode: "",
+						errorMessage: "",
+						results: null,
+					}),
+				),
+		});
+
+		expect(result).toEqual({
+			taskId: "task-1",
+			status: "running",
+		});
 	});
 
 	test("fails fast when RunningHub query succeeds without an mp4 result", async () => {

@@ -12,6 +12,8 @@ import {
 async function createPluginSource({ version = "0.1.1" } = {}) {
 	const sourceRoot = await mkdtemp(join(tmpdir(), "codecut-sync-source-"));
 	await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
+	await mkdir(join(sourceRoot, "mcp"), { recursive: true });
+	await mkdir(join(sourceRoot, "scripts"), { recursive: true });
 	await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
 		recursive: true,
 	});
@@ -20,12 +22,41 @@ async function createPluginSource({ version = "0.1.1" } = {}) {
 		JSON.stringify({ name: "codecut", version }),
 		"utf8",
 	);
+	await writeFile(join(sourceRoot, "mcp/server.mjs"), "source mcp\n", "utf8");
+	await writeFile(
+		join(sourceRoot, "mcp/codecut-workspace.html"),
+		"source workspace\n",
+		"utf8",
+	);
+	await writeFile(
+		join(sourceRoot, "scripts/codex-bridge.mjs"),
+		"source bridge\n",
+		"utf8",
+	);
 	await writeFile(
 		join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
 		"---\nname: codecut-jianying-editor-framework\n---\n",
 		"utf8",
 	);
 	return sourceRoot;
+}
+
+async function copyCriticalSyncFiles({ sourceRoot, cacheRoot }) {
+	for (const file of [
+		".codex-plugin/plugin.json",
+		"mcp/server.mjs",
+		"mcp/codecut-workspace.html",
+		"scripts/codex-bridge.mjs",
+	]) {
+		await mkdir(join(cacheRoot, file.split("/").slice(0, -1).join("/")), {
+			recursive: true,
+		});
+		await writeFile(
+			join(cacheRoot, file),
+			await readFile(join(sourceRoot, file)),
+			"utf8",
+		);
+	}
 }
 
 describe("sync Codex local plugin", () => {
@@ -94,6 +125,7 @@ enabled = true
 		});
 
 		expect(args).toContain("--delete");
+		expect(args).toContain("--checksum");
 		expect(args).toContain("--dry-run");
 		expect(args).toContain("--exclude=.git");
 		expect(args).toContain("--exclude=.git/");
@@ -178,6 +210,7 @@ enabled = true
 		);
 		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
 		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
+		await copyCriticalSyncFiles({ sourceRoot, cacheRoot });
 		await writeFile(
 			join(sourceRoot, "apps/web/.env.local"),
 			[
@@ -221,6 +254,12 @@ enabled = true
 			expect(cachedEnv).toContain("CODECUT_AGENT_BRIDGE_INTERVAL_MS=1000");
 			expect(cachedEnv).not.toContain("UNRELATED_PROVIDER_SECRET");
 			expect(cachedEnv).not.toContain("4102");
+			expect(result.verifiedChecksums).toEqual([
+				".codex-plugin/plugin.json",
+				"mcp/server.mjs",
+				"mcp/codecut-workspace.html",
+				"scripts/codex-bridge.mjs",
+			]);
 		} finally {
 			await rm(sourceRoot, { recursive: true, force: true });
 			await rm(homeRoot, { recursive: true, force: true });
@@ -245,16 +284,75 @@ enabled = true
 		);
 
 		try {
-			await runSync({
+			const result = await runSync({
 				sourceRoot,
 				homeDir: homeRoot,
 				configPath: join(homeRoot, "config.toml"),
-				execFileImpl: async () => ({ stdout: "", stderr: "" }),
+				execFileImpl: async () => {
+					await copyCriticalSyncFiles({ sourceRoot, cacheRoot });
+					return { stdout: "", stderr: "" };
+				},
 				stdout: () => {},
 			});
 
 			await expect(access(join(cacheRoot, ".git"))).rejects.toThrow();
 			await expect(access(join(cacheRoot, ".worktrees"))).rejects.toThrow();
+			expect(result.verifiedChecksums).toEqual([
+				".codex-plugin/plugin.json",
+				"mcp/server.mjs",
+				"mcp/codecut-workspace.html",
+				"scripts/codex-bridge.mjs",
+			]);
+		} finally {
+			await rm(sourceRoot, { recursive: true, force: true });
+			await rm(homeRoot, { recursive: true, force: true });
+		}
+	});
+
+	test("fails after sync when critical cache entry checksums do not match source", async () => {
+		const sourceRoot = await createPluginSource();
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-sync-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(cacheRoot, "mcp"), { recursive: true });
+		await mkdir(join(cacheRoot, "scripts"), { recursive: true });
+		await writeFile(
+			join(cacheRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(join(cacheRoot, "mcp/server.mjs"), "stale mcp\n", "utf8");
+		await writeFile(
+			join(cacheRoot, "mcp/codecut-workspace.html"),
+			"source workspace\n",
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "scripts/codex-bridge.mjs"),
+			"source bridge\n",
+			"utf8",
+		);
+		await writeFile(
+			join(homeRoot, "config.toml"),
+			'[plugins."codecut@local-opc"]\nenabled = true\n',
+			"utf8",
+		);
+
+		try {
+			await expect(
+				runSync({
+					sourceRoot,
+					homeDir: homeRoot,
+					configPath: join(homeRoot, "config.toml"),
+					execFileImpl: async () => ({ stdout: "", stderr: "" }),
+					stdout: () => {},
+				}),
+			).rejects.toThrow(
+				"Post-sync checksum mismatch for mcp/server.mjs",
+			);
 		} finally {
 			await rm(sourceRoot, { recursive: true, force: true });
 			await rm(homeRoot, { recursive: true, force: true });

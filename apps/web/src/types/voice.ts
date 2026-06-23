@@ -2,7 +2,7 @@ export interface GeneratedVoice {
 	id: string;
 	name: string;
 	text: string;
-	emotionPrompt: string;
+	emotionPrompt?: string;
 	provider: string;
 	taskId: string;
 	audioBlobId: string;

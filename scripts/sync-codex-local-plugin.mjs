@@ -2,6 +2,7 @@
 
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -24,6 +25,12 @@ const EXCLUDES = [
 	"tmp/",
 	".DS_Store",
 	".env.local",
+];
+const POST_SYNC_CHECKSUM_FILES = [
+	".codex-plugin/plugin.json",
+	"mcp/server.mjs",
+	"mcp/codecut-workspace.html",
+	"scripts/codex-bridge.mjs",
 ];
 
 function usage() {
@@ -236,6 +243,7 @@ export async function resolvePluginSyncPlan({
 export function buildRsyncArgs({ sourceRoot, cacheRoot, dryRun = false }) {
 	return [
 		"-a",
+		"--checksum",
 		"--delete",
 		...(dryRun ? ["--dry-run"] : []),
 		...EXCLUDES.flatMap((pattern) => [`--exclude=${pattern}`]),
@@ -265,6 +273,41 @@ async function removeStaleCacheMetadata({ cacheRoot, dryRun }) {
 	]);
 }
 
+async function sha256File(path) {
+	return createHash("sha256").update(await readFile(path)).digest("hex");
+}
+
+export async function verifyPostSyncChecksums({
+	sourceRoot,
+	cacheRoot,
+	files = POST_SYNC_CHECKSUM_FILES,
+}) {
+	const verified = [];
+	for (const file of files) {
+		const sourcePath = join(sourceRoot, file);
+		const cachePath = join(cacheRoot, file);
+		let sourceHash;
+		let cacheHash;
+		try {
+			[sourceHash, cacheHash] = await Promise.all([
+				sha256File(sourcePath),
+				sha256File(cachePath),
+			]);
+		} catch (error) {
+			throw new Error(
+				`Post-sync checksum verification failed for ${file}: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+		if (sourceHash !== cacheHash) {
+			throw new Error(`Post-sync checksum mismatch for ${file}`);
+		}
+		verified.push(file);
+	}
+	return verified;
+}
+
 export async function runSync({
 	sourceRoot = process.cwd(),
 	homeDir = homedir(),
@@ -292,6 +335,12 @@ export async function runSync({
 		cacheRoot: plan.cacheRoot,
 		dryRun,
 	});
+	const verifiedChecksums = dryRun
+		? []
+		: await verifyPostSyncChecksums({
+				sourceRoot: plan.sourceRoot,
+				cacheRoot: plan.cacheRoot,
+			});
 
 	const summary = {
 		status: dryRun ? "dry-run" : "synced",
@@ -302,6 +351,7 @@ export async function runSync({
 		cacheRoot: plan.cacheRoot,
 		excluded: EXCLUDES,
 		bridgeEnv,
+		verifiedChecksums,
 		reloadGuidance: buildReloadGuidance({ dryRun }),
 	};
 	stdout(JSON.stringify(summary, null, 2));

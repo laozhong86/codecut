@@ -8,6 +8,7 @@ const DEFAULT_TASK_ID = "2009215121247047681";
 
 const DIGITAL_HUMAN_APP_ID = "2052014238952108033";
 const VOICE_DESIGN_APP_ID = "2049802245339918337";
+const VOICE_CLONE_APP_ID = "2067079167992229890";
 
 const DIGITAL_HUMAN_NODES = [
 	{ nodeId: "54", fieldName: "value", description: "宽" },
@@ -24,6 +25,11 @@ const VOICE_DESIGN_NODES = [
 	{ nodeId: "21", fieldName: "text", description: "声音描述" },
 ];
 
+const VOICE_CLONE_NODES = [
+	{ nodeId: "17", fieldName: "audio", description: "音频" },
+	{ nodeId: "24", fieldName: "text", description: "文稿" },
+];
+
 function normalizeBaseUrl(baseUrl) {
 	const normalized = String(baseUrl || DEFAULT_BASE_URL).trim();
 	if (!normalized) {
@@ -34,6 +40,10 @@ function normalizeBaseUrl(baseUrl) {
 
 function aiAppEndpoint({ baseUrl }) {
 	return `${normalizeBaseUrl(baseUrl)}/task/openapi/ai-app/run`;
+}
+
+function aiAppV2RunEndpoint({ baseUrl, appId }) {
+	return `${normalizeBaseUrl(baseUrl)}/openapi/v2/run/ai-app/${appId}`;
 }
 
 export function redactSecret(value) {
@@ -57,6 +67,11 @@ export function buildRunningHubHealthContract({
 			appId: VOICE_DESIGN_APP_ID,
 			endpoint: aiAppEndpoint({ baseUrl }),
 			nodeInfoList: VOICE_DESIGN_NODES,
+		},
+		voiceClone: {
+			appId: VOICE_CLONE_APP_ID,
+			endpoint: aiAppV2RunEndpoint({ baseUrl, appId: VOICE_CLONE_APP_ID }),
+			nodeInfoList: VOICE_CLONE_NODES,
 		},
 	};
 }
@@ -227,6 +242,7 @@ function printHumanReport({ contract, health }) {
 	console.log(`- base: ${contract.baseUrl}`);
 	console.log(`- digital human app: ${contract.digitalHuman.appId}`);
 	console.log(`- voice design app: ${contract.voiceDesign.appId}`);
+	console.log(`- voice clone app: ${contract.voiceClone.appId}`);
 	if (!health) {
 		console.log("- network: skipped (--contract-only)");
 		return;

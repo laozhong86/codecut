@@ -9,6 +9,8 @@ import {
 	buildCommandEnvelope,
 	buildDeleteSystemTemplateScriptEnvelope,
 	buildDigitalHumanEnvelope,
+	buildRunningHubVoiceCloneEnvelope,
+	buildRunningHubVoiceDesignEnvelope,
 	buildExportEnvelope,
 	buildGetTimelineStateV2Envelope,
 	buildGetTranscriptEnvelope,
@@ -605,6 +607,85 @@ describe("codex bridge CLI helpers", () => {
 				fps: 25,
 			}),
 		).toThrow("--width must be a positive number");
+	});
+
+	test("buildRunningHubVoiceDesignEnvelope creates an independent voice design command", () => {
+		expect(
+			buildRunningHubVoiceDesignEnvelope({
+				projectId: "project-1",
+				text: "欢迎来到今天的测试",
+				emotionPrompt: "温柔、稳定的中文播客女声",
+			}),
+		).toEqual({
+			version: 1,
+			projectId: "project-1",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "generate_runninghub_voice_design",
+					args: {
+						text: "欢迎来到今天的测试",
+						emotionPrompt: "温柔、稳定的中文播客女声",
+					},
+				},
+			],
+		});
+	});
+
+	test("buildRunningHubVoiceCloneEnvelope creates an independent voice clone command", () => {
+		expect(
+			buildRunningHubVoiceCloneEnvelope({
+				projectId: "project-1",
+				audioPath: "/tmp/reference.wav",
+				text: "欢迎来到今天的测试",
+			}),
+		).toEqual({
+			version: 1,
+			projectId: "project-1",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "generate_runninghub_voice_clone",
+					args: {
+						audioPath: "/tmp/reference.wav",
+						text: "欢迎来到今天的测试",
+					},
+				},
+			],
+		});
+	});
+
+	test("voice generation envelopes require all explicit inputs", () => {
+		expect(() =>
+			buildRunningHubVoiceDesignEnvelope({
+				projectId: "project-1",
+				text: "",
+				emotionPrompt: "warm",
+			}),
+		).toThrow("--text is required");
+		expect(() =>
+			buildRunningHubVoiceDesignEnvelope({
+				projectId: "project-1",
+				text: "hello",
+				emotionPrompt: "",
+			}),
+		).toThrow("--emotion-prompt is required");
+		expect(() =>
+			buildRunningHubVoiceCloneEnvelope({
+				projectId: "project-1",
+				audioPath: "",
+				text: "hello",
+			}),
+		).toThrow("--audio-path is required");
+		expect(() =>
+			buildRunningHubVoiceCloneEnvelope({
+				projectId: "project-1",
+				audioPath: "/tmp/reference.wav",
+				text: "",
+			}),
+		).toThrow("--text is required");
 	});
 
 	test("buildVideoQualityReportEnvelope creates a read-only quality report command", async () => {

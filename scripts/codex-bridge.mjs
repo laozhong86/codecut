@@ -52,6 +52,8 @@ function usage() {
 		"  node scripts/codex-bridge.mjs delete-system-template-script --project-id <id> --template-id <id> --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
 		'  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text "..." --motion-prompt "..." --width 1280 --height 720 --fps 25',
+		'  node scripts/codex-bridge.mjs generate-runninghub-voice-design --project-id <id> --text "..." --emotion-prompt "..."',
+		'  node scripts/codex-bridge.mjs generate-runninghub-voice-clone --project-id <id> --audio-path /absolute/path/reference.wav --text "..."',
 		"  node scripts/codex-bridge.mjs validate-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs preview-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>",
@@ -1444,6 +1446,50 @@ export function buildDigitalHumanEnvelope({
 	});
 }
 
+export function buildRunningHubVoiceDesignEnvelope({
+	projectId,
+	text,
+	emotionPrompt,
+}) {
+	if (!text?.trim()) {
+		throw new Error("--text is required");
+	}
+	if (!emotionPrompt?.trim()) {
+		throw new Error("--emotion-prompt is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "generate_runninghub_voice_design",
+		args: {
+			text: text.trim(),
+			emotionPrompt: emotionPrompt.trim(),
+		},
+	});
+}
+
+export function buildRunningHubVoiceCloneEnvelope({
+	projectId,
+	audioPath,
+	text,
+}) {
+	if (!audioPath?.trim()) {
+		throw new Error("--audio-path is required");
+	}
+	if (!text?.trim()) {
+		throw new Error("--text is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "generate_runninghub_voice_clone",
+		args: {
+			audioPath: audioPath.trim(),
+			text: text.trim(),
+		},
+	});
+}
+
 async function readJsonObjectFile({ filePath, flagName }) {
 	if (!filePath) {
 		throw new Error(`--${flagName} is required`);
@@ -2245,9 +2291,9 @@ export async function runCli({
 			language: flags.language,
 			modelId: flags.modelId,
 		});
-		} else if (command === "generate-digital-human") {
-			requireRunningHubApiKey({ env });
-			envelope = buildDigitalHumanEnvelope({
+	} else if (command === "generate-digital-human") {
+		requireRunningHubApiKey({ env });
+		envelope = buildDigitalHumanEnvelope({
 			projectId: flags.projectId,
 			imageMediaId: flags.imageMediaId,
 			audioMediaId: flags.audioMediaId,
@@ -2255,36 +2301,50 @@ export async function runCli({
 			motionPrompt: flags.motionPrompt,
 			width: flags.width,
 			height: flags.height,
-				fps: flags.fps,
-			});
-		} else if (command === "validate-edit-plan") {
-			envelope = await buildValidateEditPlanEnvelope({
-				projectId: flags.projectId,
-				planJsonFile: flags.planJsonFile,
-			});
-		} else if (command === "preview-edit-plan") {
-			envelope = await buildPreviewEditPlanEnvelope({
-				projectId: flags.projectId,
-				planJsonFile: flags.planJsonFile,
-			});
-		} else if (command === "apply-plan") {
-			envelope = await buildApplyPlanEnvelope({
-				projectId: flags.projectId,
-				planJsonFile: flags.planJsonFile,
-				replaceExisting: parseBoolean(flags.replaceExisting, "replaceExisting"),
-			});
-		} else if (command === "apply-narrated-remix-plan") {
-			envelope = await buildNarratedRemixPlanEnvelope({
-				projectId: flags.projectId,
-				planJsonFile: flags.planJsonFile,
-				replaceExisting: parseBoolean(flags.replaceExisting, "replaceExisting"),
-			});
-		} else if (command === "verify-timeline") {
-			envelope = await buildVerifyTimelineEnvelope({
-				projectId: flags.projectId,
-				verificationJsonFile: flags.verificationJsonFile,
-			});
-		} else {
+			fps: flags.fps,
+		});
+	} else if (command === "generate-runninghub-voice-design") {
+		requireRunningHubApiKey({ env });
+		envelope = buildRunningHubVoiceDesignEnvelope({
+			projectId: flags.projectId,
+			text: flags.text,
+			emotionPrompt: flags.emotionPrompt,
+		});
+	} else if (command === "generate-runninghub-voice-clone") {
+		requireRunningHubApiKey({ env });
+		envelope = buildRunningHubVoiceCloneEnvelope({
+			projectId: flags.projectId,
+			audioPath: flags.audioPath,
+			text: flags.text,
+		});
+	} else if (command === "validate-edit-plan") {
+		envelope = await buildValidateEditPlanEnvelope({
+			projectId: flags.projectId,
+			planJsonFile: flags.planJsonFile,
+		});
+	} else if (command === "preview-edit-plan") {
+		envelope = await buildPreviewEditPlanEnvelope({
+			projectId: flags.projectId,
+			planJsonFile: flags.planJsonFile,
+		});
+	} else if (command === "apply-plan") {
+		envelope = await buildApplyPlanEnvelope({
+			projectId: flags.projectId,
+			planJsonFile: flags.planJsonFile,
+			replaceExisting: parseBoolean(flags.replaceExisting, "replaceExisting"),
+		});
+	} else if (command === "apply-narrated-remix-plan") {
+		envelope = await buildNarratedRemixPlanEnvelope({
+			projectId: flags.projectId,
+			planJsonFile: flags.planJsonFile,
+			replaceExisting: parseBoolean(flags.replaceExisting, "replaceExisting"),
+		});
+	} else if (command === "verify-timeline") {
+		envelope = await buildVerifyTimelineEnvelope({
+			projectId: flags.projectId,
+			verificationJsonFile: flags.verificationJsonFile,
+		});
+	} else {
 		throw new Error(`Unknown command: ${command}`);
 	}
 

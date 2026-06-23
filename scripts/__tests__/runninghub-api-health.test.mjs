@@ -24,10 +24,11 @@ describe("runninghub api health script", () => {
 		expect(stdout).toContain("RunningHub API health");
 		expect(stdout).toContain("digital human app: 2052014238952108033");
 		expect(stdout).toContain("voice design app: 2049802245339918337");
+		expect(stdout).toContain("voice clone app: 2067079167992229890");
 		expect(stdout).toContain("network: skipped (--contract-only)");
 	});
 
-	test("builds the fixed digital human and voice design contract summary", () => {
+	test("builds the fixed digital human and voice provider contract summary", () => {
 		const contract = buildRunningHubHealthContract();
 
 		expect(contract.digitalHuman).toEqual({
@@ -49,6 +50,15 @@ describe("runninghub api health script", () => {
 			nodeInfoList: [
 				{ nodeId: "24", fieldName: "text", description: "语音内容" },
 				{ nodeId: "21", fieldName: "text", description: "声音描述" },
+			],
+		});
+		expect(contract.voiceClone).toEqual({
+			appId: "2067079167992229890",
+			endpoint:
+				"https://www.runninghub.cn/openapi/v2/run/ai-app/2067079167992229890",
+			nodeInfoList: [
+				{ nodeId: "17", fieldName: "audio", description: "音频" },
+				{ nodeId: "24", fieldName: "text", description: "文稿" },
 			],
 		});
 	});

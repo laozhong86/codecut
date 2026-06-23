@@ -1,13 +1,16 @@
+import { readFile } from "node:fs/promises";
+import { basename, extname } from "node:path";
 import {
 	RUNNINGHUB_API_BASE,
-	RUNNINGHUB_VOICE_DESIGN_APP_ID,
-	buildRunningHubVoiceDesignSubmitBody,
-	extractRunningHubVoiceDesignAudioUrl,
-	normalizeRunningHubVoiceDesignStatus,
-	type RunningHubVoiceDesignResultEntry,
-} from "./runninghub-voice-design";
+	RUNNINGHUB_VOICE_CLONE_APP_ID,
+	buildRunningHubVoiceCloneSubmitBody,
+	extractRunningHubVoiceCloneAudioUrl,
+	normalizeRunningHubVoiceCloneStatus,
+	type RunningHubVoiceCloneResultEntry,
+} from "./runninghub-voice-clone";
+import { uploadRunningHubMediaFile } from "./runninghub-digital-human-server";
 import { downloadRunningHubAudioResult } from "./runninghub-result-download";
-import type { VoiceDesignRequest, VoiceDesignTaskResult } from "./types";
+import type { VoiceCloneRequest, VoiceCloneTaskResult } from "./types";
 
 type FetchLike = (
 	input: RequestInfo | URL,
@@ -16,19 +19,52 @@ type FetchLike = (
 
 const RUNNINGHUB_POLL_INTERVAL_MS = 5000;
 const RUNNINGHUB_MAX_POLL_ATTEMPTS = 120;
-const RUNNINGHUB_AI_APP_RUN_ENDPOINT = `${RUNNINGHUB_API_BASE}/task/openapi/ai-app/run`;
+const RUNNINGHUB_AI_APP_RUN_ENDPOINT = `${RUNNINGHUB_API_BASE}/openapi/v2/run/ai-app/${RUNNINGHUB_VOICE_CLONE_APP_ID}`;
 
-export interface RunningHubGeneratedVoiceDesign {
+export interface RunningHubGeneratedVoiceClone {
 	taskId: string;
 	audioBytes: Buffer;
 	mimeType: string;
 }
+
+const AUDIO_MIME_TYPES = new Map([
+	[".mp3", "audio/mpeg"],
+	[".wav", "audio/wav"],
+	[".m4a", "audio/mp4"],
+	[".aac", "audio/aac"],
+	[".ogg", "audio/ogg"],
+	[".flac", "audio/flac"],
+]);
 
 function runningHubHeaders({ apiKey }: { apiKey: string }) {
 	if (!apiKey) {
 		throw new Error("RUNNINGHUB_API_KEY is required");
 	}
 	return { Authorization: `Bearer ${apiKey}` };
+}
+
+function audioMimeTypeForPath({ path }: { path: string }): string {
+	const mimeType = AUDIO_MIME_TYPES.get(extname(path).toLowerCase());
+	if (!mimeType) {
+		throw new Error("Reference audio file type is not supported");
+	}
+	return mimeType;
+}
+
+function bufferToFile({
+	bytes,
+	name,
+	mimeType,
+}: {
+	bytes: Buffer;
+	name: string;
+	mimeType: string;
+}): File {
+	const arrayBuffer = bytes.buffer.slice(
+		bytes.byteOffset,
+		bytes.byteOffset + bytes.byteLength,
+	) as ArrayBuffer;
+	return new File([arrayBuffer], name, { type: mimeType });
 }
 
 async function parseRunningHubJson({
@@ -69,20 +105,24 @@ async function parseRunningHubJson({
 	return payload;
 }
 
-export async function submitRunningHubVoiceDesignTask({
+export async function submitRunningHubVoiceCloneTask({
 	apiKey,
 	request,
+	audioFileName,
 	fetchImpl = fetch,
 }: {
 	apiKey: string;
-	request: VoiceDesignRequest;
+	request: VoiceCloneRequest;
+	audioFileName: string;
 	fetchImpl?: FetchLike;
-}): Promise<VoiceDesignTaskResult> {
-	if (!request.text.trim()) {
-		throw new Error("Voice text is required");
+}): Promise<VoiceCloneTaskResult> {
+	const trimmedAudioFileName = audioFileName.trim();
+	const trimmedText = request.text.trim();
+	if (!trimmedAudioFileName) {
+		throw new Error("Reference audio upload file name is required");
 	}
-	if (!request.emotionPrompt.trim()) {
-		throw new Error("Emotion / voice description is required");
+	if (!trimmedText) {
+		throw new Error("Voice text is required");
 	}
 
 	const response = await fetchImpl(RUNNINGHUB_AI_APP_RUN_ENDPOINT, {
@@ -92,36 +132,38 @@ export async function submitRunningHubVoiceDesignTask({
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify({
-			webappId: RUNNINGHUB_VOICE_DESIGN_APP_ID,
-			apiKey,
-			...buildRunningHubVoiceDesignSubmitBody({
-				text: request.text.trim(),
-				emotionPrompt: request.emotionPrompt.trim(),
+			...buildRunningHubVoiceCloneSubmitBody({
+				audioFileName: trimmedAudioFileName,
+				text: trimmedText,
 			}),
 		}),
 	});
 	const payload = await parseRunningHubJson({ response });
-	const data = payload.data as {
+	const data =
+		payload.data && typeof payload.data === "object" && !Array.isArray(payload.data)
+			? (payload.data as Record<string, unknown>)
+			: payload;
+	const typedData = data as {
 		taskId?: unknown;
 		taskStatus?: unknown;
 		status?: unknown;
 		errorMessage?: unknown;
-	} | null;
-	const taskId = data?.taskId;
+	};
+	const taskId = typedData.taskId;
 	if (typeof taskId !== "string" || !taskId) {
 		throw new Error("RunningHub submit returned no task ID");
 	}
-	const status = String(data?.taskStatus ?? data?.status ?? "QUEUED");
+	const status = String(typedData.taskStatus ?? typedData.status ?? "QUEUED");
 	return {
 		taskId,
-		status: normalizeRunningHubVoiceDesignStatus({ status }),
-		...(typeof data?.errorMessage === "string" && data.errorMessage
-			? { error: data.errorMessage }
+		status: normalizeRunningHubVoiceCloneStatus({ status }),
+		...(typeof typedData.errorMessage === "string" && typedData.errorMessage
+			? { error: typedData.errorMessage }
 			: {}),
 	};
 }
 
-export async function queryRunningHubVoiceDesignTask({
+export async function queryRunningHubVoiceCloneTask({
 	apiKey,
 	taskId,
 	fetchImpl = fetch,
@@ -129,7 +171,7 @@ export async function queryRunningHubVoiceDesignTask({
 	apiKey: string;
 	taskId: string;
 	fetchImpl?: FetchLike;
-}): Promise<VoiceDesignTaskResult> {
+}): Promise<VoiceCloneTaskResult> {
 	if (!taskId.trim()) {
 		throw new Error("RunningHub task ID is required");
 	}
@@ -144,16 +186,16 @@ export async function queryRunningHubVoiceDesignTask({
 	});
 	const payload = await parseRunningHubJson({ response });
 	const status = String(payload.status ?? "QUEUED");
-	const normalizedStatus = normalizeRunningHubVoiceDesignStatus({ status });
-	const result: VoiceDesignTaskResult = {
+	const normalizedStatus = normalizeRunningHubVoiceCloneStatus({ status });
+	const result: VoiceCloneTaskResult = {
 		taskId,
 		status: normalizedStatus,
 	};
 
 	if (normalizedStatus === "succeeded") {
-		result.audioUrl = extractRunningHubVoiceDesignAudioUrl({
+		result.audioUrl = extractRunningHubVoiceCloneAudioUrl({
 			results: payload.results as
-				| RunningHubVoiceDesignResultEntry[]
+				| RunningHubVoiceCloneResultEntry[]
 				| null
 				| undefined,
 		});
@@ -162,12 +204,12 @@ export async function queryRunningHubVoiceDesignTask({
 		result.error =
 			(typeof payload.errorMessage === "string" && payload.errorMessage) ||
 			(typeof payload.failedReason === "string" && payload.failedReason) ||
-			"RunningHub voice design generation failed";
+			"RunningHub voice clone generation failed";
 	}
 	return result;
 }
 
-export async function downloadRunningHubAudio({
+export async function downloadRunningHubVoiceCloneAudio({
 	audioUrl,
 	fetchImpl = fetch,
 }: {
@@ -188,7 +230,7 @@ function sleep({ ms }: { ms: number }): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function pollRunningHubVoiceDesignTask({
+export async function pollRunningHubVoiceCloneTask({
 	apiKey,
 	taskId,
 	fetchImpl = fetch,
@@ -200,9 +242,9 @@ export async function pollRunningHubVoiceDesignTask({
 	fetchImpl?: FetchLike;
 	pollIntervalMs?: number;
 	maxPollAttempts?: number;
-}): Promise<VoiceDesignTaskResult> {
+}): Promise<VoiceCloneTaskResult> {
 	for (let attempt = 0; attempt < maxPollAttempts; attempt++) {
-		const result = await queryRunningHubVoiceDesignTask({
+		const result = await queryRunningHubVoiceCloneTask({
 			apiKey,
 			taskId,
 			fetchImpl,
@@ -215,28 +257,45 @@ export async function pollRunningHubVoiceDesignTask({
 	throw new Error(`RunningHub task ${taskId} did not finish before timeout`);
 }
 
-export async function generateRunningHubVoiceDesignFromRequest({
+export async function generateRunningHubVoiceCloneFromReferenceAudioPath({
 	apiKey,
+	referenceAudioPath,
 	request,
 	fetchImpl = fetch,
 	pollIntervalMs,
 	maxPollAttempts,
 }: {
 	apiKey: string;
-	request: VoiceDesignRequest;
+	referenceAudioPath: string;
+	request: VoiceCloneRequest;
 	fetchImpl?: FetchLike;
 	pollIntervalMs?: number;
 	maxPollAttempts?: number;
-}): Promise<RunningHubGeneratedVoiceDesign> {
-	const submitted = await submitRunningHubVoiceDesignTask({
+}): Promise<RunningHubGeneratedVoiceClone> {
+	const referenceAudioBytes = await readFile(referenceAudioPath);
+	if (referenceAudioBytes.byteLength <= 0) {
+		throw new Error("Reference audio file is empty");
+	}
+	const referenceAudioFile = bufferToFile({
+		bytes: referenceAudioBytes,
+		name: basename(referenceAudioPath),
+		mimeType: audioMimeTypeForPath({ path: referenceAudioPath }),
+	});
+	const audioFileName = await uploadRunningHubMediaFile({
+		apiKey,
+		file: referenceAudioFile,
+		fetchImpl,
+	});
+	const submitted = await submitRunningHubVoiceCloneTask({
 		apiKey,
 		request,
+		audioFileName,
 		fetchImpl,
 	});
 	const finished =
 		submitted.status === "succeeded"
 			? submitted
-			: await pollRunningHubVoiceDesignTask({
+			: await pollRunningHubVoiceCloneTask({
 					apiKey,
 					taskId: submitted.taskId,
 					fetchImpl,
@@ -244,13 +303,13 @@ export async function generateRunningHubVoiceDesignFromRequest({
 					maxPollAttempts,
 				});
 	if (finished.status === "failed") {
-		throw new Error(finished.error ?? "RunningHub voice design generation failed");
+		throw new Error(finished.error ?? "RunningHub voice clone generation failed");
 	}
 	if (!finished.audioUrl) {
 		throw new Error("RunningHub task succeeded without an audio URL");
 	}
 
-	const downloaded = await downloadRunningHubAudio({
+	const downloaded = await downloadRunningHubVoiceCloneAudio({
 		audioUrl: finished.audioUrl,
 		fetchImpl,
 	});
