@@ -91,7 +91,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "black-bar") {
 		return {
-			fontFamily: "Roboto",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -121,7 +121,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "tutorial-clean") {
 		return {
-			fontFamily: "Inter",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "normal",
 			color: "#ffffff",
@@ -137,7 +137,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "documentary-soft") {
 		return {
-			fontFamily: "Noto Serif SC",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#f8fafc",
@@ -151,8 +151,8 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "product-punch") {
 		return {
-			fontFamily: "Smiley Sans",
-			fontSize: 7,
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 6,
 			fontWeight: "bold",
 			color: "#ffe45c",
 			stroke: { color: "#111111", width: 4 },
@@ -165,7 +165,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "lifestyle-warm") {
 		return {
-			fontFamily: "LXGW WenKai",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 6,
 			fontWeight: "bold",
 			color: "#fff7ed",
@@ -181,7 +181,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "cinematic-serif") {
 		return {
-			fontFamily: "Noto Serif SC",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
 			fontStyle: "italic",
@@ -196,7 +196,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "short-form-bold") {
 		return {
-			fontFamily: "Poppins",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 6,
 			fontWeight: "bold",
 			color: "#ffffff",

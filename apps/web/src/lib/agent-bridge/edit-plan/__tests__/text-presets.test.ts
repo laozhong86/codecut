@@ -5,6 +5,8 @@ import {
 	scaleBoxWidth,
 } from "@/services/renderer/nodes/text-node";
 import { createTextLayout } from "@/services/renderer/nodes/text-layout";
+import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
+import type { EditPlanCaptionStyle } from "../schema";
 import { resolveCaptionStylePreset } from "../text-presets";
 
 const verticalCanvas = {
@@ -12,11 +14,28 @@ const verticalCanvas = {
 	height: 1920,
 };
 
-function layoutPresetCaption({ content }: { content: string }) {
+const implementedCaptionPresets: EditPlanCaptionStyle["preset"][] = [
+	"short-form-bold",
+	"black-bar",
+	"talking-head-pop",
+	"tutorial-clean",
+	"documentary-soft",
+	"product-punch",
+	"lifestyle-warm",
+	"cinematic-serif",
+];
+
+function layoutPresetCaption({
+	content,
+	preset,
+}: {
+	content: string;
+	preset: EditPlanCaptionStyle["preset"];
+}) {
 	const canvas = createCanvas(verticalCanvas.width, verticalCanvas.height);
 	const context = canvas.getContext("2d");
 	const raw = resolveCaptionStylePreset({
-		captionStyle: { preset: "talking-head-pop", position: "lower-safe" },
+		captionStyle: { preset, position: "lower-safe" },
 		aspectRatio: "9:16",
 	});
 	if (raw.fontSize === undefined) {
@@ -45,13 +64,14 @@ function layoutPresetCaption({ content }: { content: string }) {
 		},
 	});
 
-	return { raw, layout };
+	return { raw, scaledFontSize, layout };
 }
 
 describe("caption style presets", () => {
 	test("talking-head-pop keeps Chinese subtitles in a conventional lower-third two-line box", () => {
 		const { raw, layout } = layoutPresetCaption({
 			content: "如果你和公司坐在一张桌子上",
+			preset: "talking-head-pop",
 		});
 		const lines = layout.lines.map((line) =>
 			line.runs.map((run) => run.text).join(""),
@@ -63,5 +83,51 @@ describe("caption style presets", () => {
 		expect(lines.at(-1)?.length).toBeGreaterThan(1);
 		expect(captionBottomY).toBeGreaterThanOrEqual(1440);
 		expect(captionBottomY).toBeLessThanOrEqual(1600);
+	});
+
+	test("all caption presets keep Chinese subtitles in a conventional lower-third layout", () => {
+		expect(implementedCaptionPresets).toHaveLength(8);
+
+		for (const preset of implementedCaptionPresets) {
+			const { raw, scaledFontSize, layout } = layoutPresetCaption({
+				content: "如果你和公司坐在一张桌子上",
+				preset,
+			});
+			const lines = layout.lines.map((line) =>
+				line.runs.map((run) => run.text).join(""),
+			);
+			const captionBottomY =
+				verticalCanvas.height / 2 + (raw.transform?.position.y ?? 0);
+
+			expect({ preset, lines }).toEqual({
+				preset,
+				lines: expect.arrayContaining([expect.any(String)]),
+			});
+			expect(lines.length, `${preset} line count`).toBeLessThanOrEqual(2);
+			expect(lines.at(-1)?.length, `${preset} orphan line`).toBeGreaterThan(1);
+			expect(
+				captionBottomY,
+				`${preset} lower-third bottom`,
+			).toBeGreaterThanOrEqual(1440);
+			expect(
+				captionBottomY,
+				`${preset} lower-third bottom`,
+			).toBeLessThanOrEqual(1600);
+			expect(
+				scaledFontSize,
+				`${preset} scaled font size`,
+			).toBeLessThanOrEqual(128);
+		}
+	});
+
+	test("all caption presets use the deterministic CJK renderer font", () => {
+		for (const preset of implementedCaptionPresets) {
+			const raw = resolveCaptionStylePreset({
+				captionStyle: { preset, position: "lower-safe" },
+				aspectRatio: "9:16",
+			});
+
+			expect(raw.fontFamily, preset).toBe(CODECUT_CJK_FONT_FAMILY);
+		}
 	});
 });

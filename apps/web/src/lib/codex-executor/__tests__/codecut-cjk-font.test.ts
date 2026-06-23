@@ -1,10 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import {
 	CODECUT_CJK_FONT_FAMILY,
+	resolveCodecutCjkFontPaths,
 	registerCodecutCjkFont,
 } from "../codecut-cjk-font";
 
 describe("Codecut CJK font registration", () => {
+	test("uses the explicit CJK font path from environment", () => {
+		expect(
+			resolveCodecutCjkFontPaths({
+				env: {
+					CODECUT_CJK_FONT_PATH: "/fonts/runtime-cjk.ttc",
+				},
+			}),
+		).toEqual(["/fonts/runtime-cjk.ttc"]);
+	});
+
 	test("registers the first available candidate path with the Codecut CJK family", () => {
 		const calls: Array<{ path: string; family: string }> = [];
 

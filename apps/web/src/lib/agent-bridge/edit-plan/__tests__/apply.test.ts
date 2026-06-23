@@ -8,6 +8,7 @@ import type {
 	TrackTransition,
 	TransitionType,
 } from "@/types/timeline";
+import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
 import { applyEditPlanToEditor } from "../apply";
 import type { EditPlan } from "../schema";
 
@@ -377,7 +378,7 @@ describe("applyEditPlanToEditor", () => {
 		});
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: "Poppins",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 6,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -416,7 +417,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: "Roboto",
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -527,7 +528,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "short-form-bold",
 				expected: {
-					fontFamily: "Poppins",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 6,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -538,7 +539,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "black-bar",
 				expected: {
-					fontFamily: "Roboto",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -549,7 +550,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "talking-head-pop",
 				expected: {
-					fontFamily: "CodecutCJK",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 5.8,
 					fontWeight: "bold",
 					color: "#fff3b0",
@@ -560,7 +561,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "tutorial-clean",
 				expected: {
-					fontFamily: "Inter",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "normal",
 					color: "#ffffff",
@@ -571,7 +572,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "documentary-soft",
 				expected: {
-					fontFamily: "Noto Serif SC",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "bold",
 					color: "#f8fafc",
@@ -582,8 +583,8 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "product-punch",
 				expected: {
-					fontFamily: "Smiley Sans",
-					fontSize: 7,
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontSize: 6,
 					fontWeight: "bold",
 					color: "#ffe45c",
 					stroke: { color: "#111111", width: 4 },
@@ -593,7 +594,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "lifestyle-warm",
 				expected: {
-					fontFamily: "LXGW WenKai",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 6,
 					fontWeight: "bold",
 					color: "#fff7ed",
@@ -604,7 +605,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "cinematic-serif",
 				expected: {
-					fontFamily: "Noto Serif SC",
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "bold",
 					color: "#f8fafc",
