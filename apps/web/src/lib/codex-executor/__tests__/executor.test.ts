@@ -45,6 +45,7 @@ function envelope({
 		| "transcribe_media"
 		| "build_video_context"
 		| "build_visual_context"
+		| "build_video_quality_report"
 		| "inspect_timeline"
 		| "get_transcript"
 		| "inspect_video_range"
@@ -409,6 +410,110 @@ describe("codex executor", () => {
 				2,
 			),
 		);
+	}
+
+	async function writeDraftState(state: unknown) {
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			`${JSON.stringify(state, null, 2)}\n`,
+			"utf8",
+		);
+	}
+
+	function qualityPlan({
+		videoId,
+	}: {
+		videoId: string;
+	}) {
+		return {
+			version: 1,
+			projectId,
+			sourceMediaId: videoId,
+			target: { durationSec: 2, aspectRatio: "9:16" },
+			clips: [
+				{
+					id: "clip-1",
+					sourceStart: 0,
+					sourceEnd: 1,
+					timelineStart: 0,
+					fit: "cover",
+					reason: "Hook beat.",
+				},
+				{
+					id: "clip-2",
+					sourceStart: 1,
+					sourceEnd: 2,
+					timelineStart: 1,
+					fit: "cover",
+					reason: "Proof beat.",
+				},
+			],
+			title: {
+				text: "OK",
+				startTime: 0,
+				duration: 1,
+			},
+			captions: [
+				{
+					text: "Caption proof",
+					startTime: 0,
+					duration: 1,
+				},
+			],
+			captionStyle: {
+				preset: "short-form-bold",
+				position: "lower-safe",
+			},
+			transitions: [
+				{
+					fromClipId: "clip-1",
+					toClipId: "clip-2",
+					type: "fade",
+					duration: 0.25,
+				},
+			],
+			rationale: "Quality report fixture.",
+		};
+	}
+
+	async function createAppliedQualityFixture() {
+		await createExecutorProject({ projectId, name: "Quality report cut" });
+		const fixtureVideo = await createFixtureMp4({
+			width: 64,
+			height: 36,
+			fps: 4,
+			duration: 2,
+		});
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: fixtureVideo.toString("base64"),
+					size: fixtureVideo.byteLength,
+					lastModified: 1,
+					duration: 2,
+					width: 64,
+					height: 36,
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		const plan = qualityPlan({ videoId });
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan,
+				},
+			}),
+		});
+		expect(applyResult.results[0]).toMatchObject({ success: true });
+		return { plan, videoId };
 	}
 
 	test("imports media and exposes project info without a browser-mounted bridge", async () => {
@@ -3556,6 +3661,238 @@ describe("codex executor", () => {
 		);
 		expect((await readFile(data.artifact.path)).byteLength).toBeGreaterThan(0);
 		expect(after).toEqual(before);
+	});
+
+	test("build_video_quality_report returns validation failure without rendering a contact sheet", async () => {
+		await createExecutorProject({ projectId, name: "Quality report cut" });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan: {
+						...qualityPlan({ videoId: "missing-video" }),
+						sourceMediaId: "missing-video",
+					},
+					inspection: { startTime: 0, endTime: 1, frameCount: 2 },
+				},
+			}),
+		});
+		const data = resultData<{
+			status: string;
+			artifacts: unknown[];
+			checks: Array<{ id: string; status: string; evidence?: unknown }>;
+		}>(result.results[0]);
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: fail",
+			data: {
+				schemaVersion: 1,
+				status: "fail",
+				artifacts: [],
+				checks: [
+					{
+						id: "editPlan.validation",
+						category: "edit_plan",
+						status: "fail",
+						severity: "critical",
+						message:
+							"EditPlan sourceMediaId was not found in the project media library.",
+					},
+				],
+			},
+		});
+		expect(data.artifacts).toHaveLength(0);
+		expect(data.checks[0]?.evidence).toMatchObject({
+			path: "sourceMediaId",
+		});
+	});
+
+	test("build_video_quality_report passes applied title captions transitions and does not mutate", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan,
+					inspection: { startTime: 0, endTime: 2, frameCount: 2 },
+				},
+			}),
+		});
+		const after = await getExecutorProjectState({ projectId });
+		const data = resultData<{
+			status: string;
+			artifacts: Array<{ path: string; kind: string }>;
+			checks: Array<{ id: string; status: string }>;
+			limitations: Array<{ id: string; status: string }>;
+		}>(result.results[0]);
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: pass",
+			data: {
+				schemaVersion: 1,
+				status: "pass",
+				revision: before.revision,
+				checks: expect.arrayContaining([
+					expect.objectContaining({
+						id: "editPlan.validation",
+						status: "pass",
+					}),
+					expect.objectContaining({
+						id: "timeline.titleReadback",
+						status: "pass",
+					}),
+					expect.objectContaining({
+						id: "timeline.captionReadback",
+						status: "pass",
+					}),
+					expect.objectContaining({
+						id: "timeline.transitionReadback",
+						status: "pass",
+					}),
+					expect.objectContaining({
+						id: "layout.textBounds",
+						status: "pass",
+					}),
+				]),
+				limitations: expect.arrayContaining([
+					expect.objectContaining({
+						id: "face_detection",
+						status: "not_available",
+					}),
+					expect.objectContaining({
+						id: "burned_caption_detection",
+						status: "not_available",
+					}),
+				]),
+			},
+		});
+		expect(data.artifacts[0]).toMatchObject({
+			kind: "timeline_contact_sheet",
+		});
+		expect(data.artifacts[0]?.path.replaceAll("\\", "/")).toContain(
+			"/timeline-inspect/",
+		);
+		expect((await readFile(data.artifacts[0]?.path ?? "")).byteLength).toBeGreaterThan(0);
+		expect(after).toEqual(before);
+	});
+
+	test("build_video_quality_report fails when caption readback is missing", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const state = await getExecutorProjectState({ projectId });
+		for (const track of state.tracks) {
+			if (track.type === "text") {
+				track.elements = track.elements.filter(
+					(element) => element.type !== "text" || element.content !== "Caption proof",
+				);
+			}
+		}
+		await writeDraftState(state);
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan,
+					inspection: { startTime: 0, endTime: 2, frameCount: 2 },
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: fail",
+			data: {
+				status: "fail",
+				checks: expect.arrayContaining([
+					expect.objectContaining({
+						id: "timeline.captionReadback",
+						status: "fail",
+						message: "1 EditPlan caption(s) were not found in timeline readback.",
+					}),
+				]),
+			},
+		});
+	});
+
+	test("build_video_quality_report fails when caption text renders outside the canvas", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const state = await getExecutorProjectState({ projectId });
+		for (const track of state.tracks) {
+			if (track.type === "text") {
+				for (const element of track.elements) {
+					if (element.type === "text" && element.content === "Caption proof") {
+						element.transform.position.x = 5000;
+					}
+				}
+			}
+		}
+		await writeDraftState(state);
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan,
+					inspection: { startTime: 0, endTime: 2, frameCount: 2 },
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: fail",
+			data: {
+				status: "fail",
+				checks: expect.arrayContaining([
+					expect.objectContaining({
+						id: "layout.textBounds",
+						status: "fail",
+						message: "1 plan text element(s) render outside the canvas.",
+					}),
+				]),
+			},
+		});
+	});
+
+	test("build_video_quality_report fails when transition readback is missing", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const state = await getExecutorProjectState({ projectId });
+		for (const track of state.tracks) {
+			if (track.type === "video") {
+				track.transitions = [];
+			}
+		}
+		await writeDraftState(state);
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan,
+					inspection: { startTime: 0, endTime: 2, frameCount: 2 },
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: fail",
+			data: {
+				status: "fail",
+				checks: expect.arrayContaining([
+					expect.objectContaining({
+						id: "timeline.transitionReadback",
+						status: "fail",
+						message: "1 EditPlan transition(s) were not found in timeline readback.",
+					}),
+				]),
+			},
+		});
 	});
 
 	test("get_transcript maps edited clip source segments back onto the timeline", async () => {

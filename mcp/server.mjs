@@ -89,6 +89,14 @@ const inspectTimelineInputSchema = {
 	frameCount: z.number().int().min(1).max(16).optional(),
 };
 
+const videoQualityReportInputSchema = {
+	projectId: projectIdSchema,
+	planJsonFile: planJsonFileSchema,
+	startTime: secondsSchema,
+	endTime: secondsSchema,
+	frameCount: z.number().int().min(1).max(16),
+};
+
 const transcriptInputSchema = {
 	projectId: projectIdSchema,
 	language: languageSchema,
@@ -307,6 +315,14 @@ export const CODECUT_MCP_TOOLS = [
 		description:
 			"Render sampled composited timeline frames without exporting a full video.",
 		inputSchema: inspectTimelineInputSchema,
+		readOnly: true,
+	},
+	{
+		name: "build_video_quality_report",
+		title: "Build Codecut Video Quality Report",
+		description:
+			"Validate one EditPlan against current timeline readback and render sampled timeline frames without mutating timeline state.",
+		inputSchema: videoQualityReportInputSchema,
 		readOnly: true,
 	},
 	{
@@ -820,6 +836,21 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 						: { frameCount: optionalNumberArg(args, "frameCount") }),
 				},
 			});
+		case "build_video_quality_report":
+			return [
+				"scripts/codex-bridge.mjs",
+				"build-video-quality-report",
+				"--project-id",
+				projectId,
+				"--plan-json-file",
+				requireStringArg(args, "planJsonFile"),
+				"--start-time",
+				requireNumberArg(args, "startTime"),
+				"--end-time",
+				requireNumberArg(args, "endTime"),
+				"--frame-count",
+				requireNumberArg(args, "frameCount"),
+			];
 		case "get_transcript":
 			return buildSendArgs({
 				projectId,

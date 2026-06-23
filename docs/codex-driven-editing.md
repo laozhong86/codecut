@@ -543,11 +543,17 @@ After application, Codex must verify `get_timeline_state` proof fields:
     final EditPlan with the matching `captionStyle`.
 26. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the final
     strict plan.
-27. Codex calls `verify-timeline` and `get_timeline_state` to verify clips,
-    text style, audio source and volume, and video transitions.
+27. Codex calls `verify-timeline`, `get_timeline_state`, and
+    `build-video-quality-report` to verify clips, text style, audio source and
+    volume, video transitions, and sampled composited frames.
     This readback must include the expected video track clip count, text track
     caption count, timeline duration, and clip trim ranges before the edit can
     be reported as complete.
+    `build-video-quality-report` is a P0 structural quality gate for EditPlan
+    validation, title/caption readback, text bounds, transition readback, and a
+    contact sheet. It must report OCR, face detection, subject-safe crop, and
+    burned-caption detection as unavailable or conservative unknown unless a
+    later tool returns those facts explicitly.
 28. Codex writes verification notes under `06-verification/`.
 29. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
 30. If export is requested, Codex calls `export` with explicit output path and overwrite policy. If the local renderer runtime is unavailable, report that runtime gap.
@@ -587,7 +593,8 @@ When the request includes one absolute local media file and a concrete target su
 18. For EditPlan templates with captions, run `build-post-cut-captions`, then
     validate, preview, and apply the final EditPlan v1 with captions.
 19. For `narrated-broll`, apply the final strict NarratedRemixPlan v1.
-20. Verify with `verify-timeline` and `get_timeline_state`.
+20. Verify with `verify-timeline`, `get_timeline_state`, and
+    `build-video-quality-report`.
 21. Keep the opened editor URL available for human preview.
 
 Do not spend the first turn auditing all skill references. Read only the workflow document and the matching recipe unless an implementation or validation failure requires deeper reference lookup.
@@ -754,6 +761,17 @@ node scripts/codex-bridge.mjs send \
   --project-id <id> \
   --tool get_timeline_state \
   --args-json '{}'
+```
+
+Build an EditPlan quality report without mutating the timeline:
+
+```bash
+node scripts/codex-bridge.mjs build-video-quality-report \
+  --project-id <id> \
+  --plan-json-file /absolute/path/edit-plan.json \
+  --start-time 0 \
+  --end-time 6 \
+  --frame-count 4
 ```
 
 Create a text-background masked effect from an existing person-mask derived asset:

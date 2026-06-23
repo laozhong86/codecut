@@ -21,6 +21,7 @@ describe("Codecut MCP server contract", () => {
 			"build_visual_context",
 			"inspect_video_range",
 			"inspect_timeline",
+			"build_video_quality_report",
 			"get_transcript",
 			"build_post_cut_captions",
 			"list_models",
@@ -533,6 +534,28 @@ describe("Codecut MCP server contract", () => {
 			"inspect_timeline",
 			"--args-json",
 			JSON.stringify({ startTime: 1, endTime: 3, frameCount: 4 }),
+		]);
+		expect(
+			buildBridgeCliArgs("build_video_quality_report", {
+				projectId: "project-1",
+				planJsonFile: "/tmp/edit-plan.json",
+				startTime: 0,
+				endTime: 3,
+				frameCount: 4,
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"build-video-quality-report",
+			"--project-id",
+			"project-1",
+			"--plan-json-file",
+			"/tmp/edit-plan.json",
+			"--start-time",
+			"0",
+			"--end-time",
+			"3",
+			"--frame-count",
+			"4",
 		]);
 		expect(
 			buildBridgeCliArgs("get_transcript", {
