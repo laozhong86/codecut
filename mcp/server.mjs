@@ -297,6 +297,54 @@ const keyframePropertySchema = z.enum([
 	"transform.rotate",
 ]);
 
+export const CODECUT_TOOL_GOVERNANCE_CATEGORIES = Object.freeze({
+	EVIDENCE_READ: "evidence_read",
+	PLAN_EXECUTION: "plan_execution",
+	ADVANCED_REPAIR: "advanced_repair",
+	ASSET_SIDE_EFFECT: "asset_side_effect",
+	EXTERNAL_SIDE_EFFECT: "external_side_effect",
+});
+
+const codecutToolGovernanceCategoryByName = new Map([
+	["get_project_info", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["list_media_assets", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["transcribe_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["build_video_context", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["build_visual_context", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["inspect_video_range", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["inspect_timeline", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["build_video_quality_report", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["get_transcript", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["build_post_cut_captions", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["get_timeline_state", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["get_timeline_state_v2", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["validate_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
+	["preview_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
+	["apply_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
+	["apply_narrated_remix_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
+	["verify_timeline", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
+	["add_texts", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["add_captions", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["insert_clips", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["move_clips", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["remove_clips", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["split_clip", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["set_clip_properties", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["set_keyframes", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["ripple_delete_ranges", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["create_text_background_effect", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["create_human_pip_effect", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["import_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
+	["import_system_template_script", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
+	["delete_system_template_script", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
+	["export_project", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
+	["generate_digital_human", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
+	["generate_runninghub_voice_design", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
+	["generate_runninghub_voice_clone", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
+]);
+
 export const CODECUT_MCP_TOOLS = [
 	{
 		name: "get_project_info",
@@ -762,7 +810,16 @@ export const CODECUT_MCP_TOOLS = [
 		},
 		readOnly: true,
 	},
-];
+].map((tool) => {
+	const governanceCategory = codecutToolGovernanceCategoryByName.get(tool.name);
+	if (!governanceCategory) {
+		throw new Error(`Missing Codecut MCP tool governance category: ${tool.name}`);
+	}
+	return {
+		...tool,
+		governanceCategory,
+	};
+});
 
 export const CODECUT_WORKSPACE_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace.html`;
 
@@ -2284,6 +2341,9 @@ export function createCodecutMcpServer() {
 						tool.name === "export_project",
 					idempotentHint: tool.readOnly,
 					openWorldHint: false,
+				},
+				_meta: {
+					"codecut/governanceCategory": tool.governanceCategory,
 				},
 			},
 			async (input) => callBridgeCliTool(tool.name, input),

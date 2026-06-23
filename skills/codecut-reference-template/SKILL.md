@@ -11,6 +11,17 @@ Reference templates are planning data for Codex. They do not replace
 requirement intake, material evidence, strict EditPlan/NarratedRemixPlan
 validation, executor apply, or `get_timeline_state` readback.
 
+## Stage Ownership
+
+This skill owns reference-derived template evidence, draft structure, import
+confirmation, and later template-application constraints. It does not own
+requirement intake, source-material ingest, executor readiness, timeline
+mutation, or final readback.
+
+Draft files are provenance and proposal artifacts. A reusable template becomes
+truth only after the user confirms the exact draft and `codecut-executor-apply`
+imports it with `confirmedByUser: true`.
+
 Generated files are drafts. The Codecut system template library, visible in the
 Templates UI and injected into the agent system prompt, is the source of truth
 after import. Do not treat a previous `local-template-script.json` file in a
@@ -64,7 +75,7 @@ from visual mood alone.
    draft that is not import-ready.
 4. Extract only reusable decisions:
    - opening hook pattern
-   - narration/caption copy architecture and claim progression
+   - narration and caption copy structure, including claim progression
    - story or proof sequence
    - pacing and approximate beat lengths
    - cut density and transition policy
@@ -90,12 +101,9 @@ When the user explicitly confirms the draft:
 
 1. Re-read the exact `local-template-script.json` path being imported.
 2. Validate it against `references/template-script-contract.md`.
-3. Use `codecut-executor-apply` for bridge readiness and run:
-
-   ```bash
-   node scripts/codex-bridge.mjs import-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true
-   ```
-
+3. Use `codecut-executor-apply` for bridge readiness and import through
+   `import_system_template_script` / `import-system-template-script` with
+   `confirmedByUser: true`.
 4. Treat the imported Codecut system template as the reusable truth. The draft
    file remains only provenance and must not override the system template later.
 

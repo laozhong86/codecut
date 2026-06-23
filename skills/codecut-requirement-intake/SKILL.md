@@ -11,6 +11,17 @@ Requirement intake is a blocking gate for new Codecut editing jobs.
 
 Before `create-project`, `import-media`, `transcribe`, `build-video-context`, `apply-plan`, or `apply_edit_plan`, classify the request and decide whether the user's intent is confirmed enough to execute.
 
+## Stage Ownership
+
+This skill owns only the permission decision for entering Codecut editing
+execution. It checks whether user intent is confirmed enough to proceed, records
+explicit answers separately from assumptions, and chooses the next stage.
+
+It does not download source media, create executor projects, import media,
+write EditPlans, choose clip ranges, apply templates, mutate the timeline, or
+verify finished edits. Use `codecut-material-ingest` for material facts and
+`codecut-executor-apply` for executor commands after this gate passes.
+
 ## Hard Stop
 
 If two or more key fields are missing, stop and ask. Do not continue with defaults.

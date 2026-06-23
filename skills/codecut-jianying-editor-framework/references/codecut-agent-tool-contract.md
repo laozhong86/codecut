@@ -6,6 +6,16 @@ This reference separates the current implemented Codex-only MVP from future prod
 
 The current executable path is documented in `../../docs/codex-driven-editing.md` and implemented through `scripts/codex-bridge.mjs`.
 
+MCP exposes tool-level `codecut/governanceCategory` metadata:
+
+| Category | Agent meaning |
+| --- | --- |
+| `evidence_read` | Read project, media, transcript, visual, quality, model, search, or timeline evidence. |
+| `plan_execution` | Validate, preview, apply, or verify strict plan contracts. This is the normal generated-edit path. |
+| `advanced_repair` | Low-level timeline repair or deterministic effect action after readback or explicit user intent; not the default generated-edit path. |
+| `asset_side_effect` | Import or delete media/template state outside timeline planning. |
+| `external_side_effect` | Export or provider-backed generation with explicit output or API side effects. |
+
 Implemented bridge tools relevant to Codex-driven editing:
 
 | Tool | Current purpose |

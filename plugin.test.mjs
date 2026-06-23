@@ -6,6 +6,23 @@ import { fileURLToPath } from "node:url";
 const pluginRoot = dirname(fileURLToPath(import.meta.url));
 
 describe("Codecut plugin startup guidance", () => {
+	test("keeps the framework skill as the single default plugin entrypoint", async () => {
+		const pluginManifest = JSON.parse(
+			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
+		);
+		const startupPrompt = pluginManifest.interface.defaultPrompt.join("\n");
+
+		expect(startupPrompt).toContain("$codecut-jianying-editor-framework");
+		for (const stageSkill of [
+			"$codecut-requirement-intake",
+			"$codecut-material-ingest",
+			"$codecut-executor-apply",
+			"$codecut-reference-template",
+		]) {
+			expect(startupPrompt).not.toContain(stageSkill);
+		}
+	});
+
 	test("declares a local web server app for the Codecut preview", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
@@ -87,14 +104,13 @@ describe("Codecut plugin startup guidance", () => {
 		expect(skill).not.toContain("View -> Open Browser Tab");
 	});
 
-	test("documents apps/web env loading for bridge commands", async () => {
-		const skill = await readFile(
-			join(
-				pluginRoot,
-				"skills",
-				"codecut-jianying-editor-framework",
-				"SKILL.md",
-			),
+	test("keeps bridge env command details on the executor surface", async () => {
+		const executorSkill = await readFile(
+			join(pluginRoot, "skills", "codecut-executor-apply", "SKILL.md"),
+			"utf8",
+		);
+		const frameworkSkill = await readFile(
+			join(pluginRoot, "skills", "codecut-jianying-editor-framework", "SKILL.md"),
 			"utf8",
 		);
 		const workflowDocs = await readFile(
@@ -102,10 +118,45 @@ describe("Codecut plugin startup guidance", () => {
 			"utf8",
 		);
 
-		for (const content of [skill, workflowDocs]) {
+		for (const content of [executorSkill, workflowDocs]) {
 			expect(content).toContain("apps/web/.env.local");
 			expect(content).toContain("source apps/web/.env.local");
 		}
+		expect(frameworkSkill).toContain("Use `codecut-executor-apply`");
+	});
+
+	test("documents stage ownership and import confirmation boundaries", async () => {
+		const frameworkSkill = await readFile(
+			join(pluginRoot, "skills", "codecut-jianying-editor-framework", "SKILL.md"),
+			"utf8",
+		);
+		const requirementIntake = await readFile(
+			join(pluginRoot, "skills", "codecut-requirement-intake", "SKILL.md"),
+			"utf8",
+		);
+		const materialIngest = await readFile(
+			join(pluginRoot, "skills", "codecut-material-ingest", "SKILL.md"),
+			"utf8",
+		);
+		const executorApply = await readFile(
+			join(pluginRoot, "skills", "codecut-executor-apply", "SKILL.md"),
+			"utf8",
+		);
+		const referenceTemplate = await readFile(
+			join(pluginRoot, "skills", "codecut-reference-template", "SKILL.md"),
+			"utf8",
+		);
+
+		expect(frameworkSkill).toContain("## Governance Layers");
+		expect(frameworkSkill).toContain("## Required Stage Routing");
+		expect(frameworkSkill).toContain("advanced repair tools");
+		expect(frameworkSkill).toContain("strict EditPlan or");
+		expect(requirementIntake).toContain("## Stage Ownership");
+		expect(requirementIntake).toContain("owns only the permission decision");
+		expect(materialIngest).toContain("owns source material facts only");
+		expect(executorApply).toContain("owns executor readiness and execution");
+		expect(referenceTemplate).toContain("owns reference-derived template evidence");
+		expect(referenceTemplate).toContain("confirmedByUser: true");
 	});
 
 	test("requires visual preflight for horizontal sources converted to vertical shorts", async () => {

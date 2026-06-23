@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import {
 	CODECUT_MCP_TOOLS,
+	CODECUT_TOOL_GOVERNANCE_CATEGORIES,
 	buildBridgeCliArgs,
 	callBridgeCliTool,
 	normalizeCliResult,
@@ -97,6 +98,71 @@ describe("Codecut MCP server contract", () => {
 		expect(readOnlyByTool.get("add_texts")).toBe(false);
 		expect(readOnlyByTool.get("add_captions")).toBe(false);
 		expect(readOnlyByTool.get("set_keyframes")).toBe(false);
+	});
+
+	test("classifies MCP tools by governance surface", () => {
+		const categoryByTool = new Map(
+			CODECUT_MCP_TOOLS.map((tool) => [tool.name, tool.governanceCategory]),
+		);
+
+		for (const tool of CODECUT_MCP_TOOLS) {
+			expect(Object.values(CODECUT_TOOL_GOVERNANCE_CATEGORIES)).toContain(
+				tool.governanceCategory,
+			);
+		}
+
+		for (const toolName of [
+			"get_project_info",
+			"list_media_assets",
+			"build_video_context",
+			"build_visual_context",
+			"inspect_timeline",
+			"get_timeline_state",
+			"get_timeline_state_v2",
+		]) {
+			expect(categoryByTool.get(toolName)).toBe(
+				CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
+			);
+		}
+
+		for (const toolName of [
+			"validate_edit_plan",
+			"preview_edit_plan",
+			"apply_edit_plan",
+			"apply_narrated_remix_plan",
+			"verify_timeline",
+		]) {
+			expect(categoryByTool.get(toolName)).toBe(
+				CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION,
+			);
+		}
+
+		for (const toolName of [
+			"add_texts",
+			"add_captions",
+			"insert_clips",
+			"move_clips",
+			"remove_clips",
+			"split_clip",
+			"set_clip_properties",
+			"set_keyframes",
+			"ripple_delete_ranges",
+		]) {
+			expect(categoryByTool.get(toolName)).toBe(
+				CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR,
+			);
+		}
+
+		for (const toolName of [
+			"generate_digital_human",
+			"generate_runninghub_voice_design",
+			"generate_runninghub_voice_clone",
+			"export_project",
+		]) {
+			expect(categoryByTool.get(toolName)).toBe(
+				CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
+			);
+		}
 	});
 
 	test("defines a versioned workspace widget resource and tools", async () => {
