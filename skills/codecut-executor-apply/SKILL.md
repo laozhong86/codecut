@@ -76,6 +76,10 @@ Verify:
 
 Use `verify-timeline` and `get_timeline_state` from the docs.
 
+Before any long render or `export_project`, rerun `doctor-install` and
+`doctor`. Do not begin the render if source-to-cache sync, bridge env, service,
+or executor readiness is stale.
+
 For fresh-session spokenScript/readback acceptance on an existing scripted
 project, run the read-only smoke command with explicit expected evidence:
 

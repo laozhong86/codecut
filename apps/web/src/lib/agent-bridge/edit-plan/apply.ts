@@ -160,30 +160,36 @@ function getAspectRatioDimensions({
 	return { width: 16, height: 9 };
 }
 
+function requireSourceDimension({
+	value,
+	label,
+}: {
+	value: number | undefined;
+	label: string;
+}): number {
+	if (typeof value !== "number" || value <= 0) {
+		throw new Error(`EditPlan cover fit requires source media ${label}.`);
+	}
+	return value;
+}
+
 function getCoverTransform({
-	sourceMedia,
+	sourceWidth,
+	sourceHeight,
 	aspectRatio,
 }: {
-	sourceMedia: MediaAsset;
+	sourceWidth: number;
+	sourceHeight: number;
 	aspectRatio: EditPlan["target"]["aspectRatio"];
 }): Transform {
-	if (
-		typeof sourceMedia.width !== "number" ||
-		sourceMedia.width <= 0 ||
-		typeof sourceMedia.height !== "number" ||
-		sourceMedia.height <= 0
-	) {
-		throw new Error("EditPlan cover fit requires source media dimensions.");
-	}
-
 	const target = getAspectRatioDimensions({ aspectRatio });
 	const containScale = Math.min(
-		target.width / sourceMedia.width,
-		target.height / sourceMedia.height,
+		target.width / sourceWidth,
+		target.height / sourceHeight,
 	);
 	const coverScale = Math.max(
-		target.width / sourceMedia.width,
-		target.height / sourceMedia.height,
+		target.width / sourceWidth,
+		target.height / sourceHeight,
 	);
 	return {
 		scale: coverScale / containScale,
@@ -215,6 +221,27 @@ function createClipElement({
 		};
 	}
 
+	const transform =
+		clip.sourceCrop !== undefined
+			? getCoverTransform({
+					sourceWidth: clip.sourceCrop.width,
+					sourceHeight: clip.sourceCrop.height,
+					aspectRatio: plan.target.aspectRatio,
+				})
+			: clip.fit === "cover"
+				? getCoverTransform({
+						sourceWidth: requireSourceDimension({
+							value: sourceMedia.width,
+							label: "width",
+						}),
+						sourceHeight: requireSourceDimension({
+							value: sourceMedia.height,
+							label: "height",
+						}),
+						aspectRatio: plan.target.aspectRatio,
+					})
+				: undefined;
+
 	return {
 		...buildVideoElement({
 			mediaId: plan.sourceMediaId,
@@ -222,14 +249,8 @@ function createClipElement({
 			duration,
 			startTime: clip.timelineStart,
 		}),
-		...(clip.fit === "cover"
-			? {
-					transform: getCoverTransform({
-						sourceMedia,
-						aspectRatio: plan.target.aspectRatio,
-					}),
-				}
-			: {}),
+		...(transform ? { transform } : {}),
+		...(clip.sourceCrop ? { sourceCrop: clip.sourceCrop } : {}),
 		trimStart: clip.sourceStart,
 		trimEnd: clip.sourceEnd,
 	};

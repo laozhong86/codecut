@@ -1,4 +1,5 @@
 import type { TextRichSpan, TextStroke } from "@/types/timeline";
+import { breakCaptionTextIntoLineRanges } from "@/lib/caption-line-breaking";
 
 export interface TextRunStyle {
 	color?: string;
@@ -116,6 +117,63 @@ function appendChar({
 	runs.push({ text: char, style });
 }
 
+function measureStyledRange({
+	chars,
+	start,
+	end,
+	richSpans,
+	measureText,
+}: {
+	chars: string[];
+	start: number;
+	end: number;
+	richSpans: TextRichSpan[];
+	measureText: (text: string, style: TextRunStyle) => number;
+}): number {
+	let width = 0;
+	let currentText = "";
+	let currentStyle: TextRunStyle | undefined;
+	const flush = () => {
+		if (!currentText || !currentStyle) return;
+		width += measureText(currentText, currentStyle);
+		currentText = "";
+		currentStyle = undefined;
+	};
+
+	for (let index = start; index < end; index += 1) {
+		const style = getStyleAt({ index, richSpans });
+		if (currentStyle && !sameStyle(currentStyle, style)) {
+			flush();
+		}
+		currentStyle = style;
+		currentText += chars[index];
+	}
+	flush();
+	return width;
+}
+
+function buildRunsForRange({
+	chars,
+	start,
+	end,
+	richSpans,
+}: {
+	chars: string[];
+	start: number;
+	end: number;
+	richSpans: TextRichSpan[];
+}): TextLayoutRun[] {
+	const runs: TextLayoutRun[] = [];
+	for (let index = start; index < end; index += 1) {
+		appendChar({
+			runs,
+			char: chars[index],
+			style: getStyleAt({ index, richSpans }),
+		});
+	}
+	return runs;
+}
+
 export function createTextLayout({
 	content,
 	richSpans,
@@ -129,43 +187,23 @@ export function createTextLayout({
 }): TextLayout {
 	validateTextRichSpans({ content, richSpans });
 
-	const lines: TextLayoutLine[] = [];
-	let currentRuns: TextLayoutRun[] = [];
-	let currentWidth = 0;
 	const chars = Array.from(content);
-
-	const pushLine = () => {
-		lines.push({ runs: currentRuns, width: currentWidth });
-		currentRuns = [];
-		currentWidth = 0;
-	};
-
-	for (let index = 0; index < chars.length; index += 1) {
-		const char = chars[index];
-		if (char === "\n") {
-			pushLine();
-			continue;
-		}
-
-		const style = getStyleAt({ index, richSpans });
-		const charWidth = measureText(char, style);
-		const nextWidth = currentWidth + charWidth;
-		if (
-			maxWidth !== undefined &&
-			maxWidth > 0 &&
-			nextWidth > maxWidth &&
-			currentRuns.length > 0
-		) {
-			pushLine();
-		}
-
-		appendChar({ runs: currentRuns, char, style });
-		currentWidth += charWidth;
-	}
-
-	if (currentRuns.length > 0 || lines.length === 0) {
-		pushLine();
-	}
+	const ranges = breakCaptionTextIntoLineRanges({
+		text: content,
+		maxWidth,
+		measureRange: (start, end) =>
+			measureStyledRange({ chars, start, end, richSpans, measureText }),
+		strictCjkOrphanLastLine: false,
+	});
+	const lines: TextLayoutLine[] = ranges.map((range) => ({
+		width: range.width,
+		runs: buildRunsForRange({
+			chars,
+			start: range.start,
+			end: range.end,
+			richSpans,
+		}),
+	}));
 
 	return { lines };
 }

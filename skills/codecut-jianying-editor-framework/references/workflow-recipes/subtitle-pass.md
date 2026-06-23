@@ -33,6 +33,9 @@ surface:
   layout constraint, not an editable caption source. Use `inspect_video_range` or
   visual preflight when placement is uncertain, then confirm the policy choice:
   preserve, replace, translation overlay, or avoid the old subtitle region.
+  When the old subtitle band can be removed by a fixed source rectangle, use
+  EditPlan `sourceCrop` on video clips and keep new captions as editable text
+  track elements.
 - Unclear subtitle source: stop and ask for confirmation before generating new
   captions.
 
@@ -122,6 +125,14 @@ node scripts/codex-bridge.mjs build-video-quality-report \
 
 Stop if `layout.captionLines` fails. Fix the caption text or selected preset,
 then re-apply the final EditPlan and re-run the report.
+
+If burned-in source subtitles require a crop that current EditPlan `sourceCrop`
+cannot express, do not silently generate a fallback. Present two choices:
+A. stop at the runtime gap and wait for native capability; B. create a one-time
+fallback MP4. If B is chosen, document the fallback reason, exact command,
+verification result, and limitations in the project docs. Baked subtitles are
+not editable text tracks, and `build_video_quality_report` cannot validate them
+as timeline caption elements.
 
 Do not add a hidden one-step caption mutation command. A future convenience
 command may be named `caption-edit-plan`, but it must output a final EditPlan

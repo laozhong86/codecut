@@ -55,6 +55,14 @@ export interface Transform {
 	flipY?: boolean;
 }
 
+export interface SourceCrop {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	fit?: "cover-to-canvas";
+}
+
 export type KeyframeInterpolation = "linear" | "hold";
 
 export interface ScalarKeyframe {
@@ -144,6 +152,7 @@ export interface VideoElement extends BaseTimelineElement {
 	hidden?: boolean;
 	transform: Transform;
 	opacity: number;
+	sourceCrop?: SourceCrop;
 	playbackRate?: number;
 	reversed?: boolean;
 }

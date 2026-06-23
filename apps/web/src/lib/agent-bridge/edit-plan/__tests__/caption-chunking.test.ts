@@ -76,4 +76,17 @@ describe("buildPostCutCaptionEntries", () => {
 			expect(Array.from(caption.text).length).toBeLessThanOrEqual(8);
 		}
 	});
+
+	test("prefers Chinese word boundaries over balanced character splits", () => {
+		const captions = buildPostCutCaptionEntries({
+			text: "如果你和公司坐在一张桌子上",
+			startTime: 0,
+			endTime: 2,
+		});
+
+		expect(captions.map((caption) => caption.text)).toEqual([
+			"如果你和公司",
+			"坐在一张桌子上",
+		]);
+	});
 });

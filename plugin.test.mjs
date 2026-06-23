@@ -224,6 +224,7 @@ describe("Codecut plugin startup guidance", () => {
 		expect(requirementIntake).toContain("owns only the permission decision");
 		expect(materialIngest).toContain("owns source material facts only");
 		expect(executorApply).toContain("owns executor readiness and execution");
+		expect(executorApply).toContain("Before any long render or `export_project`");
 		expect(referenceTemplate).toContain("owns reference-derived template evidence");
 		expect(referenceTemplate).toContain("confirmedByUser: true");
 	});
@@ -264,8 +265,9 @@ describe("Codecut plugin startup guidance", () => {
 		expect(videoContext).toContain("recommendedReframeTemplate");
 		expect(videoContext).toContain("captionPolicy");
 		expect(editPlanSchema).toContain("source crop");
+		expect(editPlanSchema).toContain("visual.sourceCrop");
 		expect(editPlanSchema).toContain(
-			"stop and report the runtime gap instead of hiding the problem with captions",
+			"Generate a one-time fallback MP4 outside editable timeline semantics",
 		);
 	});
 

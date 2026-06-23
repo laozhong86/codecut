@@ -60,9 +60,9 @@ If transcript is unavailable for speech-led content, stop and report the missing
    - do not treat this as OCR, scene detection, face tracking, or full visual preflight.
 15. For vertical or square output from a landscape source, run visual preflight before clip planning when the decision requires crop/caption policy proof beyond contact-sheet evidence:
    - classify whether the source is a plain talking head, a talking head with bottom burned-in captions, a screen recording, or mixed B-roll.
-   - choose the reframe policy before caption placement. For talking-head footage where the face can remain large and the old subtitle band can be removed by reframing, use `vertical_face_safe_crop_above_burned_captions`.
+   - choose the reframe policy before caption placement. When visual preflight recommends `vertical_face_safe_crop_above_burned_captions` and the old subtitle band can be removed by a fixed rectangle, use EditPlan `clips[].sourceCrop`.
    - Do not use `black-bar` as a subtitle mask to cover source subtitles.
-   - If the chosen policy requires source crop, face anchor, or per-clip transform fields outside current EditPlan v1, stop and report the runtime gap instead of hiding the problem with captions.
+   - If the chosen policy requires a face anchor, animated crop, arbitrary transform, or any reframe outside current EditPlan v1 `sourceCrop`, stop and present two choices: A. wait at the runtime gap; B. generate a one-time fallback MP4 with non-editable baked output.
 16. If the user asks to remove filler, restarts, repeated setup, or dead air, generate a strict SpeechCleanupPlan v2 and project it with `rebuildTimelineFromSpeechCleanup({ captionMode: "clip-only" })` before applying when post-cut captions are available; use `captionMode: "source-transcript-remap"` only when source transcript remap is the declared caption source.
 17. Otherwise, select candidate clips with a clear role: hook, pain, proof, process, value, trust, objection, CTA, or tutorial step.
 18. Score each viable candidate in the ledger, using short labels rather than numeric precision:
@@ -100,7 +100,7 @@ If transcript is unavailable for speech-led content, stop and report the missing
 - Aspect ratio: 9:16 when the user asks for TikTok, Reels, Shorts, or short video. Apply it through `update_project_settings`; do not treat the EditPlan target field as execution proof.
 - Captions: concise transcript-derived captions only after the cut is stable.
 - Speech cleanup: `dropReason` and `risk: "low" | "high"` are required for `drop` decisions and forbidden for `keep` decisions. High-risk drops require `retainedMeaningEvidence`. Filler counts come only from `dropReason: "filler"`, not marker words inside kept text.
-- Landscape-to-vertical reframe: prefer centered `cover` only when visual preflight proves the subject and burned-in captions are safe. Use `vertical_face_safe_crop_above_burned_captions` as the planning template for talking-head sources where the old bottom caption band should be cropped out.
+- Landscape-to-vertical reframe: prefer centered `cover` only when visual preflight proves the subject and burned-in captions are safe. Use `sourceCrop` for talking-head sources where a fixed source rectangle can crop out the old bottom caption band while preserving the subject.
 - Caption policy: new captions must avoid old burned-in captions; Do not use `black-bar` as a subtitle mask.
 
 ## Stop Conditions
@@ -109,7 +109,7 @@ If transcript is unavailable for speech-led content, stop and report the missing
 - Executor readiness check fails.
 - No source media and no absolute local path.
 - Transcript required but unavailable.
-- Landscape-to-vertical output requires a source crop or face anchor that current EditPlan v1 cannot express.
+- Landscape-to-vertical output requires a face anchor, animated crop, arbitrary transform, or source crop that current EditPlan v1 `sourceCrop` cannot express.
 - The requested style requires fields outside current EditPlan v1, such as speed, effects, BGM, or overlays.
 - No candidate clip passes standalone coherence for the requested short.
 - Product-proof, tutorial, or platform-crop goals require visual or business evidence that is not available.
@@ -117,3 +117,9 @@ If transcript is unavailable for speech-led content, stop and report the missing
 ## Report Back
 
 Return the project ID, selected media, selected structure summary, why the chosen candidates beat rejected alternatives, clip count, final duration, caption count, and the exact verification command/result.
+
+If the user chooses a one-time fallback MP4 for an unsupported reframe, write a
+project note with the fallback reason, exact command, verification result, and
+limitations: baked subtitles are not editable text tracks, and
+`build_video_quality_report` cannot validate baked caption pixels as timeline
+captions.

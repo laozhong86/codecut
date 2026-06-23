@@ -21,6 +21,13 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
     sourceEnd: number,
     timelineStart: number,
     fit?: "cover",
+    sourceCrop?: {
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      fit?: "cover-to-canvas"
+    },
     reason: string
   }>,
   title?: {
@@ -107,6 +114,12 @@ Current validation fail-fast checks include:
 - every clip range must fit inside source media duration.
 - `clips[].fit` only accepts `cover`, requires video source media, and requires
   known source `width` and `height`.
+- `clips[].sourceCrop` is the only implemented explicit source crop. It is
+  allowed only for video source media with known source `width` and `height`.
+  The rectangle must stay inside source dimensions, `width` and `height` must
+  be positive, and the crop aspect ratio must match `target.aspectRatio` unless
+  `sourceCrop.fit` is explicitly `cover-to-canvas`.
+- `clips[].sourceCrop` cannot be combined with `clips[].fit`.
 - total clip duration must stay within the target tolerance.
 - title and captions must fit inside the generated timeline.
 - captions must use top-level `captionStyle`; per-caption style objects are not
@@ -137,14 +150,26 @@ segment timestamps into output timeline timestamps through the selected
 `captions[].startTime`.
 
 `clips[].fit: "cover"` creates a centered cover crop by converting source and
-target aspect ratios into `visual.transform.scale`. It is the only implemented
-clip fit value and is readable through `get_timeline_state`.
+target aspect ratios into `visual.transform.scale`. It is readable through
+`get_timeline_state`.
 
-Centered `cover` is not an explicit source crop. It cannot guarantee removal of
-bottom burned-in captions and it cannot follow a face anchor. If visual
-preflight selects `vertical_face_safe_crop_above_burned_captions`, the current
-runtime needs a future source crop or anchored reframe field; stop and report the runtime gap instead of hiding the problem with captions. Do not invent
-arbitrary crop, anchor, x/y, or transform fields in the current EditPlan v1.
+Use `clips[].sourceCrop` when visual evidence supports a fixed source rectangle
+that removes burned-in subtitle pixels before adding new editable text
+captions. After applying, `get_timeline_state` must expose
+`visual.sourceCrop`; native `export_project` must be used for MP4 output.
+
+`sourceCrop` is not a face tracker, anchor system, arbitrary transform, or
+multi-step fallback. If the needed reframe cannot be represented as the
+implemented rectangle plus optional `cover-to-canvas`, do not hide the problem
+with captions. Present exactly two options:
+
+1. Stop at the runtime gap and wait for Codecut native capability.
+2. Generate a one-time fallback MP4 outside editable timeline semantics.
+
+If option 2 is chosen, the project documentation must record the fallback
+reason, exact command, verification result, and limitations: baked subtitles are
+not editable text tracks and `build_video_quality_report` cannot inspect baked
+caption pixels as timeline captions.
 
 Do not include `intent`, `strategy`, `overlays`, `acceptanceChecks`, `speed`,
 `anchor`, arbitrary transform objects, arbitrary style objects, external audio
