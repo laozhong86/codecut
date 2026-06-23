@@ -121,6 +121,8 @@ describe("Codecut MCP server contract", () => {
 			"WORKSPACE_I18N",
 			"navigator.language",
 			"项目名称",
+			'class="section-heading"',
+			'aria-labelledby="project-section-title"',
 			'id="project-name"',
 			'id="project-id"',
 			'id="media-file-path"',
@@ -136,6 +138,7 @@ describe("Codecut MCP server contract", () => {
 		]) {
 			expect(html).toContain(marker);
 		}
+		expect(html).not.toContain("<legend");
 	});
 
 	test("opens the workspace with structured defaults and widget metadata", () => {
