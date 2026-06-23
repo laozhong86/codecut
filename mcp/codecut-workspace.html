@@ -351,6 +351,8 @@
             removeMediaSource: "Remove source",
             selectedFiles: "Selected files",
             selectedFilesNeedAbsolutePath: "Selected files were added below. If a path is not absolute, paste the full local path before inspecting.",
+            selectedHostFilesAdded: "Host library files were added as HTTPS URLs.",
+            hostFilePickerFailed: "Selected host files could not be resolved. Choose local files or paste absolute paths.",
             filePathPlaceholder: "/Users/me/Movies/source.mp4",
             urlPlaceholder: "https://example.com/source.mp4",
             mimeType: "MIME type",
@@ -422,6 +424,8 @@
             removeMediaSource: "移除素材",
             selectedFiles: "已选择文件",
             selectedFilesNeedAbsolutePath: "已把选择的文件加入下方素材列表。如果路径不是绝对路径，请先补全本地完整路径再检查。",
+            selectedHostFilesAdded: "已把宿主文件库素材作为 HTTPS 链接加入下方列表。",
+            hostFilePickerFailed: "无法解析宿主选择的文件。请选择本地文件，或粘贴绝对文件路径。",
             filePathPlaceholder: "/Users/x/Movies/source.mp4",
             urlPlaceholder: "https://example.com/source.mp4",
             mimeType: "MIME 类型",
@@ -692,10 +696,105 @@
           }
         }
 
+        function selectedFileName(file) {
+          return file?.name || file?.fileName || file?.file_name || pickedFilePath(file);
+        }
+
+        function hostFileId(file) {
+          return file?.fileId || file?.file_id || "";
+        }
+
+        function hostMimeType(file) {
+          return file?.mimeType || file?.mime_type || "";
+        }
+
+        function isAbsoluteFilePath(value) {
+          const filePath = String(value || "").trim();
+          return filePath.startsWith("/") || /^[A-Za-z]:[\\/]/.test(filePath);
+        }
+
+        function resolvedDownloadUrl(result) {
+          if (typeof result === "string") return result.trim();
+          return String(result?.downloadUrl || result?.download_url || result?.url || "").trim();
+        }
+
+        async function resolveHostSelectedFile(file, api) {
+          const filePath = pickedFilePath(file);
+          if (isAbsoluteFilePath(filePath)) {
+            return { kind: "filePath", filePath };
+          }
+
+          const fileId = hostFileId(file);
+          if (!fileId || typeof api.getFileDownloadUrl !== "function") {
+            return null;
+          }
+
+          const download = await api.getFileDownloadUrl({ fileId });
+          const url = resolvedDownloadUrl(download);
+          if (!/^https:\/\//i.test(url)) {
+            throw new Error(t("hostFilePickerFailed"));
+          }
+          return {
+            kind: "url",
+            url,
+            mimeType: hostMimeType(file) || "video/mp4",
+          };
+        }
+
+        async function handleHostSelectedFiles(result, api) {
+          const files = Array.isArray(result) ? result : result?.files;
+          const normalizedFiles = Array.from(files || []);
+          if (!normalizedFiles.length) return false;
+          const mediaSources = [];
+          for (const file of normalizedFiles) {
+            const mediaSource = await resolveHostSelectedFile(file, api);
+            if (!mediaSource) return false;
+            mediaSources.push(mediaSource);
+          }
+          const names = normalizedFiles.map((file) => selectedFileName(file)).filter(Boolean);
+          const addedHostUrls = mediaSources.some((mediaSource) => mediaSource.kind === "url");
+          fields.filePickerSelection.textContent = names.length
+            ? `${t("selectedFiles")}: ${names.join(", ")}. ${addedHostUrls ? t("selectedHostFilesAdded") : t("selectedFilesNeedAbsolutePath")}`
+            : "";
+          for (const mediaSource of mediaSources) {
+            appendMediaSourceRow(mediaSource);
+          }
+          invalidateInspection();
+          return true;
+        }
+
+        async function openHostFilePicker() {
+          const api = window.openai || {};
+          if (typeof api.selectFiles !== "function") {
+            fields.mediaFilePicker.click();
+            return;
+          }
+          try {
+            const result = await api.selectFiles({
+              multiple: true,
+              accept: "video/*,audio/*",
+            });
+            if (!(await handleHostSelectedFiles(result, api))) {
+              fields.mediaFilePicker.click();
+            }
+          } catch (error) {
+            fields.filePickerSelection.textContent = error instanceof Error ? error.message : String(error);
+            fields.mediaFilePicker.click();
+          }
+        }
+
         function pickedFilePath(file) {
           const filePath = file?.path;
           if (typeof filePath === "string" && filePath.trim()) {
             return filePath.trim();
+          }
+          const hostFilePath = typeof file?.filePath === "string" ? file.filePath.trim() : "";
+          if (hostFilePath) {
+            return hostFilePath;
+          }
+          const absolutePath = typeof file?.absolutePath === "string" ? file.absolutePath.trim() : "";
+          if (absolutePath) {
+            return absolutePath;
           }
           return file?.name || "";
         }
@@ -940,7 +1039,7 @@
           invalidateInspection();
         });
         fields.mediaFilePickerButton.addEventListener("click", () => {
-          fields.mediaFilePicker.click();
+          openHostFilePicker();
         });
         fields.mediaFilePicker.addEventListener("change", handlePickedFiles);
         fields.form.addEventListener("input", () => {
