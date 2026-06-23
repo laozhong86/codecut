@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { isAbsolute } from "node:path";
 import {
 	createCanvas,
 	ImageData as NodeImageData,
@@ -30,264 +32,282 @@ function buildStickerUrl({
 	return `https://api.iconify.design/${iconName}.svg?width=200&height=200${colorParam}`;
 }
 
-type NativeVideoFrame = {
-	timestamp: number;
-	duration: number | null;
-	codedWidth: number;
-	codedHeight: number;
-	displayWidth: number;
-	displayHeight: number;
-	allocationSize(options?: { format?: "RGBA" }): number;
-	copyTo(
-		destination: Uint8Array,
-		options?: { format?: "RGBA" },
-	): Promise<unknown>;
-	close(): void;
-};
-
 type CachedCanvasFrame = {
 	canvas: RendererCanvas;
 	timestampUs: number;
 	durationUs: number;
 };
 
-const FRAME_MATCH_TOLERANCE_US = 50_000;
-const FORWARD_SEEK_GAP_US = 2_000_000;
-const MIN_FRAME_DURATION_US = 1_000;
-const SEEK_PREROLL_US = 5_000_000;
+type FfmpegFrameWindow = {
+	startUs: number;
+	endUs: number;
+	frames: CachedCanvasFrame[];
+};
+
+const FFMPEG_MAX_WINDOW_FRAME_COUNT = 12;
+const FFMPEG_DECODE_TIMEOUT_MS = 30_000;
+const MAX_FFMPEG_STDERR_BYTES = 64 * 1024;
+const MAX_FFMPEG_WINDOW_BYTES = 128 * 1024 * 1024;
+
+function assertPositiveInteger(
+	value: number | undefined,
+	label: string,
+): number {
+	if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+		throw new Error(`Node renderer video decoding requires ${label}.`);
+	}
+	return value;
+}
+
+function assertPositiveFinite(
+	value: number | undefined,
+	label: string,
+): number {
+	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+		throw new Error(`Node renderer video decoding requires ${label}.`);
+	}
+	return value;
+}
+
+function assertLocalAbsoluteSourcePath({
+	sourcePath,
+	fileName,
+}: {
+	sourcePath?: string;
+	fileName: string;
+}): string {
+	if (!sourcePath || !isAbsolute(sourcePath) || sourcePath.includes("://")) {
+		throw new Error(
+			`Node renderer video decoding requires an absolute local source path for ${fileName}.`,
+		);
+	}
+	return sourcePath;
+}
+
+function formatFfmpegSeconds(value: number): string {
+	return value.toFixed(6);
+}
 
 class NodeVideoSource {
 	private file: File;
-	private loadPromise?: Promise<void>;
-	private demuxer?: {
-		loadBuffer(data: Uint8Array): Promise<void>;
-		videoDecoderConfig: unknown;
-		demuxAsync(count?: number): Promise<void>;
-		seek(timestampUs: number): void;
-		close(): void;
-		state: string;
-	};
-	private decoder?: {
-		configure(config: unknown): void;
-		decode(chunk: unknown): void;
-		flush(): Promise<void>;
-		reset(): void;
-		close(): void;
-	};
-	private videoDecoderConfig?: unknown;
-	private frames: NativeVideoFrame[] = [];
+	private sourcePath: string;
+	private width: number;
+	private height: number;
+	private frameRate: number;
+	private frameBytes: number;
+	private durationUs: number;
 	private currentFrame?: CachedCanvasFrame;
-	private lastTargetUs = 0;
-	private decoderError: Error | null = null;
-	private demuxerError: Error | null = null;
-	private ended = false;
+	private frameWindow?: FfmpegFrameWindow;
 
-	constructor({ file }: { file: File }) {
-		this.file = file;
-	}
-
-	private async ensureLoaded() {
-		if (!this.loadPromise) {
-			this.loadPromise = this.load();
-		}
-		await this.loadPromise;
-	}
-
-	private async load() {
-		const webcodecs = await import("@napi-rs/webcodecs");
-		this.decoder = new webcodecs.VideoDecoder({
-			output: (frame) => {
-				this.frames.push(frame as unknown as NativeVideoFrame);
-			},
-			error: (error) => {
-				this.decoderError = error;
-			},
-		});
-		this.demuxer = this.createDemuxer({ webcodecs });
-		const bytes = await fileToBuffer({ file: this.file });
-		await this.demuxer.loadBuffer(bytes);
-		const config = this.demuxer.videoDecoderConfig;
-		if (!config) {
-			throw new Error(
-				`Node renderer media has no video track: ${this.file.name}`,
-			);
-		}
-		this.videoDecoderConfig = config;
-		this.decoder.configure(config);
-	}
-
-	private createDemuxer({
-		webcodecs,
+	constructor({
+		file,
+		sourcePath,
+		sourceWidth,
+		sourceHeight,
+		sourceFrameRate,
 	}: {
-		webcodecs: typeof import("@napi-rs/webcodecs");
+		file: File;
+		sourcePath?: string;
+		sourceWidth?: number;
+		sourceHeight?: number;
+		sourceFrameRate?: number;
 	}) {
-		const Demuxer =
-			this.file.type === "video/webm"
-				? webcodecs.WebMDemuxer
-				: webcodecs.Mp4Demuxer;
-		return new Demuxer({
-			videoOutput: (chunk) => {
-				if (!this.decoder) {
-					throw new Error("Node renderer video decoder is not initialized.");
-				}
-				this.decoder.decode(chunk);
-			},
-			error: (error) => {
-				this.demuxerError = error;
-			},
+		this.file = file;
+		this.sourcePath = assertLocalAbsoluteSourcePath({
+			sourcePath,
+			fileName: file.name,
 		});
+		this.width = assertPositiveInteger(sourceWidth, "source width");
+		this.height = assertPositiveInteger(sourceHeight, "source height");
+		this.frameRate = assertPositiveFinite(sourceFrameRate, "source frame rate");
+		this.frameBytes = this.width * this.height * 4;
+		this.durationUs = Math.round((1 / this.frameRate) * 1_000_000);
 	}
 
-	private throwIfNativeError() {
-		if (this.decoderError) {
-			throw this.decoderError;
+	private windowFrameCount(): number {
+		const frameCount = Math.floor(MAX_FFMPEG_WINDOW_BYTES / this.frameBytes);
+		if (frameCount < 1) {
+			throw new Error("Node renderer ffmpeg decode frame is too large.");
 		}
-		if (this.demuxerError) {
-			throw this.demuxerError;
-		}
+		return Math.min(FFMPEG_MAX_WINDOW_FRAME_COUNT, frameCount);
 	}
 
-	private closeBufferedFrames() {
-		for (const frame of this.frames) {
-			frame.close();
-		}
-		this.frames = [];
-	}
-
-	private async seek({ targetUs }: { targetUs: number }) {
-		if (!this.demuxer || !this.decoder || !this.videoDecoderConfig) {
-			throw new Error("Node renderer video source is not initialized.");
-		}
-		this.closeBufferedFrames();
-		this.currentFrame = undefined;
-		this.decoder.reset();
-		this.decoder.configure(this.videoDecoderConfig);
-		this.demuxer.seek(Math.max(0, targetUs - SEEK_PREROLL_US));
-		this.ended = false;
-	}
-
-	private frameDurationUs({
-		frame,
-		nextFrame,
+	private frameToCanvas({
+		rgba,
+		timestampUs,
 	}: {
-		frame: NativeVideoFrame;
-		nextFrame?: NativeVideoFrame;
-	}): number {
-		if (
-			typeof frame.duration === "number" &&
-			frame.duration >= MIN_FRAME_DURATION_US
-		) {
-			return frame.duration;
-		}
-		if (nextFrame && nextFrame.timestamp > frame.timestamp) {
-			return nextFrame.timestamp - frame.timestamp;
-		}
-		return 33_333;
-	}
-
-	private takeFrameFor({
-		targetUs,
-	}: {
-		targetUs: number;
-	}): NativeVideoFrame | null {
-		this.frames.sort((a, b) => a.timestamp - b.timestamp);
-		let selectedIndex = -1;
-		for (let index = 0; index < this.frames.length; index += 1) {
-			if (this.frames[index].timestamp <= targetUs) {
-				selectedIndex = index;
-				continue;
-			}
-			break;
-		}
-		if (selectedIndex < 0) {
-			const firstFrame = this.frames[0];
-			if (
-				firstFrame &&
-				firstFrame.timestamp - targetUs <= FRAME_MATCH_TOLERANCE_US
-			) {
-				selectedIndex = 0;
-			} else {
-				return null;
-			}
-		}
-
-		let selected = this.frames[selectedIndex];
-		let nextFrame = this.frames[selectedIndex + 1];
-		let selectedDurationUs = this.frameDurationUs({
-			frame: selected,
-			nextFrame,
-		});
-		let selectedCoversTarget =
-			targetUs < selected.timestamp + selectedDurationUs ||
-			Boolean(nextFrame && nextFrame.timestamp > targetUs) ||
-			this.ended;
-		if (
-			!selectedCoversTarget &&
-			nextFrame &&
-			nextFrame.timestamp - targetUs <= FRAME_MATCH_TOLERANCE_US
-		) {
-			selectedIndex += 1;
-			selected = this.frames[selectedIndex];
-			nextFrame = this.frames[selectedIndex + 1];
-			selectedDurationUs = this.frameDurationUs({ frame: selected, nextFrame });
-			selectedCoversTarget = true;
-		}
-		if (!selectedCoversTarget) {
-			return null;
-		}
-
-		const consumed = this.frames.splice(0, selectedIndex + 1);
-		for (let index = 0; index < consumed.length - 1; index += 1) {
-			consumed[index].close();
-		}
-		return consumed[consumed.length - 1];
-	}
-
-	private async decodeMore() {
-		if (!this.demuxer || !this.decoder) {
-			throw new Error("Node renderer video source is not initialized.");
-		}
-		await this.demuxer.demuxAsync(12);
-		await this.decoder.flush();
-		this.ended = this.demuxer.state === "ended";
-		this.throwIfNativeError();
-	}
-
-	private async frameToCanvas({
-		frame,
-		durationUs,
-	}: {
-		frame: NativeVideoFrame;
-		durationUs: number;
-	}): Promise<CachedCanvasFrame> {
-		const width = frame.displayWidth || frame.codedWidth;
-		const height = frame.displayHeight || frame.codedHeight;
-		const rgba = new Uint8Array(frame.allocationSize({ format: "RGBA" }));
-		await frame.copyTo(rgba, { format: "RGBA" });
-		const canvas = createCanvas(width, height);
+		rgba: Buffer;
+		timestampUs: number;
+	}): CachedCanvasFrame {
+		const canvas = createCanvas(this.width, this.height);
 		const context = canvas.getContext("2d");
 		if (!context) {
 			throw new Error("Failed to create decoded video frame canvas context.");
 		}
 		const imageData = new NodeImageData(
 			new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength),
-			width,
-			height,
+			this.width,
+			this.height,
 		);
 		context.putImageData(imageData, 0, 0);
 		return {
 			canvas: canvas as unknown as RendererCanvas,
-			timestampUs: frame.timestamp,
-			durationUs,
+			timestampUs,
+			durationUs: this.durationUs,
 		};
 	}
 
-	async getFrameAt({ time }: { time: number }): Promise<RendererVideoFrame> {
-		await this.ensureLoaded();
-		if (!this.demuxer || !this.decoder) {
-			throw new Error("Node renderer video source is not initialized.");
+	private async decodeWindow({
+		startUs,
+	}: {
+		startUs: number;
+	}): Promise<FfmpegFrameWindow> {
+		const windowFrameCount = this.windowFrameCount();
+		const expectedBytes = this.frameBytes * windowFrameCount;
+		if (expectedBytes > MAX_FFMPEG_WINDOW_BYTES) {
+			throw new Error("Node renderer ffmpeg decode window is too large.");
 		}
+		const buffer = await this.runFfmpegRawVideo({
+			startSeconds: startUs / 1_000_000,
+			expectedBytes,
+			windowFrameCount,
+		});
+		if (buffer.byteLength % this.frameBytes !== 0) {
+			throw new Error(
+				`ffmpeg returned unaligned raw video bytes for ${this.file.name}.`,
+			);
+		}
+		const frameCount = buffer.byteLength / this.frameBytes;
+		if (frameCount === 0) {
+			throw new Error(
+				`ffmpeg did not decode a video frame from ${this.file.name}.`,
+			);
+		}
+		const frames: CachedCanvasFrame[] = [];
+		for (let index = 0; index < frameCount; index += 1) {
+			const timestampUs = startUs + index * this.durationUs;
+			const offset = index * this.frameBytes;
+			frames.push(
+				this.frameToCanvas({
+					rgba: buffer.subarray(offset, offset + this.frameBytes),
+					timestampUs,
+				}),
+			);
+		}
+		return {
+			startUs,
+			endUs: startUs + frameCount * this.durationUs,
+			frames,
+		};
+	}
 
+	private runFfmpegRawVideo({
+		startSeconds,
+		expectedBytes,
+		windowFrameCount,
+	}: {
+		startSeconds: number;
+		expectedBytes: number;
+		windowFrameCount: number;
+	}): Promise<Buffer> {
+		return new Promise((resolve, reject) => {
+			const ffmpeg = spawn("ffmpeg", [
+				"-v",
+				"error",
+				"-ss",
+				formatFfmpegSeconds(startSeconds),
+				"-i",
+				this.sourcePath,
+				"-an",
+				"-vf",
+				`fps=${this.frameRate}`,
+				"-frames:v",
+				String(windowFrameCount),
+				"-pix_fmt",
+				"rgba",
+				"-f",
+				"rawvideo",
+				"pipe:1",
+			]);
+			const chunks: Buffer[] = [];
+			let totalBytes = 0;
+			let stderrBytes = 0;
+			let stderr = "";
+			let settled = false;
+			let timeout: ReturnType<typeof setTimeout> | null = null;
+
+			const fail = (error: Error) => {
+				if (settled) return;
+				settled = true;
+				if (timeout) clearTimeout(timeout);
+				ffmpeg.kill();
+				reject(error);
+			};
+			timeout = setTimeout(() => {
+				fail(
+					new Error(
+						`ffmpeg timed out while decoding video frames for ${this.file.name}.`,
+					),
+				);
+			}, FFMPEG_DECODE_TIMEOUT_MS);
+
+			ffmpeg.stdout.on("data", (chunk: Buffer) => {
+				totalBytes += chunk.byteLength;
+				if (totalBytes > expectedBytes) {
+					fail(
+						new Error(
+							`ffmpeg returned too many raw video bytes for ${this.file.name}.`,
+						),
+					);
+					return;
+				}
+				chunks.push(chunk);
+			});
+			ffmpeg.stderr.on("data", (chunk: Buffer) => {
+				stderrBytes += chunk.byteLength;
+				if (stderrBytes > MAX_FFMPEG_STDERR_BYTES) {
+					fail(
+						new Error(
+							`ffmpeg stderr exceeded the decode limit for ${this.file.name}.`,
+						),
+					);
+					return;
+				}
+				stderr += chunk.toString("utf8");
+			});
+			ffmpeg.on("error", (error) => {
+				fail(new Error(`Failed to start ffmpeg: ${error.message}`));
+			});
+			ffmpeg.on("close", (code) => {
+				if (settled) return;
+				settled = true;
+				if (timeout) clearTimeout(timeout);
+				if (code !== 0) {
+					reject(new Error(stderr.trim() || `ffmpeg exited with code ${code}`));
+					return;
+				}
+				resolve(Buffer.concat(chunks, totalBytes));
+			});
+		});
+	}
+
+	private getFrameFromWindow({ targetUs }: { targetUs: number }) {
+		const frameWindow = this.frameWindow;
+		if (!frameWindow) return null;
+		if (targetUs < frameWindow.startUs || targetUs >= frameWindow.endUs) {
+			return null;
+		}
+		const index = Math.min(
+			frameWindow.frames.length - 1,
+			Math.max(
+				0,
+				Math.floor((targetUs - frameWindow.startUs) / this.durationUs),
+			),
+		);
+		return frameWindow.frames[index] ?? null;
+	}
+
+	async getFrameAt({ time }: { time: number }): Promise<RendererVideoFrame> {
 		const targetUs = Math.max(0, Math.round(time * 1_000_000));
 		if (
 			this.currentFrame &&
@@ -300,45 +320,27 @@ class NodeVideoSource {
 				duration: this.currentFrame.durationUs / 1_000_000,
 			};
 		}
-		if (
-			targetUs + FRAME_MATCH_TOLERANCE_US < this.lastTargetUs ||
-			targetUs > this.lastTargetUs + FORWARD_SEEK_GAP_US
-		) {
-			await this.seek({ targetUs });
-		}
-		this.lastTargetUs = targetUs;
 
-		for (let attempt = 0; attempt < 100; attempt += 1) {
-			const frame = this.takeFrameFor({ targetUs });
-			if (frame) {
-				const durationUs = this.frameDurationUs({
-					frame,
-					nextFrame: this.frames[0],
-				});
-				this.currentFrame = await this.frameToCanvas({ frame, durationUs });
-				frame.close();
-				return {
-					canvas: this.currentFrame.canvas,
-					timestamp: this.currentFrame.timestampUs / 1_000_000,
-					duration: this.currentFrame.durationUs / 1_000_000,
-				};
-			}
-			if (this.ended) {
-				break;
-			}
-			await this.decodeMore();
+		let frame = this.getFrameFromWindow({ targetUs });
+		if (!frame) {
+			this.frameWindow = await this.decodeWindow({ startUs: targetUs });
+			frame = this.getFrameFromWindow({ targetUs });
+		}
+		if (!frame) {
+			throw new Error(
+				`Node renderer could not decode frame at ${time.toFixed(3)}s from ${this.file.name}.`,
+			);
 		}
 
-		throw new Error(
-			`Node renderer could not decode frame at ${time.toFixed(3)}s from ${this.file.name}.`,
-		);
+		this.currentFrame = frame;
+		return {
+			canvas: frame.canvas,
+			timestamp: frame.timestampUs / 1_000_000,
+			duration: frame.durationUs / 1_000_000,
+		};
 	}
 
-	close() {
-		this.closeBufferedFrames();
-		this.decoder?.close();
-		this.demuxer?.close();
-	}
+	close() {}
 }
 
 class NodeVideoFrameCache {
@@ -347,16 +349,31 @@ class NodeVideoFrameCache {
 	async getFrameAt({
 		mediaId,
 		file,
+		sourcePath,
+		sourceWidth,
+		sourceHeight,
+		sourceFrameRate,
 		time,
 	}: {
 		mediaId: string;
 		file: File;
+		sourcePath?: string;
+		sourceWidth?: number;
+		sourceHeight?: number;
+		sourceFrameRate?: number;
 		time: number;
 	}) {
-		let source = this.sources.get(mediaId);
+		const key = sourcePath ? `${mediaId}:${sourcePath}` : mediaId;
+		let source = this.sources.get(key);
 		if (!source) {
-			source = new NodeVideoSource({ file });
-			this.sources.set(mediaId, source);
+			source = new NodeVideoSource({
+				file,
+				sourcePath,
+				sourceWidth,
+				sourceHeight,
+				sourceFrameRate,
+			});
+			this.sources.set(key, source);
 		}
 		return source.getFrameAt({ time });
 	}

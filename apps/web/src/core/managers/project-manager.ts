@@ -639,6 +639,7 @@ export class ProjectManager {
 			duration,
 			canvasSize,
 			background,
+			frameRate: this.active.settings.fps,
 		});
 
 		const renderer = new CanvasRenderer({

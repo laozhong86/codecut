@@ -77,6 +77,7 @@ export async function inspectTimelineWithNodeRenderer({
 		derivedAssets: state.derivedAssets,
 		duration: totalDuration,
 		background: state.project.settings.background,
+		frameRate: state.project.settings.fps,
 	});
 	const sheet = createCanvas(width * times.length, height);
 	const sheetContext = sheet.getContext("2d");

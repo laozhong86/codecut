@@ -30,16 +30,89 @@ export type BuildSceneParams = {
 	derivedAssets: DerivedAsset[];
 	duration: number;
 	background: TBackground;
+	frameRate?: number;
 };
+
+type VideoSourceMetadata = {
+	sourcePath?: string;
+	sourceWidth: number;
+	sourceHeight: number;
+	sourceFrameRate: number;
+};
+
+function assertPositiveInteger({
+	value,
+	label,
+	mediaId,
+}: {
+	value: number | undefined;
+	label: string;
+	mediaId: string;
+}): number {
+	if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+		throw new Error(
+			`Timeline ${label} is required for media asset ${mediaId}.`,
+		);
+	}
+	return value;
+}
+
+function assertPositiveFinite({
+	value,
+	label,
+	mediaId,
+}: {
+	value: number | undefined;
+	label: string;
+	mediaId: string;
+}): number {
+	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+		throw new Error(
+			`Timeline ${label} is required for media asset ${mediaId}.`,
+		);
+	}
+	return value;
+}
+
+function buildVideoSourceMetadata({
+	mediaAsset,
+	frameRate,
+	label,
+}: {
+	mediaAsset: MediaAsset;
+	frameRate?: number;
+	label: string;
+}): VideoSourceMetadata {
+	return {
+		sourcePath: mediaAsset.sourcePath,
+		sourceWidth: assertPositiveInteger({
+			value: mediaAsset.width,
+			label: `${label} source width`,
+			mediaId: mediaAsset.id,
+		}),
+		sourceHeight: assertPositiveInteger({
+			value: mediaAsset.height,
+			label: `${label} source height`,
+			mediaId: mediaAsset.id,
+		}),
+		sourceFrameRate: assertPositiveFinite({
+			value: mediaAsset.fps ?? frameRate,
+			label: `${label} source frame rate`,
+			mediaId: mediaAsset.id,
+		}),
+	};
+}
 
 function buildVisualElementNode({
 	element,
 	mediaMap,
 	derivedAssetMap,
+	frameRate,
 }: {
 	element: VideoElement | ImageElement;
 	mediaMap: Map<string, MediaAsset>;
 	derivedAssetMap: Map<string, DerivedAsset>;
+	frameRate?: number;
 }): BaseNode {
 	const mediaAsset = mediaMap.get(element.mediaId);
 	if (!mediaAsset) {
@@ -52,6 +125,11 @@ function buildVisualElementNode({
 	if (mediaAsset.type === "video") {
 		const videoElement = element as VideoElement;
 		if (videoElement.mask) {
+			const sourceMetadata = buildVideoSourceMetadata({
+				mediaAsset,
+				frameRate,
+				label: "masked video",
+			});
 			const derivedAsset = derivedAssetMap.get(
 				videoElement.mask.derivedAssetId,
 			);
@@ -69,13 +147,23 @@ function buildVisualElementNode({
 			if (alphaMedia.type !== "video") {
 				throw new Error("Masked video alpha media asset must be video.");
 			}
+			const alphaMetadata = buildVideoSourceMetadata({
+				mediaAsset: alphaMedia,
+				frameRate,
+				label: "masked video alpha",
+			});
 
 			const maskedParams: MaskedVideoNodeParams = {
 				mediaId: mediaAsset.id,
 				url: mediaAsset.url,
 				file: mediaAsset.file,
+				...sourceMetadata,
 				alphaMediaId: alphaMedia.id,
 				alphaFile: alphaMedia.file,
+				alphaSourcePath: alphaMetadata.sourcePath,
+				alphaSourceWidth: alphaMetadata.sourceWidth,
+				alphaSourceHeight: alphaMetadata.sourceHeight,
+				alphaSourceFrameRate: alphaMetadata.sourceFrameRate,
 				duration: element.duration,
 				timeOffset: element.startTime,
 				trimStart: element.trimStart,
@@ -92,6 +180,11 @@ function buildVisualElementNode({
 			mediaId: mediaAsset.id,
 			url: mediaAsset.url,
 			file: mediaAsset.file,
+			...buildVideoSourceMetadata({
+				mediaAsset,
+				frameRate,
+				label: "video",
+			}),
 			duration: element.duration,
 			timeOffset: element.startTime,
 			trimStart: element.trimStart,
@@ -137,6 +230,7 @@ export function buildScene(params: BuildSceneParams) {
 		duration,
 		canvasSize,
 		background,
+		frameRate,
 	} = params;
 
 	const rootNode = new RootNode({ duration });
@@ -188,16 +282,18 @@ export function buildScene(params: BuildSceneParams) {
 					const transition = transitionLookup.get(pairKey);
 
 					if (transition) {
-						const outgoingNode = buildVisualElementNode({
-							element,
-							mediaMap,
-							derivedAssetMap,
-						});
-						const incomingNode = buildVisualElementNode({
-							element: nextElement,
-							mediaMap,
-							derivedAssetMap,
-						});
+							const outgoingNode = buildVisualElementNode({
+								element,
+								mediaMap,
+								derivedAssetMap,
+								frameRate,
+							});
+							const incomingNode = buildVisualElementNode({
+								element: nextElement,
+								mediaMap,
+								derivedAssetMap,
+								frameRate,
+							});
 
 						if (outgoingNode && incomingNode) {
 							processedIds.add(element.id);
@@ -223,11 +319,12 @@ export function buildScene(params: BuildSceneParams) {
 					}
 				}
 
-				const node = buildVisualElementNode({
-					element,
-					mediaMap,
-					derivedAssetMap,
-				});
+					const node = buildVisualElementNode({
+						element,
+						mediaMap,
+						derivedAssetMap,
+						frameRate,
+					});
 				if (node) {
 					processedIds.add(element.id);
 					contentNodes.push(node);

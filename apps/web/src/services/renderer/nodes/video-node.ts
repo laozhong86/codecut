@@ -5,6 +5,10 @@ export interface VideoNodeParams extends VisualNodeParams {
 	url?: string;
 	file: File;
 	mediaId: string;
+	sourcePath?: string;
+	sourceWidth?: number;
+	sourceHeight?: number;
+	sourceFrameRate?: number;
 }
 
 export class VideoNode extends VisualNode<VideoNodeParams> {
@@ -19,6 +23,10 @@ export class VideoNode extends VisualNode<VideoNodeParams> {
 		const frame = await renderer.runtime.getFrameAt({
 			mediaId: this.params.mediaId,
 			file: this.params.file,
+			sourcePath: this.params.sourcePath,
+			sourceWidth: this.params.sourceWidth,
+			sourceHeight: this.params.sourceHeight,
+			sourceFrameRate: this.params.sourceFrameRate,
 			time: videoTime,
 		});
 
