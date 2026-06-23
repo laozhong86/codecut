@@ -14,6 +14,11 @@ export const SpeechCleanupDropReasonSchema = z.enum([
 
 export const SpeechCleanupDropRiskSchema = z.enum(["low", "high"]);
 
+export const SpeechCleanupCaptionModeSchema = z.enum([
+	"clip-only",
+	"source-transcript-remap",
+]);
+
 const BaseDecisionSchema = z
 	.object({
 		id: z.string().min(1),
@@ -105,6 +110,9 @@ export type SpeechCleanupDropReason = z.infer<
 	typeof SpeechCleanupDropReasonSchema
 >;
 export type SpeechCleanupDropRisk = z.infer<typeof SpeechCleanupDropRiskSchema>;
+export type SpeechCleanupCaptionMode = z.infer<
+	typeof SpeechCleanupCaptionModeSchema
+>;
 export type SpeechCleanupDecision = z.infer<typeof SpeechCleanupDecisionSchema>;
 export type SpeechCleanupPlan = z.infer<typeof SpeechCleanupPlanSchema>;
 

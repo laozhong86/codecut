@@ -78,6 +78,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan: speechCleanupPlan(),
 			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+			captionMode: "source-transcript-remap",
 		});
 
 		expect(result.clips).toEqual([
@@ -120,6 +121,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan: speechCleanupPlan(),
 			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+			captionMode: "source-transcript-remap",
 		});
 
 		expect(result.stats).toEqual({
@@ -162,16 +164,38 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan,
 			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+			captionMode: "source-transcript-remap",
 		});
 
 		expect(result.stats.dropReasons.filler).toBeUndefined();
 		expect(result.stats.dropReasons.pause).toBe(1);
 	});
 
-	test("projects to a current EditPlan v1 shape accepted by validateEditPlan", () => {
+	test("projects a clip-only EditPlan when post-cut captions will be built", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan: speechCleanupPlan(),
 			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+			captionMode: "clip-only",
+		});
+
+		const validation = validateEditPlan({
+			plan: result.editPlan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result.captionMode).toBe("clip-only");
+		expect(result.editPlan.captions).toBeUndefined();
+		expect(result.editPlan.captionStyle).toBeUndefined();
+		expect(result.rebuiltCaptions).toHaveLength(2);
+		expect(validation.success).toBe(true);
+	});
+
+	test("projects source transcript remap captions to an EditPlan accepted by validateEditPlan", () => {
+		const result = rebuildTimelineFromSpeechCleanup({
+			plan: speechCleanupPlan(),
+			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+			captionMode: "source-transcript-remap",
 		});
 
 		const validation = validateEditPlan({
@@ -185,6 +209,18 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 			position: "lower-safe",
 		});
 		expect(validation.success).toBe(true);
+	});
+
+	test("fails fast when captionMode is not declared", () => {
+		expect(() =>
+			rebuildTimelineFromSpeechCleanup({
+				plan: speechCleanupPlan(),
+				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+				captionMode: "source-captions",
+			}),
+		).toThrow(
+			'captionMode must be "clip-only" or "source-transcript-remap".',
+		);
 	});
 
 	test("projects decimal ASR segments to an EditPlan accepted by validateEditPlan", () => {
@@ -232,6 +268,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan,
 			sourceDuration: 5.066667,
+			captionMode: "source-transcript-remap",
 		});
 
 		const validation = validateEditPlan({
@@ -264,6 +301,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 			rebuildTimelineFromSpeechCleanup({
 				plan,
 				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+				captionMode: "source-transcript-remap",
 			}),
 		).toThrow("SpeechCleanupPlan must keep at least one segment.");
 	});
@@ -279,6 +317,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 			rebuildTimelineFromSpeechCleanup({
 				plan,
 				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+				captionMode: "source-transcript-remap",
 			}),
 		).toThrow("SpeechCleanupDecision sourceEnd exceeds source duration.");
 	});
@@ -295,6 +334,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 			rebuildTimelineFromSpeechCleanup({
 				plan,
 				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+				captionMode: "source-transcript-remap",
 			}),
 		).toThrow("SpeechCleanup decisions must be sorted by sourceStart.");
 	});
@@ -310,6 +350,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 			rebuildTimelineFromSpeechCleanup({
 				plan,
 				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+				captionMode: "source-transcript-remap",
 			}),
 		).toThrow("SpeechCleanup decisions must not overlap.");
 	});
@@ -326,6 +367,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 			rebuildTimelineFromSpeechCleanup({
 				plan,
 				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION + 0.301,
+				captionMode: "source-transcript-remap",
 			}),
 		).toThrow(
 			"SpeechCleanupPlan must classify leading untranscribed audio longer than 0.3 seconds.",
@@ -339,6 +381,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 			rebuildTimelineFromSpeechCleanup({
 				plan,
 				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION + 0.301,
+				captionMode: "source-transcript-remap",
 			}),
 		).toThrow(
 			"SpeechCleanupPlan must classify trailing untranscribed audio longer than 0.3 seconds.",
@@ -356,6 +399,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan,
 			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION + 0.6,
+			captionMode: "source-transcript-remap",
 		});
 
 		expect(result.clips[0].sourceStart).toBe(1.5);
@@ -386,6 +430,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan,
 			sourceDuration: 1.7,
+			captionMode: "source-transcript-remap",
 		});
 
 		expect(result.clips[0]).toMatchObject({

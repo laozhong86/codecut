@@ -34,9 +34,10 @@ Codecut currently targets transcript-first polish. If silence spans are not avai
 8. Classify each dropped range with `risk: "low"` or `risk: "high"`. Low risk means pauses, exact prefix repeats, or very short filler tokens with no standalone meaning. High risk means full-sentence removals, repeated openings with divergent endings, or long repeated spans.
 9. For high-risk drops, write retained-meaning evidence in `retainedMeaningEvidence`; if a script or outline exists, use it as semantic alignment evidence rather than a word-by-word diff.
 10. Keep source ranges sorted and non-overlapping. Do not auto-fix reversed or overlapping ranges.
-11. Project the SpeechCleanupPlan with `rebuildTimelineFromSpeechCleanup()` into the implemented EditPlan v1.
-12. Apply only the projected EditPlan v1 and verify with `get_timeline_state`.
+11. Project the SpeechCleanupPlan with `rebuildTimelineFromSpeechCleanup({ captionMode: "clip-only" })` into a clip-only EditPlan v1 when edited audio transcription is available.
+12. Apply only the projected clip-only EditPlan v1 and verify with `get_timeline_state`.
 13. If captions are requested and edited audio transcription is available, run the post-cut captions path after applying the clip-only cleanup, then apply the final captioned EditPlan.
+14. Use `captionMode: "source-transcript-remap"` only when post-cut caption building is unavailable and every kept source transcript segment maps cleanly into the selected clips.
 
 ## Product Rules
 
