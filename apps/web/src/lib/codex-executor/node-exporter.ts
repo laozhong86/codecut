@@ -24,6 +24,65 @@ const audioQualityBitrates = {
 const AUDIO_CHUNK_FRAMES = 1024;
 const AUDIO_TIMESTAMP_EPSILON_SECONDS = 1 / 1_000_000;
 
+function clampByte(value: number): number {
+	return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+export function rgbaToI420({
+	rgba,
+	width,
+	height,
+}: {
+	rgba: Uint8ClampedArray;
+	width: number;
+	height: number;
+}): Uint8Array {
+	if (width % 2 !== 0 || height % 2 !== 0) {
+		throw new Error("I420 conversion requires even width and height.");
+	}
+	if (rgba.byteLength !== width * height * 4) {
+		throw new Error("RGBA buffer size does not match width and height.");
+	}
+
+	const yPlaneSize = width * height;
+	const chromaWidth = width / 2;
+	const chromaHeight = height / 2;
+	const uPlaneOffset = yPlaneSize;
+	const vPlaneOffset = yPlaneSize + chromaWidth * chromaHeight;
+	const i420 = new Uint8Array(yPlaneSize + chromaWidth * chromaHeight * 2);
+
+	for (let y = 0; y < height; y += 2) {
+		for (let x = 0; x < width; x += 2) {
+			let uSum = 0;
+			let vSum = 0;
+
+			for (let dy = 0; dy < 2; dy += 1) {
+				for (let dx = 0; dx < 2; dx += 1) {
+					const px = x + dx;
+					const py = y + dy;
+					const rgbaIndex = (py * width + px) * 4;
+					const r = rgba[rgbaIndex];
+					const g = rgba[rgbaIndex + 1];
+					const b = rgba[rgbaIndex + 2];
+					const yValue = 16 + 0.257 * r + 0.504 * g + 0.098 * b;
+					const uValue = 128 - 0.148 * r - 0.291 * g + 0.439 * b;
+					const vValue = 128 + 0.439 * r - 0.368 * g - 0.071 * b;
+
+					i420[py * width + px] = clampByte(yValue);
+					uSum += uValue;
+					vSum += vValue;
+				}
+			}
+
+			const chromaIndex = (y / 2) * chromaWidth + x / 2;
+			i420[uPlaneOffset + chromaIndex] = clampByte(uSum / 4);
+			i420[vPlaneOffset + chromaIndex] = clampByte(vSum / 4);
+		}
+	}
+
+	return i420;
+}
+
 async function fileForExecutorMediaAsset({
 	asset,
 }: {
@@ -226,7 +285,6 @@ export const exportProjectWithNodeRenderer: ExecutorExportProject = async ({
 	includeAudio,
 }) => {
 	const webcodecs = await installNodeWebCodecsGlobals();
-	const { VideoFrame } = webcodecs;
 	const {
 		AudioSample,
 		AudioSampleSource,
@@ -323,7 +381,6 @@ export const exportProjectWithNodeRenderer: ExecutorExportProject = async ({
 		}
 	}
 
-	const frameDurationUs = Math.round(1_000_000 / fps);
 	const frameCount = Math.ceil(rootNode.duration * fps) + 1;
 	for (let i = 0; i < frameCount; i++) {
 		const frameTime = Math.min(i / fps, rootNode.duration);
@@ -332,17 +389,19 @@ export const exportProjectWithNodeRenderer: ExecutorExportProject = async ({
 			Math.max(0, rootNode.duration - 1 / fps),
 		);
 		await renderer.render({ node: rootNode, time: renderTime });
-		const frame = new VideoFrame(renderer.canvas as never, {
-			timestamp: Math.round(frameTime * 1_000_000),
-			duration: frameDurationUs,
-		});
-		const sample = new VideoSample(frame as never, {
-			timestamp: frameTime,
-			duration: 1 / fps,
-		});
+		const frameData = renderer.context.getImageData(0, 0, width, height).data;
+		const sample = new VideoSample(
+			rgbaToI420({ rgba: frameData, width, height }),
+			{
+				format: "I420",
+				codedWidth: width,
+				codedHeight: height,
+				timestamp: frameTime,
+				duration: 1 / fps,
+			},
+		);
 		await videoSource.add(sample, { keyFrame: i === 0 || i % fps === 0 });
 		sample.close();
-		frame.close();
 	}
 
 	videoSource.close();
