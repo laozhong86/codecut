@@ -9,6 +9,26 @@ import {
 	callBridgeCliTool,
 	normalizeCliResult,
 } from "./server.mjs";
+import * as serverModule from "./server.mjs";
+
+function setupIntent(overrides = {}) {
+	return {
+		projectId: "launch-cut-001",
+		projectName: "Launch Cut",
+		mediaSource: { kind: "filePath", filePath: "/tmp/source.mp4" },
+		targetAspectRatio: "9:16",
+		durationGoalSeconds: 60,
+		captionLanguage: "auto",
+		output: {
+			format: "mp4",
+			quality: "high",
+			includeAudio: true,
+		},
+		brief: "Cut a high-retention short for a product launch.",
+		successCriteria: "Show a hook, proof, and CTA with readable captions.",
+		...overrides,
+	};
+}
 
 describe("Codecut MCP server contract", () => {
 	test("exposes only the stable Codecut editing primitives", () => {
@@ -71,6 +91,238 @@ describe("Codecut MCP server contract", () => {
 		expect(readOnlyByTool.get("add_texts")).toBe(false);
 		expect(readOnlyByTool.get("add_captions")).toBe(false);
 		expect(readOnlyByTool.get("set_keyframes")).toBe(false);
+	});
+
+	test("defines a versioned workspace widget resource and tools", async () => {
+		expect(serverModule.CODECUT_WORKSPACE_RESOURCE_URI).toMatch(
+			/^ui:\/\/codecut\/.+\/workspace\.html$/,
+		);
+		expect(serverModule.CODECUT_WORKSPACE_TOOLS.map((tool) => tool.name)).toEqual([
+			"open_codecut_workspace",
+			"inspect_codecut_setup",
+			"submit_codecut_setup",
+		]);
+
+		const openTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
+			(tool) => tool.name === "open_codecut_workspace",
+		);
+		expect(openTool.readOnly).toBe(true);
+		expect(openTool.modelVisible).toBe(true);
+		expect(openTool.meta).toMatchObject({
+			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
+			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
+		});
+
+		const html = await serverModule.readCodecutWorkspaceHtml();
+		for (const marker of [
+			'id="project-name"',
+			'id="project-id"',
+			'id="media-file-path"',
+			'id="media-url"',
+			'id="target-aspect-ratio"',
+			'id="duration-goal-seconds"',
+			'id="caption-language"',
+			'id="success-criteria"',
+			'callTool("inspect_codecut_setup"',
+			'callTool("submit_codecut_setup"',
+			"openExternal",
+			"sendFollowUpMessage",
+		]) {
+			expect(html).toContain(marker);
+		}
+	});
+
+	test("opens the workspace with structured defaults and widget metadata", () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "Creator Launch",
+			brief: "Make a concise vertical launch cut.",
+			targetAspectRatio: "9:16",
+			durationGoalSeconds: 45,
+		});
+
+		expect(result.structuredContent.intentDefaults).toMatchObject({
+			projectName: "Creator Launch",
+			brief: "Make a concise vertical launch cut.",
+			targetAspectRatio: "9:16",
+			durationGoalSeconds: 45,
+			captionLanguage: "auto",
+			output: { format: "mp4", quality: "high", includeAudio: true },
+		});
+		expect(result._meta).toMatchObject({
+			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
+			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
+		});
+	});
+
+	test("inspects setup inputs without mutation and reports blockers", async () => {
+		const filePath = join(await mkdtemp(join(tmpdir(), "codecut-widget-")), "source.mp4");
+		await writeFile(filePath, "video");
+		const bridgeCalls = [];
+		const bridgeToolImpl = async (toolName) => {
+			bridgeCalls.push(toolName);
+			return { structuredContent: { projects: [{ projectId: "existing-cut" }] } };
+		};
+
+		try {
+			const ready = await serverModule.inspectCodecutSetup(
+				setupIntent({ mediaSource: { kind: "filePath", filePath } }),
+				{ bridgeToolImpl },
+			);
+			expect(ready.status).toBe("ready");
+			expect(ready.checks.every((check) => check.ok)).toBe(true);
+			expect(bridgeCalls).toEqual(["list_projects"]);
+
+			for (const [label, intent] of [
+				["invalid project id", setupIntent({ projectId: "../bad" })],
+				["missing project name", setupIntent({ projectName: " " })],
+				["missing brief", setupIntent({ brief: "" })],
+				[
+					"non-https url",
+					setupIntent({ mediaSource: { kind: "url", url: "http://example.com/a.mp4" } }),
+				],
+				[
+					"missing local file",
+					setupIntent({ mediaSource: { kind: "filePath", filePath: "/tmp/missing.mp4" } }),
+				],
+				["bad aspect ratio", setupIntent({ targetAspectRatio: "4:5" })],
+				["bad duration", setupIntent({ durationGoalSeconds: 0 })],
+				["existing project", setupIntent({ projectId: "existing-cut" })],
+			]) {
+				const blocked = await serverModule.inspectCodecutSetup(intent, {
+					bridgeToolImpl,
+				});
+				expect(blocked.status, label).toBe("blocked");
+				expect(blocked.checks.some((check) => !check.ok), label).toBe(true);
+			}
+		} finally {
+			await rm(filePath.replace(/\/source\.mp4$/, ""), {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("submits setup by creating project, importing media, and reading latest revision", async () => {
+		const filePath = join(await mkdtemp(join(tmpdir(), "codecut-widget-")), "source.mp4");
+		await writeFile(filePath, "video");
+		const calls = [];
+		const bridgeToolImpl = async (toolName, args) => {
+			calls.push({ toolName, args });
+			if (toolName === "list_projects") {
+				return { structuredContent: { projects: [] } };
+			}
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "launch-cut-001",
+						name: "Launch Cut",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-001",
+					},
+				};
+			}
+			if (toolName === "import_media") {
+				return {
+					structuredContent: {
+						status: "completed",
+						results: [
+							{
+								success: true,
+								data: { assets: [{ id: "media-1", name: "source.mp4" }] },
+							},
+						],
+					},
+				};
+			}
+			if (toolName === "get_project_info") {
+				return {
+					structuredContent: {
+						results: [{ success: true, data: { revision: 2 } }],
+					},
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+
+		try {
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({ mediaSource: { kind: "filePath", filePath } }),
+				{ bridgeToolImpl },
+			);
+
+			expect(calls.map((call) => call.toolName)).toEqual([
+				"list_projects",
+				"create_project",
+				"import_media",
+				"get_project_info",
+			]);
+			expect(result.structuredContent).toMatchObject({
+				status: "created",
+				projectId: "launch-cut-001",
+				projectName: "Launch Cut",
+				revision: 2,
+				editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-001",
+				importedMedia: { id: "media-1", name: "source.mp4" },
+			});
+			expect(result.structuredContent.continuePrompt).toContain(
+				"$codecut-jianying-editor-framework",
+			);
+			expect(result.structuredContent.continuePrompt).toContain("get_project_info");
+			expect(result.structuredContent.continuePrompt).toContain("list_media_assets");
+			expect(result.structuredContent.continuePrompt).toContain("get_timeline_state_v2");
+		} finally {
+			await rm(filePath.replace(/\/source\.mp4$/, ""), {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("keeps created project context visible when import fails", async () => {
+		const filePath = join(await mkdtemp(join(tmpdir(), "codecut-widget-")), "source.mp4");
+		await writeFile(filePath, "video");
+		const bridgeToolImpl = async (toolName) => {
+			if (toolName === "list_projects") return { structuredContent: { projects: [] } };
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "launch-cut-001",
+						name: "Launch Cut",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-001",
+					},
+				};
+			}
+			if (toolName === "import_media") {
+				return {
+					isError: true,
+					structuredContent: { error: "media import failed" },
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+
+		try {
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({ mediaSource: { kind: "filePath", filePath } }),
+				{ bridgeToolImpl },
+			);
+
+			expect(result.isError).toBe(true);
+			expect(result.structuredContent).toMatchObject({
+				status: "import_failed",
+				projectId: "launch-cut-001",
+				projectName: "Launch Cut",
+				revision: 1,
+				editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-001",
+				error: "media import failed",
+			});
+		} finally {
+			await rm(filePath.replace(/\/source\.mp4$/, ""), {
+				recursive: true,
+				force: true,
+			});
+		}
 	});
 
 	test("maps read primitives to explicit codex-bridge send commands", () => {

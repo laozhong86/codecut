@@ -2,8 +2,9 @@
 
 import { execFile } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -15,6 +16,7 @@ const execFileAsync = promisify(execFile);
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
+const workspaceResourceMimeType = "text/html;profile=mcp-app";
 
 const projectIdSchema = z
 	.string()
@@ -60,6 +62,52 @@ const modelIdSchema = z
 	.min(1)
 	.describe("Local transcription model ID.");
 const secondsSchema = z.number().nonnegative();
+const targetAspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
+const outputFormatSchema = z.enum(["mp4", "webm"]);
+const outputQualitySchema = z.enum(["low", "medium", "high", "very_high"]);
+
+const workspaceMediaSourceSchema = z
+	.object({
+		kind: z.enum(["filePath", "url"]),
+		filePath: z.string().trim().optional(),
+		url: z.string().trim().optional(),
+		mimeType: z.string().trim().optional(),
+	})
+	.strict();
+
+const workspaceOutputSchema = z
+	.object({
+		format: outputFormatSchema,
+		quality: outputQualitySchema,
+		includeAudio: z.boolean(),
+	})
+	.strict();
+
+const workspaceIntentInputSchema = {
+	projectId: z.string().trim(),
+	projectName: z.string().trim(),
+	mediaSource: workspaceMediaSourceSchema,
+	targetAspectRatio: targetAspectRatioSchema,
+	durationGoalSeconds: z.number(),
+	captionLanguage: z.string().trim(),
+	output: workspaceOutputSchema,
+	brief: z.string(),
+	successCriteria: z.string(),
+};
+
+const workspaceOpenInputSchema = {
+	projectName: z.string().trim().optional(),
+	projectId: z.string().trim().optional(),
+	brief: z.string().optional(),
+	successCriteria: z.string().optional(),
+	filePath: z.string().trim().optional(),
+	url: z.string().trim().optional(),
+	mimeType: z.string().trim().optional(),
+	targetAspectRatio: targetAspectRatioSchema.optional(),
+	durationGoalSeconds: z.number().optional(),
+	captionLanguage: z.string().trim().optional(),
+	output: workspaceOutputSchema.partial().optional(),
+};
 
 const projectOnlyInputSchema = {
 	projectId: projectIdSchema,
@@ -642,6 +690,571 @@ export const CODECUT_MCP_TOOLS = [
 	},
 ];
 
+export const CODECUT_WORKSPACE_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace.html`;
+
+const codecutWorkspaceResourceMeta = {
+	ui: {
+		resourceUri: CODECUT_WORKSPACE_RESOURCE_URI,
+		prefersBorder: true,
+		csp: {
+			connectDomains: [],
+			resourceDomains: [],
+		},
+	},
+	"openai/widgetDescription":
+		"Confirm CodeCut project setup, validate the local executor, import media, and continue the editing chain.",
+	"openai/widgetPrefersBorder": true,
+	"openai/widgetCSP": {
+		connect_domains: [],
+		resource_domains: [],
+	},
+};
+
+const codecutWorkspaceToolMeta = {
+	ui: {
+		resourceUri: CODECUT_WORKSPACE_RESOURCE_URI,
+		visibility: ["model", "app"],
+	},
+	"openai/outputTemplate": CODECUT_WORKSPACE_RESOURCE_URI,
+	"openai/widgetAccessible": true,
+	"openai/toolInvocation/invoking": "Opening CodeCut workspace setup...",
+	"openai/toolInvocation/invoked": "CodeCut workspace setup ready.",
+};
+
+const codecutWorkspaceAppOnlyMeta = {
+	ui: {
+		visibility: ["app"],
+	},
+	"openai/widgetAccessible": true,
+};
+
+export const CODECUT_WORKSPACE_TOOLS = [
+	{
+		name: "open_codecut_workspace",
+		title: "Open CodeCut Workspace Setup",
+		description:
+			"Render a CodeCut setup confirmation widget with editable intent defaults.",
+		inputSchema: workspaceOpenInputSchema,
+		readOnly: true,
+		modelVisible: true,
+		meta: codecutWorkspaceToolMeta,
+	},
+	{
+		name: "inspect_codecut_setup",
+		title: "Inspect CodeCut Workspace Setup",
+		description:
+			"Validate a CodeCut setup intent without creating projects or importing media.",
+		inputSchema: workspaceIntentInputSchema,
+		readOnly: true,
+		modelVisible: false,
+		meta: codecutWorkspaceAppOnlyMeta,
+	},
+	{
+		name: "submit_codecut_setup",
+		title: "Submit CodeCut Workspace Setup",
+		description:
+			"Create a CodeCut executor project, import the confirmed media source, and return editor context.",
+		inputSchema: workspaceIntentInputSchema,
+		readOnly: false,
+		modelVisible: false,
+		meta: codecutWorkspaceAppOnlyMeta,
+	},
+];
+
+export async function readCodecutWorkspaceHtml() {
+	return readFileSync(resolve(pluginRoot, "mcp", "codecut-workspace.html"), "utf8");
+}
+
+export function openCodecutWorkspace(input = {}) {
+	const intentDefaults = buildWorkspaceIntentDefaults(input);
+	return {
+		content: [
+			{
+				type: "text",
+				text: "Rendered CodeCut workspace setup confirmation widget.",
+			},
+		],
+		structuredContent: { intentDefaults },
+		_meta: {
+			...codecutWorkspaceToolMeta,
+			widgetData: { intentDefaults },
+		},
+	};
+}
+
+export async function inspectCodecutSetup(
+	intent,
+	{ bridgeToolImpl = callBridgeCliTool, statImpl = stat } = {},
+) {
+	const checks = [];
+	const normalized = normalizeWorkspaceIntent(intent || {});
+
+	pushCheck(
+		checks,
+		"project-id",
+		"Project ID",
+		/^[a-z0-9][a-z0-9-]{2,63}$/.test(normalized.projectId),
+		"Use 3-64 lowercase letters, numbers, and hyphens, starting with a letter or number.",
+	);
+	pushCheck(
+		checks,
+		"project-name",
+		"Project name",
+		normalized.projectName.length > 0,
+		"Project name is required.",
+	);
+	pushCheck(
+		checks,
+		"brief",
+		"Brief",
+		normalized.brief.length > 0,
+		"Brief is required.",
+	);
+
+	const mediaSourceCheck = validateWorkspaceMediaSource(normalized.mediaSource);
+	pushCheck(
+		checks,
+		"media-source",
+		"Media source",
+		mediaSourceCheck.ok,
+		mediaSourceCheck.message,
+	);
+
+	if (mediaSourceCheck.ok && normalized.mediaSource.kind === "filePath") {
+		await pushFilePathCheck(checks, normalized.mediaSource.filePath, statImpl);
+	}
+
+	pushCheck(
+		checks,
+		"aspect-ratio",
+		"Aspect ratio",
+		["9:16", "16:9", "1:1"].includes(normalized.targetAspectRatio),
+		"Target aspect ratio must be 9:16, 16:9, or 1:1.",
+	);
+	pushCheck(
+		checks,
+		"duration",
+		"Duration",
+		Number.isFinite(normalized.durationGoalSeconds) &&
+			normalized.durationGoalSeconds > 0,
+		"Duration goal must be a positive number of seconds.",
+	);
+
+	let projectList = null;
+	try {
+		const listResult = await bridgeToolImpl("list_projects", {});
+		if (listResult?.isError) {
+			pushCheck(
+				checks,
+				"bridge",
+				"CodeCut bridge",
+				false,
+				extractErrorMessage(listResult),
+			);
+		} else {
+			projectList = extractProjects(listResult?.structuredContent || listResult);
+			pushCheck(
+				checks,
+				"bridge",
+				"CodeCut bridge",
+				true,
+				"CodeCut bridge and project list are reachable.",
+			);
+		}
+	} catch (error) {
+		pushCheck(
+			checks,
+			"bridge",
+			"CodeCut bridge",
+			false,
+			error instanceof Error ? error.message : String(error),
+		);
+	}
+
+	if (projectList) {
+		const exists = projectList.some(
+			(project) => String(project?.projectId || project?.id || "") === normalized.projectId,
+		);
+		pushCheck(
+			checks,
+			"project-collision",
+			"Project ID availability",
+			!exists,
+			`Project ID already exists: ${normalized.projectId}`,
+		);
+	}
+
+	return {
+		status: checks.every((check) => check.ok) ? "ready" : "blocked",
+		checks,
+		intent: normalized,
+	};
+}
+
+export async function submitCodecutSetup(
+	intent,
+	{ bridgeToolImpl = callBridgeCliTool, statImpl = stat } = {},
+) {
+	const inspection = await inspectCodecutSetup(intent, {
+		bridgeToolImpl,
+		statImpl,
+	});
+	if (inspection.status !== "ready") {
+		return {
+			content: [
+				{
+					type: "text",
+					text: "CodeCut workspace setup is blocked by validation errors.",
+				},
+			],
+			structuredContent: inspection,
+			isError: true,
+		};
+	}
+
+	const normalized = inspection.intent;
+	const createdResult = await bridgeToolImpl("create_project", {
+		projectId: normalized.projectId,
+		name: normalized.projectName,
+	});
+	if (createdResult?.isError) {
+		return buildSetupErrorResult({
+			status: "create_failed",
+			projectId: normalized.projectId,
+			projectName: normalized.projectName,
+			intent: normalized,
+			error: extractErrorMessage(createdResult),
+		});
+	}
+
+	const createdProject = extractProjectInfo(
+		createdResult?.structuredContent || createdResult,
+	);
+	const projectContext = {
+		projectId: createdProject.projectId || normalized.projectId,
+		projectName: createdProject.name || normalized.projectName,
+		revision: createdProject.revision,
+		editorUrl: createdProject.editorUrl,
+	};
+
+	const importResult = await bridgeToolImpl(
+		"import_media",
+		buildImportMediaArgs(normalized),
+	);
+	if (importResult?.isError) {
+		return buildSetupErrorResult({
+			status: "import_failed",
+			...projectContext,
+			intent: normalized,
+			error: extractErrorMessage(importResult),
+		});
+	}
+
+	const importedMedia = extractImportedMedia(
+		importResult?.structuredContent || importResult,
+	);
+	if (!importedMedia) {
+		return buildSetupErrorResult({
+			status: "import_failed",
+			...projectContext,
+			intent: normalized,
+			error: "import_media did not return an imported media asset.",
+		});
+	}
+
+	const projectInfoResult = await bridgeToolImpl("get_project_info", {
+		projectId: normalized.projectId,
+	});
+	if (projectInfoResult?.isError) {
+		return buildSetupErrorResult({
+			status: "readback_failed",
+			...projectContext,
+			importedMedia,
+			intent: normalized,
+			error: extractErrorMessage(projectInfoResult),
+		});
+	}
+
+	const latestProject = extractProjectInfo(
+		projectInfoResult?.structuredContent || projectInfoResult,
+	);
+	if (latestProject.revision === undefined) {
+		return buildSetupErrorResult({
+			status: "readback_failed",
+			...projectContext,
+			importedMedia,
+			intent: normalized,
+			error: "get_project_info did not return the latest project revision.",
+		});
+	}
+
+	const editorUrl = latestProject.editorUrl || projectContext.editorUrl;
+	const structuredContent = {
+		status: "created",
+		projectId: latestProject.projectId || normalized.projectId,
+		projectName: latestProject.name || normalized.projectName,
+		revision: latestProject.revision,
+		editorUrl,
+		importedMedia,
+		intent: normalized,
+		continuePrompt: buildContinuePrompt({
+			intent: normalized,
+			projectId: latestProject.projectId || normalized.projectId,
+			projectName: latestProject.name || normalized.projectName,
+			revision: latestProject.revision,
+			editorUrl,
+			importedMedia,
+		}),
+	};
+
+	return {
+		content: [
+			{
+				type: "text",
+				text: `CodeCut project ${structuredContent.projectId} created at revision ${structuredContent.revision}.`,
+			},
+		],
+		structuredContent,
+	};
+}
+
+function buildWorkspaceIntentDefaults(input = {}) {
+	const projectName = String(input.projectName || "").trim();
+	const filePath = String(input.filePath || "").trim();
+	const url = String(input.url || "").trim();
+	return {
+		projectId:
+			String(input.projectId || "").trim() ||
+			buildWorkspaceProjectSlug(projectName || "codecut-project"),
+		projectName,
+		mediaSource: filePath
+			? { kind: "filePath", filePath }
+			: url
+				? { kind: "url", url, ...(input.mimeType ? { mimeType: String(input.mimeType) } : {}) }
+				: { kind: "filePath", filePath: "" },
+		targetAspectRatio: input.targetAspectRatio || "9:16",
+		durationGoalSeconds:
+			typeof input.durationGoalSeconds === "number"
+				? input.durationGoalSeconds
+				: 60,
+		captionLanguage: String(input.captionLanguage || "auto"),
+		output: {
+			format: input.output?.format || "mp4",
+			quality: input.output?.quality || "high",
+			includeAudio:
+				typeof input.output?.includeAudio === "boolean"
+					? input.output.includeAudio
+					: true,
+		},
+		brief: String(input.brief || ""),
+		successCriteria: String(input.successCriteria || ""),
+	};
+}
+
+function buildWorkspaceProjectSlug(projectName) {
+	const slug =
+		String(projectName || "codecut-project")
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, "-")
+			.replace(/^-+|-+$/g, "")
+			.slice(0, 42) || "codecut-project";
+	const suffix = Date.now().toString(36).slice(-6);
+	return `${slug}-${suffix}`.slice(0, 64).replace(/-+$/g, "");
+}
+
+function normalizeWorkspaceIntent(intent) {
+	const mediaSource =
+		intent.mediaSource && typeof intent.mediaSource === "object"
+			? { ...intent.mediaSource }
+			: {};
+	return {
+		projectId: String(intent.projectId || "").trim(),
+		projectName: String(intent.projectName || "").trim(),
+		mediaSource: {
+			...mediaSource,
+			kind: String(mediaSource.kind || ""),
+			filePath:
+				mediaSource.filePath === undefined
+					? undefined
+					: String(mediaSource.filePath).trim(),
+			url:
+				mediaSource.url === undefined ? undefined : String(mediaSource.url).trim(),
+			mimeType:
+				mediaSource.mimeType === undefined
+					? undefined
+					: String(mediaSource.mimeType).trim(),
+		},
+		targetAspectRatio: String(intent.targetAspectRatio || ""),
+		durationGoalSeconds: Number(intent.durationGoalSeconds),
+		captionLanguage: String(intent.captionLanguage || "auto").trim() || "auto",
+		output: {
+			format: String(intent.output?.format || ""),
+			quality: String(intent.output?.quality || ""),
+			includeAudio: Boolean(intent.output?.includeAudio),
+		},
+		brief: String(intent.brief || "").trim(),
+		successCriteria: String(intent.successCriteria || "").trim(),
+	};
+}
+
+function validateWorkspaceMediaSource(mediaSource) {
+	if (!mediaSource || typeof mediaSource !== "object") {
+		return { ok: false, message: "Exactly one media source is required." };
+	}
+	const hasFilePath = Boolean(String(mediaSource.filePath || "").trim());
+	const hasUrl = Boolean(String(mediaSource.url || "").trim());
+	if (Number(hasFilePath) + Number(hasUrl) !== 1) {
+		return { ok: false, message: "Exactly one media source is required." };
+	}
+	if (hasFilePath) {
+		if (mediaSource.kind !== "filePath") {
+			return { ok: false, message: "File path source must use kind filePath." };
+		}
+		if (!isAbsolute(mediaSource.filePath)) {
+			return { ok: false, message: "Local media file path must be absolute." };
+		}
+		return { ok: true };
+	}
+	if (mediaSource.kind !== "url") {
+		return { ok: false, message: "URL source must use kind url." };
+	}
+	try {
+		const parsed = new URL(mediaSource.url);
+		if (parsed.protocol !== "https:") {
+			return { ok: false, message: "Media URL must use https." };
+		}
+		return { ok: true };
+	} catch {
+		return { ok: false, message: "Media URL must be valid." };
+	}
+}
+
+async function pushFilePathCheck(checks, filePath, statImpl) {
+	try {
+		const fileStat = await statImpl(filePath);
+		pushCheck(
+			checks,
+			"media-file",
+			"Local media file",
+			fileStat.isFile(),
+			"Local media path must point to a file.",
+		);
+	} catch (error) {
+		pushCheck(
+			checks,
+			"media-file",
+			"Local media file",
+			false,
+			error instanceof Error ? error.message : String(error),
+		);
+	}
+}
+
+function pushCheck(checks, id, label, ok, detail) {
+	checks.push({
+		id,
+		label,
+		ok: Boolean(ok),
+		...(ok ? {} : { detail }),
+	});
+}
+
+function extractProjects(content) {
+	if (Array.isArray(content)) return content;
+	if (Array.isArray(content?.projects)) return content.projects;
+	if (Array.isArray(content?.data?.projects)) return content.data.projects;
+	if (Array.isArray(content?.results?.[0]?.data?.projects)) {
+		return content.results[0].data.projects;
+	}
+	return [];
+}
+
+function extractProjectInfo(content) {
+	const fromResult = content?.results?.find?.((result) => result?.success !== false);
+	const data = fromResult?.data || content?.data || content?.project || content || {};
+	return {
+		projectId: data.projectId || data.id,
+		name: data.name || data.projectName,
+		revision: data.revision,
+		editorUrl: data.editorUrl,
+	};
+}
+
+function extractImportedMedia(content) {
+	if (content?.importedMedia) return content.importedMedia;
+	if (content?.media) return content.media;
+	if (content?.asset) return content.asset;
+	const result = content?.results?.find?.((entry) => entry?.success !== false);
+	const data = result?.data || {};
+	if (Array.isArray(data.assets) && data.assets.length) return data.assets[0];
+	if (data.asset) return data.asset;
+	if (data.media) return data.media;
+	if (data.mediaId) {
+		return {
+			id: data.mediaId,
+			name: data.fileName || data.name || "Imported media",
+		};
+	}
+	return null;
+}
+
+function extractErrorMessage(result) {
+	return String(
+		result?.structuredContent?.error ||
+			result?.structuredContent?.message ||
+			result?.content?.[0]?.text ||
+			result?.error ||
+			"CodeCut setup failed.",
+	);
+}
+
+function buildImportMediaArgs(intent) {
+	if (intent.mediaSource.kind === "filePath") {
+		return {
+			projectId: intent.projectId,
+			filePath: intent.mediaSource.filePath,
+		};
+	}
+	const fileName = basename(new URL(intent.mediaSource.url).pathname);
+	return {
+		projectId: intent.projectId,
+		url: intent.mediaSource.url,
+		...(intent.mediaSource.mimeType
+			? { mimeType: intent.mediaSource.mimeType }
+			: {}),
+		...(fileName ? { fileName } : {}),
+	};
+}
+
+function buildSetupErrorResult(content) {
+	return {
+		content: [
+			{
+				type: "text",
+				text: `CodeCut setup ${content.status} for ${content.projectId}: ${content.error}`,
+			},
+		],
+		structuredContent: content,
+		isError: true,
+	};
+}
+
+function buildContinuePrompt({
+	intent,
+	projectId,
+	projectName,
+	revision,
+	editorUrl,
+	importedMedia,
+}) {
+	return [
+		`Use $codecut-jianying-editor-framework to continue the real CodeCut editing chain for project "${projectName}" (${projectId}).`,
+		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state_v2 with projectId "${projectId}".`,
+		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
+		`Confirmed intent: ${JSON.stringify(intent)}.`,
+	].join("\n");
+}
+
 function requireProjectId(args) {
 	if (!args?.projectId) {
 		throw new Error("projectId is required");
@@ -727,6 +1340,19 @@ function writeBytesImportFile(bytes) {
 }
 
 export function buildBridgeCliArgs(toolName, args = {}) {
+	if (toolName === "list_projects") {
+		return ["scripts/codex-bridge.mjs", "list-projects"];
+	}
+	if (toolName === "create_project") {
+		return [
+			"scripts/codex-bridge.mjs",
+			"create-project",
+			"--project-id",
+			requireProjectId(args),
+			"--name",
+			requireStringArg(args, "name"),
+		];
+	}
 	const projectId = requireProjectId(args);
 	switch (toolName) {
 		case "get_project_info":
@@ -1310,6 +1936,47 @@ export function createCodecutMcpServer() {
 		},
 	);
 
+	server.registerResource(
+		"codecut_workspace",
+		CODECUT_WORKSPACE_RESOURCE_URI,
+		{
+			title: "CodeCut Workspace Setup",
+			description:
+				"Static MCP App widget for confirming CodeCut project setup before editing.",
+			mimeType: workspaceResourceMimeType,
+			_meta: codecutWorkspaceResourceMeta,
+		},
+		async () => ({
+			contents: [
+				{
+					uri: CODECUT_WORKSPACE_RESOURCE_URI,
+					mimeType: workspaceResourceMimeType,
+					text: await readCodecutWorkspaceHtml(),
+					_meta: codecutWorkspaceResourceMeta,
+				},
+			],
+		}),
+	);
+
+	for (const tool of CODECUT_WORKSPACE_TOOLS) {
+		server.registerTool(
+			tool.name,
+			{
+				title: tool.title,
+				description: tool.description,
+				inputSchema: tool.inputSchema,
+				annotations: {
+					readOnlyHint: tool.readOnly,
+					destructiveHint: false,
+					idempotentHint: tool.readOnly,
+					openWorldHint: false,
+				},
+				_meta: tool.meta,
+			},
+			async (input) => callCodecutWorkspaceTool(tool.name, input),
+		);
+	}
+
 	for (const tool of CODECUT_MCP_TOOLS) {
 		server.registerTool(
 			tool.name,
@@ -1335,6 +2002,31 @@ export function createCodecutMcpServer() {
 	}
 
 	return server;
+}
+
+async function callCodecutWorkspaceTool(toolName, input) {
+	if (toolName === "open_codecut_workspace") {
+		return openCodecutWorkspace(input);
+	}
+	if (toolName === "inspect_codecut_setup") {
+		const structuredContent = await inspectCodecutSetup(input);
+		return {
+			content: [
+				{
+					type: "text",
+					text:
+						structuredContent.status === "ready"
+							? "CodeCut workspace setup is ready."
+							: "CodeCut workspace setup is blocked.",
+				},
+			],
+			structuredContent,
+		};
+	}
+	if (toolName === "submit_codecut_setup") {
+		return submitCodecutSetup(input);
+	}
+	throw new Error(`Unsupported CodeCut workspace tool: ${toolName}`);
 }
 
 export async function runStdioServer() {

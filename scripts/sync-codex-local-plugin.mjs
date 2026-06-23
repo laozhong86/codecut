@@ -187,11 +187,14 @@ export function buildRsyncArgs({ sourceRoot, cacheRoot, dryRun = false }) {
 	];
 }
 
-async function removeCacheGitMetadata({ cacheRoot, dryRun }) {
+async function removeStaleCacheMetadata({ cacheRoot, dryRun }) {
 	if (dryRun) {
 		return;
 	}
-	await rm(join(cacheRoot, ".git"), { recursive: true, force: true });
+	await Promise.all([
+		rm(join(cacheRoot, ".git"), { recursive: true, force: true }),
+		rm(join(cacheRoot, ".worktrees"), { recursive: true, force: true }),
+	]);
 }
 
 export async function runSync({
@@ -214,7 +217,7 @@ export async function runSync({
 		cacheRoot: plan.cacheRoot,
 		dryRun,
 	});
-	await removeCacheGitMetadata({ cacheRoot: plan.cacheRoot, dryRun });
+	await removeStaleCacheMetadata({ cacheRoot: plan.cacheRoot, dryRun });
 	await execFileImpl("rsync", rsyncArgs);
 
 	const summary = {
