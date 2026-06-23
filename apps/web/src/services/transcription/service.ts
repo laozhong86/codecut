@@ -73,6 +73,8 @@ class TranscriptionService {
 						resolve({
 							text: response.text,
 							segments: response.segments,
+							capabilities: response.capabilities,
+							quality: response.quality,
 							language,
 							tps: response.tps,
 						});

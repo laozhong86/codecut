@@ -3,10 +3,15 @@ import {
 	buildAnalysisChunks,
 	buildVideoContextWithTranscriber,
 	guessVideoContextAssetType,
+	offsetTranscriptWords,
 	offsetTranscriptSegments,
 	shouldSuggestTrimFillers,
 } from "../video-context";
 import { transcribeMediaRangeWithNodeRuntime } from "../transcription";
+import {
+	cloneLocalSegmentAsrCapabilities,
+	cloneLocalSegmentAsrQuality,
+} from "@/lib/transcription/asr-provider-contract";
 
 describe("video context", () => {
 	test("exports a range-aware transcription runtime", () => {
@@ -132,6 +137,15 @@ describe("video context", () => {
 		).toEqual([{ start: 301.235, end: 304.567, text: "rounded chunk" }]);
 	});
 
+	test("offsetTranscriptWords remaps optional word timestamps into source time", () => {
+		expect(
+			offsetTranscriptWords({
+				offsetSeconds: 300,
+				words: [{ start: 1.25, end: 1.5, text: "word", confidence: 0.9 }],
+			}),
+		).toEqual([{ start: 301.25, end: 301.5, text: "word", confidence: 0.9 }]);
+	});
+
 	test("guessVideoContextAssetType flags 20 character multi-segment text as oral", () => {
 		expect(
 			guessVideoContextAssetType({
@@ -172,6 +186,8 @@ describe("video context", () => {
 						language: "zh",
 						modelId: "whisper-large-v3-turbo",
 						segments: [{ start: 1, end: 4, text: "first chunk" }],
+						capabilities: cloneLocalSegmentAsrCapabilities(),
+						quality: cloneLocalSegmentAsrQuality(),
 					};
 				}
 				if (startSeconds === 300) {
@@ -180,6 +196,8 @@ describe("video context", () => {
 						language: "zh",
 						modelId: "whisper-large-v3-turbo",
 						segments: [{ start: 1, end: 4, text: "second chunk" }],
+						capabilities: cloneLocalSegmentAsrCapabilities(),
+						quality: cloneLocalSegmentAsrQuality(),
 					};
 				}
 				return {
@@ -187,6 +205,8 @@ describe("video context", () => {
 					language: "zh",
 					modelId: "whisper-large-v3-turbo",
 					segments: [{ start: 1, end: 4, text: "third chunk" }],
+					capabilities: cloneLocalSegmentAsrCapabilities(),
+					quality: cloneLocalSegmentAsrQuality(),
 				};
 			},
 		});
@@ -207,6 +227,19 @@ describe("video context", () => {
 					"First chunk spoken transcript with enough words for classification.\nSecond chunk spoken transcript with enough words for classification.\nThird chunk spoken transcript with enough words for classification.",
 				language: "zh",
 				modelId: "whisper-large-v3-turbo",
+				capabilities: {
+					segments: true,
+					words: false,
+					timestamps: {
+						segments: true,
+						words: false,
+					},
+					confidence: false,
+				},
+				quality: {
+					confidence: null,
+					warnings: ["word timestamps unavailable"],
+				},
 				segments: [
 					{ start: 1, end: 4, text: "first chunk" },
 					{ start: 301, end: 304, text: "second chunk" },
@@ -242,6 +275,41 @@ describe("video context", () => {
 		expect(videoContext.warnings).toContain("scene detection not run");
 	});
 
+	test("buildVideoContextWithTranscriber rejects ASR output without segments", async () => {
+		await expect(
+			buildVideoContextWithTranscriber({
+				mediaAsset: {
+					id: "media-1",
+					name: "source.mp4",
+					type: "video",
+					durationSeconds: 120,
+				},
+				probeAudio: async () => ({ hasAudio: true }),
+				transcribeRange: async () =>
+					({
+						text: "transcript without segment rows",
+						language: "zh",
+						modelId: "whisper-large-v3-turbo",
+						capabilities: {
+							segments: true,
+							words: false,
+							timestamps: {
+								segments: true,
+								words: false,
+							},
+							confidence: false,
+						},
+						quality: {
+							confidence: null,
+							warnings: [],
+						},
+					}) as never,
+			}),
+		).rejects.toThrow(
+			"ASR provider output for build_video_context chunk 1 must include a segments array.",
+		);
+	});
+
 	test("buildVideoContextWithTranscriber fails fast when media has no audio", async () => {
 		let transcribeCount = 0;
 
@@ -261,6 +329,8 @@ describe("video context", () => {
 						language: "zh",
 						modelId: "whisper-large-v3-turbo",
 						segments: [],
+						capabilities: cloneLocalSegmentAsrCapabilities(),
+						quality: cloneLocalSegmentAsrQuality(),
 					};
 				},
 			}),
@@ -287,6 +357,8 @@ describe("video context", () => {
 						language: "zh",
 						modelId: "whisper-large-v3-turbo",
 						segments: [{ start: 1, end: 2, text: "ok" }],
+						capabilities: cloneLocalSegmentAsrCapabilities(),
+						quality: cloneLocalSegmentAsrQuality(),
 					};
 				},
 			}),
