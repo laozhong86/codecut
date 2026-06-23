@@ -188,16 +188,10 @@
       <form id="workspace-form">
         <fieldset aria-labelledby="project-section-title">
           <h2 id="project-section-title" class="section-heading" data-i18n="project">Project</h2>
-          <div class="grid">
-            <label>
-              <span data-i18n="projectName">Project name</span>
-              <input id="project-name" name="projectName" autocomplete="off">
-            </label>
-            <label>
-              <span data-i18n="projectId">Project ID</span>
-              <input id="project-id" name="projectId" autocomplete="off" spellcheck="false">
-            </label>
-          </div>
+          <label>
+            <span data-i18n="projectName">Project name</span>
+            <input id="project-name" name="projectName" autocomplete="off">
+          </label>
         </fieldset>
 
         <fieldset aria-labelledby="source-section-title">
@@ -308,7 +302,6 @@
             subtitle: "Confirm the editing intent, validate local setup, then create the executor project.",
             project: "Project",
             projectName: "Project name",
-            projectId: "Project ID",
             source: "Source",
             mediaSource: "Media source",
             localFilePath: "Local file path",
@@ -359,7 +352,6 @@
             subtitle: "确认剪辑需求，检查本地环境，然后创建执行器项目。",
             project: "项目",
             projectName: "项目名称",
-            projectId: "项目 ID",
             source: "素材",
             mediaSource: "素材来源",
             localFilePath: "本地文件路径",
@@ -410,7 +402,6 @@
         const fields = {
           form: document.getElementById("workspace-form"),
           projectName: document.getElementById("project-name"),
-          projectId: document.getElementById("project-id"),
           mediaSourceKind: document.getElementById("media-source-kind"),
           filePathRow: document.getElementById("file-path-row"),
           urlRow: document.getElementById("url-row"),
@@ -434,7 +425,7 @@
           followUp: document.getElementById("follow-up"),
         };
 
-        let projectIdEdited = false;
+        let currentProjectId = "";
         let lastInspectionReady = false;
         let activeLanguage = "en";
 
@@ -479,7 +470,7 @@
 
         function applyDefaults(defaults) {
           fields.projectName.value = defaults.projectName || "";
-          fields.projectId.value = defaults.projectId || slugify(defaults.projectName);
+          currentProjectId = defaults.projectId || slugify(fields.projectName.value);
           const mediaSource = defaults.mediaSource || {};
           fields.mediaSourceKind.value = mediaSource.kind === "url" ? "url" : "filePath";
           fields.mediaFilePath.value = mediaSource.filePath || "";
@@ -517,7 +508,7 @@
                 filePath: fields.mediaFilePath.value.trim(),
               };
           return {
-            projectId: fields.projectId.value.trim(),
+            projectId: currentProjectId || slugify(fields.projectName.value),
             projectName: fields.projectName.value.trim(),
             mediaSource,
             targetAspectRatio: fields.targetAspectRatio.value,
@@ -694,12 +685,7 @@
         }
 
         fields.projectName.addEventListener("input", () => {
-          if (!projectIdEdited) fields.projectId.value = slugify(fields.projectName.value);
-          lastInspectionReady = false;
-          fields.submitButton.disabled = true;
-        });
-        fields.projectId.addEventListener("input", () => {
-          projectIdEdited = true;
+          currentProjectId = slugify(fields.projectName.value);
           lastInspectionReady = false;
           fields.submitButton.disabled = true;
         });
