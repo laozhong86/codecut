@@ -26,7 +26,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs doctor --project-id <id>",
 		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
-		"  node scripts/codex-bridge.mjs import-media --project-id <id> --bytes-base64-file /absolute/path/payload.base64 --file-name <name> --mime-type <type>",
+		"  node scripts/codex-bridge.mjs import-media --project-id <id> --bytes-base64-file /absolute/path/payload.base64 --file-name <name> --mime-type <type> [--spoken-script-json-file /absolute/path/spoken-script.json]",
 		"  node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-visual-context --project-id <id> --media-id <id> --target-aspect-ratio <9:16|16:9|1:1>",
@@ -1454,6 +1454,7 @@ export async function buildImportMediaEnvelope({
 	width,
 	height,
 	mediaMetadata,
+	spokenScript,
 }) {
 	validateSingleImportSource({ filePath, url, bytes, bytesBase64File });
 	if (filePath) {
@@ -1478,6 +1479,7 @@ export async function buildImportMediaEnvelope({
 				lastModified: fileStat.mtimeMs,
 				...(mediaMetadata ?? {}),
 				...normalizeMediaMetadata({ duration, width, height }),
+				...(spokenScript === undefined ? {} : { spokenScript }),
 			},
 		});
 	}
@@ -1503,6 +1505,7 @@ export async function buildImportMediaEnvelope({
 						? Date.now()
 						: parseNonNegativeNumber(lastModified, "last-modified"),
 				...normalizeMediaMetadata({ duration, width, height }),
+				...(spokenScript === undefined ? {} : { spokenScript }),
 			},
 		});
 	}
@@ -1923,6 +1926,12 @@ export async function runCli({
 			width: flags.width,
 			height: flags.height,
 			mediaMetadata,
+			spokenScript: flags.spokenScriptJsonFile
+				? await readJsonObjectFile({
+						filePath: flags.spokenScriptJsonFile,
+						flagName: "spoken-script-json-file",
+					})
+				: undefined,
 			fetchImpl,
 		});
 	} else if (command === "transcribe") {
