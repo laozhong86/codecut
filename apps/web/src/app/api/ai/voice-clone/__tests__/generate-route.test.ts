@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 import {
 	handleVoiceCloneGenerateRequest,
 	parseVoiceCloneGenerateFormData,
-} from "../generate/route";
+} from "@/lib/ai/runninghub-generation-route-inputs";
 
 function validFormData(overrides: Record<string, string | File> = {}): FormData {
 	const formData = new FormData();

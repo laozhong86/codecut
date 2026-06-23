@@ -1,10 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import {
-	assertAllowedRunningHubVideoUrl as assertAllowedRunningHubUrl,
 	downloadRunningHubVideoResult as downloadRunningHubResult,
 } from "@/lib/ai/providers/runninghub-result-download";
-
-export { assertAllowedRunningHubUrl, downloadRunningHubResult };
 
 export async function GET(request: NextRequest) {
 	const url = request.nextUrl.searchParams.get("url");

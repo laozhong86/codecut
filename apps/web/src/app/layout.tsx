@@ -4,14 +4,11 @@ import type { Viewport } from "next";
 import "./globals.css";
 import { baseMetaData } from "./metadata";
 import { BotIdClient } from "botid/client";
-import { Inter } from "next/font/google";
 import {
 	initServerI18n,
 	getLocale,
 } from "@i18next-toolkit/nextjs-approuter/server";
 import { i18nConfig } from "../i18n.config";
-
-const siteFont = Inter({ subsets: ["latin"] });
 
 export const metadata = baseMetaData;
 
@@ -44,9 +41,7 @@ export default async function RootLayout({
 					data-website-id="cmm637ekbb51pbiglgy2s7n6k"
 				/>
 			</head>
-			<body className={`${siteFont.className} font-sans antialiased`}>
-				{children}
-			</body>
+			<body className="font-sans antialiased">{children}</body>
 		</html>
 	);
 }

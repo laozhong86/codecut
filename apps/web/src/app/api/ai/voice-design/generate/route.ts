@@ -1,11 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { parseVoiceDesignGenerateBody } from "@/lib/ai/runninghub-generation-route-inputs";
 import { submitRunningHubVoiceDesignTask } from "@/lib/ai/providers/runninghub-voice-design-server";
-
-const voiceDesignGenerateSchema = z.object({
-	text: z.string().trim().min(1),
-	emotionPrompt: z.string().trim().min(1),
-});
 
 function apiKeyFromRequest({ request }: { request: NextRequest }): string {
 	const authorization = request.headers.get("authorization");
@@ -20,18 +15,6 @@ function errorStatus({ message }: { message: string }): number {
 	if (message === "Missing Authorization header") return 401;
 	if (message === "Invalid voice design generation request") return 400;
 	return 500;
-}
-
-export function parseVoiceDesignGenerateBody({
-	body,
-}: {
-	body: unknown;
-}): z.infer<typeof voiceDesignGenerateSchema> {
-	const validation = voiceDesignGenerateSchema.safeParse(body);
-	if (!validation.success) {
-		throw new Error("Invalid voice design generation request");
-	}
-	return validation.data;
 }
 
 export async function POST(request: NextRequest) {
