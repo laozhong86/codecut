@@ -1,5 +1,6 @@
 import type { EditorCore } from "@/core";
 import { buildUploadAudioElement, wouldElementOverlap } from "@/lib/timeline";
+import { buildTtsSpokenScript } from "./spoken-script";
 
 export interface TtsResult {
 	duration: number;
@@ -82,15 +83,24 @@ export async function generateAndInsertSpeech({
 	text,
 	startTime,
 	voice,
+	captionLines,
+	protectedTerms,
 }: {
 	editor: EditorCore;
 	text: string;
 	startTime: number;
 	voice?: string;
+	captionLines?: string[];
+	protectedTerms?: string[];
 }): Promise<{ duration: number }> {
-	const result = await generateSpeechFromText({ text, voice });
+	const spokenScript = buildTtsSpokenScript({
+		text,
+		captionLines,
+		protectedTerms,
+	});
+	const result = await generateSpeechFromText({ text: spokenScript.text, voice });
 
-	const name = `TTS: ${text.slice(0, 30)}`;
+	const name = `TTS: ${spokenScript.text.slice(0, 30)}`;
 	const file = new File([result.blob], `${name}.mp3`, {
 		type: "audio/mpeg",
 	});
@@ -106,6 +116,7 @@ export async function generateAndInsertSpeech({
 			url,
 			duration: result.duration,
 			ephemeral: true,
+			spokenScript,
 		},
 	});
 

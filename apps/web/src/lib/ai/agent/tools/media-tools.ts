@@ -3,6 +3,7 @@ import {
 	processMediaAssets,
 	type ProcessedMediaAsset,
 } from "@/lib/media/processing";
+import { parseSpokenScriptPayload } from "@/lib/tts/spoken-script";
 import type { MediaAsset } from "@/types/assets";
 import type { AgentToolResult } from "../types";
 import type { AgentTool } from "./types";
@@ -109,6 +110,15 @@ export async function executeImportMediaFileTool({
 	let base64: string;
 	let size: number;
 	let lastModified: number;
+	const parsedSpokenScript = parseSpokenScriptPayload({
+		value: args.spokenScript,
+	});
+	if (!parsedSpokenScript.success) {
+		return {
+			success: false,
+			message: parsedSpokenScript.message,
+		};
+	}
 	try {
 		fileName = requiredString({ args, key: "fileName" });
 		mimeType = requiredString({ args, key: "mimeType" });
@@ -153,12 +163,23 @@ export async function executeImportMediaFileTool({
 			message: "File could not be processed as a supported media asset.",
 		};
 	}
+	if (
+		parsedSpokenScript.spokenScript &&
+		(assets.length !== 1 || assets[0].type !== "audio")
+	) {
+		return {
+			success: false,
+			message: "spokenScript can only be attached to imported audio assets.",
+		};
+	}
 
 	const importedAssets = [];
 	for (const asset of assets) {
 		const id = await editor.media.addMediaAsset({
 			projectId: activeProject.metadata.id,
-			asset,
+			asset: parsedSpokenScript.spokenScript
+				? { ...asset, spokenScript: parsedSpokenScript.spokenScript }
+				: asset,
 		});
 		importedAssets.push({
 			id,
@@ -204,6 +225,18 @@ export const importMediaFileTool: AgentTool = {
 			lastModified: {
 				type: "number",
 				description: "Original file last modified timestamp in milliseconds.",
+			},
+			spokenScript: {
+				type: "object",
+				description:
+					"Optional scripted TTS metadata for generated narration audio. Only valid for imported audio assets; ordinary source video or reference audio must not set this.",
+				properties: {
+					source: { type: "string", enum: ["tts"] },
+					text: { type: "string" },
+					captions: { type: "array", items: { type: "string" } },
+					protectedTerms: { type: "array", items: { type: "string" } },
+				},
+				required: ["source", "text", "captions"],
 			},
 		},
 		required: ["fileName", "mimeType", "base64", "size", "lastModified"],

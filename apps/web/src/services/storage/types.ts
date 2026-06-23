@@ -27,6 +27,14 @@ export interface MediaAssetData {
 	fps?: number;
 	ephemeral?: boolean;
 	thumbnailUrl?: string;
+	spokenScript?: SpokenScriptData;
+}
+
+export interface SpokenScriptData {
+	source: "tts";
+	text: string;
+	captions: string[];
+	protectedTerms?: string[];
 }
 
 export type SerializedScene = Omit<TScene, "createdAt" | "updatedAt"> & {
