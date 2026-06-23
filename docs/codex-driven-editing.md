@@ -397,6 +397,7 @@ Rules:
 - Use seconds for all source and timeline fields.
 - Mark every transcript segment as `keep` or `drop`.
 - Every `drop` decision must include `dropReason`.
+- Every `drop` decision must include `risk: "low" | "high"`.
 - `keep` decisions must not include `dropReason`.
 - Source ranges must be sorted, non-overlapping, and have
   `sourceEnd > sourceStart`.
@@ -415,8 +416,9 @@ Rules:
   with no standalone meaning. High-risk drops are full-sentence removals,
   repeated openings with divergent endings, or long repeated spans.
 - High-risk drops require explicit retained-meaning evidence in the decision
-  `reason`, proving that a kept segment preserves the dropped segment's useful
-  meaning.
+  `retainedMeaningEvidence`, proving that a kept segment preserves the dropped
+  segment's useful meaning. Use `reason` for the human-readable deletion
+  rationale.
 - Count filler removal only from explicit `drop` decisions with
   `dropReason: "filler"`. Do not infer filler counts from words such as
   "um", "uh", "嗯", or "额" inside kept text.

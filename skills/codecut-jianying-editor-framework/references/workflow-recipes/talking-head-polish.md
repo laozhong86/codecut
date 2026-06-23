@@ -8,7 +8,7 @@ Use this recipe when the user asks to tighten a talking-head video, remove fille
 - Codex creates a SpeechCleanupPlan decision ledger before applying the final EditPlan projection.
 - Codex chooses cuts from transcript timestamps that do not split words or obvious sentence units when the transcript supports that check.
 - Captions align to the edited speech timeline.
-- High-risk drops require retained-meaning evidence before projection.
+- High-risk drops require `retainedMeaningEvidence` before projection.
 - Captions come from post-cut captions when edited audio transcription is available.
 - Timeline verification proves the generated clips are in source order unless the user asked for reordering.
 - Filler removal counts come only from explicit `drop` decisions with `dropReason: "filler"`.
@@ -31,8 +31,8 @@ Codecut currently targets transcript-first polish. If silence spans are not avai
 5. Generate a strict SpeechCleanupPlan v2 from transcript evidence.
 6. Mark each classified transcript segment as `keep` or `drop`; every `drop` needs `dropReason`, and every `keep` must omit `dropReason`.
 7. For restarts and repeats, drop earlier restarts or repeats and keep the later complete take unless the user explicitly prefers the earlier version.
-8. Classify each dropped range as low or high risk. Low risk means pauses, exact prefix repeats, or very short filler tokens with no standalone meaning. High risk means full-sentence removals, repeated openings with divergent endings, or long repeated spans.
-9. For high-risk drops, write retained-meaning evidence in `reason`; if a script or outline exists, use it as semantic alignment evidence rather than a word-by-word diff.
+8. Classify each dropped range with `risk: "low"` or `risk: "high"`. Low risk means pauses, exact prefix repeats, or very short filler tokens with no standalone meaning. High risk means full-sentence removals, repeated openings with divergent endings, or long repeated spans.
+9. For high-risk drops, write retained-meaning evidence in `retainedMeaningEvidence`; if a script or outline exists, use it as semantic alignment evidence rather than a word-by-word diff.
 10. Keep source ranges sorted and non-overlapping. Do not auto-fix reversed or overlapping ranges.
 11. Project the SpeechCleanupPlan with `rebuildTimelineFromSpeechCleanup()` into the implemented EditPlan v1.
 12. Apply only the projected EditPlan v1 and verify with `get_timeline_state`.
@@ -56,4 +56,4 @@ Codecut currently targets transcript-first polish. If silence spans are not avai
 
 ## Report Back
 
-Return removed themes, retained themes, final duration, transcript coverage, high-risk drops checked, post-cut captions status, and any context limitations.
+Return removed themes, retained themes, final duration, transcript coverage, high-risk drops with `retainedMeaningEvidence`, post-cut captions status, and any context limitations.

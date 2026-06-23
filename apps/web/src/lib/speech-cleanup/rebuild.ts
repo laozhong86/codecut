@@ -7,6 +7,7 @@ import {
 	type RebuiltSpeechCaption,
 	type SpeechCleanupDecision,
 	type SpeechCleanupDropReason,
+	type SpeechCleanupDropRisk,
 	type SpeechCleanupPlan,
 	type SpeechCleanupStats,
 	type SpeechCleanupVerification,
@@ -63,6 +64,7 @@ function buildStats({
 	decisions: SpeechCleanupDecision[];
 }): SpeechCleanupStats {
 	const dropReasons: Partial<Record<SpeechCleanupDropReason, number>> = {};
+	const dropRisks: Partial<Record<SpeechCleanupDropRisk, number>> = {};
 	let keep = 0;
 	let drop = 0;
 
@@ -75,6 +77,7 @@ function buildStats({
 		drop += 1;
 		dropReasons[decision.dropReason] =
 			(dropReasons[decision.dropReason] ?? 0) + 1;
+		dropRisks[decision.risk] = (dropRisks[decision.risk] ?? 0) + 1;
 	}
 
 	return {
@@ -82,6 +85,7 @@ function buildStats({
 		keep,
 		drop,
 		dropReasons,
+		dropRisks,
 	};
 }
 
