@@ -104,6 +104,10 @@ export class TextNode extends BaseNode<TextNodeParams> {
 			return;
 		}
 
+		await renderer.runtime.ensureFontFamily?.({
+			fontFamily: this.params.fontFamily,
+		});
+
 		const context = renderer.context;
 		context.save();
 
