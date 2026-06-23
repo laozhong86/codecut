@@ -4,7 +4,9 @@ import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
 
 export { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
 
-export const CODECUT_CJK_FONT_PATHS = [
+export const CODECUT_CJK_FONT_PATH_ENV = "CODECUT_CJK_FONT_PATH";
+
+export const CODECUT_CJK_SYSTEM_FONT_PATHS = [
 	"/System/Library/Fonts/PingFang.ttc",
 	"/System/Library/Fonts/STHeiti Medium.ttc",
 	"/System/Library/Fonts/STHeiti Light.ttc",
@@ -16,6 +18,16 @@ export const CODECUT_CJK_FONT_PATHS = [
 	"C:\\Windows\\Fonts\\simhei.ttf",
 	"C:\\Windows\\Fonts\\simsun.ttc",
 ] as const;
+
+export function resolveCodecutCjkFontPaths({
+	env = process.env,
+}: {
+	env?: Record<string, string | undefined>;
+} = {}): readonly string[] {
+	const configuredPath = env[CODECUT_CJK_FONT_PATH_ENV]?.trim();
+	if (configuredPath) return [configuredPath];
+	return CODECUT_CJK_SYSTEM_FONT_PATHS;
+}
 
 type CodecutFontRegistry = {
 	has(familyName: string): boolean;
@@ -35,7 +47,7 @@ export type RegisterCodecutCjkFontResult =
 	  };
 
 export function registerCodecutCjkFont({
-	fontPaths = CODECUT_CJK_FONT_PATHS,
+	fontPaths = resolveCodecutCjkFontPaths(),
 	existsSync = fileExistsSync,
 	globalFonts = GlobalFonts,
 }: {

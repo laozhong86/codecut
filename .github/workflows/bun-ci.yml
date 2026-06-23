@@ -62,6 +62,24 @@ jobs:
       - name: Verify FFmpeg
         run: ffmpeg -version
 
+      - name: Install Codecut CJK font
+        if: runner.os != 'Windows'
+        run: |
+          font_path="$PWD/tmp/fonts/NotoSansCJK-Regular.ttc"
+          mkdir -p "$(dirname "$font_path")"
+          curl -L --fail --retry 3 --output "$font_path" https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTC/NotoSansCJK-Regular.ttc
+          test -s "$font_path"
+          echo "CODECUT_CJK_FONT_PATH=$font_path" >> "$GITHUB_ENV"
+
+      - name: Install Codecut CJK font (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $fontPath = Join-Path $env:GITHUB_WORKSPACE "tmp\fonts\NotoSansCJK-Regular.ttc"
+          New-Item -ItemType Directory -Force -Path (Split-Path $fontPath)
+          curl.exe -L --fail --retry 3 --output $fontPath https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTC/NotoSansCJK-Regular.ttc
+          if ((Get-Item $fontPath).Length -le 0) { throw "Downloaded CJK font is empty." }
+          "CODECUT_CJK_FONT_PATH=$fontPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
