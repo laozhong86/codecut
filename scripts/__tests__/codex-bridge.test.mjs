@@ -1520,10 +1520,12 @@ describe("codex bridge CLI helpers", () => {
 		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
 			recursive: true,
 		});
+		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
 		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
 		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
 			recursive: true,
 		});
+		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
 		await writeFile(
 			join(sourceRoot, ".codex-plugin/plugin.json"),
 			JSON.stringify({ name: "codecut", version: "0.1.1" }),
@@ -1535,6 +1537,16 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
+			join(sourceRoot, "apps/web/.env.local"),
+			[
+				"CODECUT_AGENT_BRIDGE_URL=http://localhost:4100",
+				"CODECUT_AGENT_BRIDGE_TOKEN=local-token",
+				"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=1000",
+				"CODECUT_AGENT_BRIDGE_INTERVAL_MS=1",
+			].join("\n"),
+			"utf8",
+		);
+		await writeFile(
 			join(cacheRoot, ".codex-plugin/plugin.json"),
 			JSON.stringify({ name: "codecut", version: "0.1.1" }),
 			"utf8",
@@ -1542,6 +1554,16 @@ describe("codex bridge CLI helpers", () => {
 		await writeFile(
 			join(cacheRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
 			"---\nname: codecut-jianying-editor-framework\n---\n",
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "apps/web/.env.local"),
+			[
+				"CODECUT_AGENT_BRIDGE_URL=http://localhost:4100",
+				"CODECUT_AGENT_BRIDGE_TOKEN=local-token",
+				"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=1000",
+				"CODECUT_AGENT_BRIDGE_INTERVAL_MS=1",
+			].join("\n"),
 			"utf8",
 		);
 
@@ -1590,11 +1612,228 @@ describe("codex bridge CLI helpers", () => {
 				["source_plugin", true],
 				["cache_plugin", true],
 				["plugin_sync", true],
+				["cache_bridge_env", true],
 				["environment", true],
 				["node_renderer", true],
 				["web_service", true],
 				["executor_project", true],
 			]);
+		} finally {
+			await Promise.all([
+				rm(sourceRoot, { recursive: true, force: true }),
+				rm(homeRoot, { recursive: true, force: true }),
+			]);
+		}
+	});
+
+	test("install doctor fails when cache bridge env drifts from source bridge env", async () => {
+		const sourceRoot = await mkdtemp(join(tmpdir(), "codecut-source-"));
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
+			recursive: true,
+		});
+		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
+		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
+			recursive: true,
+		});
+		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
+		await writeFile(
+			join(sourceRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
+			"---\nname: codecut-jianying-editor-framework\n---\n",
+			"utf8",
+		);
+		await writeFile(
+			join(sourceRoot, "apps/web/.env.local"),
+			[
+				"CODECUT_AGENT_BRIDGE_URL=http://127.0.0.1:4100",
+				"CODECUT_AGENT_BRIDGE_TOKEN=source-token",
+				"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=120000",
+				"CODECUT_AGENT_BRIDGE_INTERVAL_MS=1000",
+			].join("\n"),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
+			"---\nname: codecut-jianying-editor-framework\n---\n",
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "apps/web/.env.local"),
+			[
+				"CODECUT_AGENT_BRIDGE_URL=http://127.0.0.1:4102",
+				"CODECUT_AGENT_BRIDGE_TOKEN=cache-token",
+				"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=120000",
+				"CODECUT_AGENT_BRIDGE_INTERVAL_MS=1000",
+			].join("\n"),
+			"utf8",
+		);
+
+		try {
+			const result = await runInstallDoctor({
+				projectId: "project-123",
+				cwd: sourceRoot,
+				homeDir: homeRoot,
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					CODECUT_AGENT_BRIDGE_TOKEN: "source-token",
+					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "120000",
+					CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1000",
+				},
+				execFileImpl: async () => ({ stdout: "", stderr: "" }),
+				nodeRendererProbe: async () => ({
+					id: "node_renderer",
+					ok: true,
+					message: "Node Canvas/WebCodecs renderer is available.",
+				}),
+				fetchImpl: async (url) => {
+					if (String(url).endsWith("/en/projects")) {
+						return new Response("ok");
+					}
+					return new Response(
+						JSON.stringify({
+							projectId: "project-123",
+							status: "idle",
+							message: "Executor project is ready.",
+						}),
+					);
+				},
+			});
+
+			const cacheBridgeEnv = result.checks.find(
+				(check) => check.id === "cache_bridge_env",
+			);
+			expect(result.ok).toBe(false);
+			expect(cacheBridgeEnv).toMatchObject({
+				ok: false,
+				data: {
+					mismatched: [
+						"CODECUT_AGENT_BRIDGE_URL",
+						"CODECUT_AGENT_BRIDGE_TOKEN",
+					],
+				},
+			});
+			expect(JSON.stringify(cacheBridgeEnv)).not.toContain("source-token");
+			expect(JSON.stringify(cacheBridgeEnv)).not.toContain("cache-token");
+		} finally {
+			await Promise.all([
+				rm(sourceRoot, { recursive: true, force: true }),
+				rm(homeRoot, { recursive: true, force: true }),
+			]);
+		}
+	});
+
+	test("install doctor fails when source and cache bridge env both miss a required key", async () => {
+		const sourceRoot = await mkdtemp(join(tmpdir(), "codecut-source-"));
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
+			recursive: true,
+		});
+		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
+		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
+			recursive: true,
+		});
+		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
+		await writeFile(
+			join(sourceRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
+			"---\nname: codecut-jianying-editor-framework\n---\n",
+			"utf8",
+		);
+		const incompleteBridgeEnv = [
+			"CODECUT_AGENT_BRIDGE_URL=http://127.0.0.1:4100",
+			"CODECUT_AGENT_BRIDGE_TOKEN=local-token",
+			"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=120000",
+		].join("\n");
+		await writeFile(
+			join(sourceRoot, "apps/web/.env.local"),
+			incompleteBridgeEnv,
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
+			"---\nname: codecut-jianying-editor-framework\n---\n",
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "apps/web/.env.local"),
+			incompleteBridgeEnv,
+			"utf8",
+		);
+
+		try {
+			const result = await runInstallDoctor({
+				projectId: "project-123",
+				cwd: sourceRoot,
+				homeDir: homeRoot,
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "120000",
+					CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1000",
+				},
+				execFileImpl: async () => ({ stdout: "", stderr: "" }),
+				nodeRendererProbe: async () => ({
+					id: "node_renderer",
+					ok: true,
+					message: "Node Canvas/WebCodecs renderer is available.",
+				}),
+				fetchImpl: async (url) => {
+					if (String(url).endsWith("/en/projects")) {
+						return new Response("ok");
+					}
+					return new Response(
+						JSON.stringify({
+							projectId: "project-123",
+							status: "idle",
+							message: "Executor project is ready.",
+						}),
+					);
+				},
+			});
+
+			const cacheBridgeEnv = result.checks.find(
+				(check) => check.id === "cache_bridge_env",
+			);
+			expect(result.ok).toBe(false);
+			expect(cacheBridgeEnv).toMatchObject({
+				ok: false,
+				data: {
+					sourceMissing: ["CODECUT_AGENT_BRIDGE_INTERVAL_MS"],
+					cacheMissing: ["CODECUT_AGENT_BRIDGE_INTERVAL_MS"],
+				},
+			});
+			expect(JSON.stringify(cacheBridgeEnv)).not.toContain("local-token");
 		} finally {
 			await Promise.all([
 				rm(sourceRoot, { recursive: true, force: true }),
