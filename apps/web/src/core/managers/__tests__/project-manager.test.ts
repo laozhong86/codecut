@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { EditorCore } from "@/core";
 import { buildDefaultScene } from "@/lib/scenes";
 import type { DerivedAsset, TProject } from "@/types/project";
+import {
+	ProjectNotFoundError,
+	shouldLogProjectLoadError,
+} from "../project-manager";
 
 const timerWindow = {
 	setTimeout,
@@ -99,5 +103,12 @@ describe("ProjectManager derived assets", () => {
 				derivedAsset: personMask({ confidence: -0.1 }),
 			}),
 		).toThrow("Person mask confidence must be between 0 and 1.");
+	});
+
+	test("classifies expected missing-project loads as non-loggable", () => {
+		expect(
+			shouldLogProjectLoadError(new ProjectNotFoundError("missing-project")),
+		).toBe(false);
+		expect(shouldLogProjectLoadError(new Error("IndexedDB failed"))).toBe(true);
 	});
 });

@@ -16,8 +16,10 @@ Browser is not the Agent runtime. Use `setupBrowserRuntime`, `agent.browsers.get
 Preview URLs:
 
 - `http://127.0.0.1:4100/en/projects`
-- `http://127.0.0.1:4100/en/editor/<projectId>`
+- the `editorUrl` returned by `create-project`
 
+Do not reconstruct a bare `/editor/<projectId>` URL for executor projects; the
+returned `editorUrl` carries the browser bridge token required for editor state.
 Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview URL.
 
 ## Required Stage Routing
@@ -83,8 +85,10 @@ const tab = await browser.tabs.selected();
 Preview URLs:
 
 - `http://127.0.0.1:4100/en/projects`
-- `http://127.0.0.1:4100/en/editor/<projectId>`
+- the `editorUrl` returned by `create-project`
 
+Do not reconstruct a bare `/editor/<projectId>` URL for executor projects; the
+returned `editorUrl` carries the browser bridge token required for editor state.
 Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview URL.
 
 ## Visual And Caption Gates
