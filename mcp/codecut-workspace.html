@@ -303,14 +303,14 @@
         <fieldset aria-labelledby="intent-section-title">
           <h2 id="intent-section-title" class="section-heading" data-i18n="intent">Intent</h2>
           <div>
-            <span data-i18n="brief">Brief</span>
+            <span id="brief-label" data-i18n="brief">Brief</span>
             <div id="brief-options" class="choice-options"></div>
-            <textarea id="brief" name="brief" data-i18n-placeholder="briefCustomPlaceholder"></textarea>
+            <textarea id="brief" name="brief" aria-labelledby="brief-label" data-i18n-placeholder="briefCustomPlaceholder"></textarea>
           </div>
           <div>
-            <span data-i18n="successCriteria">Success criteria</span>
+            <span id="success-criteria-label" data-i18n="successCriteria">Success criteria</span>
             <div id="success-criteria-options" class="choice-options"></div>
-            <textarea id="success-criteria" name="successCriteria" data-i18n-placeholder="successCriteriaCustomPlaceholder"></textarea>
+            <textarea id="success-criteria" name="successCriteria" aria-labelledby="success-criteria-label" data-i18n-placeholder="successCriteriaCustomPlaceholder"></textarea>
           </div>
         </fieldset>
 

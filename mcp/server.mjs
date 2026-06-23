@@ -1000,7 +1000,7 @@ export async function submitCodecutSetup(
 		const importResult = await bridgeToolImpl(
 			"import_media",
 			buildImportMediaArgs({
-				projectId: normalized.projectId,
+				projectId: projectContext.projectId,
 				mediaSource,
 			}),
 		);
@@ -1032,7 +1032,7 @@ export async function submitCodecutSetup(
 	}
 
 	const projectInfoResult = await bridgeToolImpl("get_project_info", {
-		projectId: normalized.projectId,
+		projectId: projectContext.projectId,
 	});
 	if (projectInfoResult?.isError) {
 		return buildSetupErrorResult({
@@ -1058,18 +1058,25 @@ export async function submitCodecutSetup(
 	}
 
 	const editorUrl = latestProject.editorUrl || projectContext.editorUrl;
+	const resultProjectId = latestProject.projectId || projectContext.projectId;
+	const resultProjectName = latestProject.name || projectContext.projectName;
+	const resultIntent = {
+		...normalized,
+		projectId: resultProjectId,
+		projectName: resultProjectName,
+	};
 	const structuredContent = {
 		status: "created",
-		projectId: latestProject.projectId || normalized.projectId,
-		projectName: latestProject.name || normalized.projectName,
+		projectId: resultProjectId,
+		projectName: resultProjectName,
 		revision: latestProject.revision,
 		editorUrl,
 		importedMedia,
-		intent: normalized,
+		intent: resultIntent,
 		continuePrompt: buildContinuePrompt({
-			intent: normalized,
-			projectId: latestProject.projectId || normalized.projectId,
-			projectName: latestProject.name || normalized.projectName,
+			intent: resultIntent,
+			projectId: resultProjectId,
+			projectName: resultProjectName,
 			revision: latestProject.revision,
 			editorUrl,
 			importedMedia,
