@@ -32,6 +32,19 @@ EditPlan. The ledger is a Codex-side reasoning artifact with five narrow fields:
 `qaChecklist`. It must not be sent to `apply_edit_plan`, persisted as Codecut
 project state, or added to the EditPlan v1 schema.
 
+The ledger must be evidence-first. Candidate clips should be compared with the
+same small rubric before Codex selects the final structure: hook strength,
+standalone coherence, user value, energy or pacing, platform fit, crop
+viability, and source coverage. A selected range must name the transcript,
+visual, product, or user-provided evidence that supports its role. If the
+required evidence is absent, Codex should stop with the missing proof instead of
+choosing a weaker template, inventing claims, or silently downgrading the edit.
+
+Quality gates stay in Codex planning unless they protect timeline validity.
+They do not add fields to EditPlan v1. Use them to decide which implemented
+clips, captions, title, and project settings to send to Codecut, then verify the
+result with executor readback.
+
 Browser is the human interface, not the Agent runtime. Opening the browser is only a convenience for the user to inspect the project URL and manually adjust the result. Codex command execution must not depend on a visible browser tab, screenshots, DOM control, or a page-mounted heartbeat.
 
 ## Pre-Edit Workspace

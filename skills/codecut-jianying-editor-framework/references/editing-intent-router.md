@@ -21,6 +21,26 @@ P0 template ids:
 - `product-proof-ad`: product facts plus visual proof for UGC/product conversion.
 - `narrated-broll`: existing narration audio plus imported video B-roll through NarratedRemixPlan v1 only.
 
+## Clip Selection Quality Rule
+
+For long-to-short, platform short, tutorial, and product-proof requests, Codex
+must compare candidate clips before writing the final EditPlan. Use a small
+Codex-side rubric inside `candidateClips`: hook strength, standalone coherence,
+user value, energy or pacing, platform fit, crop viability, source coverage,
+evidence, and risk. This rubric is planning guidance only; do not add scoring
+fields to EditPlan v1.
+
+The selected first range must work as the first-frame and first-2-second
+promise: result, proof, question, pain point, or clear step. Reject or widen a
+range when it starts with unresolved pronouns, missing setup, mid-sentence
+context, dead air, or a visual crop that would hide the subject or collide with
+captions.
+
+Do not silently downgrade. If the business goal requires proof, visible steps,
+face-safe crop, or product facts and the current evidence cannot support it,
+stop at the template stop condition and report the missing evidence instead of
+choosing a generic highlight edit.
+
 ## Intent Types
 
 | Intent | Template ID | User wording | Primary value | Required context | Recipe | Current status |
@@ -84,12 +104,12 @@ Acceptance: transcript evidence supports the cut boundaries, subtitle timing is 
 Route to [long-to-short](workflow-recipes/long-to-short.md), then apply platform preset guidance.
 
 1. Apply explicit project settings first when a concrete canvas or FPS is required.
-2. Write an EditingDecisionLedger that identifies hook candidates, proof/value beats, and the selected structure before generating EditPlan.
+2. Write an EditingDecisionLedger that scores hook candidates, proof/value beats, standalone coherence, crop viability, and the selected structure before generating EditPlan.
 3. First 1-3 seconds must show a result, proof, claim, pain point, or curiosity gap.
 4. Use short captions and safe zones.
 5. Prefer 15-45 seconds unless the user asks otherwise.
 
-Acceptance: project settings reflect the requested vertical target, hook exists, and subtitles avoid UI-covered zones. `EditPlan.target.aspectRatio` alone is not canvas proof.
+Acceptance: project settings reflect the requested vertical target, hook exists, first-frame composition is defensible from available evidence, and subtitles avoid UI-covered zones. `EditPlan.target.aspectRatio` alone is not canvas proof.
 
 ### Tutorial/demo
 
@@ -111,12 +131,12 @@ P0 template: `product-proof-ad`.
 Route to [long-to-short](workflow-recipes/long-to-short.md) only when product facts and proof are available. Otherwise ask for the missing business facts before generating claims.
 
 1. Identify audience, product, offer, and proof.
-2. Write an EditingDecisionLedger with material audit, story beats, candidate clips, selected structure, and QA checklist before generating EditPlan.
+2. Write an EditingDecisionLedger with material audit, story beats, scored candidate clips, selected structure, and QA checklist before generating EditPlan.
 3. Prefer proof shots over abstract claims.
 4. Structure: hook -> problem/proof -> process/demo -> CTA.
 5. Do not invent prices, shipping times, guarantees, or claims.
 
-Acceptance: first 2 seconds contain a concrete promise or question, every claim has a visible or spoken source, and the applied timeline matches the ledger's selected structure.
+Acceptance: first 2 seconds contain a concrete promise or question, every claim has a visible or spoken source, weak proof ranges are rejected rather than generalized, and the applied timeline matches the ledger's selected structure.
 
 ### AI video re-edit
 
@@ -186,9 +206,11 @@ Do not ask when a safe MVP assumption is enough:
 - Treating every request as TikTok when the user needs a tutorial or archive.
 - Letting the model produce prose instead of a structured EditPlan.
 - Selecting only transcript highlights when the business goal needs visual proof.
+- Choosing the earliest plausible hook instead of comparing candidates for standalone coherence, value, energy, platform fit, and crop viability.
 - Skipping EditingDecisionLedger for conversion, product, platform short, tutorial, or broad highlight requests.
 - Adding ledger fields such as `materialAudit`, `selectedStructure`, or `qaChecklist` to EditPlan v1 instead of keeping them as Codex-side reasoning.
 - Adding style before the core cut is validated.
 - Hiding missing transcript, OCR, or visual context behind a confident plan.
+- Downgrading product-proof, tutorial, or vertical crop requests into generic highlight edits when required evidence is missing.
 - Reading multiple recipes and merging them into a broad, unverifiable workflow.
 - Treating gated recipes as implemented bridge capabilities.
