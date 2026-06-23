@@ -7,6 +7,7 @@ import {
 	buildAddTextsEnvelope,
 	buildApplyPlanEnvelope,
 	buildCommandEnvelope,
+	buildDeleteSystemTemplateScriptEnvelope,
 	buildDigitalHumanEnvelope,
 	buildExportEnvelope,
 	buildGetTimelineStateV2Envelope,
@@ -1097,6 +1098,33 @@ describe("codex bridge CLI helpers", () => {
 		}
 	});
 
+	test("builds a confirmed system template delete envelope for cleanup", () => {
+		expect(() =>
+			buildDeleteSystemTemplateScriptEnvelope({
+				projectId: "project-123",
+				templateId: "proof-demo-cut",
+				confirmedByUser: false,
+			}),
+		).toThrow("--confirmed-by-user must be true after explicit user confirmation");
+
+		expect(
+			buildDeleteSystemTemplateScriptEnvelope({
+				projectId: "project-123",
+				templateId: "proof-demo-cut",
+				confirmedByUser: true,
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "delete_system_template_script",
+				args: {
+					confirmedByUser: true,
+					templateId: "proof-demo-cut",
+				},
+			}),
+		);
+	});
+
 	test("builds verify-timeline envelope from an absolute verification JSON file", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
 		const verificationPath = join(directory, "verification.json");
@@ -1317,6 +1345,82 @@ describe("codex bridge CLI helpers", () => {
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
+	});
+
+	test("deletes system templates through the browser agent bridge", async () => {
+		const requests = [];
+		const fetchImpl = async (url, init = {}) => {
+			requests.push({ url, init });
+			if (String(url).includes("/api/agent-bridge/heartbeat")) {
+				return new Response(
+					JSON.stringify({ projectId: "project-123", mounted: true }),
+				);
+			}
+			if (String(url).endsWith("/api/agent-bridge/commands")) {
+				return new Response(
+					JSON.stringify({
+						id: "bridge-1",
+						status: "pending",
+						projectId: "project-123",
+					}),
+				);
+			}
+			if (String(url).includes("/api/agent-bridge/results?id=bridge-1")) {
+				return new Response(
+					JSON.stringify({
+						id: "bridge-1",
+						status: "completed",
+						projectId: "project-123",
+						results: [
+							{
+								commandId: "cmd-1",
+								tool: "delete_system_template_script",
+								success: true,
+								message: "Deleted",
+							},
+						],
+					}),
+				);
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		};
+		const output = [];
+
+		const exitCode = await runCli({
+			argv: [
+				"delete-system-template-script",
+				"--project-id",
+				"project-123",
+				"--template-id",
+				"proof-demo-cut",
+				"--confirmed-by-user",
+				"true",
+			],
+			env: {
+				CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+				CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+				CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+				CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+			},
+			fetchImpl,
+			stdout: (value) => output.push(value),
+		});
+
+		expect(exitCode).toBe(0);
+		expect(requests.map((request) => request.url)).toEqual([
+			"http://localhost:4100/api/agent-bridge/heartbeat?projectId=project-123",
+			"http://localhost:4100/api/agent-bridge/commands",
+			"http://localhost:4100/api/agent-bridge/results?id=bridge-1",
+		]);
+		expect(JSON.parse(requests[1].init.body).envelope.commands[0]).toEqual({
+			id: "cmd-1",
+			tool: "delete_system_template_script",
+			args: {
+				confirmedByUser: true,
+				templateId: "proof-demo-cut",
+			},
+		});
+		expect(JSON.parse(output[0]).status).toBe("completed");
 	});
 
 	test("project management commands call executor project endpoints directly", async () => {

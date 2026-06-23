@@ -25,6 +25,7 @@ export const REQUIRED_MCP_TOOLS = [
 	"set_keyframes",
 	"import_media",
 	"import_system_template_script",
+	"delete_system_template_script",
 	"apply_edit_plan",
 	"get_timeline_state_v2",
 ];
@@ -37,17 +38,22 @@ function usage() {
 	return [
 		"Usage:",
 		"  node scripts/fresh-session-mcp-smoke.mjs [--project-id <id>] [--model-id whisper-tiny]",
+		"  node scripts/fresh-session-mcp-smoke.mjs --surface-only",
 		"",
 		"Requires 4100 to be running with apps/web/.env.local bridge env.",
 	].join("\n");
 }
 
-function parseFlags(argv) {
+export function parseFreshSessionFlags(argv) {
 	const flags = {};
 	for (let index = 0; index < argv.length; index += 1) {
 		const entry = argv[index];
 		if (entry === "--help" || entry === "-h") {
 			flags.help = true;
+			continue;
+		}
+		if (entry === "--surface-only") {
+			flags.surfaceOnly = true;
 			continue;
 		}
 		if (!entry.startsWith("--")) {
@@ -111,9 +117,24 @@ export function assertFreshMcpToolSurface({ tools }) {
 		);
 	}
 
+	const templateDeleteProperties = schemaProperties(
+		requireTool({ toolsByName, name: "delete_system_template_script" }),
+	);
+	if (
+		!templateDeleteProperties ||
+		typeof templateDeleteProperties !== "object" ||
+		!Object.hasOwn(templateDeleteProperties, "templateId") ||
+		!Object.hasOwn(templateDeleteProperties, "confirmedByUser")
+	) {
+		throw new Error(
+			"delete_system_template_script input schema must expose templateId and confirmedByUser.",
+		);
+	}
+
 	return {
 		toolNames: REQUIRED_MCP_TOOLS,
 		importMediaInputs: importMediaInputs.sort(),
+		templateDeleteInputs: ["confirmedByUser", "templateId"],
 		templateImportInputs: ["confirmedByUser", "templateJsonFile"],
 	};
 }
@@ -278,23 +299,37 @@ export async function runFreshSessionMcpSmoke({
 	projectId = defaultProjectId,
 	modelId = "whisper-tiny",
 	env = process.env,
+	surfaceOnly = false,
+	waitForRuntimeImpl = waitForRuntime,
+	bridgeImpl = bridge,
+	withMcpClientImpl = withMcpClient,
 } = {}) {
 	const runtimeEnv = await loadBridgeEnv({
 		envFile: resolve(pluginRoot, "apps/web/.env.local"),
 		env,
 	});
-	await waitForRuntime({ env: runtimeEnv });
-	await bridge(
+	if (surfaceOnly) {
+		return withMcpClientImpl({ env: runtimeEnv }, async (client) => ({
+			status: "passed",
+			mode: "surface-only",
+			toolSurface: assertFreshMcpToolSurface(
+				await client.listTools().then((result) => ({ tools: result.tools })),
+			),
+		}));
+	}
+
+	await waitForRuntimeImpl({ env: runtimeEnv });
+	await bridgeImpl(
 		["create-project", "--project-id", projectId, "--name", "MCP Fresh Audio Smoke"],
 		runtimeEnv,
 	);
-	await bridge(["doctor-install", "--project-id", projectId], runtimeEnv);
-	await bridge(["doctor", "--project-id", projectId], runtimeEnv);
+	await bridgeImpl(["doctor-install", "--project-id", projectId], runtimeEnv);
+	await bridgeImpl(["doctor", "--project-id", projectId], runtimeEnv);
 
 	const workDir = await mkdtemp(join(tmpdir(), "codecut-mcp-fresh-smoke-"));
 	const { wavPath, duration } = await generateSpeechWav({ workDir });
 
-	return withMcpClient({ env: runtimeEnv }, async (client) => {
+	return withMcpClientImpl({ env: runtimeEnv }, async (client) => {
 		const toolSurface = assertFreshMcpToolSurface(
 			await client.listTools().then((result) => ({ tools: result.tools })),
 		);
@@ -393,7 +428,7 @@ export async function runFreshSessionMcpSmoke({
 }
 
 async function main() {
-	const flags = parseFlags(process.argv.slice(2));
+	const flags = parseFreshSessionFlags(process.argv.slice(2));
 	if (flags.help) {
 		console.log(usage());
 		return;
@@ -401,6 +436,7 @@ async function main() {
 	const result = await runFreshSessionMcpSmoke({
 		projectId: flags.projectId ?? defaultProjectId,
 		modelId: flags.modelId ?? "whisper-tiny",
+		surfaceOnly: flags.surfaceOnly === true,
 	});
 	console.log(JSON.stringify(result, null, 2));
 }

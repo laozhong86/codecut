@@ -5,6 +5,8 @@ import {
 	buildAudioEditPlan,
 	callCodecutTool,
 	loadBridgeEnv,
+	parseFreshSessionFlags,
+	runFreshSessionMcpSmoke,
 	summarizeTimelineV2,
 } from "../fresh-session-mcp-smoke.mjs";
 
@@ -31,21 +33,106 @@ describe("fresh-session MCP smoke helpers", () => {
 				},
 			},
 		};
+		const templateDeleteTool = {
+			name: "delete_system_template_script",
+			inputSchema: {
+				properties: {
+					projectId: {},
+					templateId: {},
+					confirmedByUser: {},
+				},
+			},
+		};
 		const tools = [
 			importTool,
 			templateImportTool,
+			templateDeleteTool,
 			...REQUIRED_MCP_TOOLS.filter(
 				(name) =>
 					name !== "import_media" &&
-					name !== "import_system_template_script",
+					name !== "import_system_template_script" &&
+					name !== "delete_system_template_script",
 			).map((name) => ({ name, inputSchema: { properties: {} } })),
 		];
 
 		expect(assertFreshMcpToolSurface({ tools })).toEqual({
 			toolNames: REQUIRED_MCP_TOOLS,
 			importMediaInputs: ["bytes", "filePath", "url"],
+			templateDeleteInputs: ["confirmedByUser", "templateId"],
 			templateImportInputs: ["confirmedByUser", "templateJsonFile"],
 		});
+	});
+
+	test("parses a surface-only mode that does not require mutation inputs", () => {
+		expect(parseFreshSessionFlags(["--surface-only"])).toEqual({
+			surfaceOnly: true,
+		});
+		expect(parseFreshSessionFlags(["--project-id", "fresh-smoke"])).toEqual({
+			projectId: "fresh-smoke",
+		});
+	});
+
+	test("surface-only smoke lists tools without touching runtime or bridge mutations", async () => {
+		const calls = [];
+		const result = await runFreshSessionMcpSmoke({
+			surfaceOnly: true,
+			env: {},
+			waitForRuntimeImpl: async () => calls.push("runtime"),
+			bridgeImpl: async (...args) => calls.push(["bridge", ...args]),
+			withMcpClientImpl: async (_options, callback) => {
+				calls.push("mcp");
+				return callback({
+					listTools: async () => ({
+						tools: [
+							{
+								name: "import_media",
+								inputSchema: {
+									properties: { projectId: {}, filePath: {}, url: {}, bytes: {} },
+								},
+							},
+							{
+								name: "import_system_template_script",
+								inputSchema: {
+									properties: {
+										projectId: {},
+										templateJsonFile: {},
+										confirmedByUser: {},
+									},
+								},
+							},
+							{
+								name: "delete_system_template_script",
+								inputSchema: {
+									properties: {
+										projectId: {},
+										templateId: {},
+										confirmedByUser: {},
+									},
+								},
+							},
+							...REQUIRED_MCP_TOOLS.filter(
+								(name) =>
+									name !== "import_media" &&
+									name !== "import_system_template_script" &&
+									name !== "delete_system_template_script",
+							).map((name) => ({ name, inputSchema: { properties: {} } })),
+						],
+					}),
+				});
+			},
+		});
+
+		expect(result).toEqual({
+			status: "passed",
+			mode: "surface-only",
+			toolSurface: {
+				toolNames: REQUIRED_MCP_TOOLS,
+				importMediaInputs: ["bytes", "filePath", "url"],
+				templateDeleteInputs: ["confirmedByUser", "templateId"],
+				templateImportInputs: ["confirmedByUser", "templateJsonFile"],
+			},
+		});
+		expect(calls).toEqual(["mcp"]);
 	});
 
 	test("builds an audio-only EditPlan instead of a black-video workaround", () => {

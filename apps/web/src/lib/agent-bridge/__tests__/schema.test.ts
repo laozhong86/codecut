@@ -64,6 +64,13 @@ describe("agent bridge schema", () => {
 		expect(result.success).toBe(true);
 	});
 
+	test("accepts the system template delete tool", () => {
+		const result = BridgeToolNameSchema.safeParse(
+			"delete_system_template_script",
+		);
+		expect(result.success).toBe(true);
+	});
+
 	test("rejects non-Codex sources", () => {
 		const result = BridgeEnvelopeSchema.safeParse({
 			version: 1,
