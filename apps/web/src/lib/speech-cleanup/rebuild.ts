@@ -69,15 +69,15 @@ function assertTranscriptCoverage({
 	const firstDecision = decisions[0];
 	const lastDecision = decisions[decisions.length - 1];
 
-	if (firstDecision.sourceStart > TRANSCRIPT_COVERAGE_TOLERANCE_SECONDS) {
+	const leadingGap = roundTime(firstDecision.sourceStart);
+	const trailingGap = roundTime(sourceDuration - lastDecision.sourceEnd);
+
+	if (leadingGap > TRANSCRIPT_COVERAGE_TOLERANCE_SECONDS) {
 		throw new Error(
 			"SpeechCleanupPlan must classify leading untranscribed audio longer than 0.3 seconds.",
 		);
 	}
-	if (
-		sourceDuration - lastDecision.sourceEnd >
-		TRANSCRIPT_COVERAGE_TOLERANCE_SECONDS
-	) {
+	if (trailingGap > TRANSCRIPT_COVERAGE_TOLERANCE_SECONDS) {
 		throw new Error(
 			"SpeechCleanupPlan must classify trailing untranscribed audio longer than 0.3 seconds.",
 		);

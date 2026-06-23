@@ -361,6 +361,39 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		expect(result.clips[0].sourceStart).toBe(1.5);
 	});
 
+	test("allows boundary coverage gaps with decimal floating point artifacts", () => {
+		const plan: SpeechCleanupPlan = {
+			version: 2,
+			projectId: "project-1",
+			sourceMediaId: "media-1",
+			target: {
+				durationSec: 1.1,
+				aspectRatio: "16:9",
+			},
+			decisions: [
+				{
+					id: "seg-1",
+					text: "We keep the useful part.",
+					sourceStart: 0.1 + 0.2,
+					sourceEnd: 1.4,
+					action: "keep",
+					reason: "Useful statement.",
+				},
+			],
+			rationale: "Boundary precision proof.",
+		};
+
+		const result = rebuildTimelineFromSpeechCleanup({
+			plan,
+			sourceDuration: 1.7,
+		});
+
+		expect(result.clips[0]).toMatchObject({
+			sourceStart: 0.3,
+			sourceEnd: 1.4,
+		});
+	});
+
 	test("fails fast when verification is false", () => {
 		expect(() =>
 			assertSpeechCleanupVerification({
