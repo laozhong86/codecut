@@ -37,6 +37,7 @@ import {
 	runCli,
 	waitForExecutor,
 } from "../codex-bridge.mjs";
+import { buildBridgeCliArgs } from "../../mcp/server.mjs";
 
 describe("codex bridge CLI helpers", () => {
 	test("prints usage when invoked through the executable entrypoint", async () => {
@@ -1174,6 +1175,26 @@ describe("codex bridge CLI helpers", () => {
 		expect(JSON.parse(requests[2].init.body)).toEqual({
 			projectId: "project-123",
 		});
+	});
+
+	test("MCP internal project setup mappings call explicit project commands", () => {
+		expect(
+			buildBridgeCliArgs("create_project", {
+				projectId: "launch-cut-001",
+				name: "Launch Cut",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"create-project",
+			"--project-id",
+			"launch-cut-001",
+			"--name",
+			"Launch Cut",
+		]);
+		expect(buildBridgeCliArgs("list_projects", {})).toEqual([
+			"scripts/codex-bridge.mjs",
+			"list-projects",
+		]);
 	});
 
 	test("doctor verifies the local executor without enqueueing commands", async () => {

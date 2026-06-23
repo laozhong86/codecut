@@ -159,7 +159,7 @@ enabled = true
 		}
 	});
 
-	test("removes stale git metadata from the installed cache before syncing", async () => {
+	test("removes stale local metadata from the installed cache before syncing", async () => {
 		const sourceRoot = await createPluginSource();
 		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-sync-home-"));
 		const cacheRoot = join(
@@ -168,6 +168,8 @@ enabled = true
 		);
 		await mkdir(cacheRoot, { recursive: true });
 		await writeFile(join(cacheRoot, ".git"), "gitdir: /repo/.git/worktrees/p0\n");
+		await mkdir(join(cacheRoot, ".worktrees/old-worktree"), { recursive: true });
+		await writeFile(join(cacheRoot, ".worktrees/old-worktree/bun.lock"), "");
 		await writeFile(
 			join(homeRoot, "config.toml"),
 			'[plugins."codecut@local-opc"]\nenabled = true\n',
@@ -184,6 +186,7 @@ enabled = true
 			});
 
 			await expect(access(join(cacheRoot, ".git"))).rejects.toThrow();
+			await expect(access(join(cacheRoot, ".worktrees"))).rejects.toThrow();
 		} finally {
 			await rm(sourceRoot, { recursive: true, force: true });
 			await rm(homeRoot, { recursive: true, force: true });

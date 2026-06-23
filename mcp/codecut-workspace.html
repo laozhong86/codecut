@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CodeCut Workspace</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #1c2422;
+        background: #f7f8f6;
+      }
+
+      body {
+        margin: 0;
+        padding: 16px;
+      }
+
+      main {
+        max-width: 940px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 20px;
+        line-height: 1.2;
+      }
+
+      p {
+        margin: 0;
+        color: #59635f;
+      }
+
+      form {
+        display: grid;
+        gap: 14px;
+        margin-top: 16px;
+      }
+
+      fieldset {
+        display: grid;
+        gap: 12px;
+        margin: 0;
+        padding: 14px;
+        border: 1px solid #d9dfda;
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      legend {
+        padding: 0 4px;
+        font-weight: 650;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #cbd4cf;
+        border-radius: 6px;
+        padding: 9px 10px;
+        font: inherit;
+        color: #1c2422;
+        background: #ffffff;
+      }
+
+      textarea {
+        min-height: 78px;
+        resize: vertical;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .actions,
+      .result-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      button,
+      a.button {
+        border: 1px solid #18231f;
+        border-radius: 6px;
+        padding: 9px 12px;
+        font: inherit;
+        font-weight: 650;
+        color: #ffffff;
+        background: #18231f;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        color: #18231f;
+        background: #ffffff;
+      }
+
+      button:disabled {
+        border-color: #c7cec9;
+        color: #7a8580;
+        background: #eef1ee;
+        cursor: not-allowed;
+      }
+
+      .status,
+      .result,
+      .follow-up {
+        border: 1px solid #d9dfda;
+        border-radius: 8px;
+        padding: 12px;
+        background: #ffffff;
+      }
+
+      .checks {
+        display: grid;
+        gap: 8px;
+        margin: 10px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .checks li {
+        display: grid;
+        gap: 3px;
+        padding: 8px;
+        border-radius: 6px;
+        background: #f4f6f4;
+      }
+
+      .ok {
+        color: #0b6d45;
+      }
+
+      .blocked,
+      .error {
+        color: #9d2b22;
+      }
+
+      .muted {
+        color: #59635f;
+        font-size: 13px;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      code,
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      @media (max-width: 720px) {
+        body {
+          padding: 12px;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>CodeCut Workspace</h1>
+      <p>Confirm the editing intent, validate local setup, then create the executor project.</p>
+
+      <form id="workspace-form">
+        <fieldset>
+          <legend>Project</legend>
+          <div class="grid">
+            <label>
+              Project name
+              <input id="project-name" name="projectName" autocomplete="off">
+            </label>
+            <label>
+              Project ID
+              <input id="project-id" name="projectId" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Source</legend>
+          <label>
+            Media source
+            <select id="media-source-kind">
+              <option value="filePath">Local file path</option>
+              <option value="url">HTTPS URL</option>
+            </select>
+          </label>
+          <label id="file-path-row">
+            Absolute file path
+            <input id="media-file-path" name="mediaFilePath" spellcheck="false">
+          </label>
+          <div id="url-row" class="grid hidden">
+            <label>
+              HTTPS URL
+              <input id="media-url" name="mediaUrl" spellcheck="false">
+            </label>
+            <label>
+              MIME type
+              <input id="media-mime-type" name="mediaMimeType" placeholder="video/mp4">
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Output</legend>
+          <div class="grid">
+            <label>
+              Target aspect ratio
+              <select id="target-aspect-ratio" name="targetAspectRatio">
+                <option value="9:16">9:16</option>
+                <option value="16:9">16:9</option>
+                <option value="1:1">1:1</option>
+              </select>
+            </label>
+            <label>
+              Duration goal seconds
+              <input id="duration-goal-seconds" name="durationGoalSeconds" type="number" min="1" step="1">
+            </label>
+            <label>
+              Caption language
+              <input id="caption-language" name="captionLanguage" value="auto">
+            </label>
+            <label>
+              Format
+              <select id="output-format" name="outputFormat">
+                <option value="mp4">mp4</option>
+                <option value="webm">webm</option>
+              </select>
+            </label>
+            <label>
+              Quality
+              <select id="output-quality" name="outputQuality">
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+                <option value="very_high">very_high</option>
+              </select>
+            </label>
+            <label>
+              Include audio
+              <select id="include-audio" name="includeAudio">
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Intent</legend>
+          <label>
+            Brief
+            <textarea id="brief" name="brief"></textarea>
+          </label>
+          <label>
+            Success criteria
+            <textarea id="success-criteria" name="successCriteria"></textarea>
+          </label>
+        </fieldset>
+
+        <section class="status" aria-live="polite">
+          <strong id="status-title">Not inspected</strong>
+          <p id="status-message" class="muted">Run inspection before submitting.</p>
+          <ul id="checks" class="checks"></ul>
+        </section>
+
+        <div class="actions">
+          <button id="inspect-button" class="secondary" type="button">Inspect setup</button>
+          <button id="submit-button" type="submit" disabled>Create project</button>
+        </div>
+      </form>
+
+      <section id="result" class="result hidden" aria-live="polite"></section>
+      <section id="follow-up" class="follow-up hidden" aria-live="polite"></section>
+    </main>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const fields = {
+          form: document.getElementById("workspace-form"),
+          projectName: document.getElementById("project-name"),
+          projectId: document.getElementById("project-id"),
+          mediaSourceKind: document.getElementById("media-source-kind"),
+          filePathRow: document.getElementById("file-path-row"),
+          urlRow: document.getElementById("url-row"),
+          mediaFilePath: document.getElementById("media-file-path"),
+          mediaUrl: document.getElementById("media-url"),
+          mediaMimeType: document.getElementById("media-mime-type"),
+          targetAspectRatio: document.getElementById("target-aspect-ratio"),
+          durationGoalSeconds: document.getElementById("duration-goal-seconds"),
+          captionLanguage: document.getElementById("caption-language"),
+          outputFormat: document.getElementById("output-format"),
+          outputQuality: document.getElementById("output-quality"),
+          includeAudio: document.getElementById("include-audio"),
+          brief: document.getElementById("brief"),
+          successCriteria: document.getElementById("success-criteria"),
+          statusTitle: document.getElementById("status-title"),
+          statusMessage: document.getElementById("status-message"),
+          checks: document.getElementById("checks"),
+          inspectButton: document.getElementById("inspect-button"),
+          submitButton: document.getElementById("submit-button"),
+          result: document.getElementById("result"),
+          followUp: document.getElementById("follow-up"),
+        };
+
+        let projectIdEdited = false;
+        let lastInspectionReady = false;
+
+        function initialDefaults() {
+          const api = window.openai || {};
+          return (
+            api.widgetData?.intentDefaults ||
+            api.toolOutput?.structuredContent?.intentDefaults ||
+            api.structuredContent?.intentDefaults ||
+            {}
+          );
+        }
+
+        function slugify(value) {
+          const base = String(value || "codecut-project")
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+            .slice(0, 42) || "codecut-project";
+          const suffix = Date.now().toString(36).slice(-6);
+          return `${base}-${suffix}`.slice(0, 64).replace(/-+$/g, "");
+        }
+
+        function applyDefaults(defaults) {
+          fields.projectName.value = defaults.projectName || "";
+          fields.projectId.value = defaults.projectId || slugify(defaults.projectName);
+          const mediaSource = defaults.mediaSource || {};
+          fields.mediaSourceKind.value = mediaSource.kind === "url" ? "url" : "filePath";
+          fields.mediaFilePath.value = mediaSource.filePath || "";
+          fields.mediaUrl.value = mediaSource.url || "";
+          fields.mediaMimeType.value = mediaSource.mimeType || "";
+          fields.targetAspectRatio.value = defaults.targetAspectRatio || "9:16";
+          fields.durationGoalSeconds.value = Number(defaults.durationGoalSeconds || 60);
+          fields.captionLanguage.value = defaults.captionLanguage || "auto";
+          fields.outputFormat.value = defaults.output?.format || "mp4";
+          fields.outputQuality.value = defaults.output?.quality || "high";
+          fields.includeAudio.value = defaults.output?.includeAudio === false ? "false" : "true";
+          fields.brief.value = defaults.brief || "";
+          fields.successCriteria.value = defaults.successCriteria || "";
+          updateSourceRows();
+        }
+
+        function updateSourceRows() {
+          const isUrl = fields.mediaSourceKind.value === "url";
+          fields.filePathRow.classList.toggle("hidden", isUrl);
+          fields.urlRow.classList.toggle("hidden", !isUrl);
+          lastInspectionReady = false;
+          fields.submitButton.disabled = true;
+        }
+
+        function collectIntent() {
+          const sourceKind = fields.mediaSourceKind.value;
+          const mediaSource = sourceKind === "url"
+            ? {
+                kind: "url",
+                url: fields.mediaUrl.value.trim(),
+                ...(fields.mediaMimeType.value.trim() ? { mimeType: fields.mediaMimeType.value.trim() } : {}),
+              }
+            : {
+                kind: "filePath",
+                filePath: fields.mediaFilePath.value.trim(),
+              };
+          return {
+            projectId: fields.projectId.value.trim(),
+            projectName: fields.projectName.value.trim(),
+            mediaSource,
+            targetAspectRatio: fields.targetAspectRatio.value,
+            durationGoalSeconds: Number(fields.durationGoalSeconds.value),
+            captionLanguage: fields.captionLanguage.value.trim() || "auto",
+            output: {
+              format: fields.outputFormat.value,
+              quality: fields.outputQuality.value,
+              includeAudio: fields.includeAudio.value === "true",
+            },
+            brief: fields.brief.value.trim(),
+            successCriteria: fields.successCriteria.value.trim(),
+          };
+        }
+
+        async function callTool(name, args) {
+          const api = window.openai;
+          if (!api) throw new Error("window.openai is unavailable.");
+          if (typeof api.callTool === "function") {
+            return api.callTool(name, args);
+          }
+          if (typeof api.callServerTool === "function") {
+            return api.callServerTool({ name, arguments: args });
+          }
+          throw new Error("window.openai.callTool is unavailable.");
+        }
+
+        function structuredContent(result) {
+          return result?.structuredContent || result || {};
+        }
+
+        function renderInspection(payload) {
+          const ready = payload.status === "ready";
+          lastInspectionReady = ready;
+          fields.submitButton.disabled = !ready;
+          fields.statusTitle.textContent = ready ? "Ready" : "Blocked";
+          fields.statusTitle.className = ready ? "ok" : "blocked";
+          fields.statusMessage.textContent = ready
+            ? "Setup can create a project and import media."
+            : "Resolve the failed checks before creating a project.";
+          fields.checks.innerHTML = "";
+          for (const check of payload.checks || []) {
+            const item = document.createElement("li");
+            const title = document.createElement("strong");
+            title.textContent = `${check.ok ? "OK" : "Blocked"}: ${check.label}`;
+            title.className = check.ok ? "ok" : "blocked";
+            item.appendChild(title);
+            if (check.detail) {
+              const detail = document.createElement("span");
+              detail.className = "muted";
+              detail.textContent = check.detail;
+              item.appendChild(detail);
+            }
+            fields.checks.appendChild(item);
+          }
+        }
+
+        async function inspect() {
+          fields.inspectButton.disabled = true;
+          fields.statusTitle.textContent = "Inspecting";
+          fields.statusTitle.className = "";
+          fields.statusMessage.textContent = "Checking project, media, and local bridge.";
+          try {
+            const result = await callTool("inspect_codecut_setup", collectIntent());
+            renderInspection(structuredContent(result));
+          } catch (error) {
+            lastInspectionReady = false;
+            fields.submitButton.disabled = true;
+            fields.statusTitle.textContent = "Blocked";
+            fields.statusTitle.className = "blocked";
+            fields.statusMessage.textContent = error instanceof Error ? error.message : String(error);
+          } finally {
+            fields.inspectButton.disabled = false;
+          }
+        }
+
+        async function submit(event) {
+          event.preventDefault();
+          if (!lastInspectionReady) {
+            await inspect();
+            if (!lastInspectionReady) return;
+          }
+          fields.submitButton.disabled = true;
+          fields.inspectButton.disabled = true;
+          fields.statusTitle.textContent = "Creating";
+          fields.statusTitle.className = "";
+          fields.statusMessage.textContent = "Creating project and importing media.";
+          try {
+            const result = await callTool("submit_codecut_setup", collectIntent());
+            const payload = structuredContent(result);
+            if (result?.isError || payload.status !== "created") {
+              throw new Error(payload.error || "CodeCut setup failed.");
+            }
+            renderSuccess(payload);
+            await openEditor(payload.editorUrl);
+            await sendFollowUp(payload.continuePrompt);
+          } catch (error) {
+            fields.statusTitle.textContent = "Blocked";
+            fields.statusTitle.className = "blocked";
+            fields.statusMessage.textContent = error instanceof Error ? error.message : String(error);
+          } finally {
+            fields.inspectButton.disabled = false;
+            fields.submitButton.disabled = !lastInspectionReady;
+          }
+        }
+
+        function renderSuccess(payload) {
+          const mediaId = payload.importedMedia?.id || payload.importedMedia?.mediaId || "";
+          fields.result.classList.remove("hidden");
+          fields.result.innerHTML = `
+            <h2>Project created</h2>
+            <p><strong>projectId:</strong> <code>${escapeHtml(payload.projectId)}</code></p>
+            <p><strong>revision:</strong> <code>${escapeHtml(String(payload.revision))}</code></p>
+            <p><strong>mediaId:</strong> <code>${escapeHtml(mediaId)}</code></p>
+            <p><strong>editorUrl:</strong> <code>${escapeHtml(payload.editorUrl || "")}</code></p>
+            <div class="result-actions">
+              <a class="button" id="open-editor-link" href="${escapeAttribute(payload.editorUrl || "#")}" target="_blank" rel="noreferrer">Open editor</a>
+            </div>
+          `;
+          document.getElementById("open-editor-link").addEventListener("click", (event) => {
+            event.preventDefault();
+            openEditor(payload.editorUrl);
+          });
+        }
+
+        async function openEditor(editorUrl) {
+          if (!editorUrl) return;
+          const api = window.openai || {};
+          if (typeof api.openExternal === "function") {
+            await api.openExternal({ href: editorUrl });
+            return;
+          }
+          if (typeof api.openLink === "function") {
+            await api.openLink({ href: editorUrl });
+            return;
+          }
+          window.open(editorUrl, "_blank", "noopener,noreferrer");
+        }
+
+        async function sendFollowUp(prompt) {
+          fields.followUp.classList.remove("hidden");
+          fields.followUp.innerHTML = "<strong>Continuing in Codex...</strong>";
+          try {
+            const api = window.openai || {};
+            if (typeof api.sendFollowUpMessage !== "function") {
+              throw new Error("window.openai.sendFollowUpMessage is unavailable.");
+            }
+            await api.sendFollowUpMessage({ prompt });
+            fields.followUp.innerHTML = "<strong class=\"ok\">Follow-up sent to Codex.</strong>";
+          } catch (error) {
+            fields.followUp.innerHTML = "";
+            const title = document.createElement("strong");
+            title.className = "error";
+            title.textContent = error instanceof Error ? error.message : String(error);
+            const pre = document.createElement("pre");
+            pre.textContent = prompt || "";
+            const retry = document.createElement("button");
+            retry.type = "button";
+            retry.textContent = "Retry follow-up";
+            retry.addEventListener("click", () => sendFollowUp(prompt));
+            fields.followUp.append(title, pre, retry);
+          }
+        }
+
+        function escapeHtml(value) {
+          return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }
+
+        function escapeAttribute(value) {
+          return escapeHtml(value).replace(/"/g, "&quot;");
+        }
+
+        fields.projectName.addEventListener("input", () => {
+          if (!projectIdEdited) fields.projectId.value = slugify(fields.projectName.value);
+          lastInspectionReady = false;
+          fields.submitButton.disabled = true;
+        });
+        fields.projectId.addEventListener("input", () => {
+          projectIdEdited = true;
+          lastInspectionReady = false;
+          fields.submitButton.disabled = true;
+        });
+        fields.mediaSourceKind.addEventListener("change", updateSourceRows);
+        fields.form.addEventListener("input", () => {
+          lastInspectionReady = false;
+          fields.submitButton.disabled = true;
+        });
+        fields.inspectButton.addEventListener("click", inspect);
+        fields.form.addEventListener("submit", submit);
+
+        applyDefaults(initialDefaults());
+      })();
+    </script>
+  </body>
+</html>
