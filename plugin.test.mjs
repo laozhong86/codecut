@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const pluginRoot = dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,7 @@ describe("Codecut plugin startup guidance", () => {
 			"$codecut-material-ingest",
 			"$codecut-executor-apply",
 			"$codecut-reference-template",
+			"$codecut-tiktok-downloader",
 		]) {
 			expect(startupPrompt).not.toContain(stageSkill);
 		}
@@ -330,6 +332,92 @@ describe("Codecut plugin startup guidance", () => {
 		]) {
 			expect(toolContract).toContain(`\`${toolName}\``);
 		}
+	});
+
+	test("routes TikTok source downloads through a dedicated stage skill", async () => {
+		const frameworkSkill = await readFile(
+			join(pluginRoot, "skills", "codecut-jianying-editor-framework", "SKILL.md"),
+			"utf8",
+		);
+		const frameworkAgentCard = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut-jianying-editor-framework",
+				"agents",
+				"openai.yaml",
+			),
+			"utf8",
+		);
+		const requirementIntake = await readFile(
+			join(pluginRoot, "skills", "codecut-requirement-intake", "SKILL.md"),
+			"utf8",
+		);
+		const materialIngest = await readFile(
+			join(pluginRoot, "skills", "codecut-material-ingest", "SKILL.md"),
+			"utf8",
+		);
+		const tiktokDownloader = await readFile(
+			join(pluginRoot, "skills", "codecut-tiktok-downloader", "SKILL.md"),
+			"utf8",
+		);
+		const tiktokDownloaderScript = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut-tiktok-downloader",
+				"scripts",
+				"download_tiktok.py",
+			),
+			"utf8",
+		);
+		const pluginManifest = JSON.parse(
+			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
+		);
+		const startupPrompt = pluginManifest.interface.defaultPrompt.join("\n");
+
+		expect(tiktokDownloader).toContain("name: codecut-tiktok-downloader");
+		expect(tiktokDownloader).toContain("TikTok");
+		expect(tiktokDownloader).toContain("yt-dlp");
+		expect(tiktokDownloader).toContain("tikwm");
+		expect(tiktokDownloader).toMatch(/older than 90 days/);
+		expect(tiktokDownloader).toMatch(/update\s+`yt-dlp`/);
+		expect(tiktokDownloader).toMatch(
+			/before treating the failure as a TikTok\s+fallback condition/,
+		);
+		expect(tiktokDownloader).toContain("download_manifest.json");
+		expect(tiktokDownloader).toContain(".codecut-workspace/projects/<projectId>/01-assets");
+		expect(tiktokDownloader).toContain("Do not run executor mutation commands");
+		expect(tiktokDownloader).toContain("hand off to `codecut-material-ingest`");
+		expect(tiktokDownloader).toContain("hand back to `codecut-requirement-intake`");
+		expect(tiktokDownloader).toContain("scripts/download_tiktok.py");
+		expect(tiktokDownloaderScript).toContain("required=True");
+		expect(tiktokDownloaderScript).toContain("download_manifest.json");
+		expect(tiktokDownloaderScript).toContain("tikwm");
+
+		const pySyntaxCheck = spawnSync("python3", [
+			"-c",
+			"import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text())",
+			join(
+				pluginRoot,
+				"skills",
+				"codecut-tiktok-downloader",
+				"scripts",
+				"download_tiktok.py",
+			),
+		]);
+		expect(pySyntaxCheck.status).toBe(0);
+
+		for (const content of [
+			frameworkSkill,
+			frameworkAgentCard,
+			requirementIntake,
+			materialIngest,
+		]) {
+			expect(content).toContain("codecut-tiktok-downloader");
+		}
+
+		expect(startupPrompt).not.toContain("$codecut-tiktok-downloader");
 	});
 
 	test("requires visual preflight for horizontal sources converted to vertical shorts", async () => {

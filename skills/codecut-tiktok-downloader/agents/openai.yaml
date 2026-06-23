@@ -1,0 +1,4 @@
+interface:
+  display_name: Codecut TikTok Downloader
+  short_description: Acquires TikTok source media into a Codecut project workspace before material audit or editing.
+  default_prompt: Use $codecut-tiktok-downloader when a Codecut source is a TikTok video, photo post, share link, author page, or @handle and the user wants it downloaded or saved locally. Download only into the Codecut project asset directory, record download_manifest.json evidence, and hand off to $codecut-material-ingest or $codecut-requirement-intake before executor mutation.
