@@ -21,8 +21,8 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Use $codecut-jianying-editor-framework to initialize Codecut, open the local preview in the Codex in-app browser, and operate the current Codex-only editing MVP through the local executor and EditPlan workflow.",
-      "For new creative editing intake with missing setup fields, use the open_codecut_workspace MCP tool to render the Codecut workspace setup widget before text clarification fallback; discover it with tool_search if needed."
+      "For new creative editing intake with missing setup fields, call the open_codecut_workspace MCP tool directly before reading local files, running shell commands, or sending text clarification fallback; discover it with tool_search if needed.",
+      "Use $codecut-jianying-editor-framework after intake fields exist to initialize Codecut, open the local preview in the Codex in-app browser, and operate the current Codex-only editing MVP through the local executor and EditPlan workflow."
     ],
     "brandColor": "#2563EB"
   }

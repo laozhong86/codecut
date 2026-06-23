@@ -24,6 +24,8 @@ expose atomic primitives only.
   skill or recipe.
 - Stage skills: own one gate, input set, output shape, handoff, and stop
   conditions.
+- `references/workflow-stage-contract.md`: user-visible stage map, stage
+  ownership, proof artifacts, and handoff shape.
 - MCP tools: define atomic capability schemas, side effects, read-only status,
   and failure shape. They do not choose workflows.
 
@@ -110,6 +112,7 @@ Read only what matches the task:
 
 - Current runtime truth: `../../docs/codex-driven-editing.md`
 - Workspace spec: `../../docs/codecut-workspace.md`
+- Workflow stage contract: `references/workflow-stage-contract.md`
 - Intent router: `references/editing-intent-router.md`
 - Tool contract: `references/codecut-agent-tool-contract.md`
 - EditPlan schema: `references/edit-plan-schema.md`

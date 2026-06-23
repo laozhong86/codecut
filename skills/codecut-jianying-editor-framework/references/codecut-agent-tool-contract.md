@@ -16,6 +16,29 @@ MCP exposes tool-level `codecut/governanceCategory` metadata:
 | `asset_side_effect` | Import or delete media/template state outside timeline planning. |
 | `external_side_effect` | Export or provider-backed generation with explicit output or API side effects. |
 
+## Atomic Capability Contract
+
+MCP tools are atomic capabilities. Skills decide workflow order; tools only
+declare schema, side effect, returned evidence, and failure shape. Do not hide a
+multi-step editing workflow inside one MCP tool unless the tool name and schema
+make that compound side effect explicit.
+
+Every MCP bridge result should keep the machine-readable payload in
+`structuredContent`. CLI-backed failures return `isError: true` with
+`structuredContent.error` and, when available, `stdout` and `stderr`. Widget
+setup failures use explicit `status` values such as `create_failed`,
+`import_failed`, or `readback_failed`. Codex must branch on those fields instead
+of treating a text message as success.
+
+| Capability | Tools | Side Effect Boundary | Success Output | Failure Shape | Agent Next Action |
+| --- | --- | --- | --- | --- | --- |
+| Workspace intake | `open_codecut_workspace`, `inspect_codecut_setup`, `submit_codecut_setup` | Opens or updates setup UI; submit may create a project and import declared media, but never mutates the timeline. | `intentDefaults`, setup `status`, created `projectId`, imported media, latest revision. | `isError: true` plus `status` such as `validation_failed`, `create_failed`, `import_failed`, or `readback_failed`. | Keep the user in intake or fix the named setup blocker before planning. |
+| Evidence read | `get_project_info`, `list_media_assets`, `transcribe_media`, `build_video_context`, `build_visual_context`, `inspect_video_range`, `inspect_timeline`, `get_transcript`, `search_media`, `list_models`, `get_timeline_state`, `get_timeline_state_v2` | No timeline mutation, no project deletion, no implicit import. | Project/media/transcript/visual/model/timeline evidence in `structuredContent`. | `isError: true` with concrete missing project, missing media, provider, runtime, or command error. | Gather missing evidence or stop with the narrow runtime/data blocker. |
+| Asset side effect | `import_media`, `import_system_template_script`, `delete_system_template_script` | Mutates media or template library only; timeline stays unchanged. | Imported media asset or confirmed template mutation. | `isError: true` with validation, path, URL, confirmation, or bridge error. | Repair the asset input or ask for explicit confirmation before retry. |
+| Plan execution | `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `apply_narrated_remix_plan`, `build_post_cut_captions`, `build_video_quality_report`, `verify_timeline` | Validation, preview, caption building, and verification are read-only; `apply_*` is the strict timeline mutation path. | Field-level validation/preview/readback, caption items, applied revision, or verification mismatch report. | `isError: true` or explicit mismatch fields; failed validation or verification is not completion. | Repair the plan or verification JSON, then rerun validate/preview before mutation. |
+| Advanced repair | `add_texts`, `add_captions`, `insert_clips`, `move_clips`, `remove_clips`, `split_clip`, `set_clip_properties`, `set_keyframes`, `ripple_delete_ranges`, `create_text_background_effect`, `create_human_pip_effect` | Mutates specific timeline objects or deterministic effects after explicit user intent or readback diagnosis. | Created/updated element IDs, affected tracks, revision, or timeline summary. | `isError: true` with unknown IDs, invalid ranges, unsupported effect assets, or bridge command failure. | Read timeline state first, repair only the named object/range, then verify with readback. |
+| External side effect | `export_project`, `generate_digital_human`, `generate_runninghub_voice_design`, `generate_runninghub_voice_clone` | Writes output files or calls provider-backed generation. | Output path, provider artifact, or export/generation metadata. | `isError: true` with renderer/provider/runtime/output-path error. | Report the external gate separately from editing correctness. |
+
 Implemented bridge tools relevant to Codex-driven editing:
 
 | Tool | Current purpose |

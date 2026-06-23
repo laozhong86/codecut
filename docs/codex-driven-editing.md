@@ -25,6 +25,13 @@ Codecut does not:
 
 Codex is the only LLM and Agent layer. Codecut is the visual executor and validator.
 
+For a user-visible stage map that separates requirement intake, material ingest,
+evidence building, planning, executor application, verification/export, and
+reference-template work, use
+`skills/codecut-jianying-editor-framework/references/workflow-stage-contract.md`.
+That reference owns stage status, proof artifacts, stop conditions, and handoff
+shape; this document remains the runtime command and plan-contract truth.
+
 When clip selection requires business, story, conversion, or tutorial judgment,
 Codex should create an EditingDecisionLedger after VideoContext and before
 EditPlan. The ledger is a Codex-side reasoning artifact with five narrow fields:

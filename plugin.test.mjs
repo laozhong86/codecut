@@ -153,6 +153,11 @@ describe("Codecut plugin startup guidance", () => {
 			expect(content).toContain("open_codecut_workspace");
 		}
 
+		expect(startupPrompt).toContain("MCP tool directly");
+		expect(startupPrompt).toContain("before reading local files");
+		expect(startupPrompt.indexOf("open_codecut_workspace")).toBeLessThan(
+			startupPrompt.indexOf("$codecut-jianying-editor-framework"),
+		);
 		expect(intakeSkill).toContain("workspace widget tool is unavailable");
 		expect(intakeSkill).toContain("tool_search");
 		expect(intakeSkill).toContain("mcp__codecut_mcp.open_codecut_workspace");
@@ -171,6 +176,8 @@ describe("Codecut plugin startup guidance", () => {
 			expect(content).toContain("verify-codecut-widget-intake-thread.mjs");
 			expect(content).toContain("open_codecut_workspace");
 		}
+		expect(checklist).toContain("do not inspect skills");
+		expect(checklist).toContain("The only allowed tool call is");
 	});
 
 	test("keeps bridge env command details on the executor surface", async () => {
@@ -227,6 +234,102 @@ describe("Codecut plugin startup guidance", () => {
 		expect(executorApply).toContain("Before any long render or `export_project`");
 		expect(referenceTemplate).toContain("owns reference-derived template evidence");
 		expect(referenceTemplate).toContain("confirmedByUser: true");
+	});
+
+	test("centralizes user-visible workflow stage contracts in a reference", async () => {
+		const contractPath = join(
+			pluginRoot,
+			"skills",
+			"codecut-jianying-editor-framework",
+			"references",
+			"workflow-stage-contract.md",
+		);
+		const contract = await readFile(contractPath, "utf8");
+		const frameworkSkill = await readFile(
+			join(pluginRoot, "skills", "codecut-jianying-editor-framework", "SKILL.md"),
+			"utf8",
+		);
+		const workflowDocs = await readFile(
+			join(pluginRoot, "docs", "codex-driven-editing.md"),
+			"utf8",
+		);
+
+		expect(frameworkSkill).toContain("workflow-stage-contract.md");
+		expect(workflowDocs).toContain("workflow-stage-contract.md");
+
+		for (const stage of [
+			"requirement-intake",
+			"material-ingest",
+			"evidence-build",
+			"edit-planning",
+			"executor-apply",
+			"verification-export",
+			"reference-template",
+		]) {
+			expect(contract).toContain(`\`${stage}\``);
+		}
+
+		for (const requiredColumn of [
+			"Owner",
+			"Input",
+			"Output Artifact",
+			"User-Visible Status",
+			"Stop Condition",
+			"Next Handoff",
+		]) {
+			expect(contract).toContain(requiredColumn);
+		}
+
+		for (const rule of [
+			"Do not use FFmpeg, shell scripts, or subtitle burn-in as the Codecut editing path.",
+			"Do not let MCP tools choose the workflow.",
+			"Do not treat a local MP4 as completion without matching Codecut timeline readback.",
+		]) {
+			expect(contract).toContain(rule);
+		}
+	});
+
+	test("documents atomic MCP capability output and failure shapes", async () => {
+		const toolContract = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut-jianying-editor-framework",
+				"references",
+				"codecut-agent-tool-contract.md",
+			),
+			"utf8",
+		);
+
+		expect(toolContract).toContain("## Atomic Capability Contract");
+		for (const requiredColumn of [
+			"Capability",
+			"Side Effect Boundary",
+			"Success Output",
+			"Failure Shape",
+			"Agent Next Action",
+		]) {
+			expect(toolContract).toContain(requiredColumn);
+		}
+		for (const requiredField of [
+			"`structuredContent`",
+			"`isError: true`",
+			"`structuredContent.error`",
+			"`create_failed`",
+			"`import_failed`",
+			"`readback_failed`",
+		]) {
+			expect(toolContract).toContain(requiredField);
+		}
+		for (const toolName of [
+			"open_codecut_workspace",
+			"build_video_context",
+			"apply_edit_plan",
+			"verify_timeline",
+			"export_project",
+		]) {
+			expect(toolContract).toContain(`\`${toolName}\``);
+		}
 	});
 
 	test("requires visual preflight for horizontal sources converted to vertical shorts", async () => {
