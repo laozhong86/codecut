@@ -79,9 +79,16 @@ Verify:
 node scripts/codex-bridge.mjs send --project-id <id> --tool get_timeline_state --args-json '{}'
 ```
 
+For fresh-session spokenScript/readback acceptance on an existing scripted
+project, run the read-only smoke command with explicit expected evidence:
+
+```bash
+node scripts/codex-bridge.mjs fresh-session-smoke --project-id <id> --scripted-media-name <name> --expected-caption-line-count <n> --expected-protected-term-count <n> --expected-caption-texts-json '["$2.34","Venmo that ASAP"]'
+```
+
 ## Failure Rule
 
-Do not continue after `doctor-install`, `doctor`, `import-media`, `import-system-template-script`, `transcribe`, `build-post-cut-captions`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
+Do not continue after `doctor-install`, `doctor`, `fresh-session-smoke`, `import-media`, `import-system-template-script`, `transcribe`, `build-post-cut-captions`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
 
 ## Completion
 

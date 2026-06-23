@@ -26,6 +26,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs create-project --project-id <id> --name <name>",
 		"  node scripts/codex-bridge.mjs doctor-install --project-id <id>",
 		"  node scripts/codex-bridge.mjs doctor --project-id <id>",
+		'  node scripts/codex-bridge.mjs fresh-session-smoke --project-id <id> --scripted-media-name <name> --expected-caption-line-count <n> --expected-protected-term-count <n> --expected-caption-texts-json \'["$2.34","Venmo that ASAP"]\'',
 		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --bytes-base64-file /absolute/path/payload.base64 --file-name <name> --mime-type <type> [--spoken-script-json-file /absolute/path/spoken-script.json]",
@@ -847,6 +848,32 @@ function requireNonEmptyStringArray(value, label) {
 	return value;
 }
 
+function parseRequiredNonNegativeInteger(value, label) {
+	if (value === undefined) {
+		throw new Error(`--${label} is required`);
+	}
+	const parsed = Number(value);
+	if (!Number.isInteger(parsed) || parsed < 0) {
+		throw new Error(`--${label} must be a non-negative integer`);
+	}
+	return parsed;
+}
+
+function parseRequiredJsonStringArray(value, label) {
+	if (value === undefined) {
+		throw new Error(`--${label} is required`);
+	}
+	const parsed = JSON.parse(value);
+	if (
+		!Array.isArray(parsed) ||
+		parsed.length === 0 ||
+		parsed.some((entry) => typeof entry !== "string" || entry.length === 0)
+	) {
+		throw new Error(`--${label} must be a JSON array of non-empty strings`);
+	}
+	return parsed;
+}
+
 function validateRanges(ranges) {
 	if (!Array.isArray(ranges) || ranges.length === 0) {
 		throw new Error("--ranges must contain at least one range");
@@ -904,6 +931,256 @@ export function buildGetTimelineStateV2Envelope({
 		tool: "get_timeline_state",
 		args,
 	});
+}
+
+function firstCommandData(commandResult, label) {
+	const result = commandResult?.results?.[0];
+	if (!result) {
+		return {
+			ok: false,
+			message: `${label} did not return a command result`,
+			data: null,
+		};
+	}
+	if (result.success !== true) {
+		return {
+			ok: false,
+			message: `${label} command failed: ${result.message ?? "Unknown error"}`,
+			data: null,
+		};
+	}
+	if (
+		!result.data ||
+		typeof result.data !== "object" ||
+		Array.isArray(result.data)
+	) {
+		return {
+			ok: false,
+			message: `${label} command did not return object data`,
+			data: null,
+		};
+	}
+	return {
+		ok: true,
+		message: `${label} returned object data`,
+		data: result.data,
+	};
+}
+
+function scriptedSummaryCheck({
+	entity,
+	label,
+	expectedCaptionLineCount,
+	expectedProtectedTermCount,
+}) {
+	if (!entity) {
+		return `${label} was not found`;
+	}
+	if (entity.hasSpokenScript !== true) {
+		return `${label} does not have spokenScript metadata`;
+	}
+	if (entity.spokenScriptCaptionLineCount !== expectedCaptionLineCount) {
+		return `${label} expected ${expectedCaptionLineCount} caption line(s), got ${String(entity.spokenScriptCaptionLineCount)}`;
+	}
+	if (entity.spokenScriptProtectedTermCount !== expectedProtectedTermCount) {
+		return `${label} expected ${expectedProtectedTermCount} protected term(s), got ${String(entity.spokenScriptProtectedTermCount)}`;
+	}
+	return null;
+}
+
+function collectTimelineText(timelineData) {
+	const texts = [];
+	for (const track of Array.isArray(timelineData?.tracks)
+		? timelineData.tracks
+		: []) {
+		for (const element of Array.isArray(track?.elements)
+			? track.elements
+			: []) {
+			if (typeof element?.content === "string" && element.content.length > 0) {
+				texts.push(element.content);
+			}
+			if (typeof element?.text === "string" && element.text.length > 0) {
+				texts.push(element.text);
+			}
+		}
+	}
+	return texts;
+}
+
+export function buildFreshSessionSmokeReport({
+	projectId,
+	installDoctorResult,
+	doctorResult,
+	mediaAssetsResult,
+	timelineResult,
+	scriptedMediaName,
+	expectedCaptionLineCount,
+	expectedProtectedTermCount,
+	expectedCaptionTexts,
+}) {
+	const checks = [];
+	const installOk = installDoctorResult?.ok === true;
+	checks.push({
+		id: "doctor_install",
+		ok: installOk,
+		message: installOk
+			? "doctor-install checks passed"
+			: "doctor-install checks failed",
+		data: {
+			failedChecks: Array.isArray(installDoctorResult?.checks)
+				? installDoctorResult.checks
+						.filter((check) => check.ok !== true)
+						.map((check) => check.id)
+				: [],
+		},
+	});
+
+	const doctorOk =
+		doctorResult?.status === "ready" &&
+		doctorResult?.executor?.projectId === projectId;
+	checks.push({
+		id: "doctor",
+		ok: doctorOk,
+		message: doctorOk
+			? "Executor project is ready"
+			: "Executor project is not ready",
+		data: {
+			status: doctorResult?.status,
+			executorProjectId: doctorResult?.executor?.projectId,
+		},
+	});
+
+	const mediaAssetsData = firstCommandData(
+		mediaAssetsResult,
+		"list_media_assets",
+	);
+	const mediaAssets = Array.isArray(mediaAssetsData.data?.assets)
+		? mediaAssetsData.data.assets
+		: [];
+	const scriptedAsset = mediaAssets.find(
+		(asset) => asset?.name === scriptedMediaName,
+	);
+	const scriptedAssetError =
+		mediaAssetsData.ok === true
+			? scriptedSummaryCheck({
+					entity: scriptedAsset,
+					label: `Scripted media asset "${scriptedMediaName}"`,
+					expectedCaptionLineCount,
+					expectedProtectedTermCount,
+				})
+			: mediaAssetsData.message;
+	checks.push({
+		id: "scripted_media_asset",
+		ok: !scriptedAssetError,
+		message:
+			scriptedAssetError ??
+			`Scripted media asset "${scriptedMediaName}" has protected spokenScript metadata`,
+		data: {
+			mediaId: scriptedAsset?.id,
+			name: scriptedAsset?.name,
+			hasSpokenScript: scriptedAsset?.hasSpokenScript,
+			spokenScriptCaptionLineCount: scriptedAsset?.spokenScriptCaptionLineCount,
+			spokenScriptProtectedTermCount:
+				scriptedAsset?.spokenScriptProtectedTermCount,
+		},
+	});
+
+	const timelineData = firstCommandData(timelineResult, "get_timeline_state");
+	const timelineOk =
+		timelineData.ok === true && timelineData.data?.schemaVersion === 2;
+	checks.push({
+		id: "timeline_v2",
+		ok: timelineOk,
+		message: timelineOk
+			? "Timeline v2 readback returned structured state"
+			: "Timeline v2 readback did not return schemaVersion 2",
+		data: {
+			schemaVersion: timelineData.data?.schemaVersion,
+			revision:
+				timelineData.data?.project?.revision ?? timelineData.data?.revision,
+		},
+	});
+
+	const referencedMedia =
+		timelineData.data?.referencedMedia &&
+		typeof timelineData.data.referencedMedia === "object" &&
+		!Array.isArray(timelineData.data.referencedMedia)
+			? timelineData.data.referencedMedia
+			: {};
+	const referencedScriptedAsset =
+		scriptedAsset?.id && referencedMedia[scriptedAsset.id];
+	const referencedScriptedAssetError =
+		timelineOk && scriptedAsset
+			? scriptedSummaryCheck({
+					entity: referencedScriptedAsset,
+					label: `Referenced scripted media "${scriptedMediaName}"`,
+					expectedCaptionLineCount,
+					expectedProtectedTermCount,
+				})
+			: "Timeline v2 or scripted media asset check did not pass";
+	checks.push({
+		id: "referenced_scripted_media",
+		ok: !referencedScriptedAssetError,
+		message:
+			referencedScriptedAssetError ??
+			`Timeline references scripted media "${scriptedMediaName}"`,
+		data: {
+			mediaId: referencedScriptedAsset?.id,
+			name: referencedScriptedAsset?.name,
+			hasSpokenScript: referencedScriptedAsset?.hasSpokenScript,
+			spokenScriptCaptionLineCount:
+				referencedScriptedAsset?.spokenScriptCaptionLineCount,
+			spokenScriptProtectedTermCount:
+				referencedScriptedAsset?.spokenScriptProtectedTermCount,
+		},
+	});
+
+	const timelineTexts = collectTimelineText(timelineData.data);
+	const combinedTimelineText = timelineTexts.join("\n");
+	const missingCaptionTexts = expectedCaptionTexts.filter(
+		(text) => !combinedTimelineText.includes(text),
+	);
+	checks.push({
+		id: "expected_caption_text",
+		ok: missingCaptionTexts.length === 0,
+		message:
+			missingCaptionTexts.length === 0
+				? `Matched ${expectedCaptionTexts.length} expected caption text(s)`
+				: `Missing expected caption text: ${missingCaptionTexts.join(", ")}`,
+		data: {
+			expectedCaptionTexts,
+			matchedCaptionTexts: expectedCaptionTexts.filter((text) =>
+				combinedTimelineText.includes(text),
+			),
+			timelineTextCount: timelineTexts.length,
+		},
+	});
+
+	const summary = {
+		projectId,
+		revision:
+			timelineData.data?.project?.revision ?? timelineData.data?.revision,
+		totalDuration:
+			timelineData.data?.project?.totalDuration ??
+			timelineData.data?.totalDuration,
+		trackCount:
+			timelineData.data?.summary?.trackCount ??
+			(Array.isArray(timelineData.data?.tracks)
+				? timelineData.data.tracks.length
+				: undefined),
+		elementCount: timelineData.data?.summary?.elementCount,
+		mediaAssetCount: mediaAssets.length,
+		scriptedMediaId: scriptedAsset?.id,
+		scriptedMediaName: scriptedAsset?.name,
+		captionTextEvidenceCount: timelineTexts.length,
+	};
+
+	return {
+		ok: checks.every((check) => check.ok),
+		projectId,
+		checks,
+		summary,
+	};
 }
 
 export function buildInspectTimelineEnvelope({
@@ -2000,6 +2277,7 @@ export async function runCli({
 	stdout = console.log,
 	cwd = process.cwd(),
 	homeDir = homedir(),
+	installDoctorImpl = runInstallDoctor,
 }) {
 	const [command, ...rest] = argv;
 	if (!command || command === "help" || command === "--help") {
@@ -2011,7 +2289,7 @@ export async function runCli({
 	assertNoTokenFlags(flags);
 
 	if (command === "doctor-install") {
-		const result = await runInstallDoctor({
+		const result = await installDoctorImpl({
 			projectId: flags.projectId,
 			cwd,
 			homeDir,
@@ -2078,6 +2356,90 @@ export async function runCli({
 		});
 		stdout(JSON.stringify({ status: "ready", executor }, null, 2));
 		return 0;
+	} else if (command === "fresh-session-smoke") {
+		if (!flags.projectId) {
+			throw new Error("--project-id is required");
+		}
+		if (!flags.scriptedMediaName) {
+			throw new Error("--scripted-media-name is required");
+		}
+		const expectedCaptionLineCount = parseRequiredNonNegativeInteger(
+			flags.expectedCaptionLineCount,
+			"expected-caption-line-count",
+		);
+		const expectedProtectedTermCount = parseRequiredNonNegativeInteger(
+			flags.expectedProtectedTermCount,
+			"expected-protected-term-count",
+		);
+		const expectedCaptionTexts = parseRequiredJsonStringArray(
+			flags.expectedCaptionTextsJson,
+			"expected-caption-texts-json",
+		);
+		const installDoctorResult = await installDoctorImpl({
+			projectId: flags.projectId,
+			cwd,
+			homeDir,
+			env,
+			fetchImpl,
+		});
+		if (installDoctorResult.ok !== true) {
+			const report = {
+				ok: false,
+				projectId: flags.projectId,
+				checks: [
+					{
+						id: "doctor_install",
+						ok: false,
+						message: "doctor-install checks failed",
+						data: {
+							failedChecks: Array.isArray(installDoctorResult.checks)
+								? installDoctorResult.checks
+										.filter((check) => check.ok !== true)
+										.map((check) => check.id)
+								: [],
+						},
+					},
+				],
+				summary: { projectId: flags.projectId },
+			};
+			stdout(JSON.stringify(report, null, 2));
+			return 1;
+		}
+		const executor = await waitForExecutor({
+			config,
+			projectId: flags.projectId,
+			fetchImpl,
+		});
+		const mediaAssetsResult = await postEnvelope({
+			config,
+			envelope: buildCommandEnvelope({
+				projectId: flags.projectId,
+				tool: "list_media_assets",
+				args: {},
+			}),
+			fetchImpl,
+		});
+		const timelineResult = await postEnvelope({
+			config,
+			envelope: buildGetTimelineStateV2Envelope({
+				projectId: flags.projectId,
+				includeReferencedMedia: true,
+			}),
+			fetchImpl,
+		});
+		const report = buildFreshSessionSmokeReport({
+			projectId: flags.projectId,
+			installDoctorResult,
+			doctorResult: { status: "ready", executor },
+			mediaAssetsResult,
+			timelineResult,
+			scriptedMediaName: flags.scriptedMediaName,
+			expectedCaptionLineCount,
+			expectedProtectedTermCount,
+			expectedCaptionTexts,
+		});
+		stdout(JSON.stringify(report, null, 2));
+		return report.ok ? 0 : 1;
 	} else if (command === "send") {
 		envelope = buildCommandEnvelope({
 			projectId: flags.projectId,

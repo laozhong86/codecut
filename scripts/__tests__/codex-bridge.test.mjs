@@ -12,6 +12,7 @@ import {
 	buildRunningHubVoiceCloneEnvelope,
 	buildRunningHubVoiceDesignEnvelope,
 	buildExportEnvelope,
+	buildFreshSessionSmokeReport,
 	buildGetTimelineStateV2Envelope,
 	buildGetTranscriptEnvelope,
 	buildImportSystemTemplateScriptEnvelope,
@@ -54,6 +55,9 @@ describe("codex bridge CLI helpers", () => {
 
 		expect(exitCode).toBe(0);
 		expect(output).toContain("node scripts/codex-bridge.mjs send");
+		expect(output).toContain(
+			"node scripts/codex-bridge.mjs fresh-session-smoke",
+		);
 		expect(output).toContain(
 			"node scripts/codex-bridge.mjs generate-digital-human",
 		);
@@ -1588,6 +1592,326 @@ describe("codex bridge CLI helpers", () => {
 			status: "ready",
 			executor: { projectId: "project-123", status: "idle" },
 		});
+	});
+
+	test("buildFreshSessionSmokeReport proves scripted media and protected caption text readback", () => {
+		const report = buildFreshSessionSmokeReport({
+			projectId: "project-123",
+			installDoctorResult: {
+				ok: true,
+				checks: [{ id: "plugin_sync", ok: true, message: "Cache is synced" }],
+			},
+			doctorResult: {
+				status: "ready",
+				executor: { projectId: "project-123", status: "idle" },
+			},
+			mediaAssetsResult: {
+				status: "completed",
+				results: [
+					{
+						commandId: "cmd-1",
+						tool: "list_media_assets",
+						success: true,
+						data: {
+							assets: [
+								{
+									id: "audio-1",
+									name: "blind-narration.wav",
+									type: "audio",
+									hasSpokenScript: true,
+									spokenScriptCaptionLineCount: 4,
+									spokenScriptProtectedTermCount: 3,
+								},
+							],
+						},
+					},
+				],
+			},
+			timelineResult: {
+				status: "completed",
+				results: [
+					{
+						commandId: "cmd-1",
+						tool: "get_timeline_state",
+						success: true,
+						data: {
+							schemaVersion: 2,
+							project: {
+								id: "project-123",
+								revision: 13,
+								totalDuration: 8.740544,
+							},
+							summary: { trackCount: 4, elementCount: 8 },
+							tracks: [
+								{
+									type: "text",
+									elements: [
+										{ content: "A pizza portion costs $2.34." },
+										{ content: "The reveal is Venmo that ASAP." },
+									],
+								},
+							],
+							referencedMedia: {
+								"audio-1": {
+									id: "audio-1",
+									name: "blind-narration.wav",
+									type: "audio",
+									hasSpokenScript: true,
+									spokenScriptCaptionLineCount: 4,
+									spokenScriptProtectedTermCount: 3,
+								},
+							},
+						},
+					},
+				],
+			},
+			scriptedMediaName: "blind-narration.wav",
+			expectedCaptionLineCount: 4,
+			expectedProtectedTermCount: 3,
+			expectedCaptionTexts: ["$2.34", "Venmo that ASAP"],
+		});
+
+		expect(report.ok).toBe(true);
+		expect(report.summary).toMatchObject({
+			projectId: "project-123",
+			revision: 13,
+			totalDuration: 8.740544,
+			scriptedMediaId: "audio-1",
+			scriptedMediaName: "blind-narration.wav",
+		});
+		expect(report.checks.map((check) => [check.id, check.ok])).toEqual([
+			["doctor_install", true],
+			["doctor", true],
+			["scripted_media_asset", true],
+			["timeline_v2", true],
+			["referenced_scripted_media", true],
+			["expected_caption_text", true],
+		]);
+		expect(JSON.stringify(report)).not.toContain("local-token");
+	});
+
+	test("buildFreshSessionSmokeReport fails when expected caption text is absent", () => {
+		const report = buildFreshSessionSmokeReport({
+			projectId: "project-123",
+			installDoctorResult: {
+				ok: true,
+				checks: [{ id: "plugin_sync", ok: true, message: "Cache is synced" }],
+			},
+			doctorResult: {
+				status: "ready",
+				executor: { projectId: "project-123", status: "idle" },
+			},
+			mediaAssetsResult: {
+				status: "completed",
+				results: [
+					{
+						commandId: "cmd-1",
+						tool: "list_media_assets",
+						success: true,
+						data: {
+							assets: [
+								{
+									id: "audio-1",
+									name: "blind-narration.wav",
+									type: "audio",
+									hasSpokenScript: true,
+									spokenScriptCaptionLineCount: 4,
+									spokenScriptProtectedTermCount: 3,
+								},
+							],
+						},
+					},
+				],
+			},
+			timelineResult: {
+				status: "completed",
+				results: [
+					{
+						commandId: "cmd-1",
+						tool: "get_timeline_state",
+						success: true,
+						data: {
+							schemaVersion: 2,
+							project: { id: "project-123", revision: 13 },
+							tracks: [
+								{
+									type: "text",
+									elements: [{ content: "A pizza portion costs $2.34." }],
+								},
+							],
+							referencedMedia: {
+								"audio-1": {
+									id: "audio-1",
+									name: "blind-narration.wav",
+									type: "audio",
+									hasSpokenScript: true,
+									spokenScriptCaptionLineCount: 4,
+									spokenScriptProtectedTermCount: 3,
+								},
+							},
+						},
+					},
+				],
+			},
+			scriptedMediaName: "blind-narration.wav",
+			expectedCaptionLineCount: 4,
+			expectedProtectedTermCount: 3,
+			expectedCaptionTexts: ["$2.34", "Venmo that ASAP"],
+		});
+
+		expect(report.ok).toBe(false);
+		expect(
+			report.checks.find((check) => check.id === "expected_caption_text"),
+		).toMatchObject({
+			ok: false,
+			message: "Missing expected caption text: Venmo that ASAP",
+		});
+	});
+
+	test("fresh-session-smoke command verifies runtime readback and expected captions", async () => {
+		const requests = [];
+		const output = [];
+		const installDoctorImpl = async () => ({
+			ok: true,
+			checks: [{ id: "plugin_sync", ok: true, message: "Cache is synced" }],
+		});
+		const fetchImpl = async (url, init = {}) => {
+			requests.push({ url, init });
+			if (String(url).includes("/api/codex-executor/status")) {
+				return new Response(
+					JSON.stringify({
+						projectId: "project-123",
+						status: "idle",
+						message: "Executor project is ready.",
+					}),
+				);
+			}
+			if (String(url).endsWith("/api/codex-executor/commands")) {
+				const envelope = JSON.parse(init.body).envelope;
+				const tool = envelope.commands[0].tool;
+				if (tool === "list_media_assets") {
+					return new Response(
+						JSON.stringify({
+							status: "completed",
+							projectId: "project-123",
+							results: [
+								{
+									commandId: "cmd-1",
+									tool,
+									success: true,
+									data: {
+										assets: [
+											{
+												id: "audio-1",
+												name: "blind-narration.wav",
+												type: "audio",
+												hasSpokenScript: true,
+												spokenScriptCaptionLineCount: 4,
+												spokenScriptProtectedTermCount: 3,
+											},
+										],
+									},
+								},
+							],
+						}),
+					);
+				}
+				if (tool === "get_timeline_state") {
+					return new Response(
+						JSON.stringify({
+							status: "completed",
+							projectId: "project-123",
+							results: [
+								{
+									commandId: "cmd-1",
+									tool,
+									success: true,
+									data: {
+										schemaVersion: 2,
+										project: {
+											id: "project-123",
+											revision: 13,
+											totalDuration: 8.740544,
+										},
+										summary: { trackCount: 4, elementCount: 8 },
+										tracks: [
+											{
+												type: "text",
+												elements: [
+													{ content: "A pizza portion costs $2.34." },
+													{ content: "The reveal is Venmo that ASAP." },
+												],
+											},
+										],
+										referencedMedia: {
+											"audio-1": {
+												id: "audio-1",
+												name: "blind-narration.wav",
+												type: "audio",
+												hasSpokenScript: true,
+												spokenScriptCaptionLineCount: 4,
+												spokenScriptProtectedTermCount: 3,
+											},
+										},
+									},
+								},
+							],
+						}),
+					);
+				}
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		};
+
+		const exitCode = await runCli({
+			argv: [
+				"fresh-session-smoke",
+				"--project-id",
+				"project-123",
+				"--scripted-media-name",
+				"blind-narration.wav",
+				"--expected-caption-line-count",
+				"4",
+				"--expected-protected-term-count",
+				"3",
+				"--expected-caption-texts-json",
+				'["$2.34","Venmo that ASAP"]',
+			],
+			env: {
+				CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+				CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+				CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+				CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+			},
+			fetchImpl,
+			installDoctorImpl,
+			stdout: (value) => output.push(value),
+		});
+
+		expect(exitCode).toBe(0);
+		expect(requests.map((request) => request.url)).toEqual([
+			"http://localhost:4100/api/codex-executor/status?projectId=project-123",
+			"http://localhost:4100/api/codex-executor/commands",
+			"http://localhost:4100/api/codex-executor/commands",
+		]);
+		expect(
+			requests
+				.slice(1)
+				.map((request) => JSON.parse(request.init.body).envelope.commands[0]),
+		).toMatchObject([
+			{ tool: "list_media_assets", args: {} },
+			{
+				tool: "get_timeline_state",
+				args: { format: "v2", includeReferencedMedia: true },
+			},
+		]);
+		const report = JSON.parse(output[0]);
+		expect(report.ok).toBe(true);
+		expect(report.summary).toMatchObject({
+			revision: 13,
+			scriptedMediaId: "audio-1",
+		});
+		expect(JSON.stringify(report)).not.toContain("local-token");
 	});
 
 	test("install doctor validates source, cache, env, service, and executor project", async () => {
