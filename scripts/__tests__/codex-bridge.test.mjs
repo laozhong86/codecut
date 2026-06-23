@@ -686,7 +686,7 @@ describe("codex bridge CLI helpers", () => {
 		}
 	});
 
-	test("builds import-media envelopes from bytes and https URLs", async () => {
+	test("builds import-media envelopes from bytes", async () => {
 		const base64 = Buffer.from("image-bytes").toString("base64");
 		expect(
 			await buildImportMediaEnvelope({
@@ -706,35 +706,6 @@ describe("codex bridge CLI helpers", () => {
 					base64,
 					size: 11,
 					lastModified: 1234,
-				},
-			}),
-		);
-
-		const requests = [];
-		const envelope = await buildImportMediaEnvelope({
-			projectId: "project-123",
-			url: "https://cdn.example.com/folder/source.png",
-			fetchImpl: async (url, init) => {
-				requests.push({ url, init });
-				return new Response(Buffer.from("downloaded-image"), {
-					status: 200,
-					headers: { "content-type": "image/png" },
-				});
-			},
-		});
-
-		expect(requests[0].url).toBe("https://cdn.example.com/folder/source.png");
-		expect(requests[0].init.redirect).toBe("error");
-		expect(envelope).toEqual(
-			buildCommandEnvelope({
-				projectId: "project-123",
-				tool: "import_media_file",
-				args: {
-					fileName: "source.png",
-					mimeType: "image/png",
-					base64: Buffer.from("downloaded-image").toString("base64"),
-					size: 16,
-					lastModified: expect.any(Number),
 				},
 			}),
 		);
@@ -768,38 +739,9 @@ describe("codex bridge CLI helpers", () => {
 				projectId: "project-123",
 				url: "http://cdn.example.com/source.png",
 			}),
-		).rejects.toThrow("--url must use https");
-		await expect(
-			buildImportMediaEnvelope({
-				projectId: "project-123",
-				url: "https://user:pass@cdn.example.com/source.png",
-			}),
-		).rejects.toThrow("--url must not contain credentials");
-		await expect(
-			buildImportMediaEnvelope({
-				projectId: "project-123",
-				url: "https://127.0.0.1/source.png",
-			}),
-		).rejects.toThrow("--url must not use localhost or private literal hosts");
-		await expect(
-			buildImportMediaEnvelope({
-				projectId: "project-123",
-				url: "https://cdn.example.com/source.unknown",
-				fetchImpl: async () =>
-					new Response(Buffer.from("downloaded"), { status: 200 }),
-			}),
-		).rejects.toThrow("--mime-type is required when URL content type is missing");
-		await expect(
-			buildImportMediaEnvelope({
-				projectId: "project-123",
-				url: "https://cdn.example.com/source.png",
-				fetchImpl: async () =>
-					new Response(null, {
-						status: 302,
-						headers: { location: "https://example.com/next" },
-					}),
-			}),
-		).rejects.toThrow("--url must not redirect");
+		).rejects.toThrow(
+			"import-media --url is disabled; use --file-path or --bytes-base64-file",
+		);
 	});
 
 	test("builds rich editing command envelopes from args-json payloads", () => {

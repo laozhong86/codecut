@@ -21,12 +21,40 @@ function editorStub({
 }
 
 describe("loadEditorProviderProject", () => {
+	test("passes the browser bridge token when loading an executor snapshot", async () => {
+		const loadSnapshotCalls: unknown[] = [];
+		const snapshot = { revision: 7 } as ExecutorSnapshot;
+
+		await loadEditorProviderProject({
+			projectId: "executor-only-project",
+			bridgeToken: "browser-token-1",
+			editor: editorStub({
+				loadProject: async () => {
+					throw new Error("should not load local project");
+				},
+			}),
+			loadSnapshot: async (params) => {
+				loadSnapshotCalls.push(params);
+				return snapshot;
+			},
+			applySnapshot: async () => undefined,
+		});
+
+		expect(loadSnapshotCalls).toEqual([
+			{
+				projectId: "executor-only-project",
+				bridgeToken: "browser-token-1",
+			},
+		]);
+	});
+
 	test("loads executor snapshot before local browser storage", async () => {
 		const calls: string[] = [];
 		const snapshot = { revision: 7 } as ExecutorSnapshot;
 
 		const result = await loadEditorProviderProject({
 			projectId: "executor-only-project",
+			bridgeToken: "browser-token-1",
 			editor: editorStub({
 				loadProject: async () => {
 					calls.push("load-local-project");
@@ -56,6 +84,7 @@ describe("loadEditorProviderProject", () => {
 
 		const result = await loadEditorProviderProject({
 			projectId: "project-1",
+			bridgeToken: "browser-token-1",
 			editor: editorStub({
 				loadProject: async () => {
 					calls.push("load-local-project");

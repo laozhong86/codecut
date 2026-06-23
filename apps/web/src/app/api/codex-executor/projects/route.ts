@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 		projectId: state.project.id,
 		name: state.project.name,
 		revision: state.revision,
-		editorUrl: `http://127.0.0.1:4100/en/editor/${state.project.id}`,
+		editorUrl: `http://127.0.0.1:4100/en/editor/${state.project.id}#bridgeToken=${encodeURIComponent(state.browserBridgeToken)}`,
 	});
 }
 

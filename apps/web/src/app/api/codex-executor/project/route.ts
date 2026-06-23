@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { validateExecutorToken } from "@/lib/codex-executor/auth";
+import {
+	validateExecutorReadAccess,
+	validateExecutorToken,
+} from "@/lib/codex-executor/auth";
 import {
 	deleteExecutorProject,
 	getExecutorProjectSnapshot,
@@ -28,6 +31,9 @@ export async function GET(request: NextRequest) {
 			{ status: 400 },
 		);
 	}
+
+	const tokenError = await validateExecutorReadAccess({ request, projectId });
+	if (tokenError) return tokenError;
 
 	try {
 		return NextResponse.json(await getExecutorProjectSnapshot({ projectId }));

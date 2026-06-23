@@ -26,6 +26,7 @@ import type { DerivedAsset } from "@/types/project";
 import {
 	createExecutorProject,
 	executeCodexExecutorEnvelope,
+	getExecutorBrowserBridgeToken,
 	getExecutorProjectSnapshot,
 	getExecutorProjectState,
 	getExecutorStatus,
@@ -326,6 +327,16 @@ describe("codex executor", () => {
 		process.env.CODECUT_EXECUTOR_STATE_DIR = stateDir;
 	});
 
+	test("rejects project IDs that escape the executor projects directory", async () => {
+		await expect(
+			createExecutorProject({ projectId: "../escape", name: "Escape" }),
+		).rejects.toThrow("projectId must be a safe identifier.");
+
+		expect(await Bun.file(join(stateDir, "escape", "project.json")).exists()).toBe(
+			false,
+		);
+	});
+
 	test("lists imported media through the local executor", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 		await executeCodexExecutorEnvelope({
@@ -365,6 +376,23 @@ describe("codex executor", () => {
 				],
 			},
 		});
+	});
+
+	test("lazily adds a browser bridge token to existing executor projects", async () => {
+		await createExecutorProject({ projectId, name: "Legacy Codex cut" });
+		const state = await getExecutorProjectState({ projectId });
+		const { browserBridgeToken: _browserBridgeToken, ...legacyState } = state;
+		await writeFile(
+			join(stateDir, "projects", projectId, "project.json"),
+			`${JSON.stringify(legacyState, null, 2)}\n`,
+			"utf8",
+		);
+
+		const token = await getExecutorBrowserBridgeToken({ projectId });
+		const migratedState = await getExecutorProjectState({ projectId });
+
+		expect(token).toEqual(expect.any(String));
+		expect(migratedState.browserBridgeToken).toBe(token);
 	});
 
 	afterEach(async () => {

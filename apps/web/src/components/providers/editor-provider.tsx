@@ -6,6 +6,7 @@ import {
 	loadCodexExecutorSnapshot,
 } from "@/components/editor/codex-executor-sync";
 import { AgentBridgeProvider } from "@/components/providers/agent-bridge-provider";
+import { readExecutorBrowserBridgeTokenFromLocation } from "@/lib/codex-executor/browser-bridge-token";
 import { useRouter } from "@/lib/navigation";
 import { Loader2 } from "lucide-react";
 import { useEditor } from "@/hooks/use-editor";
@@ -25,6 +26,7 @@ type ApplyExecutorSnapshot = typeof applyCodexExecutorSnapshot;
 
 interface LoadEditorProviderProjectParams {
 	projectId: string;
+	bridgeToken?: string | null;
 	editor: ReturnType<typeof useEditor>;
 	loadSnapshot?: LoadExecutorSnapshot;
 	applySnapshot?: ApplyExecutorSnapshot;
@@ -41,6 +43,7 @@ function isProjectNotFoundError(error: unknown): boolean {
 
 export async function loadEditorProviderProject({
 	projectId,
+	bridgeToken,
 	editor,
 	loadSnapshot = loadCodexExecutorSnapshot,
 	applySnapshot = applyCodexExecutorSnapshot,
@@ -52,9 +55,11 @@ export async function loadEditorProviderProject({
 	executorRevision?: number;
 	redirectProjectId?: string;
 }> {
-	const snapshot = await loadSnapshot({ projectId });
+	const snapshot = bridgeToken
+		? await loadSnapshot({ projectId, bridgeToken })
+		: null;
 	if (snapshot) {
-		await applySnapshot({ editor, snapshot });
+		await applySnapshot({ editor, snapshot, bridgeToken });
 		return { executorRevision: snapshot.revision };
 	}
 
@@ -92,7 +97,11 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		const loadProject = async () => {
 			try {
 				setIsLoading(true);
-				const result = await loadEditorProviderProject({ projectId, editor });
+				const result = await loadEditorProviderProject({
+					projectId,
+					bridgeToken: readExecutorBrowserBridgeTokenFromLocation(),
+					editor,
+				});
 				if (cancelled) return;
 				if (result.redirectProjectId) {
 					router.replace(`/editor/${result.redirectProjectId}`);

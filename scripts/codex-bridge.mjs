@@ -2,7 +2,6 @@
 
 import { access, readFile, stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
-import { isIP } from "node:net";
 import { homedir } from "node:os";
 import { basename, extname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -18,8 +17,6 @@ const requiredConfig = [
 ];
 const execFileAsync = promisify(execFile);
 const importBytesBase64MaxBytes = 15 * 1024 * 1024;
-const importUrlMaxBytes = 250 * 1024 * 1024;
-const importUrlTimeoutMs = 120_000;
 
 function usage() {
 	return [
@@ -29,7 +26,6 @@ function usage() {
 		"  node scripts/codex-bridge.mjs doctor --project-id <id>",
 		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
-		"  node scripts/codex-bridge.mjs import-media --project-id <id> --url https://example.com/media-file [--mime-type <type>]",
 		"  node scripts/codex-bridge.mjs import-media --project-id <id> --bytes-base64-file /absolute/path/payload.base64 --file-name <name> --mime-type <type>",
 		"  node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
@@ -1364,70 +1360,14 @@ function normalizeSupportedMimeType(value, flagName = "mime-type") {
 	return mimeType;
 }
 
-function inferMimeTypeFromUrlPath(url) {
-	const extension = extname(url.pathname).toLowerCase();
-	return extensionMimeTypes.get(extension);
-}
-
-function inferFileNameFromUrl(url) {
-	const fileName = basename(url.pathname);
-	if (!fileName || fileName === "/" || fileName === ".") {
-		throw new Error("--file-name is required when URL path has no file name");
-	}
-	return decodeURIComponent(fileName);
-}
-
-function isPrivateLiteralHost(hostname) {
-	const normalized = hostname.toLowerCase();
-	if (normalized === "localhost" || normalized.endsWith(".localhost")) {
-		return true;
-	}
-	const ipVersion = isIP(normalized);
-	if (ipVersion === 4) {
-		const [a, b] = normalized.split(".").map((part) => Number(part));
-		return (
-			a === 0 ||
-			a === 10 ||
-			a === 127 ||
-			(a === 169 && b === 254) ||
-			(a === 172 && b >= 16 && b <= 31) ||
-			(a === 192 && b === 168) ||
-			(a === 100 && b >= 64 && b <= 127) ||
-			(a === 198 && (b === 18 || b === 19))
-		);
-	}
-	if (ipVersion === 6) {
-		return (
-			normalized === "::1" ||
-			normalized.startsWith("fe80:") ||
-			normalized.startsWith("fc") ||
-			normalized.startsWith("fd")
-		);
-	}
-	return false;
-}
-
-function parseImportUrl(value) {
-	if (!value) {
-		throw new Error("--url is required");
-	}
-	const url = new URL(value);
-	if (url.protocol !== "https:") {
-		throw new Error("--url must use https");
-	}
-	if (url.username || url.password) {
-		throw new Error("--url must not contain credentials");
-	}
-	if (isPrivateLiteralHost(url.hostname)) {
-		throw new Error("--url must not use localhost or private literal hosts");
-	}
-	return url;
-}
-
 function validateSingleImportSource({ filePath, url, bytes, bytesBase64File }) {
+	if (url) {
+		throw new Error(
+			"import-media --url is disabled; use --file-path or --bytes-base64-file",
+		);
+	}
 	const sourceCount = [
 		Boolean(filePath),
-		Boolean(url),
 		Boolean(bytes || bytesBase64File),
 	].filter(Boolean).length;
 	if (sourceCount !== 1) {
@@ -1463,47 +1403,6 @@ async function readBase64Input({ bytes, bytesBase64File }) {
 		base64: content.toString("base64"),
 		content,
 	};
-}
-
-async function fetchUrlBytes({ url, mimeType, fetchImpl }) {
-	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), importUrlTimeoutMs);
-	try {
-		const response = await fetchImpl(url.href, {
-			redirect: "error",
-			signal: controller.signal,
-		});
-		if (response.redirected || (response.status >= 300 && response.status < 400)) {
-			throw new Error("--url must not redirect");
-		}
-		if (!response.ok) {
-			throw new Error(`--url download failed with HTTP ${response.status}`);
-		}
-		const contentLength = Number(response.headers.get("content-length"));
-		if (Number.isFinite(contentLength) && contentLength > importUrlMaxBytes) {
-			throw new Error("--url download must be 250MB or smaller");
-		}
-		const contentType = response.headers.get("content-type");
-		const resolvedMimeType =
-			mimeType ??
-			(contentType ? normalizeSupportedMimeType(contentType) : undefined) ??
-			inferMimeTypeFromUrlPath(url);
-		if (!resolvedMimeType) {
-			throw new Error(
-				"--mime-type is required when URL content type is missing",
-			);
-		}
-		const content = Buffer.from(await response.arrayBuffer());
-		if (content.byteLength > importUrlMaxBytes) {
-			throw new Error("--url download must be 250MB or smaller");
-		}
-		return {
-			content,
-			mimeType: normalizeSupportedMimeType(resolvedMimeType),
-		};
-	} finally {
-		clearTimeout(timeout);
-	}
 }
 
 export async function probeMediaFile({
@@ -1555,7 +1454,6 @@ export async function buildImportMediaEnvelope({
 	width,
 	height,
 	mediaMetadata,
-	fetchImpl = fetch,
 }) {
 	validateSingleImportSource({ filePath, url, bytes, bytesBase64File });
 	if (filePath) {
@@ -1609,27 +1507,7 @@ export async function buildImportMediaEnvelope({
 		});
 	}
 
-	const parsedUrl = parseImportUrl(url);
-	const remote = await fetchUrlBytes({
-		url: parsedUrl,
-		mimeType: mimeType ? normalizeSupportedMimeType(mimeType) : undefined,
-		fetchImpl,
-	});
-	return buildCommandEnvelope({
-		projectId,
-		tool: "import_media_file",
-		args: {
-			fileName: fileName ?? inferFileNameFromUrl(parsedUrl),
-			mimeType: remote.mimeType,
-			base64: remote.content.toString("base64"),
-			size: remote.content.byteLength,
-			lastModified:
-				lastModified === undefined
-					? Date.now()
-					: parseNonNegativeNumber(lastModified, "last-modified"),
-			...normalizeMediaMetadata({ duration, width, height }),
-		},
-	});
+	throw new Error("import-media requires exactly one media source");
 }
 
 export async function buildApplyPlanEnvelope({

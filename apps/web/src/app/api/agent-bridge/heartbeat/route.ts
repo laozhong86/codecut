@@ -5,6 +5,7 @@ import {
 	recordBridgeHeartbeat,
 } from "@/lib/agent-bridge/heartbeat";
 import { validateBridgeBrowserOrigin } from "@/lib/agent-bridge/origin";
+import { validateExecutorBrowserBridgeToken } from "@/lib/codex-executor/auth";
 
 const postBodySchema = z
 	.object({
@@ -44,6 +45,11 @@ export async function POST(request: NextRequest) {
 			{ status: 400 },
 		);
 	}
+	const browserTokenError = await validateExecutorBrowserBridgeToken({
+		request,
+		projectId: parsedBody.data.projectId,
+	});
+	if (browserTokenError) return browserTokenError;
 
 	const record = recordBridgeHeartbeat({
 		projectId: parsedBody.data.projectId,

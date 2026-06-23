@@ -7,6 +7,10 @@ import type {
 	BridgeEnvelope,
 	BridgeEnvelopeResult,
 } from "@/lib/agent-bridge/schema";
+import {
+	executorBrowserBridgeHeaders,
+	readExecutorBrowserBridgeTokenFromLocation,
+} from "@/lib/codex-executor/browser-bridge-token";
 
 interface AgentBridgeProviderProps {
 	projectId: string;
@@ -14,6 +18,7 @@ interface AgentBridgeProviderProps {
 
 interface PendingBridgeItem {
 	id: string;
+	claimToken: string;
 	envelope: BridgeEnvelope;
 	status: "claimed";
 }
@@ -28,21 +33,36 @@ type BridgeFetch = (
 	init?: RequestInit,
 ) => Promise<Response>;
 
+function bridgeHeaders({
+	bridgeToken,
+	contentType,
+}: {
+	bridgeToken: string;
+	contentType?: string;
+}): Record<string, string> {
+	return executorBrowserBridgeHeaders({ bridgeToken, contentType });
+}
+
 async function postResults({
 	id,
+	claimToken,
+	bridgeToken,
 	results,
 	fetchImpl,
 }: {
 	id: string;
+	claimToken: string;
+	bridgeToken: string;
 	results: BridgeCommandResult[];
 	fetchImpl: BridgeFetch;
 }): Promise<void> {
 	const response = await fetchImpl("/api/agent-bridge/results", {
 		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({ id, results }),
+		headers: bridgeHeaders({
+			bridgeToken,
+			contentType: "application/json",
+		}),
+		body: JSON.stringify({ id, claimToken, results }),
 	});
 
 	if (!response.ok) {
@@ -52,16 +72,19 @@ async function postResults({
 
 async function postHeartbeat({
 	projectId,
+	bridgeToken,
 	fetchImpl,
 }: {
 	projectId: string;
+	bridgeToken: string;
 	fetchImpl: BridgeFetch;
 }): Promise<void> {
 	const response = await fetchImpl("/api/agent-bridge/heartbeat", {
 		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
+		headers: bridgeHeaders({
+			bridgeToken,
+			contentType: "application/json",
+		}),
 		body: JSON.stringify({ projectId }),
 	});
 
@@ -72,17 +95,20 @@ async function postHeartbeat({
 
 export async function pollAgentBridgeOnce({
 	projectId,
+	bridgeToken,
 	fetchImpl = fetch,
 	executeEnvelope = executeBridgeEnvelope,
 }: {
 	projectId: string;
+	bridgeToken: string;
 	fetchImpl?: BridgeFetch;
 	executeEnvelope?: ExecuteEnvelope;
 }): Promise<void> {
-	await postHeartbeat({ projectId, fetchImpl });
+	await postHeartbeat({ projectId, bridgeToken, fetchImpl });
 
 	const response = await fetchImpl(
 		`/api/agent-bridge/commands?projectId=${encodeURIComponent(projectId)}`,
+		{ headers: bridgeHeaders({ bridgeToken }) },
 	);
 	if (!response.ok) {
 		return;
@@ -95,6 +121,8 @@ export async function pollAgentBridgeOnce({
 		});
 		await postResults({
 			id: item.id,
+			claimToken: item.claimToken,
+			bridgeToken,
 			results: execution.results,
 			fetchImpl,
 		});
@@ -105,6 +133,11 @@ export function AgentBridgeProvider({ projectId }: AgentBridgeProviderProps) {
 	const isPollingRef = useRef(false);
 
 	useEffect(() => {
+		const bridgeToken = readExecutorBrowserBridgeTokenFromLocation();
+		if (!bridgeToken) {
+			return;
+		}
+		const activeBridgeToken = bridgeToken;
 		let cancelled = false;
 
 		async function pollOnce() {
@@ -114,7 +147,7 @@ export function AgentBridgeProvider({ projectId }: AgentBridgeProviderProps) {
 
 			isPollingRef.current = true;
 			try {
-				await pollAgentBridgeOnce({ projectId });
+				await pollAgentBridgeOnce({ projectId, bridgeToken: activeBridgeToken });
 			} catch (error) {
 				console.error("Agent bridge polling failed:", error);
 			} finally {

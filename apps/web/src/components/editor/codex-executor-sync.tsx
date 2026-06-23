@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditorCore } from "@/core";
+import {
+	executorBrowserBridgeHeaders,
+	readExecutorBrowserBridgeTokenFromLocation,
+} from "@/lib/codex-executor/browser-bridge-token";
 import { CURRENT_PROJECT_VERSION } from "@/services/storage/migrations";
 import type { MediaAsset } from "@/types/assets";
 import type { TProject } from "@/types/project";
@@ -114,12 +118,19 @@ export function shouldSyncExecutorRevision({
 async function loadExecutorMediaFile({
 	asset,
 	revision,
+	bridgeToken,
 }: {
 	asset: ExecutorSnapshot["mediaAssets"][number];
 	revision: number;
+	bridgeToken?: string | null;
 }) {
 	const url = appendRevision({ url: asset.url, revision });
-	const response = await fetch(url, { cache: "no-store" });
+	const response = await fetch(url, {
+		cache: "no-store",
+		headers: bridgeToken
+			? executorBrowserBridgeHeaders({ bridgeToken })
+			: undefined,
+	});
 	if (!response.ok) {
 		throw new Error(`Failed to load executor media asset ${asset.id}.`);
 	}
@@ -141,12 +152,19 @@ async function loadExecutorMediaFile({
 
 export async function loadCodexExecutorSnapshot({
 	projectId,
+	bridgeToken,
 }: {
 	projectId: string;
+	bridgeToken?: string | null;
 }): Promise<ExecutorSnapshot | null> {
 	const response = await fetch(
 		`/api/codex-executor/project?projectId=${encodeURIComponent(projectId)}`,
-		{ cache: "no-store" },
+		{
+			cache: "no-store",
+			headers: bridgeToken
+				? executorBrowserBridgeHeaders({ bridgeToken })
+				: undefined,
+		},
 	);
 	if (response.status === 404) return null;
 	if (!response.ok) {
@@ -155,22 +173,50 @@ export async function loadCodexExecutorSnapshot({
 	return (await response.json()) as ExecutorSnapshot;
 }
 
+export async function loadCodexExecutorStatus({
+	projectId,
+	bridgeToken,
+}: {
+	projectId: string;
+	bridgeToken?: string | null;
+}): Promise<ExecutorStatus | null> {
+	const response = await fetch(
+		`/api/codex-executor/status?projectId=${encodeURIComponent(projectId)}`,
+		{
+			cache: "no-store",
+			headers: bridgeToken
+				? executorBrowserBridgeHeaders({ bridgeToken })
+				: undefined,
+		},
+	);
+	if (response.status === 404) return null;
+	if (!response.ok) {
+		throw new Error(await response.text());
+	}
+
+	return (await response.json()) as ExecutorStatus;
+}
+
 export function applyCodexExecutorSnapshot({
 	editor,
 	snapshot,
+	bridgeToken,
 }: {
 	editor: EditorCore;
 	snapshot: ExecutorSnapshot;
+	bridgeToken?: string | null;
 }) {
-	return applyCodexExecutorSnapshotAsync({ editor, snapshot });
+	return applyCodexExecutorSnapshotAsync({ editor, snapshot, bridgeToken });
 }
 
 async function applyCodexExecutorSnapshotAsync({
 	editor,
 	snapshot,
+	bridgeToken,
 }: {
 	editor: EditorCore;
 	snapshot: ExecutorSnapshot;
+	bridgeToken?: string | null;
 }) {
 	const sceneId = `${snapshot.project.id}-executor-scene`;
 	const now = new Date(snapshot.project.updatedAt);
@@ -202,6 +248,7 @@ async function applyCodexExecutorSnapshotAsync({
 			const mediaFile = await loadExecutorMediaFile({
 				asset,
 				revision: snapshot.revision,
+				bridgeToken,
 			});
 			return {
 				id: asset.id,
@@ -238,6 +285,7 @@ export function CodexExecutorSync({
 	editor: EditorCore;
 	initialRevision?: number;
 }) {
+	const bridgeToken = readExecutorBrowserBridgeTokenFromLocation();
 	const [status, setStatus] = useState<ExecutorStatus | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [summary, setSummary] = useState<ExecutorSnapshotSummary | null>(null);
@@ -245,11 +293,15 @@ export function CodexExecutorSync({
 	const appliedRevisionRef = useRef(initialRevision ?? 0);
 
 	const syncSnapshot = useCallback(async () => {
+		if (!bridgeToken) return;
 		setIsSyncing(true);
 		try {
-			const snapshot = await loadCodexExecutorSnapshot({ projectId });
+			const snapshot = await loadCodexExecutorSnapshot({
+				projectId,
+				bridgeToken,
+			});
 			if (!snapshot) return;
-			await applyCodexExecutorSnapshot({ editor, snapshot });
+			await applyCodexExecutorSnapshot({ editor, snapshot, bridgeToken });
 			appliedRevisionRef.current = snapshot.revision;
 			setSummary({
 				revision: snapshot.revision,
@@ -262,25 +314,26 @@ export function CodexExecutorSync({
 		} finally {
 			setIsSyncing(false);
 		}
-	}, [editor, projectId]);
+	}, [bridgeToken, editor, projectId]);
 
 	useEffect(() => {
+		if (!bridgeToken) {
+			setStatus(null);
+			setError(null);
+			return;
+		}
+
 		let cancelled = false;
 
 		async function poll() {
-			const response = await fetch(
-				`/api/codex-executor/status?projectId=${encodeURIComponent(projectId)}`,
-				{ cache: "no-store" },
-			);
-			if (response.status === 404) {
+			const nextStatus = await loadCodexExecutorStatus({
+				projectId,
+				bridgeToken,
+			});
+			if (!nextStatus) {
 				if (!cancelled) setStatus(null);
 				return;
 			}
-			if (!response.ok) {
-				throw new Error(await response.text());
-			}
-
-			const nextStatus = (await response.json()) as ExecutorStatus;
 			if (cancelled) return;
 
 			setStatus(nextStatus);
@@ -316,7 +369,7 @@ export function CodexExecutorSync({
 			cancelled = true;
 			window.clearInterval(timer);
 		};
-	}, [projectId, syncSnapshot]);
+	}, [bridgeToken, projectId, syncSnapshot]);
 
 	if (!status && !error) return null;
 

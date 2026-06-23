@@ -14,6 +14,7 @@ export interface BridgeQueueItem {
 	status: BridgeQueueStatus;
 	createdAt: string;
 	claimedAt?: string;
+	claimToken?: string;
 	completedAt?: string;
 	results?: BridgeCommandResult[];
 }
@@ -76,6 +77,7 @@ export function takePendingBridgeQueueItems({
 
 		item.status = "claimed";
 		item.claimedAt = new Date().toISOString();
+		item.claimToken = createId();
 		claimed.push(item);
 	}
 
@@ -84,9 +86,11 @@ export function takePendingBridgeQueueItems({
 
 export function completeBridgeQueueItem({
 	id,
+	claimToken,
 	results,
 }: {
 	id: string;
+	claimToken?: string;
 	results: BridgeCommandResult[];
 }): BridgeQueueItem | null {
 	const item = queueItems.get(id);
@@ -100,6 +104,12 @@ export function completeBridgeQueueItem({
 
 	if (item.status === "completed") {
 		throw new Error(`Bridge queue item "${id}" has already been completed.`);
+	}
+	if (!claimToken) {
+		throw new Error("Bridge queue claim token is required.");
+	}
+	if (item.claimToken !== claimToken) {
+		throw new Error(`Bridge queue item "${id}" claim token is invalid.`);
 	}
 
 	const parsedResults = BridgeCommandResultsSchema.parse(results);

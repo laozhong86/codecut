@@ -4,6 +4,7 @@ const executorToken = "playwright-smoke";
 const projectId = "playwright-editor-smoke";
 const projectName = "Playwright executor smoke";
 const timelineText = "Smoke title from executor";
+let editorUrl = "";
 
 test.beforeEach(async ({ request }) => {
 	await request.delete("/api/codex-executor/project", {
@@ -16,6 +17,8 @@ test.beforeEach(async ({ request }) => {
 		data: { projectId, name: projectName },
 	});
 	expect(createResponse.ok()).toBe(true);
+	const createdProject = await createResponse.json();
+	editorUrl = createdProject.editorUrl;
 
 	const commandResponse = await request.post("/api/codex-executor/commands", {
 		headers: { authorization: `Bearer ${executorToken}` },
@@ -56,7 +59,7 @@ test.afterEach(async ({ request }) => {
 });
 
 test("editor displays an executor snapshot on the timeline", async ({ page }) => {
-	await page.goto(`/en/editor/${projectId}`);
+	await page.goto(editorUrl);
 
 	await expect(page.getByRole("textbox")).toHaveValue(projectName);
 	await expect(page.getByRole("status", { name: /Codex executor succeeded/ }))

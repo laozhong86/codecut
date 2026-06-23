@@ -43,6 +43,7 @@ describe("agent bridge queue", () => {
 		expect(claimed).toHaveLength(1);
 		expect(claimed[0].id).toBe(item.id);
 		expect(claimed[0].status).toBe("claimed");
+		expect(claimed[0].claimToken).toEqual(expect.any(String));
 	});
 
 	test("claimed items are not claimed twice", () => {
@@ -91,13 +92,14 @@ describe("agent bridge queue", () => {
 
 	test("stores command results", () => {
 		const item = enqueueBridgeEnvelope({ envelope });
-		takePendingBridgeQueueItems({
+		const [claimed] = takePendingBridgeQueueItems({
 			projectId: "project-123",
 			limit: 1,
 		});
 
 		completeBridgeQueueItem({
 			id: item.id,
+			claimToken: claimed.claimToken,
 			results: validResults,
 		});
 
@@ -119,6 +121,7 @@ describe("agent bridge queue", () => {
 		expect(() =>
 			completeBridgeQueueItem({
 				id: item.id,
+				claimToken: "not-claimed",
 				results: validResults,
 			}),
 		).toThrow(`Bridge queue item "${item.id}" must be claimed before completion.`);
@@ -130,18 +133,20 @@ describe("agent bridge queue", () => {
 
 	test("rejects duplicate completion", () => {
 		const item = enqueueBridgeEnvelope({ envelope });
-		takePendingBridgeQueueItems({
+		const [claimed] = takePendingBridgeQueueItems({
 			projectId: "project-123",
 			limit: 1,
 		});
 		completeBridgeQueueItem({
 			id: item.id,
+			claimToken: claimed.claimToken,
 			results: validResults,
 		});
 
 		expect(() =>
 			completeBridgeQueueItem({
 				id: item.id,
+				claimToken: claimed.claimToken,
 				results: validResults,
 			}),
 		).toThrow(`Bridge queue item "${item.id}" has already been completed.`);
@@ -153,7 +158,7 @@ describe("agent bridge queue", () => {
 
 	test("rejects invalid result payloads without mutating the item", () => {
 		const item = enqueueBridgeEnvelope({ envelope });
-		takePendingBridgeQueueItems({
+		const [claimed] = takePendingBridgeQueueItems({
 			projectId: "project-123",
 			limit: 1,
 		});
@@ -168,6 +173,7 @@ describe("agent bridge queue", () => {
 		expect(() =>
 			completeBridgeQueueItem({
 				id: item.id,
+				claimToken: claimed.claimToken,
 				results: invalidResults,
 			}),
 		).toThrow();
@@ -176,5 +182,31 @@ describe("agent bridge queue", () => {
 		expect(stored?.status).toBe("claimed");
 		expect(stored?.results).toBeUndefined();
 		expect(stored?.completedAt).toBeUndefined();
+	});
+
+	test("rejects completion with a missing or mismatched claim token", () => {
+		const item = enqueueBridgeEnvelope({ envelope });
+		const [claimed] = takePendingBridgeQueueItems({
+			projectId: "project-123",
+			limit: 1,
+		});
+
+		expect(() =>
+			completeBridgeQueueItem({
+				id: item.id,
+				results: validResults,
+			}),
+		).toThrow("Bridge queue claim token is required.");
+		expect(() =>
+			completeBridgeQueueItem({
+				id: item.id,
+				claimToken: `${claimed.claimToken}-forged`,
+				results: validResults,
+			}),
+		).toThrow(`Bridge queue item "${item.id}" claim token is invalid.`);
+
+		const stored = getBridgeQueueItem({ id: item.id });
+		expect(stored?.status).toBe("claimed");
+		expect(stored?.results).toBeUndefined();
 	});
 });
