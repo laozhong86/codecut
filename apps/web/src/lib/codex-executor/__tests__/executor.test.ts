@@ -4694,10 +4694,10 @@ describe("codex executor", () => {
 			startTime: 11,
 			duration: 1,
 			fontFamily: "CodecutCJK",
-			fontSize: 7,
+			fontSize: 5.8,
 			fontWeight: "bold",
 			color: "#fff3b0",
-			transform: { scale: 1, position: { x: 0, y: 300 }, rotate: 0 },
+			transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
 		});
 	});
 

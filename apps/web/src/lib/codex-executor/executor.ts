@@ -1,4 +1,12 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	readdir,
+	readFile,
+	rename,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { z } from "zod";
@@ -664,6 +672,28 @@ function projectsDirectory(): string {
 	return join(executorRoot(), "projects");
 }
 
+export class ExecutorProjectNotFoundError extends Error {
+	constructor(projectId: string) {
+		super(`Executor project "${projectId}" was not found.`);
+		this.name = "ExecutorProjectNotFoundError";
+	}
+}
+
+export function isExecutorProjectNotFoundError(
+	error: unknown,
+): error is ExecutorProjectNotFoundError {
+	return error instanceof ExecutorProjectNotFoundError;
+}
+
+function isNodeErrorWithCode(error: unknown, code: string): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		error.code === code
+	);
+}
+
 function projectStatePath({ projectId }: { projectId: string }): string {
 	return join(projectDirectory({ projectId }), "project.json");
 }
@@ -692,11 +722,25 @@ function transcriptCachePath({
 
 async function writeJson({ path, value }: { path: string; value: unknown }) {
 	await mkdir(dirname(path), { recursive: true });
-	await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+	const tempPath = join(
+		dirname(path),
+		`.${Date.now()}.${generateUUID()}.${process.pid}.tmp`,
+	);
+	await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, {
+		encoding: "utf8",
+		flag: "wx",
+	});
+	await rename(tempPath, path);
 }
 
 async function readJson<T>({ path }: { path: string }): Promise<T> {
-	return JSON.parse(await readFile(path, "utf8")) as T;
+	const content = await readFile(path, "utf8");
+	try {
+		return JSON.parse(content) as T;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Invalid JSON.";
+		throw new Error(`Invalid JSON file "${path}": ${message}`);
+	}
 }
 
 type TranscriptCacheEntry = {
@@ -1130,12 +1174,7 @@ async function readProjectStatusOrNull({
 			path: projectStatusPath({ projectId }),
 		});
 	} catch (error) {
-		if (
-			typeof error === "object" &&
-			error !== null &&
-			"code" in error &&
-			error.code === "ENOENT"
-		) {
+		if (isNodeErrorWithCode(error, "ENOENT")) {
 			return null;
 		}
 		throw error;
@@ -1151,8 +1190,11 @@ async function loadProjectState({
 		return await readJson<ExecutorProjectState>({
 			path: projectStatePath({ projectId }),
 		});
-	} catch {
-		throw new Error(`Executor project "${projectId}" was not found.`);
+	} catch (error) {
+		if (isNodeErrorWithCode(error, "ENOENT")) {
+			throw new ExecutorProjectNotFoundError(projectId);
+		}
+		throw error;
 	}
 }
 
@@ -1257,7 +1299,10 @@ export async function getExecutorStatus({
 		return await readJson<ExecutorStatus>({
 			path: projectStatusPath({ projectId }),
 		});
-	} catch {
+	} catch (error) {
+		if (!isNodeErrorWithCode(error, "ENOENT")) {
+			throw error;
+		}
 		const state = await loadProjectState({ projectId });
 		return {
 			projectId,

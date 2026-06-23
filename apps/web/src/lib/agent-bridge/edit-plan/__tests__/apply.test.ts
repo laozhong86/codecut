@@ -384,10 +384,10 @@ describe("applyEditPlanToEditor", () => {
 			stroke: { color: "#000000", width: 3 },
 			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
 			backgroundColor: "transparent",
-			boxWidth: 42,
+			boxWidth: 44,
 			transform: {
 				scale: 1,
-				position: { x: 0, y: 300 },
+				position: { x: 0, y: 520 },
 				rotate: 0,
 			},
 		});
@@ -426,7 +426,7 @@ describe("applyEditPlanToEditor", () => {
 			backgroundPaddingX: 24,
 			backgroundPaddingY: 12,
 			backgroundBorderRadius: 8,
-			boxWidth: 42,
+			boxWidth: 44,
 			transform: {
 				scale: 1,
 				position: { x: 0, y: 0 },
@@ -459,16 +459,16 @@ describe("applyEditPlanToEditor", () => {
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
 			fontFamily: "CodecutCJK",
-			fontSize: 7,
+			fontSize: 5.8,
 			fontWeight: "bold",
 			color: "#fff3b0",
-			stroke: { color: "#101010", width: 4 },
-			shadow: { color: "#000000", offsetX: 0, offsetY: 3, blur: 6 },
+			stroke: { color: "#101010", width: 3 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 5 },
 			backgroundColor: "transparent",
-			boxWidth: 42,
+			boxWidth: 44,
 			transform: {
 				scale: 1,
-				position: { x: 0, y: 300 },
+				position: { x: 0, y: 520 },
 				rotate: 0,
 			},
 		});
@@ -550,10 +550,10 @@ describe("applyEditPlanToEditor", () => {
 				preset: "talking-head-pop",
 				expected: {
 					fontFamily: "CodecutCJK",
-					fontSize: 7,
+					fontSize: 5.8,
 					fontWeight: "bold",
 					color: "#fff3b0",
-					stroke: { color: "#101010", width: 4 },
+					stroke: { color: "#101010", width: 3 },
 					backgroundColor: "transparent",
 				},
 			},
@@ -642,10 +642,10 @@ describe("applyEditPlanToEditor", () => {
 
 			expect(textElements[1]).toMatchObject({
 				content: "This is the key insight.",
-				boxWidth: 42,
+				boxWidth: 44,
 				transform: {
 					scale: 1,
-					position: { x: 0, y: 300 },
+					position: { x: 0, y: 520 },
 					rotate: 0,
 				},
 				...captionCase.expected,
