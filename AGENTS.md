@@ -23,6 +23,14 @@ CodeCut is a Codex-first editing plugin. Design it so Codex can autonomously use
 - Tool and MCP descriptions must define atomic capabilities, inputs, outputs, side effects, failure shape, and what the web UI can show after the action.
 - Runtime code should enforce only necessary product and data safety rules. Do not encode creative strategy or fixed editing workflows in code unless the rule prevents invalid state, data loss, timeline corruption, security exposure, or an unrecoverable export failure.
 
+### Feature Development Audit
+
+- Before adding a new feature, first judge whether it creates a high-priority improvement for CodeCut's product position: a Codex-first, local-first, explainable, verifiable video editor.
+- Do not add features because they are generally useful, competitor-visible, or technically interesting. If the user value is not directly tied to CodeCut's target editing scenarios, do not implement it.
+- Prefer strengthening existing capabilities before creating new ones: improve Codex control over the editor, timeline readback, local execution, visual evidence, export verification, and human-visible editing state.
+- Prefer improving skill guidance, MCP/tool schemas, validation rules, readback contracts, and workflow constraints when they can make Codex use CodeCut correctly without expanding runtime surface area.
+- Runtime feature work is justified only when guidance and tool contracts cannot deliver the target user outcome, and the feature has a clear verification path through editor state, executor readback, or exported media.
+
 ### CodeCut Capability Design
 
 - Keep every CodeCut capability atomic and independently usable. Codex should decide how to combine tools for each editing task.
