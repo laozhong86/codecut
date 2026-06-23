@@ -7,6 +7,8 @@ import {
 } from "../rebuild";
 import type { SpeechCleanupDecision, SpeechCleanupPlan } from "../schema";
 
+const SPEECH_CLEANUP_SOURCE_DURATION = 8.4;
+
 function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	return {
 		id: "media-1",
@@ -75,7 +77,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 	test("rebuilds contiguous clips and captions from keep decisions", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan: speechCleanupPlan(),
-			sourceDuration: 20,
+			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
 		});
 
 		expect(result.clips).toEqual([
@@ -117,7 +119,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 	test("returns stats and verification", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan: speechCleanupPlan(),
-			sourceDuration: 20,
+			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
 		});
 
 		expect(result.stats).toEqual({
@@ -159,7 +161,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan,
-			sourceDuration: 20,
+			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
 		});
 
 		expect(result.stats.dropReasons.filler).toBeUndefined();
@@ -169,7 +171,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 	test("projects to a current EditPlan v1 shape accepted by validateEditPlan", () => {
 		const result = rebuildTimelineFromSpeechCleanup({
 			plan: speechCleanupPlan(),
-			sourceDuration: 20,
+			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
 		});
 
 		const validation = validateEditPlan({
@@ -213,6 +215,16 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 					action: "keep",
 					reason: "Useful statement.",
 				},
+				{
+					id: "seg-3",
+					text: "pause",
+					sourceStart: 4,
+					sourceEnd: 5.066667,
+					action: "drop",
+					dropReason: "pause",
+					risk: "low",
+					reason: "Trailing pause.",
+				},
 			],
 			rationale: "Runtime proof projection.",
 		};
@@ -249,7 +261,10 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		);
 
 		expect(() =>
-			rebuildTimelineFromSpeechCleanup({ plan, sourceDuration: 20 }),
+			rebuildTimelineFromSpeechCleanup({
+				plan,
+				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+			}),
 		).toThrow("SpeechCleanupPlan must keep at least one segment.");
 	});
 
@@ -261,7 +276,10 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		};
 
 		expect(() =>
-			rebuildTimelineFromSpeechCleanup({ plan, sourceDuration: 20 }),
+			rebuildTimelineFromSpeechCleanup({
+				plan,
+				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+			}),
 		).toThrow("SpeechCleanupDecision sourceEnd exceeds source duration.");
 	});
 
@@ -274,7 +292,10 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		];
 
 		expect(() =>
-			rebuildTimelineFromSpeechCleanup({ plan, sourceDuration: 20 }),
+			rebuildTimelineFromSpeechCleanup({
+				plan,
+				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+			}),
 		).toThrow("SpeechCleanup decisions must be sorted by sourceStart.");
 	});
 
@@ -286,8 +307,91 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		};
 
 		expect(() =>
-			rebuildTimelineFromSpeechCleanup({ plan, sourceDuration: 20 }),
+			rebuildTimelineFromSpeechCleanup({
+				plan,
+				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
+			}),
 		).toThrow("SpeechCleanup decisions must not overlap.");
+	});
+
+	test("fails when leading transcript coverage gap exceeds 0.3 seconds", () => {
+		const plan = speechCleanupPlan();
+		plan.decisions = plan.decisions.map((decision) => ({
+			...decision,
+			sourceStart: decision.sourceStart + 0.301,
+			sourceEnd: decision.sourceEnd + 0.301,
+		}));
+
+		expect(() =>
+			rebuildTimelineFromSpeechCleanup({
+				plan,
+				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION + 0.301,
+			}),
+		).toThrow(
+			"SpeechCleanupPlan must classify leading untranscribed audio longer than 0.3 seconds.",
+		);
+	});
+
+	test("fails when trailing transcript coverage gap exceeds 0.3 seconds", () => {
+		const plan = speechCleanupPlan();
+
+		expect(() =>
+			rebuildTimelineFromSpeechCleanup({
+				plan,
+				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION + 0.301,
+			}),
+		).toThrow(
+			"SpeechCleanupPlan must classify trailing untranscribed audio longer than 0.3 seconds.",
+		);
+	});
+
+	test("allows leading and trailing coverage gaps up to 0.3 seconds", () => {
+		const plan = speechCleanupPlan();
+		plan.decisions = plan.decisions.map((decision) => ({
+			...decision,
+			sourceStart: decision.sourceStart + 0.3,
+			sourceEnd: decision.sourceEnd + 0.3,
+		}));
+
+		const result = rebuildTimelineFromSpeechCleanup({
+			plan,
+			sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION + 0.6,
+		});
+
+		expect(result.clips[0].sourceStart).toBe(1.5);
+	});
+
+	test("allows boundary coverage gaps with decimal floating point artifacts", () => {
+		const plan: SpeechCleanupPlan = {
+			version: 2,
+			projectId: "project-1",
+			sourceMediaId: "media-1",
+			target: {
+				durationSec: 1.1,
+				aspectRatio: "16:9",
+			},
+			decisions: [
+				{
+					id: "seg-1",
+					text: "We keep the useful part.",
+					sourceStart: 0.1 + 0.2,
+					sourceEnd: 1.4,
+					action: "keep",
+					reason: "Useful statement.",
+				},
+			],
+			rationale: "Boundary precision proof.",
+		};
+
+		const result = rebuildTimelineFromSpeechCleanup({
+			plan,
+			sourceDuration: 1.7,
+		});
+
+		expect(result.clips[0]).toMatchObject({
+			sourceStart: 0.3,
+			sourceEnd: 1.4,
+		});
 	});
 
 	test("fails fast when verification is false", () => {
