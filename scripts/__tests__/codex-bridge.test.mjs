@@ -2288,10 +2288,18 @@ describe("codex bridge CLI helpers", () => {
 		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
 			recursive: true,
 		});
+		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
 		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
 		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
 			recursive: true,
 		});
+		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
+		const bridgeEnv = [
+			"CODECUT_AGENT_BRIDGE_URL=http://localhost:4100",
+			"CODECUT_AGENT_BRIDGE_TOKEN=local-token",
+			"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=1000",
+			"CODECUT_AGENT_BRIDGE_INTERVAL_MS=1",
+		].join("\n");
 		await writeFile(
 			join(sourceRoot, ".codex-plugin/plugin.json"),
 			JSON.stringify({ name: "codecut", version: "0.1.1" }),
@@ -2302,6 +2310,7 @@ describe("codex bridge CLI helpers", () => {
 			"---\nname: codecut-jianying-editor-framework\n---\n",
 			"utf8",
 		);
+		await writeFile(join(sourceRoot, "apps/web/.env.local"), bridgeEnv, "utf8");
 		await writeFile(
 			join(cacheRoot, ".codex-plugin/plugin.json"),
 			JSON.stringify({ name: "codecut", version: "0.1.1" }),
@@ -2312,6 +2321,7 @@ describe("codex bridge CLI helpers", () => {
 			"---\nname: codecut-jianying-editor-framework\n---\n",
 			"utf8",
 		);
+		await writeFile(join(cacheRoot, "apps/web/.env.local"), bridgeEnv, "utf8");
 
 		try {
 			const result = await runInstallDoctor({
@@ -2356,6 +2366,90 @@ describe("codex bridge CLI helpers", () => {
 					data: expect.objectContaining({
 						changedPaths: ["scripts/codex-bridge.mjs"],
 					}),
+				}),
+			);
+		} finally {
+			await Promise.all([
+				rm(sourceRoot, { recursive: true, force: true }),
+				rm(homeRoot, { recursive: true, force: true }),
+			]);
+		}
+	});
+
+	test("install doctor ignores rsync mtime-only differences", async () => {
+		const sourceRoot = await mkdtemp(join(tmpdir(), "codecut-source-"));
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
+			recursive: true,
+		});
+		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
+			recursive: true,
+		});
+		await writeFile(
+			join(sourceRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
+			"---\nname: codecut-jianying-editor-framework\n---\n",
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
+			"---\nname: codecut-jianying-editor-framework\n---\n",
+			"utf8",
+		);
+
+		try {
+			const result = await runInstallDoctor({
+				projectId: "project-123",
+				cwd: sourceRoot,
+				homeDir: homeRoot,
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+					CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+					CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+				},
+				execFileImpl: async () => ({
+					stdout: ".f..t.... README.md\n.d..t.... docs/\n",
+					stderr: "",
+				}),
+				nodeRendererProbe: async () => ({
+					id: "node_renderer",
+					ok: true,
+					message: "Node Canvas/WebCodecs renderer is available.",
+				}),
+				fetchImpl: async (url) => {
+					if (String(url).endsWith("/en/projects")) {
+						return new Response("ok");
+					}
+					return new Response(
+						JSON.stringify({
+							projectId: "project-123",
+							status: "idle",
+							message: "Executor project is ready.",
+						}),
+					);
+				},
+			});
+
+			expect(result.checks.find((check) => check.id === "plugin_sync")).toEqual(
+				expect.objectContaining({
+					ok: true,
+					message: "Installed Codecut plugin cache matches the source tree.",
 				}),
 			);
 		} finally {
