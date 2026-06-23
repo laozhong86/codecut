@@ -17,6 +17,7 @@ import {
 import { buildVisualContextWithInspector } from "@/lib/codex-executor/visual-context";
 import { inspectVideoRange as inspectVideoRangeWithNodeRuntime } from "@/lib/codex-executor/video-range-inspection";
 import { inspectTimelineWithNodeRenderer } from "@/lib/codex-executor/timeline-inspection";
+import { buildVideoQualityReport } from "@/lib/codex-executor/video-quality-report";
 import {
 	addTextElements,
 	insertClips,
@@ -88,6 +89,7 @@ type ExecutorToolName =
 	| "build_visual_context"
 	| "inspect_video_range"
 	| "inspect_timeline"
+	| "build_video_quality_report"
 	| "get_transcript"
 	| "build_post_cut_captions"
 	| "add_texts"
@@ -174,6 +176,7 @@ const commandSchema = z
 			"build_visual_context",
 			"inspect_video_range",
 			"inspect_timeline",
+			"build_video_quality_report",
 			"get_transcript",
 			"build_post_cut_captions",
 			"add_texts",
@@ -290,6 +293,23 @@ const inspectTimelineArgsSchema = z
 		startTime: z.number().nonnegative(),
 		endTime: z.number().nonnegative().optional(),
 		frameCount: z.number().int().min(1).max(16).optional(),
+	})
+	.strict();
+
+const videoQualityReportArgsSchema = z
+	.object({
+		plan: z.unknown(),
+		inspection: z
+			.object({
+				startTime: z.number().nonnegative(),
+				endTime: z.number().nonnegative(),
+				frameCount: z.number().int().min(1).max(16),
+			})
+			.strict()
+			.refine((value) => value.endTime >= value.startTime, {
+				message:
+					"inspection endTime must be greater than or equal to startTime.",
+			}),
 	})
 	.strict();
 
@@ -2365,6 +2385,32 @@ async function runInspectTimeline({
 	};
 }
 
+async function runBuildVideoQualityReport({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = videoQualityReportArgsSchema.parse(args);
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
+	const report = await buildVideoQualityReport({
+		state,
+		mediaAssets,
+		plan: parsed.plan,
+		inspection: parsed.inspection,
+		outputDirectory: join(
+			projectDirectory({ projectId: state.project.id }),
+			"timeline-inspect",
+		),
+	});
+	return {
+		success: true,
+		message: `Built VideoQualityReport: ${report.status}`,
+		data: report,
+	};
+}
+
 function roundTimelineSeconds(value: number): number {
 	return Math.round(value * 1000) / 1000;
 }
@@ -3242,6 +3288,9 @@ async function executeCommand({
 	}
 	if (command.tool === "inspect_timeline") {
 		return runInspectTimeline({ state, args: command.args });
+	}
+	if (command.tool === "build_video_quality_report") {
+		return runBuildVideoQualityReport({ state, args: command.args });
 	}
 	if (command.tool === "get_transcript") {
 		return runGetTranscript({

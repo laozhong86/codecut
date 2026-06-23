@@ -28,6 +28,7 @@ import {
 	buildTranscribeEnvelope,
 	buildValidateEditPlanEnvelope,
 	buildVideoContextEnvelope,
+	buildVideoQualityReportEnvelope,
 	buildVisualContextEnvelope,
 	buildVerifyTimelineEnvelope,
 	parseBoolean,
@@ -601,6 +602,60 @@ describe("codex bridge CLI helpers", () => {
 				fps: 25,
 			}),
 		).toThrow("--width must be a positive number");
+	});
+
+	test("buildVideoQualityReportEnvelope creates a read-only quality report command", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-quality-report-"));
+		const planJsonFile = join(directory, "edit-plan.json");
+		const plan = {
+			version: 1,
+			projectId: "project-1",
+			sourceMediaId: "media-1",
+			target: { durationSec: 2, aspectRatio: "9:16" },
+			clips: [
+				{
+					id: "clip-1",
+					sourceStart: 0,
+					sourceEnd: 2,
+					timelineStart: 0,
+					reason: "Hook",
+				},
+			],
+			rationale: "Quality report fixture",
+		};
+		await writeFile(planJsonFile, JSON.stringify(plan), "utf8");
+
+		try {
+			expect(
+				await buildVideoQualityReportEnvelope({
+					projectId: "project-1",
+					planJsonFile,
+					startTime: 0,
+					endTime: 2,
+					frameCount: 3,
+				}),
+			).toEqual({
+				version: 1,
+				projectId: "project-1",
+				source: "codex",
+				commands: [
+					{
+						id: "cmd-1",
+						tool: "build_video_quality_report",
+						args: {
+							plan,
+							inspection: {
+								startTime: 0,
+								endTime: 2,
+								frameCount: 3,
+							},
+						},
+					},
+				],
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	test("builds an import-media command envelope from an absolute local file path", async () => {

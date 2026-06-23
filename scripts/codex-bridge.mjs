@@ -37,6 +37,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs inspect-video-range --project-id <id> --media-id <id> --start-seconds <seconds> --end-seconds <seconds> [--frame-count <1..16>]",
 		"  node scripts/codex-bridge.mjs get-timeline-state-v2 --project-id <id> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>] [--include-referenced-media <true|false>]",
 		"  node scripts/codex-bridge.mjs inspect-timeline --project-id <id> --start-time <seconds> [--end-time <seconds>] [--frame-count <1..16>]",
+		"  node scripts/codex-bridge.mjs build-video-quality-report --project-id <id> --plan-json-file /absolute/path/edit-plan.json --start-time <seconds> --end-time <seconds> --frame-count <1..16>",
 		"  node scripts/codex-bridge.mjs get-transcript --project-id <id> --language <auto|code> --model-id <model> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>]",
 		"  node scripts/codex-bridge.mjs add-texts --project-id <id> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs add-captions --project-id <id> --args-json '<json>'",
@@ -774,6 +775,36 @@ export function buildInspectTimelineEnvelope({
 		projectId,
 		tool: "inspect_timeline",
 		args: optionalTimelineWindow({ startTime, endTime, frameCount }),
+	});
+}
+
+export async function buildVideoQualityReportEnvelope({
+	projectId,
+	planJsonFile,
+	startTime,
+	endTime,
+	frameCount,
+}) {
+	if (startTime === undefined) {
+		throw new Error("--start-time is required");
+	}
+	if (endTime === undefined) {
+		throw new Error("--end-time is required");
+	}
+	if (frameCount === undefined) {
+		throw new Error("--frame-count is required");
+	}
+	const plan = await readJsonObjectFile({
+		filePath: planJsonFile,
+		flagName: "plan-json-file",
+	});
+	return buildCommandEnvelope({
+		projectId,
+		tool: "build_video_quality_report",
+		args: {
+			plan,
+			inspection: optionalTimelineWindow({ startTime, endTime, frameCount }),
+		},
 	});
 }
 
@@ -1936,6 +1967,16 @@ export async function runCli({
 		envelope = buildInspectTimelineEnvelope({
 			projectId: flags.projectId,
 			startTime: Number(flags.startTime),
+			endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
+			frameCount:
+				flags.frameCount === undefined ? undefined : Number(flags.frameCount),
+		});
+	} else if (command === "build-video-quality-report") {
+		envelope = await buildVideoQualityReportEnvelope({
+			projectId: flags.projectId,
+			planJsonFile: flags.planJsonFile,
+			startTime:
+				flags.startTime === undefined ? undefined : Number(flags.startTime),
 			endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
 			frameCount:
 				flags.frameCount === undefined ? undefined : Number(flags.frameCount),
