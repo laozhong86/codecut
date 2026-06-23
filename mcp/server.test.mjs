@@ -124,6 +124,9 @@ describe("Codecut MCP server contract", () => {
 		const html = await serverModule.readCodecutWorkspaceHtml();
 		for (const marker of [
 			"WORKSPACE_I18N",
+			"--cc-foreground",
+			"--cc-radius-md",
+			"--cc-button-height",
 			"navigator.language",
 			"项目名称",
 			'class="section-heading"',
@@ -146,6 +149,8 @@ describe("Codecut MCP server contract", () => {
 			'id="success-criteria"',
 			"renderMediaSources",
 			"renderChoiceOptions",
+			"choice-option",
+			"toggleCustomField",
 			"collectChoiceText",
 			"handlePickedFiles",
 			"openHostFilePicker",
@@ -185,6 +190,9 @@ describe("Codecut MCP server contract", () => {
 			expect(html).toContain(marker);
 		}
 		expect(html).not.toContain("<legend");
+		expect(html).not.toContain('type="checkbox"');
+		expect(html).not.toContain("querySelectorAll('input[type=\"checkbox\"]:checked')");
+		expect(html).not.toContain("#315cec");
 		expect(html).not.toContain('id="project-id"');
 		expect(html).not.toContain('data-i18n="projectId"');
 		expect(html).not.toContain('id="media-file-path"');
@@ -260,12 +268,18 @@ describe("Codecut MCP server contract", () => {
 		expect(chinese.structuredContent.intentDefaults).toMatchObject({
 			brief: "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
 			briefOptions: [
-				"剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
+				"剪成节奏清晰",
+				"保留核心信息",
+				"字幕清晰可读",
+				"自然音频",
 			],
 			successCriteria:
 				"开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
 			successCriteriaOptions: [
-				"开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
+				"开头有明确信息点",
+				"主体节奏紧凑",
+				"字幕清晰",
+				"结尾适合继续编辑或导出",
 			],
 			captionLanguage: "auto",
 			durationGoalSeconds: 60,

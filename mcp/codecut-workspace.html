@@ -6,15 +6,42 @@
     <title>CodeCut Workspace</title>
     <style>
       :root {
+        --cc-background: #f7f8f6;
+        --cc-surface: #ffffff;
+        --cc-surface-muted: #f8faf8;
+        --cc-accent: #f4f6f4;
+        --cc-foreground: #1c2422;
+        --cc-muted-foreground: #59635f;
+        --cc-primary: #18231f;
+        --cc-primary-foreground: #ffffff;
+        --cc-border: #d9dfda;
+        --cc-control-border: #cbd4cf;
+        --cc-subtle-border: #e1e6e2;
+        --cc-disabled-border: #c7cec9;
+        --cc-disabled-foreground: #7a8580;
+        --cc-disabled-background: #eef1ee;
+        --cc-success: #0b6d45;
+        --cc-danger: #9d2b22;
+        --cc-radius-sm: 6px;
+        --cc-radius-md: 8px;
+        --cc-radius-pill: 999px;
+        --cc-button-height: 38px;
+        --cc-button-padding-x: 16px;
+        --cc-control-padding-y: 9px;
+        --cc-control-padding-x: 10px;
+        --cc-space-xs: 6px;
+        --cc-space-sm: 8px;
+        --cc-space-md: 12px;
+        --cc-space-lg: 14px;
         color-scheme: light dark;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: #1c2422;
-        background: #f7f8f6;
+        color: var(--cc-foreground);
+        background: var(--cc-background);
       }
 
       body {
         margin: 0;
-        padding: 16px;
+        padding: var(--cc-button-padding-x);
       }
 
       main {
@@ -30,23 +57,28 @@
 
       p {
         margin: 0;
-        color: #59635f;
+        color: var(--cc-muted-foreground);
       }
 
       form {
         display: grid;
-        gap: 14px;
-        margin-top: 16px;
+        gap: var(--cc-space-lg);
+        margin-top: var(--cc-button-padding-x);
       }
 
       fieldset {
         display: grid;
-        gap: 12px;
+        gap: var(--cc-space-md);
         margin: 0;
-        padding: 14px;
-        border: 1px solid #d9dfda;
-        border-radius: 8px;
-        background: #ffffff;
+        padding: var(--cc-space-lg);
+        border: 1px solid var(--cc-border);
+        border-radius: var(--cc-radius-md);
+        background: var(--cc-surface);
+      }
+
+      .intent-field {
+        display: grid;
+        gap: var(--cc-space-sm);
       }
 
       .section-heading {
@@ -58,7 +90,7 @@
 
       label {
         display: grid;
-        gap: 6px;
+        gap: var(--cc-space-xs);
         font-size: 13px;
         font-weight: 600;
       }
@@ -68,12 +100,12 @@
       textarea {
         width: 100%;
         box-sizing: border-box;
-        border: 1px solid #cbd4cf;
-        border-radius: 6px;
-        padding: 9px 10px;
+        border: 1px solid var(--cc-control-border);
+        border-radius: var(--cc-radius-sm);
+        padding: var(--cc-control-padding-y) var(--cc-control-padding-x);
         font: inherit;
-        color: #1c2422;
-        background: #ffffff;
+        color: var(--cc-foreground);
+        background: var(--cc-surface);
       }
 
       textarea {
@@ -84,7 +116,7 @@
       .grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
+        gap: var(--cc-space-md);
       }
 
       .actions,
@@ -98,17 +130,18 @@
 
       .media-sources,
       .choice-options {
-        display: grid;
-        gap: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--cc-space-md) var(--cc-space-lg);
       }
 
       .media-source-row {
         display: grid;
         gap: 10px;
         padding: 10px;
-        border: 1px solid #e1e6e2;
-        border-radius: 6px;
-        background: #f8faf8;
+        border: 1px solid var(--cc-subtle-border);
+        border-radius: var(--cc-radius-sm);
+        background: var(--cc-surface-muted);
       }
 
       .file-picker-input {
@@ -119,55 +152,64 @@
         pointer-events: none;
       }
 
-      .choice-options label {
-        display: flex;
-        gap: 8px;
-        align-items: flex-start;
-        font-weight: 500;
+      .choice-option {
+        min-width: 76px;
+        border-color: var(--cc-primary);
+        border-radius: var(--cc-radius-pill);
+        padding: 8px 18px;
+        color: var(--cc-primary);
+        background: var(--cc-surface);
+        text-align: center;
       }
 
-      .choice-options input {
-        width: auto;
-        margin-top: 2px;
+      .choice-option.is-active {
+        border-color: var(--cc-primary);
+        color: var(--cc-primary-foreground);
+        background: var(--cc-primary);
       }
 
       button,
       a.button {
-        border: 1px solid #18231f;
-        border-radius: 6px;
-        padding: 9px 12px;
+        min-height: var(--cc-button-height);
+        border: 1px solid var(--cc-primary);
+        border-radius: var(--cc-radius-sm);
+        padding: 9px var(--cc-button-padding-x);
         font: inherit;
         font-weight: 650;
-        color: #ffffff;
-        background: #18231f;
+        color: var(--cc-primary-foreground);
+        background: var(--cc-primary);
         text-decoration: none;
         cursor: pointer;
       }
 
       button.secondary {
-        color: #18231f;
-        background: #ffffff;
+        color: var(--cc-primary);
+        background: var(--cc-surface);
+      }
+
+      button.custom-toggle {
+        padding: 8px var(--cc-control-padding-x);
       }
 
       button:disabled {
-        border-color: #c7cec9;
-        color: #7a8580;
-        background: #eef1ee;
+        border-color: var(--cc-disabled-border);
+        color: var(--cc-disabled-foreground);
+        background: var(--cc-disabled-background);
         cursor: not-allowed;
       }
 
       .status,
       .result,
       .follow-up {
-        border: 1px solid #d9dfda;
-        border-radius: 8px;
-        padding: 12px;
-        background: #ffffff;
+        border: 1px solid var(--cc-border);
+        border-radius: var(--cc-radius-md);
+        padding: var(--cc-space-md);
+        background: var(--cc-surface);
       }
 
       .checks {
         display: grid;
-        gap: 8px;
+        gap: var(--cc-space-sm);
         margin: 10px 0 0;
         padding: 0;
         list-style: none;
@@ -176,22 +218,22 @@
       .checks li {
         display: grid;
         gap: 3px;
-        padding: 8px;
-        border-radius: 6px;
-        background: #f4f6f4;
+        padding: var(--cc-space-sm);
+        border-radius: var(--cc-radius-sm);
+        background: var(--cc-accent);
       }
 
       .ok {
-        color: #0b6d45;
+        color: var(--cc-success);
       }
 
       .blocked,
       .error {
-        color: #9d2b22;
+        color: var(--cc-danger);
       }
 
       .muted {
-        color: #59635f;
+        color: var(--cc-muted-foreground);
         font-size: 13px;
       }
 
@@ -207,7 +249,7 @@
 
       @media (max-width: 720px) {
         body {
-          padding: 12px;
+          padding: var(--cc-space-md);
         }
 
         .grid {
@@ -302,15 +344,17 @@
 
         <fieldset aria-labelledby="intent-section-title">
           <h2 id="intent-section-title" class="section-heading" data-i18n="intent">Intent</h2>
-          <div>
+          <div class="intent-field">
             <span id="brief-label" data-i18n="brief">Brief</span>
             <div id="brief-options" class="choice-options"></div>
-            <textarea id="brief" name="brief" aria-labelledby="brief-label" data-i18n-placeholder="briefCustomPlaceholder"></textarea>
+            <button id="brief-custom-toggle" class="secondary custom-toggle" type="button" data-i18n="briefCustomToggle">Add custom brief</button>
+            <textarea id="brief" class="hidden" name="brief" aria-labelledby="brief-label" data-i18n-placeholder="briefCustomPlaceholder"></textarea>
           </div>
-          <div>
+          <div class="intent-field">
             <span id="success-criteria-label" data-i18n="successCriteria">Success criteria</span>
             <div id="success-criteria-options" class="choice-options"></div>
-            <textarea id="success-criteria" name="successCriteria" aria-labelledby="success-criteria-label" data-i18n-placeholder="successCriteriaCustomPlaceholder"></textarea>
+            <button id="success-criteria-custom-toggle" class="secondary custom-toggle" type="button" data-i18n="successCriteriaCustomToggle">Add custom success criteria</button>
+            <textarea id="success-criteria" class="hidden" name="successCriteria" aria-labelledby="success-criteria-label" data-i18n-placeholder="successCriteriaCustomPlaceholder"></textarea>
           </div>
         </fieldset>
 
@@ -381,9 +425,11 @@
             intent: "Intent",
             brief: "Brief",
             briefPlaceholder: "Cut a clear short with the key message, readable captions, and natural audio.",
+            briefCustomToggle: "Add custom brief",
             briefCustomPlaceholder: "Add custom brief details.",
             successCriteria: "Success criteria",
             successCriteriaPlaceholder: "Clear hook, tight pacing, readable captions, export-ready ending.",
+            successCriteriaCustomToggle: "Add custom success criteria",
             successCriteriaCustomPlaceholder: "Add custom success criteria.",
             notInspected: "Not inspected",
             inspectBeforeSubmit: "Run inspection before submitting.",
@@ -454,9 +500,11 @@
             intent: "剪辑需求",
             brief: "需求说明",
             briefPlaceholder: "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
+            briefCustomToggle: "补充自定义需求",
             briefCustomPlaceholder: "补充自定义需求。",
             successCriteria: "成功标准",
             successCriteriaPlaceholder: "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
+            successCriteriaCustomToggle: "补充自定义成功标准",
             successCriteriaCustomPlaceholder: "补充自定义成功标准。",
             notInspected: "未检查",
             inspectBeforeSubmit: "创建项目前需要先检查。",
@@ -498,8 +546,10 @@
           outputQuality: document.getElementById("output-quality"),
           includeAudio: document.getElementById("include-audio"),
           brief: document.getElementById("brief"),
+          briefCustomToggle: document.getElementById("brief-custom-toggle"),
           briefOptions: document.getElementById("brief-options"),
           successCriteria: document.getElementById("success-criteria"),
+          successCriteriaCustomToggle: document.getElementById("success-criteria-custom-toggle"),
           successCriteriaOptions: document.getElementById("success-criteria-options"),
           statusTitle: document.getElementById("status-title"),
           statusMessage: document.getElementById("status-message"),
@@ -812,15 +862,19 @@
         function renderChoiceOptions(container, options) {
           container.innerHTML = "";
           for (const optionText of normalizeChoiceOptions(options)) {
-            const label = document.createElement("label");
-            const checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
-            checkbox.checked = true;
-            checkbox.value = optionText;
-            const span = document.createElement("span");
-            span.textContent = optionText;
-            label.append(checkbox, span);
-            container.appendChild(label);
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "choice-option is-active";
+            button.dataset.choiceOption = optionText;
+            button.setAttribute("aria-pressed", "true");
+            button.textContent = optionText;
+            button.addEventListener("click", () => {
+              const isActive = button.getAttribute("aria-pressed") === "true";
+              button.setAttribute("aria-pressed", isActive ? "false" : "true");
+              button.classList.toggle("is-active", !isActive);
+              invalidateInspection();
+            });
+            container.appendChild(button);
           }
         }
 
@@ -828,18 +882,40 @@
           return [
             ...new Set(
               (Array.isArray(options) ? options : [])
-                .map((option) => String(option || "").trim())
+                .flatMap((option) => atomizeChoiceOption(option))
                 .filter(Boolean),
             ),
           ];
         }
 
+        function atomizeChoiceOption(option) {
+          const value = String(option || "")
+            .trim()
+            .replace(/可读字幕和自然音频/g, "可读字幕，自然音频")
+            .replace(/readable captions and natural audio/gi, "readable captions, natural audio");
+          if (!value) return [];
+          const parts = value
+            .replace(/[。.!?？]/g, "")
+            .split(/[，,、；;]/)
+            .map((part) => part.trim())
+            .filter(Boolean);
+          return parts.length > 1 ? parts : [value];
+        }
+
         function collectChoiceText(container, customField) {
-          const selected = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
-            .map((input) => input.value.trim())
+          const selected = Array.from(container.querySelectorAll(".choice-option[aria-pressed='true']"))
+            .map((button) => button.dataset.choiceOption.trim())
             .filter(Boolean);
           const custom = customField.value.trim();
           return [...selected, ...(custom ? [custom] : [])].join("\n");
+        }
+
+        function toggleCustomField(field) {
+          field.classList.toggle("hidden");
+          if (!field.classList.contains("hidden")) {
+            field.focus();
+          }
+          invalidateInspection();
         }
 
         function collectIntent() {
@@ -1042,6 +1118,12 @@
           openHostFilePicker();
         });
         fields.mediaFilePicker.addEventListener("change", handlePickedFiles);
+        fields.briefCustomToggle.addEventListener("click", () => {
+          toggleCustomField(fields.brief);
+        });
+        fields.successCriteriaCustomToggle.addEventListener("click", () => {
+          toggleCustomField(fields.successCriteria);
+        });
         fields.form.addEventListener("input", () => {
           invalidateInspection();
         });

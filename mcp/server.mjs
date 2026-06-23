@@ -1129,11 +1129,14 @@ function buildWorkspaceIntentDefaults(input = {}) {
 					: true,
 		},
 		brief,
-		briefOptions: normalizeWorkspaceOptionList(input.briefOptions, brief),
+		briefOptions: normalizeWorkspaceOptionList(
+			input.briefOptions,
+			defaultWorkspaceBriefOptions(uiLanguage),
+		),
 		successCriteria,
 		successCriteriaOptions: normalizeWorkspaceOptionList(
 			input.successCriteriaOptions,
-			successCriteria,
+			defaultWorkspaceSuccessCriteriaOptions(uiLanguage),
 		),
 	};
 }
@@ -1158,7 +1161,11 @@ function buildWorkspaceOpenMediaSources(input = {}) {
 }
 
 function normalizeWorkspaceOptionList(options, fallback) {
-	const values = Array.isArray(options) ? options : [fallback];
+	const values = Array.isArray(options)
+		? options
+		: Array.isArray(fallback)
+			? fallback
+			: [fallback];
 	return [
 		...new Set(
 			values
@@ -1178,10 +1185,32 @@ function defaultWorkspaceBrief(uiLanguage) {
 		: "Cut a clear short with the key message, readable captions, and natural audio.";
 }
 
+function defaultWorkspaceBriefOptions(uiLanguage) {
+	return uiLanguage === "zh-CN"
+		? ["剪成节奏清晰", "保留核心信息", "字幕清晰可读", "自然音频"]
+		: [
+				"Clear pacing",
+				"Keep the key message",
+				"Readable captions",
+				"Natural audio",
+			];
+}
+
 function defaultWorkspaceSuccessCriteria(uiLanguage) {
 	return uiLanguage === "zh-CN"
 		? "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。"
 		: "Clear hook; tight pacing; readable captions; ending is ready for more edits or export.";
+}
+
+function defaultWorkspaceSuccessCriteriaOptions(uiLanguage) {
+	return uiLanguage === "zh-CN"
+		? ["开头有明确信息点", "主体节奏紧凑", "字幕清晰", "结尾适合继续编辑或导出"]
+		: [
+				"Clear hook",
+				"Tight pacing",
+				"Readable captions",
+				"Export-ready ending",
+			];
 }
 
 function resolveWorkspaceOpenFilePath(input = {}) {
