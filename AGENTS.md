@@ -4,6 +4,47 @@
 
 Privacy-first video editor, with a focus on simplicity and ease of use.
 
+## Codex And CodeCut Boundaries
+
+CodeCut is a Codex-first editing plugin. Design it so Codex can autonomously use CodeCut capabilities to replace manual editing work while the human user can watch the editing state update in the web editor.
+
+### Agent Surfaces
+
+- The built-in browser Agent is temporarily deprecated and should not receive new feature investment. Keep the code path only for preservation or explicitly requested future reopening.
+- External Codex Agent control through the CodeCut plugin, skills, MCP tools, and local executor is the active product direction.
+- The built-in Agent and external Codex Agent should relate to the editor the same way Palmier's internal and external agent surfaces relate to its editor: both are clients of the same editing capability layer, not separate editing products with separate semantics.
+- New editing capabilities should be added to shared editor, executor, timeline, media, transcript, visual-evidence, readback, and export primitives so external Codex can use them directly and the web editor can display their state.
+- Do not add internal-Agent-only editing behavior, hidden internal-only workflows, or separate timeline mutation semantics.
+
+### Instruction Surfaces
+
+- `AGENTS.md` is for durable repository rules and high-level boundaries.
+- Skills may constrain and guide Codex editing behavior, including judgment rules, recommended evidence to inspect, and known failure patterns.
+- Tool and MCP descriptions must define atomic capabilities, inputs, outputs, side effects, failure shape, and what the web UI can show after the action.
+- Runtime code should enforce only necessary product and data safety rules. Do not encode creative strategy or fixed editing workflows in code unless the rule prevents invalid state, data loss, timeline corruption, security exposure, or an unrecoverable export failure.
+
+### CodeCut Capability Design
+
+- Keep every CodeCut capability atomic and independently usable. Codex should decide how to combine tools for each editing task.
+- Do not turn CodeCut editing into a hard-coded workflow lock, template lock, or multi-step gate in runtime code.
+- Prefer strong capability descriptions over hidden behavior. A capable human should understand how to use a tool from its name, description, schema, and result.
+- Each editing tool should make these facts clear: purpose, required inputs, optional inputs, whether it mutates the timeline, returned data, visible editor status, and failure meaning.
+- Use structured schemas, enums, and validation for invalid states such as unknown IDs, negative durations, reversed ranges, unsupported formats, unsafe paths, or corrupt timeline mutations.
+- Avoid magic defaults, silent repair, automatic downgrade, and fallback editing paths. Fail clearly when the requested operation cannot be represented safely.
+
+### Skill Guidance
+
+- Use skills to teach Codex better editing judgment: when to read timeline state, when to inspect media, when transcript evidence is useful, when visual evidence is needed, and when to verify the edited result.
+- Skill guidance can say "prefer", "consider", "useful when", or "stop if evidence is missing"; it should not pretend that every video must follow the same editing sequence.
+- Do not design CodeCut for Claude runtime or generic external agents. Palmier may be used only as a structural reference for the internal-agent and external-agent relationship, not as a runtime target.
+- If a prior plan describes CodeCut as a contract-driven system, reinterpret it as capability guidance unless the rule is a necessary code-level safety check.
+
+### Human-Visible Editing State
+
+- CodeCut should expose enough status for the web editor to show what Codex is doing now: tool name, operation summary, affected clips or tracks, timeline revision, success or failure, and latest readback summary.
+- The web editor status view is product evidence for the human user. It should not be the agent's only source of truth when code or executor readback is available.
+- After timeline mutation tools, return machine-readable data that supports both Codex self-correction and human-visible UI updates.
+
 ## Lib vs Utils
 
 - `lib/` - domain logic (specific to this app)
