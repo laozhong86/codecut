@@ -1422,6 +1422,7 @@ function buildContinuePrompt({
 }) {
 	return [
 		`Use $codecut-jianying-editor-framework to continue the real CodeCut editing chain for project "${projectName}" (${projectId}).`,
+		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. If the selected tab is already on that URL, do not reload it.`,
 		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state_v2 with projectId "${projectId}".`,
 		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
 		`Confirmed intent: ${JSON.stringify(intent)}.`,

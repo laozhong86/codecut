@@ -496,6 +496,18 @@ describe("Codecut MCP server contract", () => {
 				"$codecut-jianying-editor-framework",
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
+				"$browser:control-in-app-browser",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"make the Codex in-app browser visible",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"open the editor URL",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
 				"get_project_info",
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
