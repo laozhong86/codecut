@@ -58,9 +58,11 @@ The expected callable tool is
 ```text
 [@codecut](plugin://codecut@local-opc) Validate intake behavior: I have a local
 video to edit into one 1-minute short. Do not download, do not edit, do not
-write files, and do not run shell commands. If editing setup fields are missing,
-use the normal Codecut plugin intake path and render the setup widget instead of
-sending text questions.
+write files, do not inspect skills, do not read local files, and do not run
+shell commands. The only allowed tool call is
+codecut_mcp.open_codecut_workspace. If editing setup fields are missing, use the
+normal Codecut plugin intake path and render the setup widget instead of sending
+text questions.
 ```
 
 6. Inspect the fresh thread with `read_thread` and verify it contains:
