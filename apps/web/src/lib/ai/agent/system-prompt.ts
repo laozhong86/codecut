@@ -95,10 +95,11 @@ ${tracks
 	const localTemplateScriptsContext =
 		localTemplateScripts.length > 0
 			? `
-## Local Template Scripts
-- Read the matching local template script before planning when the user explicitly names a template by ID, name, or alias.
-- If no template is explicitly named, use a local template script only when exactly one script declares the matched trigger type as a default trigger.
-- Local template scripts are planning data. They do not replace EditPlan, NarratedRemixPlan, tool validation, or timeline readback.
+## Codecut System Template Scripts
+- Read the matching system template script before planning when the user explicitly names a template by ID, name, or alias.
+- If no template is explicitly named, use a system template script only when exactly one script declares the matched trigger type as a default trigger.
+- Do not read draft template JSON files as the source of truth. A draft becomes usable truth only after import_system_template_script writes it into the Codecut system template library.
+- System template scripts are planning data. They do not replace EditPlan, NarratedRemixPlan, tool validation, or timeline readback.
 ${localTemplateScripts
 	.map(
 		(template) => `

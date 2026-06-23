@@ -46,6 +46,7 @@ describe("Codecut MCP server contract", () => {
 			"build_post_cut_captions",
 			"list_models",
 			"search_media",
+			"import_system_template_script",
 			"validate_edit_plan",
 			"preview_edit_plan",
 			"apply_edit_plan",
@@ -88,6 +89,7 @@ describe("Codecut MCP server contract", () => {
 
 		expect(readOnlyByTool.get("list_models")).toBe(true);
 		expect(readOnlyByTool.get("search_media")).toBe(true);
+		expect(readOnlyByTool.get("import_system_template_script")).toBe(false);
 		expect(readOnlyByTool.get("add_texts")).toBe(false);
 		expect(readOnlyByTool.get("add_captions")).toBe(false);
 		expect(readOnlyByTool.get("set_keyframes")).toBe(false);
@@ -497,6 +499,23 @@ describe("Codecut MCP server contract", () => {
 			"/tmp/remix-plan.json",
 			"--replace-existing",
 			"false",
+		]);
+
+		expect(
+			buildBridgeCliArgs("import_system_template_script", {
+				projectId: "project-1",
+				templateJsonFile: "/tmp/local-template-script.json",
+				confirmedByUser: true,
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"import-system-template-script",
+			"--project-id",
+			"project-1",
+			"--template-json-file",
+			"/tmp/local-template-script.json",
+			"--confirmed-by-user",
+			"true",
 		]);
 	});
 

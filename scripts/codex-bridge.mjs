@@ -50,6 +50,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs ripple-delete-ranges --project-id <id> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs list-models --project-id <id> [--type <transcription|digital_human>]",
 		"  node scripts/codex-bridge.mjs search-media --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs import-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
 		'  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text "..." --motion-prompt "..." --width 1280 --height 720 --fps 25',
 		"  node scripts/codex-bridge.mjs validate-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
@@ -1021,6 +1022,35 @@ export function buildSearchMediaEnvelope({
 	});
 }
 
+function requireConfirmedTemplateImport(confirmedByUser) {
+	if (confirmedByUser !== true) {
+		throw new Error(
+			"--confirmed-by-user must be true after explicit user confirmation",
+		);
+	}
+}
+
+export async function buildImportSystemTemplateScriptEnvelope({
+	projectId,
+	templateJsonFile,
+	confirmedByUser,
+}) {
+	requireConfirmedTemplateImport(confirmedByUser);
+	const template = await readJsonObjectFile({
+		filePath: templateJsonFile,
+		flagName: "template-json-file",
+	});
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "import_system_template_script",
+		args: {
+			confirmedByUser: true,
+			template,
+		},
+	});
+}
+
 export function buildRippleDeleteRangesEnvelope({ projectId, ranges }) {
 	return buildCommandEnvelope({
 		projectId,
@@ -1696,6 +1726,86 @@ async function postExecutorEnvelope({ config, envelope, fetchImpl }) {
 	return JSON.parse(text);
 }
 
+async function fetchAgentBridgeHeartbeat({ config, projectId, fetchImpl }) {
+	const response = await fetchImpl(
+		`${config.baseUrl}/api/agent-bridge/heartbeat?projectId=${encodeURIComponent(projectId)}`,
+		{ headers: { Authorization: `Bearer ${config.token}` } },
+	);
+	const text = await response.text();
+	if (!response.ok) {
+		throw new Error(`Agent bridge heartbeat failed: ${response.status} ${text}`);
+	}
+	return JSON.parse(text);
+}
+
+async function waitForAgentBridge({ config, projectId, fetchImpl }) {
+	if (!projectId) {
+		throw new Error("--project-id is required");
+	}
+	const status = await fetchAgentBridgeHeartbeat({ config, projectId, fetchImpl });
+	if (status.mounted !== true) {
+		throw new Error(
+			`Agent bridge is not mounted for project ${projectId}. Open the editor URL before importing system templates.`,
+		);
+	}
+	return status;
+}
+
+async function postAgentBridgeEnvelope({ config, envelope, fetchImpl }) {
+	const response = await fetchImpl(
+		`${config.baseUrl}/api/agent-bridge/commands`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${config.token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ envelope }),
+		},
+	);
+	const text = await response.text();
+	if (!response.ok) {
+		throw new Error(`Agent bridge command failed: ${response.status} ${text}`);
+	}
+	return JSON.parse(text);
+}
+
+async function fetchAgentBridgeResult({ config, id, fetchImpl }) {
+	const response = await fetchImpl(
+		`${config.baseUrl}/api/agent-bridge/results?id=${encodeURIComponent(id)}`,
+		{ headers: { Authorization: `Bearer ${config.token}` } },
+	);
+	const text = await response.text();
+	if (!response.ok) {
+		throw new Error(`Agent bridge result failed: ${response.status} ${text}`);
+	}
+	return JSON.parse(text);
+}
+
+async function waitForAgentBridgeResult({ config, id, fetchImpl }) {
+	const deadline = Date.now() + config.timeoutMs;
+	while (Date.now() <= deadline) {
+		const result = await fetchAgentBridgeResult({ config, id, fetchImpl });
+		if (result.status === "completed") {
+			return result;
+		}
+		await new Promise((resolvePromise) =>
+			setTimeout(resolvePromise, config.intervalMs),
+		);
+	}
+	throw new Error(`Agent bridge command timed out: ${id}`);
+}
+
+async function postAgentBridgeEnvelopeAndWait({ config, envelope, fetchImpl }) {
+	await waitForAgentBridge({
+		config,
+		projectId: envelope.projectId,
+		fetchImpl,
+	});
+	const item = await postAgentBridgeEnvelope({ config, envelope, fetchImpl });
+	return waitForAgentBridgeResult({ config, id: item.id, fetchImpl });
+}
+
 async function postExecutorProject({ config, projectId, name, fetchImpl }) {
 	const response = await fetchImpl(
 		`${config.baseUrl}/api/codex-executor/projects`,
@@ -2017,6 +2127,15 @@ export async function runCli({
 			projectId: flags.projectId,
 			...payload,
 		});
+	} else if (command === "import-system-template-script") {
+		envelope = await buildImportSystemTemplateScriptEnvelope({
+			projectId: flags.projectId,
+			templateJsonFile: flags.templateJsonFile,
+			confirmedByUser: parseBoolean(
+				flags.confirmedByUser,
+				"confirmedByUser",
+			),
+		});
 	} else if (command === "insert-clips") {
 		const payload = parseArgsJsonFlag(flags);
 		envelope = buildInsertClipsEnvelope({
@@ -2108,12 +2227,17 @@ export async function runCli({
 		throw new Error(`Unknown command: ${command}`);
 	}
 
-	await waitForExecutor({
-		config,
-		projectId: envelope.projectId,
-		fetchImpl,
-	});
-	const result = await postEnvelope({ config, envelope, fetchImpl });
+	const result =
+		command === "import-system-template-script"
+			? await postAgentBridgeEnvelopeAndWait({ config, envelope, fetchImpl })
+			: await (async () => {
+					await waitForExecutor({
+						config,
+						projectId: envelope.projectId,
+						fetchImpl,
+					});
+					return postEnvelope({ config, envelope, fetchImpl });
+				})();
 	stdout(JSON.stringify(result, null, 2));
 	return 0;
 }

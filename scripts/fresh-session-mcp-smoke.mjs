@@ -24,6 +24,7 @@ export const REQUIRED_MCP_TOOLS = [
 	"search_media",
 	"set_keyframes",
 	"import_media",
+	"import_system_template_script",
 	"apply_edit_plan",
 	"get_timeline_state_v2",
 ];
@@ -96,9 +97,24 @@ export function assertFreshMcpToolSurface({ tools }) {
 		);
 	}
 
+	const templateImportProperties = schemaProperties(
+		requireTool({ toolsByName, name: "import_system_template_script" }),
+	);
+	if (
+		!templateImportProperties ||
+		typeof templateImportProperties !== "object" ||
+		!Object.hasOwn(templateImportProperties, "templateJsonFile") ||
+		!Object.hasOwn(templateImportProperties, "confirmedByUser")
+	) {
+		throw new Error(
+			"import_system_template_script input schema must expose templateJsonFile and confirmedByUser.",
+		);
+	}
+
 	return {
 		toolNames: REQUIRED_MCP_TOOLS,
 		importMediaInputs: importMediaInputs.sort(),
+		templateImportInputs: ["confirmedByUser", "templateJsonFile"],
 	};
 }
 
