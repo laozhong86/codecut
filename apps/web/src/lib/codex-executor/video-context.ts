@@ -1,4 +1,11 @@
-import type { TranscriptionSegment } from "@/types/transcription";
+import { assertAsrProviderResult } from "@/lib/transcription/asr-provider-contract";
+import type {
+	TranscriptionProviderCapabilities,
+	TranscriptionQuality,
+	TranscriptionResult,
+	TranscriptionSegment,
+	TranscriptionWord,
+} from "@/types/transcription";
 
 export const VIDEO_CONTEXT_CHUNK_SECONDS = 300;
 
@@ -40,6 +47,9 @@ export interface VideoContext {
 		language: string;
 		modelId: string;
 		segments: TranscriptionSegment[];
+		words?: TranscriptionWord[];
+		capabilities: TranscriptionProviderCapabilities;
+		quality: TranscriptionQuality;
 	};
 	analysisChunks: CompletedAnalysisChunk[];
 	assetTypeGuess: VideoContextAssetTypeGuess;
@@ -67,12 +77,7 @@ export type TranscribeRange = ({
 	startSeconds: number;
 	endSeconds: number;
 	chunk: AnalysisChunk;
-}) => Promise<{
-	text: string;
-	language: string;
-	modelId: string;
-	segments: TranscriptionSegment[];
-}>;
+}) => Promise<TranscriptionResult & { modelId: string }>;
 
 function roundToMillis(value: number): number {
 	return Number(value.toFixed(3));
@@ -110,6 +115,20 @@ export function offsetTranscriptSegments({
 		...segment,
 		start: roundToMillis(segment.start + offsetSeconds),
 		end: roundToMillis(segment.end + offsetSeconds),
+	}));
+}
+
+export function offsetTranscriptWords({
+	offsetSeconds,
+	words,
+}: {
+	offsetSeconds: number;
+	words: TranscriptionWord[];
+}): TranscriptionWord[] {
+	return words.map((word) => ({
+		...word,
+		start: roundToMillis(word.start + offsetSeconds),
+		end: roundToMillis(word.end + offsetSeconds),
 	}));
 }
 
@@ -171,9 +190,14 @@ export async function buildVideoContextWithTranscriber({
 	});
 	const analysisChunks: CompletedAnalysisChunk[] = [];
 	const segments: TranscriptionSegment[] = [];
+	const words: TranscriptionWord[] = [];
 	const textParts: string[] = [];
 	let language = "";
 	let modelId = "";
+	let capabilities: TranscriptionProviderCapabilities | null = null;
+	const qualityWarnings = new Set<string>();
+	let confidenceTotal = 0;
+	let confidenceCount = 0;
 
 	for (const chunk of chunks) {
 		try {
@@ -183,18 +207,37 @@ export async function buildVideoContextWithTranscriber({
 				endSeconds: chunk.end,
 				chunk,
 			});
+			assertAsrProviderResult(
+				transcription,
+				`build_video_context chunk ${chunk.index}`,
+			);
 			const chunkSegments = offsetTranscriptSegments({
 				offsetSeconds: chunk.start,
 				segments: transcription.segments,
 			});
+			const chunkWords = transcription.words
+				? offsetTranscriptWords({
+						offsetSeconds: chunk.start,
+						words: transcription.words,
+					})
+				: [];
 
 			segments.push(...chunkSegments);
+			words.push(...chunkWords);
 			textParts.push(transcription.text.trim());
 			if (!language) {
 				language = transcription.language;
 			}
 			if (!modelId) {
 				modelId = transcription.modelId;
+			}
+			capabilities ??= transcription.capabilities;
+			for (const warning of transcription.quality.warnings) {
+				qualityWarnings.add(warning);
+			}
+			if (transcription.quality.confidence !== null) {
+				confidenceTotal += transcription.quality.confidence;
+				confidenceCount += 1;
 			}
 			analysisChunks.push({
 				...chunk,
@@ -214,6 +257,16 @@ export async function buildVideoContextWithTranscriber({
 		text,
 		segmentCount: segments.length,
 	});
+	const transcriptQuality: TranscriptionQuality = {
+		confidence:
+			confidenceCount > 0
+				? roundToMillis(confidenceTotal / confidenceCount)
+				: null,
+		warnings: [...qualityWarnings],
+	};
+	if (!capabilities) {
+		throw new Error("VideoContext did not receive ASR provider capabilities.");
+	}
 	return {
 		version: 1,
 		mediaId: mediaAsset.id,
@@ -230,6 +283,9 @@ export async function buildVideoContextWithTranscriber({
 			language,
 			modelId,
 			segments,
+			...(words.length > 0 ? { words } : {}),
+			capabilities,
+			quality: transcriptQuality,
 		},
 		analysisChunks,
 		assetTypeGuess,

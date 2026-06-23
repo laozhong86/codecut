@@ -48,6 +48,7 @@ import {
 	transcribeMediaRangeWithNodeRuntime,
 	transcribeMediaWithNodeRuntime,
 } from "@/lib/codex-executor/transcription";
+import { assertAsrProviderResult } from "@/lib/transcription/asr-provider-contract";
 import {
 	type RunningHubExecutorMediaAsset,
 	generateRunningHubDigitalHumanFromExecutorMedia,
@@ -790,6 +791,9 @@ type TranscriptCacheEntry = {
 	modelId: string;
 	text: string;
 	segments: Array<{ text: string; start: number; end: number }>;
+	capabilities: unknown;
+	quality: unknown;
+	words?: unknown;
 	updatedAt: string;
 };
 
@@ -2316,6 +2320,7 @@ async function runTranscribeMedia({
 	}
 
 	const result = await transcribeMedia({ mediaAsset, language, modelId });
+	assertAsrProviderResult(result, "transcribe_media");
 	await writeTranscriptCache({
 		state,
 		entry: {
@@ -2324,6 +2329,9 @@ async function runTranscribeMedia({
 			modelId: result.modelId ?? modelId,
 			text: result.text,
 			segments: result.segments,
+			capabilities: result.capabilities,
+			quality: result.quality,
+			...(result.words ? { words: result.words } : {}),
 		},
 	});
 	return {
@@ -2332,8 +2340,11 @@ async function runTranscribeMedia({
 		data: {
 			text: result.text,
 			segments: result.segments,
+			...(result.words ? { words: result.words } : {}),
 			language: result.language,
 			modelId: result.modelId ?? modelId,
+			capabilities: result.capabilities,
+			quality: result.quality,
 			duration: mediaAsset.duration,
 		},
 	};
@@ -2399,12 +2410,19 @@ async function runBuildVideoContext({
 				modelId,
 				range: { start: startSeconds, end: endSeconds },
 			});
+			assertAsrProviderResult(
+				result,
+				`build_video_context range ${startSeconds.toFixed(2)}-${endSeconds.toFixed(2)}`,
+			);
 
 			return {
 				text: result.text,
 				language: result.language,
 				modelId: result.modelId ?? modelId,
 				segments: result.segments,
+				...(result.words ? { words: result.words } : {}),
+				capabilities: result.capabilities,
+				quality: result.quality,
 			};
 		},
 	});
@@ -2698,6 +2716,7 @@ async function runGetTranscript({
 				modelId,
 				range: { start: sourceStart, end: sourceEnd },
 			});
+			assertAsrProviderResult(result, `get_transcript clip ${element.id}`);
 			const segments = [];
 			const segmentFrames = [];
 			for (const segment of result.segments) {
@@ -2911,6 +2930,10 @@ async function buildPostCutCaptionsData({
 			modelId,
 			range: { start: element.trimStart, end: element.trimEnd },
 		});
+		assertAsrProviderResult(
+			result,
+			`build_post_cut_captions element ${element.id}`,
+		);
 		await writeTranscriptCache({
 			state,
 			entry: {
@@ -2923,6 +2946,9 @@ async function buildPostCutCaptionsData({
 					start: roundTimelineSeconds(element.trimStart + segment.start),
 					end: roundTimelineSeconds(element.trimStart + segment.end),
 				})),
+				capabilities: result.capabilities,
+				quality: result.quality,
+				...(result.words ? { words: result.words } : {}),
 			},
 		});
 

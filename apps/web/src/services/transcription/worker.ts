@@ -6,11 +6,17 @@ import {
 import type {
 	TranscriptionSegment,
 	TranscriptionChunk,
+	TranscriptionProviderCapabilities,
+	TranscriptionQuality,
 } from "@/types/transcription";
 import {
 	DEFAULT_CHUNK_LENGTH_SECONDS,
 	DEFAULT_STRIDE_SECONDS,
 } from "@/constants/transcription-constants";
+import {
+	cloneLocalSegmentAsrCapabilities,
+	cloneLocalSegmentAsrQuality,
+} from "@/lib/transcription/asr-provider-contract";
 
 export type WorkerMessage =
 	| {
@@ -40,6 +46,8 @@ export type WorkerResponse =
 			type: "transcribe-complete";
 			text: string;
 			segments: TranscriptionSegment[];
+			capabilities: TranscriptionProviderCapabilities;
+			quality: TranscriptionQuality;
 			tps: number;
 	  }
 	| { type: "transcribe-error"; error: string }
@@ -187,8 +195,7 @@ async function handleTranscribe({
 			max_source_positions: number;
 		};
 		const timePrecision =
-			featureExtractor.config.chunk_length /
-			modelConfig.max_source_positions;
+			featureExtractor.config.chunk_length / modelConfig.max_source_positions;
 
 		const chunks: TranscriptionChunk[] = [];
 		let chunkCount = 0;
@@ -203,10 +210,7 @@ async function handleTranscribe({
 		const WHISPER_SAMPLE_RATE = 16000;
 		const audioDurationS = audio.length / WHISPER_SAMPLE_RATE;
 		const stepS = chunkLengthS - strideLengthS;
-		const estimatedTotalChunks = Math.max(
-			1,
-			Math.ceil(audioDurationS / stepS),
-		);
+		const estimatedTotalChunks = Math.max(1, Math.ceil(audioDurationS / stepS));
 
 		let lastUpdateTime = 0;
 		const UPDATE_THROTTLE_MS = 100;
@@ -298,23 +302,46 @@ async function handleTranscribe({
 
 		const result = Array.isArray(output) ? output[0] : output;
 
+		const text = typeof result.text === "string" ? result.text : "";
 		const segments: TranscriptionSegment[] = [];
-		if (result.chunks) {
-			for (const chunk of result.chunks) {
-				if (chunk.timestamp && chunk.timestamp.length >= 2) {
-					segments.push({
-						text: chunk.text,
-						start: chunk.timestamp[0] ?? 0,
-						end: chunk.timestamp[1] ?? chunk.timestamp[0] ?? 0,
-					});
+		if (!Array.isArray(result.chunks)) {
+			if (text.trim().length > 0) {
+				throw new Error("Local ASR output must include timestamp chunks.");
+			}
+		} else {
+			for (const [index, chunk] of result.chunks.entries()) {
+				if (!chunk || typeof chunk !== "object") {
+					throw new Error(`Local ASR chunk ${index} must be an object.`);
 				}
+				if (!Array.isArray(chunk.timestamp) || chunk.timestamp.length < 2) {
+					throw new Error(`Local ASR chunk ${index} must include timestamps.`);
+				}
+				const start = Number(chunk.timestamp[0] ?? 0);
+				const end = Number(chunk.timestamp[1] ?? chunk.timestamp[0] ?? 0);
+				if (!Number.isFinite(start) || !Number.isFinite(end)) {
+					throw new Error(
+						`Local ASR chunk ${index} timestamps must be finite.`,
+					);
+				}
+				if (end < start) {
+					throw new Error(
+						`Local ASR chunk ${index} end must not be before start.`,
+					);
+				}
+				segments.push({
+					text: typeof chunk.text === "string" ? chunk.text : "",
+					start,
+					end,
+				});
 			}
 		}
 
 		self.postMessage({
 			type: "transcribe-complete",
-			text: result.text,
+			text,
 			segments,
+			capabilities: cloneLocalSegmentAsrCapabilities(),
+			quality: cloneLocalSegmentAsrQuality(),
 			tps,
 		} satisfies WorkerResponse);
 	} catch (error) {

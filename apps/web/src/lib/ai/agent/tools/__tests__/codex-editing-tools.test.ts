@@ -3,6 +3,10 @@ import type { MediaAsset } from "@/types/assets";
 import type { DerivedAsset } from "@/types/project";
 import type { TimelineTrack } from "@/types/timeline";
 import { BridgeToolNameSchema } from "@/lib/agent-bridge/schema";
+import {
+	cloneLocalSegmentAsrCapabilities,
+	cloneLocalSegmentAsrQuality,
+} from "@/lib/transcription/asr-provider-contract";
 import { getToolByName } from "../index";
 import { executeApplyEditPlanTool } from "../edit-plan-tools";
 import { executeImportMediaFileTool } from "../media-tools";
@@ -65,6 +69,13 @@ function editorWithMedia({
 			addTrack: () => "track-1",
 			insertElement: () => undefined,
 		},
+	};
+}
+
+function asrContractFields() {
+	return {
+		capabilities: cloneLocalSegmentAsrCapabilities(),
+		quality: cloneLocalSegmentAsrQuality(),
 	};
 }
 
@@ -569,14 +580,15 @@ describe("Codex deterministic editing tools", () => {
 			editor,
 			transcribeMediaRange: async ({ range, language, modelId }) => {
 				ranges.push(range);
-				return {
-					text: "第一句",
-					language,
-					modelId,
-					segments: [{ text: "第一句", start: 0.5, end: 1.25 }],
-				};
-			},
-		});
+					return {
+						text: "第一句",
+						language,
+						modelId,
+						segments: [{ text: "第一句", start: 0.5, end: 1.25 }],
+						...asrContractFields(),
+					};
+				},
+			});
 
 		expect(ranges).toEqual([{ start: 10, end: 13 }]);
 		expect(result).toEqual({

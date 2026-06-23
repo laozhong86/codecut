@@ -32,6 +32,10 @@ import {
 } from "@/lib/speech-cleanup";
 import type { DerivedAsset } from "@/types/project";
 import {
+	cloneLocalSegmentAsrCapabilities,
+	cloneLocalSegmentAsrQuality,
+} from "@/lib/transcription/asr-provider-contract";
+import {
 	createExecutorProject,
 	executeCodexExecutorEnvelope,
 	getExecutorBrowserBridgeToken,
@@ -95,6 +99,13 @@ function resultData<T>(result: unknown): T {
 		throw new Error("Expected executor result data.");
 	}
 	return (result as { data: T }).data;
+}
+
+function asrContractFields() {
+	return {
+		capabilities: cloneLocalSegmentAsrCapabilities(),
+		quality: cloneLocalSegmentAsrQuality(),
+	};
 }
 
 function personMask(overrides: Partial<DerivedAsset> = {}): DerivedAsset {
@@ -340,9 +351,9 @@ describe("codex executor", () => {
 			createExecutorProject({ projectId: "../escape", name: "Escape" }),
 		).rejects.toThrow("projectId must be a safe identifier.");
 
-		expect(await Bun.file(join(stateDir, "escape", "project.json")).exists()).toBe(
-			false,
-		);
+		expect(
+			await Bun.file(join(stateDir, "escape", "project.json")).exists(),
+		).toBe(false);
 	});
 
 	test("lists imported media through the local executor", async () => {
@@ -456,11 +467,7 @@ describe("codex executor", () => {
 		);
 	}
 
-	function qualityPlan({
-		videoId,
-	}: {
-		videoId: string;
-	}) {
+	function qualityPlan({ videoId }: { videoId: string }) {
 		return {
 			version: 1,
 			projectId,
@@ -2431,6 +2438,7 @@ describe("codex executor", () => {
 				language,
 				modelId,
 				segments: [{ text: "hello", start: 0, end: 1.2 }],
+				...asrContractFields(),
 			}),
 		});
 
@@ -2444,6 +2452,7 @@ describe("codex executor", () => {
 				language: "zh",
 				duration: 120,
 				segments: [{ text: "hello", start: 0, end: 1.2 }],
+				...asrContractFields(),
 			},
 		});
 		expect(await getExecutorStatus({ projectId })).toMatchObject({
@@ -2530,6 +2539,7 @@ describe("codex executor", () => {
 				language: "zh",
 				modelId: "whisper-tiny",
 				segments: [{ text: "hello", start: 1, end: 2 }],
+				...asrContractFields(),
 			}),
 		});
 
@@ -2769,15 +2779,15 @@ describe("codex executor", () => {
 			}),
 		});
 
-			expect(visualResult.results[0]).toMatchObject({
-				tool: "build_visual_context",
-				success: false,
-			});
-			const [result] = visualResult.results;
-			expect("message" in result ? String(result.message) : "").toContain(
-				"targetAspectRatio",
-			);
+		expect(visualResult.results[0]).toMatchObject({
+			tool: "build_visual_context",
+			success: false,
 		});
+		const [result] = visualResult.results;
+		expect("message" in result ? String(result.message) : "").toContain(
+			"targetAspectRatio",
+		);
+	});
 
 	test("inspects a video range through the local executor without mutating project state", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
@@ -3034,6 +3044,7 @@ describe("codex executor", () => {
 							{ text: "截断句", start: 4.8, end: 5.4 },
 							{ text: "越界句", start: 5.1, end: 5.4 },
 						],
+						...asrContractFields(),
 					};
 				}
 				return {
@@ -3041,6 +3052,7 @@ describe("codex executor", () => {
 					language,
 					modelId,
 					segments: [{ text: "第二句", start: 0.5, end: 1.75 }],
+					...asrContractFields(),
 				};
 			},
 		});
@@ -3190,21 +3202,23 @@ describe("codex executor", () => {
 			transcribeMediaRange: async ({ range, language, modelId }) => {
 				ranges.push(range);
 				if (range.start === 10) {
+						return {
+							text: "first clip",
+							language,
+							modelId,
+							segments: [{ text: "第一句", start: 0.25, end: 1.25 }],
+							...asrContractFields(),
+						};
+					}
 					return {
-						text: "first clip",
+						text: "second clip",
 						language,
 						modelId,
-						segments: [{ text: "第一句", start: 0.25, end: 1.25 }],
+						segments: [{ text: "第二句", start: 0.5, end: 1.5 }],
+						...asrContractFields(),
 					};
-				}
-				return {
-					text: "second clip",
-					language,
-					modelId,
-					segments: [{ text: "第二句", start: 0.5, end: 1.5 }],
-				};
-			},
-		});
+				},
+			});
 		const postCutCaptions = resultData<{
 			captions: EditPlanCaption[];
 			captionStyle: EditPlanCaptionStyle;
@@ -4024,7 +4038,9 @@ describe("codex executor", () => {
 		expect(data.artifacts[0]?.path.replaceAll("\\", "/")).toContain(
 			"/timeline-inspect/",
 		);
-		expect((await readFile(data.artifacts[0]?.path ?? "")).byteLength).toBeGreaterThan(0);
+		expect(
+			(await readFile(data.artifacts[0]?.path ?? "")).byteLength,
+		).toBeGreaterThan(0);
 		expect(after).toEqual(before);
 	});
 
@@ -4034,7 +4050,8 @@ describe("codex executor", () => {
 		for (const track of state.tracks) {
 			if (track.type === "text") {
 				track.elements = track.elements.filter(
-					(element) => element.type !== "text" || element.content !== "Caption proof",
+					(element) =>
+						element.type !== "text" || element.content !== "Caption proof",
 				);
 			}
 		}
@@ -4059,7 +4076,8 @@ describe("codex executor", () => {
 					expect.objectContaining({
 						id: "timeline.captionReadback",
 						status: "fail",
-						message: "1 EditPlan caption(s) were not found in timeline readback.",
+						message:
+							"1 EditPlan caption(s) were not found in timeline readback.",
 					}),
 				]),
 			},
@@ -4135,7 +4153,8 @@ describe("codex executor", () => {
 					expect.objectContaining({
 						id: "timeline.transitionReadback",
 						status: "fail",
-						message: "1 EditPlan transition(s) were not found in timeline readback.",
+						message:
+							"1 EditPlan transition(s) were not found in timeline readback.",
 					}),
 				]),
 			},
@@ -4200,6 +4219,7 @@ describe("codex executor", () => {
 					segments: [{ text: "hello", start: 1, end: 2 }],
 					language: "auto",
 					modelId: "whisper-tiny",
+					...asrContractFields(),
 				};
 			},
 		});
@@ -4293,6 +4313,7 @@ describe("codex executor", () => {
 					segments: [{ text: "long", start: 0, end: 10 }],
 					language: "auto",
 					modelId: "whisper-tiny",
+					...asrContractFields(),
 				};
 			},
 		});
@@ -4668,9 +4689,9 @@ describe("codex executor", () => {
 		});
 
 		expect(invalid.results[0]).toMatchObject({ success: false });
-		expect(String((invalid.results[0] as { message?: unknown }).message)).toContain(
-			"unsupported",
-		);
+		expect(
+			String((invalid.results[0] as { message?: unknown }).message),
+		).toContain("unsupported");
 		expect(await getExecutorProjectState({ projectId })).toEqual(beforeInvalid);
 	});
 
@@ -4852,9 +4873,9 @@ describe("codex executor", () => {
 		});
 
 		expect(result.results[0]).toMatchObject({ success: false });
-		expect(String((result.results[0] as { message?: unknown }).message)).toContain(
-			"text elements cannot be placed on audio tracks",
-		);
+		expect(
+			String((result.results[0] as { message?: unknown }).message),
+		).toContain("text elements cannot be placed on audio tracks");
 		expect(await getExecutorProjectState({ projectId })).toEqual(before);
 	});
 
@@ -4919,6 +4940,7 @@ describe("codex executor", () => {
 					segments: [{ text: "hello world", start: 1, end: 2 }],
 					language: "auto",
 					modelId: "whisper-tiny",
+					...asrContractFields(),
 				};
 			},
 		});
@@ -5003,6 +5025,7 @@ describe("codex executor", () => {
 					segments: [{ text: "searchable transcript", start: 0.5, end: 2.5 }],
 					language: "auto",
 					modelId: "whisper-tiny",
+					...asrContractFields(),
 				};
 			},
 		});
@@ -5179,6 +5202,7 @@ describe("codex executor", () => {
 				segments: [{ text: "launch offer starts now", start: 3, end: 5 }],
 				language: "auto",
 				modelId: "whisper-tiny",
+				...asrContractFields(),
 			}),
 		});
 		const beforeSearch = await getExecutorProjectState({ projectId });

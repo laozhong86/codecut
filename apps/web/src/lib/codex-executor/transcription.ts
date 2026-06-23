@@ -5,6 +5,10 @@ import {
 	TRANSCRIPTION_LANGUAGES,
 	TRANSCRIPTION_MODELS,
 } from "@/constants/transcription-constants";
+import {
+	cloneLocalSegmentAsrCapabilities,
+	cloneLocalSegmentAsrQuality,
+} from "@/lib/transcription/asr-provider-contract";
 import type {
 	TranscriptionLanguage,
 	TranscriptionModelId,
@@ -234,28 +238,46 @@ function readProcessStdout({
 	});
 }
 
-function normalizeSegments(output: unknown): TranscriptionSegment[] {
+function normalizeSegments({
+	output,
+	text,
+}: {
+	output: unknown;
+	text: string;
+}): TranscriptionSegment[] {
 	const chunks =
 		typeof output === "object" && output && "chunks" in output
 			? (output as { chunks?: unknown }).chunks
 			: undefined;
-	if (!Array.isArray(chunks)) return [];
+	if (!Array.isArray(chunks)) {
+		if (text.trim().length === 0) return [];
+		throw new Error("Local ASR output must include timestamp chunks.");
+	}
 
 	const segments: TranscriptionSegment[] = [];
-	for (const chunk of chunks) {
-		if (!chunk || typeof chunk !== "object") continue;
+	chunks.forEach((chunk, index) => {
+		if (!chunk || typeof chunk !== "object") {
+			throw new Error(`Local ASR chunk ${index} must be an object.`);
+		}
 		const text =
 			"text" in chunk && typeof chunk.text === "string" ? chunk.text : "";
 		const timestamp =
 			"timestamp" in chunk && Array.isArray(chunk.timestamp)
 				? chunk.timestamp
 				: null;
-		if (!timestamp || timestamp.length < 2) continue;
+		if (!timestamp || timestamp.length < 2) {
+			throw new Error(`Local ASR chunk ${index} must include timestamps.`);
+		}
 		const start = Number(timestamp[0] ?? 0);
 		const end = Number(timestamp[1] ?? timestamp[0] ?? 0);
-		if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+		if (!Number.isFinite(start) || !Number.isFinite(end)) {
+			throw new Error(`Local ASR chunk ${index} timestamps must be finite.`);
+		}
+		if (end < start) {
+			throw new Error(`Local ASR chunk ${index} end must not be before start.`);
+		}
 		segments.push({ text, start, end });
-	}
+	});
 	return segments;
 }
 
@@ -323,9 +345,11 @@ async function runTranscriptionWithNodeRuntime({
 
 	return {
 		text,
-		segments: normalizeSegments(result),
+		segments: normalizeSegments({ output: result, text }),
 		language,
 		modelId,
+		capabilities: cloneLocalSegmentAsrCapabilities(),
+		quality: cloneLocalSegmentAsrQuality(),
 	};
 }
 

@@ -8,6 +8,31 @@ export interface TranscriptionSegment {
 	text: string;
 	start: number;
 	end: number;
+	confidence?: number;
+}
+
+export interface TranscriptionWord {
+	text: string;
+	start: number;
+	end: number;
+	confidence?: number;
+}
+
+export interface TranscriptionTimestampCapabilities {
+	segments: boolean;
+	words: boolean;
+}
+
+export interface TranscriptionProviderCapabilities {
+	segments: boolean;
+	words: boolean;
+	timestamps: TranscriptionTimestampCapabilities;
+	confidence: boolean;
+}
+
+export interface TranscriptionQuality {
+	confidence: number | null;
+	warnings: string[];
 }
 
 export interface TranscriptionChunk {
@@ -26,7 +51,10 @@ export interface TranscriptionStreamingData {
 export interface TranscriptionResult {
 	text: string;
 	segments: TranscriptionSegment[];
+	words?: TranscriptionWord[];
 	language: string;
+	capabilities: TranscriptionProviderCapabilities;
+	quality: TranscriptionQuality;
 	tps?: number;
 }
 
