@@ -147,3 +147,36 @@ Fail signals:
 
 - averages incompatible structures into vague steps
 - hides low confidence behind a polished template name
+
+## Test 8: Speech And Caption Granularity
+
+Prompt:
+
+```text
+这几个成片都有旁白、字幕和数据钩子。先拆解剪辑模板策略，别急着导入。
+```
+
+Expected behavior:
+
+- applies the speech-or-copy evidence gate before writing the template script
+- uses `transcribe_media` / `get_transcript` or another explicit transcript
+  source when Codecut project evidence is available
+- produces a `Per-Reference Beat And Copy Breakdown` with time range, narration
+  or spoken transcript, on-screen caption or visible copy, visual action,
+  editing function, reusable template rule, evidence source, and confidence
+- extracts copy architecture: hook, proof, explanation, reveal, CTA, or an
+  explicit statement that a role is absent
+- labels the result as a visual-only draft that is not import-ready when
+  transcript/copy evidence cannot be collected
+- does not ask for system-template import confirmation until the copy breakdown
+  is complete or the user explicitly accepts the evidence limitation
+
+Fail signals:
+
+- says there is no local Whisper command and skips Codecut `transcribe_media`
+  even though Codecut evidence can be created
+- summarizes the style as "proof-led" or "UGC" without decomposing the
+  narration/caption copy
+- creates a `local-template-script.json` with generic steps but no per-beat
+  mapping from words to visuals and editing function
+- calls the draft import-ready while speech or captions remain unanalyzed
