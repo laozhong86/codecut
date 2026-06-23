@@ -449,10 +449,9 @@ describe("codex executor", () => {
 				},
 			],
 			title: {
-				text: "Main claim",
+				text: "OK",
 				startTime: 0,
 				duration: 1,
-				stylePreset: "hook_title",
 			},
 			captions: [
 				{
