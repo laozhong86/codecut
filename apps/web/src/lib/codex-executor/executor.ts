@@ -65,6 +65,7 @@ import { calculateTotalDuration } from "@/lib/timeline";
 import type { MediaAsset } from "@/types/assets";
 import type { DerivedAsset } from "@/types/project";
 import type {
+	AudioElement,
 	CreateTimelineElement,
 	PositionKeyframe,
 	ScalarKeyframe,
@@ -2425,6 +2426,18 @@ function isVisibleVideoElement(element: TimelineElement): element is VideoElemen
 	);
 }
 
+function isAudibleUploadAudioElement(
+	element: TimelineElement,
+): element is AudioElement & { sourceType: "upload" } {
+	return (
+		element.type === "audio" &&
+		element.sourceType === "upload" &&
+		!("muted" in element && element.muted)
+	);
+}
+
+type CaptionSourceElement = VideoElement | (AudioElement & { sourceType: "upload" });
+
 function isTranscriptElement(element: TimelineElement) {
 	if (element.type === "video") {
 		return !element.muted && !element.hidden;
@@ -2609,7 +2622,7 @@ async function buildPostCutCaptionsData({
 	| {
 			success: true;
 			data: {
-				source: "edited_video_clip_audio";
+				source: "edited_video_clip_audio" | "edited_timeline_audio";
 				language: string;
 				modelId: string;
 				captionStyle: EditPlanCaptionStyle;
@@ -2628,24 +2641,32 @@ async function buildPostCutCaptionsData({
 	const clips = state.tracks
 		.filter(
 			(track) =>
-				track.type === "video" &&
+				(track.type === "video" || track.type === "audio") &&
 				!("muted" in track && track.muted) &&
 				!("hidden" in track && track.hidden),
 		)
-		.flatMap((track) =>
-			track.elements
-				.filter(isVisibleVideoElement)
-				.map((element) => ({ element, trackId: track.id })),
-		)
+		.flatMap((track): Array<{ element: CaptionSourceElement; trackId: string }> => {
+			if (track.type === "video") {
+				return track.elements
+					.filter(isVisibleVideoElement)
+					.map((element) => ({ element, trackId: track.id }));
+			}
+			return track.elements
+				.filter(isAudibleUploadAudioElement)
+				.map((element) => ({ element, trackId: track.id }));
+		})
 		.sort((left, right) => left.element.startTime - right.element.startTime);
 
 	if (clips.length === 0) {
 		return {
 			success: false,
 			message:
-				"No unmuted edited video clips were found for post-cut caption transcription.",
+				"No unmuted edited media clips were found for post-cut caption transcription.",
 		};
 	}
+	const source = clips.some(({ element }) => element.type === "audio")
+		? "edited_timeline_audio"
+		: "edited_video_clip_audio";
 
 	const captions: Array<{
 		text: string;
@@ -2678,7 +2699,7 @@ async function buildPostCutCaptionsData({
 		if (element.trimEnd <= element.trimStart) {
 			return {
 				success: false,
-				message: `Timeline video element '${element.id}' has an invalid trim range.`,
+				message: `Timeline ${element.type} element '${element.id}' has an invalid trim range.`,
 			};
 		}
 
@@ -2736,7 +2757,7 @@ async function buildPostCutCaptionsData({
 	return {
 		success: true,
 		data: {
-			source: "edited_video_clip_audio",
+			source,
 			language,
 			modelId,
 			captionStyle: {
