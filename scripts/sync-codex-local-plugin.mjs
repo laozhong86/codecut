@@ -19,8 +19,10 @@ const EXCLUDES = [
 	".worktrees/",
 	".codecut-workspace/",
 	".codecut-executor/",
+	"output/",
 	"outputs/",
 	"tmp/",
+	".DS_Store",
 	".env.local",
 ];
 
