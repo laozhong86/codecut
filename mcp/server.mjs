@@ -84,6 +84,7 @@ const workspaceMediaSourceSchema = z
 		mimeType: z.string().trim().optional(),
 	})
 	.strict();
+const workspaceMediaSourcesSchema = z.array(workspaceMediaSourceSchema).min(1);
 
 const workspaceOutputSchema = z
 	.object({
@@ -96,7 +97,8 @@ const workspaceOutputSchema = z
 const workspaceIntentInputSchema = {
 	projectId: z.string().trim(),
 	projectName: z.string().trim(),
-	mediaSource: workspaceMediaSourceSchema,
+	mediaSource: workspaceMediaSourceSchema.optional(),
+	mediaSources: workspaceMediaSourcesSchema.optional(),
 	targetAspectRatio: targetAspectRatioSchema,
 	durationGoalSeconds: z.number(),
 	captionLanguage: z.string().trim(),
@@ -113,6 +115,9 @@ const workspaceOpenInputSchema = {
 	mediaPath: z.string().trim().optional(),
 	url: z.string().trim().optional(),
 	mimeType: z.string().trim().optional(),
+	mediaSources: workspaceMediaSourcesSchema.optional(),
+	briefOptions: z.array(z.string().trim().min(1)).optional(),
+	successCriteriaOptions: z.array(z.string().trim().min(1)).optional(),
 	targetAspectRatio: targetAspectRatioSchema.optional(),
 	durationGoalSeconds: z.number().optional(),
 	captionLanguage: z.string().trim().optional(),
@@ -855,17 +860,26 @@ export async function inspectCodecutSetup(
 		"Brief is required.",
 	);
 
-	const mediaSourceCheck = validateWorkspaceMediaSource(normalized.mediaSource);
+	const mediaSourceCheck = validateWorkspaceMediaSources(normalized.mediaSources);
 	pushCheck(
 		checks,
-		"media-source",
-		"Media source",
+		"media-sources",
+		"Media sources",
 		mediaSourceCheck.ok,
 		mediaSourceCheck.message,
 	);
 
-	if (mediaSourceCheck.ok && normalized.mediaSource.kind === "filePath") {
-		await pushFilePathCheck(checks, normalized.mediaSource.filePath, statImpl);
+	if (mediaSourceCheck.ok) {
+		for (const [index, mediaSource] of normalized.mediaSources.entries()) {
+			if (mediaSource.kind === "filePath") {
+				await pushFilePathCheck(
+					checks,
+					mediaSource.filePath,
+					statImpl,
+					index + 1,
+				);
+			}
+		}
 	}
 
 	pushCheck(
@@ -981,29 +995,40 @@ export async function submitCodecutSetup(
 		editorUrl: createdProject.editorUrl,
 	};
 
-	const importResult = await bridgeToolImpl(
-		"import_media",
-		buildImportMediaArgs(normalized),
-	);
-	if (importResult?.isError) {
-		return buildSetupErrorResult({
-			status: "import_failed",
-			...projectContext,
-			intent: normalized,
-			error: extractErrorMessage(importResult),
-		});
-	}
+	const importedMedia = [];
+	for (const [index, mediaSource] of normalized.mediaSources.entries()) {
+		const importResult = await bridgeToolImpl(
+			"import_media",
+			buildImportMediaArgs({
+				projectId: normalized.projectId,
+				mediaSource,
+			}),
+		);
+		if (importResult?.isError) {
+			return buildSetupErrorResult({
+				status: "import_failed",
+				...projectContext,
+				importedMedia,
+				failedMediaSourceIndex: index,
+				intent: normalized,
+				error: extractErrorMessage(importResult),
+			});
+		}
 
-	const importedMedia = extractImportedMedia(
-		importResult?.structuredContent || importResult,
-	);
-	if (!importedMedia) {
-		return buildSetupErrorResult({
-			status: "import_failed",
-			...projectContext,
-			intent: normalized,
-			error: "import_media did not return an imported media asset.",
-		});
+		const importedAsset = extractImportedMedia(
+			importResult?.structuredContent || importResult,
+		);
+		if (!importedAsset) {
+			return buildSetupErrorResult({
+				status: "import_failed",
+				...projectContext,
+				importedMedia,
+				failedMediaSourceIndex: index,
+				intent: normalized,
+				error: "import_media did not return an imported media asset.",
+			});
+		}
+		importedMedia.push(importedAsset);
 	}
 
 	const projectInfoResult = await bridgeToolImpl("get_project_info", {
@@ -1067,18 +1092,20 @@ function buildWorkspaceIntentDefaults(input = {}) {
 	const projectName =
 		String(input.projectName || "").trim() ||
 		defaultWorkspaceProjectName(uiLanguage);
-	const filePath = resolveWorkspaceOpenFilePath(input);
-	const url = String(input.url || "").trim();
+	const mediaSources = buildWorkspaceOpenMediaSources(input);
+	const brief =
+		String(input.brief || "").trim() ||
+		defaultWorkspaceBrief(uiLanguage);
+	const successCriteria =
+		String(input.successCriteria || "").trim() ||
+		defaultWorkspaceSuccessCriteria(uiLanguage);
 	return {
 		projectId:
 			String(input.projectId || "").trim() ||
 			buildWorkspaceProjectSlug(projectName || "codecut-project"),
 		projectName,
-		mediaSource: filePath
-			? { kind: "filePath", filePath }
-			: url
-				? { kind: "url", url, ...(input.mimeType ? { mimeType: String(input.mimeType) } : {}) }
-				: { kind: "filePath", filePath: "" },
+		mediaSource: mediaSources[0],
+		mediaSources,
 		targetAspectRatio: input.targetAspectRatio || "9:16",
 		durationGoalSeconds:
 			typeof input.durationGoalSeconds === "number"
@@ -1094,13 +1121,44 @@ function buildWorkspaceIntentDefaults(input = {}) {
 					? input.output.includeAudio
 					: true,
 		},
-		brief:
-			String(input.brief || "").trim() ||
-			defaultWorkspaceBrief(uiLanguage),
-		successCriteria:
-			String(input.successCriteria || "").trim() ||
-			defaultWorkspaceSuccessCriteria(uiLanguage),
+		brief,
+		briefOptions: normalizeWorkspaceOptionList(input.briefOptions, brief),
+		successCriteria,
+		successCriteriaOptions: normalizeWorkspaceOptionList(
+			input.successCriteriaOptions,
+			successCriteria,
+		),
 	};
+}
+
+function buildWorkspaceOpenMediaSources(input = {}) {
+	if (Array.isArray(input.mediaSources) && input.mediaSources.length) {
+		return input.mediaSources.map(normalizeWorkspaceMediaSource);
+	}
+	const filePath = resolveWorkspaceOpenFilePath(input);
+	const url = String(input.url || "").trim();
+	const mediaSources = [];
+	if (filePath) mediaSources.push({ kind: "filePath", filePath });
+	if (url) {
+		mediaSources.push({
+			kind: "url",
+			url,
+			...(input.mimeType ? { mimeType: String(input.mimeType).trim() } : {}),
+		});
+	}
+	if (mediaSources.length) return mediaSources;
+	return [{ kind: "filePath", filePath: "" }];
+}
+
+function normalizeWorkspaceOptionList(options, fallback) {
+	const values = Array.isArray(options) ? options : [fallback];
+	return [
+		...new Set(
+			values
+				.map((option) => String(option || "").trim())
+				.filter(Boolean),
+		),
+	];
 }
 
 function defaultWorkspaceProjectName(uiLanguage) {
@@ -1146,27 +1204,20 @@ function buildWorkspaceProjectSlug(projectName) {
 }
 
 function normalizeWorkspaceIntent(intent) {
-	const mediaSource =
-		intent.mediaSource && typeof intent.mediaSource === "object"
-			? { ...intent.mediaSource }
-			: {};
+	const mediaSources = Array.isArray(intent.mediaSources)
+		? intent.mediaSources.map(normalizeWorkspaceMediaSource)
+		: [
+			normalizeWorkspaceMediaSource(
+				intent.mediaSource && typeof intent.mediaSource === "object"
+					? intent.mediaSource
+					: {},
+			),
+		];
 	return {
 		projectId: String(intent.projectId || "").trim(),
 		projectName: String(intent.projectName || "").trim(),
-		mediaSource: {
-			...mediaSource,
-			kind: String(mediaSource.kind || ""),
-			filePath:
-				mediaSource.filePath === undefined
-					? undefined
-					: String(mediaSource.filePath).trim(),
-			url:
-				mediaSource.url === undefined ? undefined : String(mediaSource.url).trim(),
-			mimeType:
-				mediaSource.mimeType === undefined
-					? undefined
-					: String(mediaSource.mimeType).trim(),
-		},
+		mediaSource: mediaSources[0],
+		mediaSources,
 		targetAspectRatio: String(intent.targetAspectRatio || ""),
 		durationGoalSeconds: Number(intent.durationGoalSeconds),
 		captionLanguage: String(intent.captionLanguage || "auto").trim() || "auto",
@@ -1180,9 +1231,41 @@ function normalizeWorkspaceIntent(intent) {
 	};
 }
 
+function normalizeWorkspaceMediaSource(mediaSource = {}) {
+	return {
+		kind: String(mediaSource.kind || ""),
+		filePath:
+			mediaSource.filePath === undefined
+				? undefined
+				: String(mediaSource.filePath).trim(),
+		url:
+			mediaSource.url === undefined ? undefined : String(mediaSource.url).trim(),
+		mimeType:
+			mediaSource.mimeType === undefined
+				? undefined
+				: String(mediaSource.mimeType).trim(),
+	};
+}
+
+function validateWorkspaceMediaSources(mediaSources) {
+	if (!Array.isArray(mediaSources) || mediaSources.length < 1) {
+		return { ok: false, message: "At least one media source is required." };
+	}
+	for (const [index, mediaSource] of mediaSources.entries()) {
+		const check = validateWorkspaceMediaSource(mediaSource);
+		if (!check.ok) {
+			return {
+				ok: false,
+				message: `Media source ${index + 1}: ${check.message}`,
+			};
+		}
+	}
+	return { ok: true };
+}
+
 function validateWorkspaceMediaSource(mediaSource) {
 	if (!mediaSource || typeof mediaSource !== "object") {
-		return { ok: false, message: "Exactly one media source is required." };
+		return { ok: false, message: "A media source row is required." };
 	}
 	const hasFilePath = Boolean(String(mediaSource.filePath || "").trim());
 	const hasUrl = Boolean(String(mediaSource.url || "").trim());
@@ -1212,21 +1295,21 @@ function validateWorkspaceMediaSource(mediaSource) {
 	}
 }
 
-async function pushFilePathCheck(checks, filePath, statImpl) {
+async function pushFilePathCheck(checks, filePath, statImpl, sourceNumber = 1) {
 	try {
 		const fileStat = await statImpl(filePath);
 		pushCheck(
 			checks,
-			"media-file",
-			"Local media file",
+			`media-file-${sourceNumber}`,
+			`Local media file ${sourceNumber}`,
 			fileStat.isFile(),
 			"Local media path must point to a file.",
 		);
 	} catch (error) {
 		pushCheck(
 			checks,
-			"media-file",
-			"Local media file",
+			`media-file-${sourceNumber}`,
+			`Local media file ${sourceNumber}`,
 			false,
 			error instanceof Error ? error.message : String(error),
 		);
