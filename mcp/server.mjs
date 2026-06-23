@@ -106,6 +106,7 @@ const workspaceOpenInputSchema = {
 	brief: z.string().optional(),
 	successCriteria: z.string().optional(),
 	filePath: z.string().trim().optional(),
+	mediaPath: z.string().trim().optional(),
 	url: z.string().trim().optional(),
 	mimeType: z.string().trim().optional(),
 	targetAspectRatio: targetAspectRatioSchema.optional(),
@@ -1043,7 +1044,7 @@ export async function submitCodecutSetup(
 
 function buildWorkspaceIntentDefaults(input = {}) {
 	const projectName = String(input.projectName || "").trim();
-	const filePath = String(input.filePath || "").trim();
+	const filePath = resolveWorkspaceOpenFilePath(input);
 	const url = String(input.url || "").trim();
 	return {
 		projectId:
@@ -1073,6 +1074,15 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		brief: String(input.brief || ""),
 		successCriteria: String(input.successCriteria || ""),
 	};
+}
+
+function resolveWorkspaceOpenFilePath(input = {}) {
+	const filePath = String(input.filePath || "").trim();
+	const mediaPath = String(input.mediaPath || "").trim();
+	if (filePath && mediaPath && filePath !== mediaPath) {
+		throw new Error("filePath and mediaPath must match when both are provided.");
+	}
+	return filePath || mediaPath;
 }
 
 function normalizeWorkspaceUiLanguage(value) {
