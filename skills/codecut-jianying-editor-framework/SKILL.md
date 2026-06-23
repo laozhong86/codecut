@@ -103,7 +103,13 @@ reframe policy and verify it with `inspect_video_range`.
 Do not use `black-bar` as a subtitle mask. It is a caption style only, not a
 way to hide old burned-in captions.
 
-Caption timing must declare a post-cut caption source. Prefer edited audio transcription through `build-post-cut-captions` after a clip-first EditPlan is applied. Use source transcript remap only when edited audio transcription is not available and every source transcript segment maps cleanly into selected clips.
+Caption timing must declare a post-cut caption source. Prefer edited audio
+transcription through the non-mutating `build_post_cut_captions` Agent tool or
+`build-post-cut-captions` CLI path after a clip-first EditPlan is applied. Copy
+the returned `captions` and `captionStyle` into the final EditPlan, then apply
+that final plan. Use source transcript remap only when edited audio
+transcription is not available and every source transcript segment maps cleanly
+into selected clips.
 
 ## Cross-Stage Editing Rules
 
@@ -112,7 +118,9 @@ Caption timing must declare a post-cut caption source. Prefer edited audio trans
 - Do not create projects with generic names such as "Untitled", "Test", or "Short Video".
 - For horizontal sources converted to vertical shorts, run a visual preflight and use `vertical_face_safe_crop_above_burned_captions` when faces or important content would collide with captions.
 - Do not use `black-bar` as a subtitle mask.
-- Caption timing must use a post-cut caption source: choose source transcript remap, edited audio transcription, or `build-post-cut-captions` based on the actual edit path.
+- Caption timing must use a post-cut caption source: choose source transcript
+  remap, edited audio transcription, or `build_post_cut_captions` based on the
+  actual edit path.
 
 ## Planning References
 

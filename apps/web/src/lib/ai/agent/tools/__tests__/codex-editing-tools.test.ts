@@ -12,6 +12,7 @@ import {
 } from "../masked-effect-tools";
 import { executeApplyNarratedRemixPlanTool } from "../narrated-remix-tools";
 import { executeTranscribeMediaTool } from "../transcription-tools";
+import { executeBuildPostCutCaptionsTool } from "../caption-tools";
 
 function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	return {
@@ -74,6 +75,9 @@ describe("Codex deterministic editing tools", () => {
 		);
 		expect(getToolByName({ name: "transcribe_media" })?.name).toBe(
 			"transcribe_media",
+		);
+		expect(getToolByName({ name: "build_post_cut_captions" })?.name).toBe(
+			"build_post_cut_captions",
 		);
 		expect(getToolByName({ name: "apply_edit_plan" })?.name).toBe(
 			"apply_edit_plan",
@@ -518,5 +522,86 @@ describe("Codex deterministic editing tools", () => {
 			message:
 				"Media asset 'Long interview.mp4' is type 'image', expected video or audio",
 		});
+	});
+
+	test("build_post_cut_captions transcribes edited clip ranges without mutating the timeline", async () => {
+		let updateCount = 0;
+		const tracks: TimelineTrack[] = [
+			{
+				id: "video-track-1",
+				type: "video",
+				name: "Main video",
+				isMain: true,
+				muted: false,
+				hidden: false,
+				elements: [
+					{
+						id: "clip-1",
+						type: "video",
+						mediaId: "media-1",
+						name: "Hook",
+						duration: 3,
+						startTime: 0,
+						trimStart: 10,
+						trimEnd: 13,
+						transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+						opacity: 1,
+					},
+				],
+			},
+		];
+		const editor = {
+			...editorWithMedia({ tracks }),
+			timeline: {
+				getTracks: () => tracks,
+				updateTracks: () => {
+					updateCount += 1;
+				},
+			},
+		};
+		const ranges: Array<{ start: number; end: number }> = [];
+
+		const result = await executeBuildPostCutCaptionsTool({
+			args: {
+				language: "zh",
+				modelId: "whisper-base",
+			},
+			editor,
+			transcribeMediaRange: async ({ range, language, modelId }) => {
+				ranges.push(range);
+				return {
+					text: "第一句",
+					language,
+					modelId,
+					segments: [{ text: "第一句", start: 0.5, end: 1.25 }],
+				};
+			},
+		});
+
+		expect(ranges).toEqual([{ start: 10, end: 13 }]);
+		expect(result).toEqual({
+			success: true,
+			message: "Built 1 post-cut caption(s) from 1 video clip(s).",
+			data: {
+				source: "edited_video_clip_audio",
+				language: "zh",
+				modelId: "whisper-base",
+				captionStyle: {
+					preset: "talking-head-pop",
+					position: "lower-safe",
+				},
+				captions: [{ text: "第一句", startTime: 0.5, duration: 0.75 }],
+				trace: [
+					{
+						mediaId: "media-1",
+						timelineStart: 0,
+						sourceStart: 10,
+						sourceEnd: 13,
+						captionCount: 1,
+					},
+				],
+			},
+		});
+		expect(updateCount).toBe(0);
 	});
 });

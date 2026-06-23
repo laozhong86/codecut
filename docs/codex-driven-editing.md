@@ -431,15 +431,17 @@ Rules:
 - `rebuildTimelineFromSpeechCleanup()` requires an explicit `captionMode`.
   Use `captionMode: "clip-only"` when edited audio transcription is available;
   the projected EditPlan must omit `captions` and `captionStyle` so
-  `build_post_cut_captions` can create captions from the edited audio.
+  the non-mutating `build_post_cut_captions` Agent/executor tool can create
+  captions from the edited audio.
 - Use `captionMode: "source-transcript-remap"` only when post-cut caption
   building is unavailable and every kept source transcript segment maps cleanly
   into the selected clips. Do not send source-remapped captions by default.
 - Apply only the generated EditPlan v1 projection through `apply_edit_plan`.
-- After the clip-only cleanup plan is applied, prefer `build_post_cut_captions`
+- After the clip-only cleanup plan is applied, call `build_post_cut_captions`
   or the equivalent `build-post-cut-captions` CLI path to rebuild captions from
-  the edited timeline audio. Do not reuse source captions when edited audio
-  transcription is available.
+  the edited timeline audio. Copy the returned `captions` and `captionStyle`
+  into the final EditPlan, then apply that final plan. Do not reuse source
+  captions when edited audio transcription is available.
 
 The cleanup report is an execution artifact. It is not persisted in project
 storage in the first implementation phase.
@@ -742,11 +744,13 @@ node scripts/codex-bridge.mjs build-post-cut-captions \
   --model-id whisper-base
 ```
 
-`build-post-cut-captions` reads the current timeline, transcribes each unmuted
-edited video clip range from `trimStart` to `trimEnd`, and offsets the returned
-segments into output timeline time. It returns caption items and a recommended
-captionStyle; it does not mutate the timeline. Codex must copy those captions
-into the final EditPlan and apply that plan.
+`build_post_cut_captions` is also exposed as a Codex Agent tool with the same
+`language` and `modelId` inputs. The tool reads the current timeline,
+transcribes each unmuted edited video or uploaded-audio clip range from
+`trimStart` to `trimEnd`, and offsets the returned segments into output
+timeline time. It returns caption items, a recommended `captionStyle`, and a
+trace; it does not mutate the timeline. Codex must copy those captions into the
+final EditPlan and apply that plan.
 
 Apply a local EditPlan file:
 
