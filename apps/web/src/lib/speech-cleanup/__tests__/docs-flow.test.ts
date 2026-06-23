@@ -40,10 +40,14 @@ describe("SpeechCleanup workflow docs", () => {
 		expect(docs).toContain("Drop earlier restarts or repeats");
 		expect(docs).toContain("classify each dropped range as low or high risk");
 		expect(docs).toContain("High-risk drops require explicit retained-meaning evidence");
+		expect(docs).toContain('risk: "low" | "high"');
+		expect(docs).toContain("retainedMeaningEvidence");
 		expect(docs).toContain("trailing untranscribed audio");
 		expect(docs).toContain("build_post_cut_captions");
 		expect(recipe).toContain("drop earlier restarts or repeats");
-		expect(recipe).toContain("High-risk drops require retained-meaning evidence");
+		expect(recipe).toContain(
+			"High-risk drops require `retainedMeaningEvidence`",
+		);
 		expect(recipe).toContain("source duration against transcript coverage");
 		expect(recipe).toContain("post-cut captions");
 	});

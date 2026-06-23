@@ -12,6 +12,8 @@ export const SpeechCleanupDropReasonSchema = z.enum([
 	"other",
 ]);
 
+export const SpeechCleanupDropRiskSchema = z.enum(["low", "high"]);
+
 const BaseDecisionSchema = z
 	.object({
 		id: z.string().min(1),
@@ -30,6 +32,8 @@ export const KeepDecisionSchema = BaseDecisionSchema.extend({
 export const DropDecisionSchema = BaseDecisionSchema.extend({
 	action: z.literal("drop"),
 	dropReason: SpeechCleanupDropReasonSchema,
+	risk: SpeechCleanupDropRiskSchema,
+	retainedMeaningEvidence: z.string().min(1).optional(),
 }).strict();
 
 export const SpeechCleanupDecisionSchema = z
@@ -40,6 +44,18 @@ export const SpeechCleanupDecisionSchema = z
 				code: z.ZodIssueCode.custom,
 				message: "sourceEnd must be greater than sourceStart",
 				path: ["sourceEnd"],
+			});
+		}
+		if (
+			decision.action === "drop" &&
+			decision.risk === "high" &&
+			!decision.retainedMeaningEvidence
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					"High-risk SpeechCleanup drops require retainedMeaningEvidence.",
+				path: ["retainedMeaningEvidence"],
 			});
 		}
 	});
@@ -88,6 +104,7 @@ export type SpeechCleanupAction = z.infer<typeof SpeechCleanupActionSchema>;
 export type SpeechCleanupDropReason = z.infer<
 	typeof SpeechCleanupDropReasonSchema
 >;
+export type SpeechCleanupDropRisk = z.infer<typeof SpeechCleanupDropRiskSchema>;
 export type SpeechCleanupDecision = z.infer<typeof SpeechCleanupDecisionSchema>;
 export type SpeechCleanupPlan = z.infer<typeof SpeechCleanupPlanSchema>;
 
@@ -105,6 +122,7 @@ export interface SpeechCleanupStats {
 	keep: number;
 	drop: number;
 	dropReasons: Partial<Record<SpeechCleanupDropReason, number>>;
+	dropRisks: Partial<Record<SpeechCleanupDropRisk, number>>;
 }
 
 export interface SpeechCleanupVerification {

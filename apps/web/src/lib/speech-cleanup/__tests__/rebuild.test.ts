@@ -37,6 +37,7 @@ function speechCleanupPlan(): SpeechCleanupPlan {
 				sourceEnd: 1.2,
 				action: "drop",
 				dropReason: "restart",
+				risk: "low",
 				reason: "Speaker restarts.",
 			},
 			{
@@ -54,6 +55,7 @@ function speechCleanupPlan(): SpeechCleanupPlan {
 				sourceEnd: 5.4,
 				action: "drop",
 				dropReason: "filler",
+				risk: "low",
 				reason: "Filler phrase.",
 			},
 			{
@@ -126,6 +128,9 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 				restart: 1,
 				filler: 1,
 			},
+			dropRisks: {
+				low: 2,
+			},
 		});
 		expect(result.verification).toEqual({
 			timelineContiguous: true,
@@ -148,6 +153,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 			sourceEnd: 5.4,
 			action: "drop",
 			dropReason: "pause",
+			risk: "low",
 			reason: "Pause.",
 		};
 
@@ -196,6 +202,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 					sourceEnd: 2.72,
 					action: "drop",
 					dropReason: "filler",
+					risk: "low",
 					reason: "Opening filler.",
 				},
 				{
@@ -234,6 +241,9 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 				sourceEnd: decision.sourceEnd,
 				action: "drop",
 				dropReason: "other",
+				risk: "high",
+				retainedMeaningEvidence:
+					"Remaining kept segments preserve the usable claim.",
 				reason: decision.reason,
 			}),
 		);
