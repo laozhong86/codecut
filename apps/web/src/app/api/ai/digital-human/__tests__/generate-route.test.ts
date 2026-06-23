@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseDigitalHumanGenerateFormData } from "../generate/route";
+import { parseDigitalHumanGenerateFormData } from "@/lib/ai/runninghub-generation-route-inputs";
 
 function validFormData(overrides: Record<string, string | File> = {}): FormData {
 	const formData = new FormData();

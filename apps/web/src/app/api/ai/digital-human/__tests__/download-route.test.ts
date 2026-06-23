@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
-	assertAllowedRunningHubUrl,
-	downloadRunningHubResult,
-} from "../download/route";
+	assertAllowedRunningHubVideoUrl as assertAllowedRunningHubUrl,
+	downloadRunningHubVideoResult as downloadRunningHubResult,
+} from "@/lib/ai/providers/runninghub-result-download";
 
 describe("digital human result download route", () => {
 	test("accepts RunningHub result hosts", () => {

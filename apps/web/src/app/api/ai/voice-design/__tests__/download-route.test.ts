@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	assertAllowedRunningHubAudioUrl,
 	downloadRunningHubAudioResult,
-} from "../download/route";
+} from "@/lib/ai/providers/runninghub-result-download";
 
 describe("voice design result download route", () => {
 	test("accepts RunningHub audio result hosts", () => {
