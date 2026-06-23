@@ -141,6 +141,14 @@ interface ExecutorMediaAsset {
 	size: number;
 	lastModified: number;
 	path: string;
+	spokenScript?: ExecutorSpokenScript;
+}
+
+interface ExecutorSpokenScript {
+	source: "tts";
+	text: string;
+	captions: string[];
+	protectedTerms?: string[];
 }
 
 export interface ExecutorProjectState {
@@ -241,6 +249,15 @@ const importMediaArgsSchema = z
 		duration: z.number().positive().optional(),
 		width: z.number().positive().optional(),
 		height: z.number().positive().optional(),
+		spokenScript: z
+			.object({
+				source: z.literal("tts"),
+				text: z.string().min(1),
+				captions: z.array(z.string().min(1)).min(1),
+				protectedTerms: z.array(z.string().min(1)).optional(),
+			})
+			.strict()
+			.optional(),
 	})
 	.strict();
 
@@ -1463,6 +1480,7 @@ async function runImportMedia({
 		size: parsed.size,
 		lastModified: parsed.lastModified,
 		path: mediaPath,
+		spokenScript: parsed.spokenScript,
 	};
 	state.mediaAssets = [...state.mediaAssets, asset];
 	await saveProjectState({ state });
@@ -2823,6 +2841,36 @@ async function runBuildPostCutCaptions({
 	};
 }
 
+function normalizeSpokenScriptCaptionTexts({
+	spokenScript,
+	mediaName,
+}: {
+	spokenScript: ExecutorSpokenScript;
+	mediaName: string;
+}): { success: true; captions: string[] } | { success: false; message: string } {
+	const captions = spokenScript.captions
+		.map((caption) => caption.trim())
+		.filter(Boolean);
+	if (captions.length === 0) {
+		return {
+			success: false,
+			message: `Scripted TTS media '${mediaName}' must provide at least one caption line.`,
+		};
+	}
+
+	const joinedCaptions = captions.join(" ");
+	for (const term of spokenScript.protectedTerms ?? []) {
+		if (!joinedCaptions.includes(term)) {
+			return {
+				success: false,
+				message: `Scripted TTS media '${mediaName}' captions are missing protected term '${term}'.`,
+			};
+		}
+	}
+
+	return { success: true, captions };
+}
+
 async function buildPostCutCaptionsData({
 	state,
 	language,
@@ -2837,7 +2885,10 @@ async function buildPostCutCaptionsData({
 	| {
 			success: true;
 			data: {
-				source: "edited_video_clip_audio" | "edited_timeline_audio";
+				source:
+					| "edited_video_clip_audio"
+					| "edited_timeline_audio"
+					| "scripted_tts_audio";
 				language: string;
 				modelId: string;
 				captionStyle: EditPlanCaptionStyle;
@@ -2879,9 +2930,17 @@ async function buildPostCutCaptionsData({
 				"No unmuted edited media clips were found for post-cut caption transcription.",
 		};
 	}
-	const source = clips.some(({ element }) => element.type === "audio")
-		? "edited_timeline_audio"
-		: "edited_video_clip_audio";
+	const hasScriptedTtsAudio = clips.some(({ element }) => {
+		const mediaAsset = state.mediaAssets.find(
+			(asset) => asset.id === element.mediaId,
+		);
+		return element.type === "audio" && mediaAsset?.spokenScript?.source === "tts";
+	});
+	const source = hasScriptedTtsAudio
+		? "scripted_tts_audio"
+		: clips.some(({ element }) => element.type === "audio")
+			? "edited_timeline_audio"
+			: "edited_video_clip_audio";
 
 	const captions: Array<{
 		text: string;
@@ -2934,14 +2993,38 @@ async function buildPostCutCaptionsData({
 			result,
 			`build_post_cut_captions element ${element.id}`,
 		);
+		const scriptedCaptions = mediaAsset.spokenScript
+			? normalizeSpokenScriptCaptionTexts({
+					spokenScript: mediaAsset.spokenScript,
+					mediaName: mediaAsset.name,
+				})
+			: null;
+		if (scriptedCaptions && !scriptedCaptions.success) {
+			return scriptedCaptions;
+		}
+		if (
+			scriptedCaptions &&
+			scriptedCaptions.captions.length !== result.segments.length
+		) {
+			return {
+				success: false,
+				message: `Scripted TTS media '${mediaAsset.name}' has ${scriptedCaptions.captions.length} caption line(s), but ASR returned ${result.segments.length} timing segment(s).`,
+			};
+		}
+		const effectiveSegments = scriptedCaptions
+			? result.segments.map((segment, index) => ({
+					...segment,
+					text: scriptedCaptions.captions[index],
+				}))
+			: result.segments;
 		await writeTranscriptCache({
 			state,
 			entry: {
 				mediaId,
 				language: result.language,
 				modelId: result.modelId ?? modelId,
-				text: result.text,
-				segments: result.segments.map((segment) => ({
+				text: mediaAsset.spokenScript?.text ?? result.text,
+				segments: effectiveSegments.map((segment) => ({
 					text: segment.text,
 					start: roundTimelineSeconds(element.trimStart + segment.start),
 					end: roundTimelineSeconds(element.trimStart + segment.end),
@@ -2952,7 +3035,7 @@ async function buildPostCutCaptionsData({
 			},
 		});
 
-		for (const segment of result.segments) {
+		for (const segment of effectiveSegments) {
 			const text = segment.text.trim();
 			const relativeStart = Math.max(0, segment.start);
 			const relativeEnd = Math.min(element.duration, segment.end);

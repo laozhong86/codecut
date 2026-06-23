@@ -711,6 +711,42 @@ describe("codex bridge CLI helpers", () => {
 		);
 	});
 
+	test("builds import-media envelopes with scripted TTS metadata", async () => {
+		const base64 = Buffer.from("audio-bytes").toString("base64");
+		const spokenScript = {
+			source: "tts",
+			text: "A pizza portion costs $2.34. Venmo that ASAP.",
+			captions: ["A pizza portion costs $2.34.", "Venmo that ASAP."],
+			protectedTerms: ["$2.34", "Venmo"],
+		};
+
+		expect(
+			await buildImportMediaEnvelope({
+				projectId: "project-123",
+				bytes: base64,
+				fileName: "voice.mp3",
+				mimeType: "audio/mpeg",
+				lastModified: 1234,
+				duration: 8,
+				spokenScript,
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "import_media_file",
+				args: {
+					fileName: "voice.mp3",
+					mimeType: "audio/mpeg",
+					base64,
+					size: 11,
+					lastModified: 1234,
+					duration: 8,
+					spokenScript,
+				},
+			}),
+		);
+	});
+
 	test("import-media validates exactly one source and rejects unsafe URLs", async () => {
 		await expect(
 			buildImportMediaEnvelope({
