@@ -9,6 +9,7 @@ import {
 } from "@/services/renderer/nodes/text-node";
 import {
 	createTextLayout,
+	type TextLayoutLine,
 	type TextRunStyle,
 } from "@/services/renderer/nodes/text-layout";
 import type { MediaAsset } from "@/types/assets";
@@ -59,6 +60,8 @@ interface Bounds {
 
 const TIME_TOLERANCE_SECONDS = 0.001;
 const BOUNDS_TOLERANCE_PX = 0.5;
+const CAPTION_MAX_LINES = 2;
+const CAPTION_MIN_LAST_LINE_CHARACTERS = 3;
 const QUALITY_REPORT_LIMITATIONS = [
 	{
 		id: "ocr",
@@ -337,6 +340,10 @@ function canvasFont({
 	});
 }
 
+function lineText(line: TextLayoutLine) {
+	return line.runs.map((run) => run.text).join("");
+}
+
 function lineX({
 	element,
 	lineWidth,
@@ -353,13 +360,13 @@ function lineX({
 	return -lineWidth / 2;
 }
 
-function localTextBounds({
+function textLayoutForElement({
 	element,
 	canvasHeight,
 }: {
 	element: TextElement;
 	canvasHeight: number;
-}): Bounds {
+}) {
 	const context = createCanvas(1, 1).getContext("2d");
 	if (!context) {
 		throw new Error("VideoQualityReport could not create text measure canvas.");
@@ -377,6 +384,20 @@ function localTextBounds({
 			context.font = canvasFont({ element, style, fontSize });
 			return context.measureText(text).width;
 		},
+	});
+	return { layout, fontSize, boxWidth };
+}
+
+function localTextBounds({
+	element,
+	canvasHeight,
+}: {
+	element: TextElement;
+	canvasHeight: number;
+}): Bounds {
+	const { layout, fontSize, boxWidth } = textLayoutForElement({
+		element,
+		canvasHeight,
 	});
 
 	let minX = Number.POSITIVE_INFINITY;
@@ -475,6 +496,71 @@ function checkTextBounds({
 		severity: "info",
 		message: `All ${matches.length} plan text element(s) render inside the canvas.`,
 		evidence: { checkedElementIds: matches.map((match) => match.element.id) },
+	};
+}
+
+function checkCaptionLines({
+	matches,
+	canvasSize,
+}: {
+	matches: MatchedText[];
+	canvasSize: { width: number; height: number };
+}): Check {
+	const invalidCaptions = matches
+		.filter((match) => match.kind === "caption")
+		.flatMap((match) => {
+			const { layout } = textLayoutForElement({
+				element: match.element,
+				canvasHeight: canvasSize.height,
+			});
+			const lines = layout.lines.map(lineText);
+			const lastLineCharacters = Array.from(lines.at(-1) ?? "").length;
+			const tooManyLines = lines.length > CAPTION_MAX_LINES;
+			const orphanLastLine =
+				lines.length > 1 &&
+				lastLineCharacters < CAPTION_MIN_LAST_LINE_CHARACTERS;
+			if (!tooManyLines && !orphanLastLine) return [];
+			return [
+				{
+					kind: match.kind,
+					index: match.index,
+					elementId: match.element.id,
+					text: match.text,
+					lineCount: lines.length,
+					lines,
+					lastLineCharacters,
+					reason: tooManyLines ? "too_many_lines" : "orphan_last_line",
+				},
+			];
+		});
+
+	if (invalidCaptions.length > 0) {
+		const overLimit = invalidCaptions.filter(
+			(caption) => caption.reason === "too_many_lines",
+		);
+		const orphanLastLines = invalidCaptions.filter(
+			(caption) => caption.reason === "orphan_last_line",
+		);
+		return {
+			id: "layout.captionLines",
+			category: "layout",
+			status: "fail",
+			severity: "critical",
+			message: `${invalidCaptions.length} caption text element(s) render with too many lines or orphan last lines.`,
+			evidence: { overLimit, orphanLastLines, canvasSize },
+		};
+	}
+
+	return {
+		id: "layout.captionLines",
+		category: "layout",
+		status: "pass",
+		severity: "info",
+		message: `All ${matches.filter((match) => match.kind === "caption").length} caption text element(s) stay within line-count limits.`,
+		evidence: {
+			maxLines: CAPTION_MAX_LINES,
+			minLastLineCharacters: CAPTION_MIN_LAST_LINE_CHARACTERS,
+		},
 	};
 }
 
@@ -648,6 +734,10 @@ export async function buildVideoQualityReport({
 		captionReadback.check,
 		checkTransitionReadback({ plan: normalizedPlan, tracks: state.tracks }),
 		checkTextBounds({
+			matches: matchedText,
+			canvasSize: state.project.settings.canvasSize,
+		}),
+		checkCaptionLines({
 			matches: matchedText,
 			canvasSize: state.project.settings.canvasSize,
 		}),

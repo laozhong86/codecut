@@ -460,7 +460,7 @@ describe("applyEditPlanToEditor", () => {
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
 			fontFamily: "CodecutCJK",
-			fontSize: 5.8,
+			fontSize: 4.8,
 			fontWeight: "bold",
 			color: "#fff3b0",
 			stroke: { color: "#101010", width: 3 },
@@ -551,7 +551,7 @@ describe("applyEditPlanToEditor", () => {
 				preset: "talking-head-pop",
 				expected: {
 					fontFamily: CODECUT_CJK_FONT_FAMILY,
-					fontSize: 5.8,
+					fontSize: 4.8,
 					fontWeight: "bold",
 					color: "#fff3b0",
 					stroke: { color: "#101010", width: 3 },
