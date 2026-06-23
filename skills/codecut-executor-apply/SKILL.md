@@ -60,6 +60,13 @@ Import only when needed:
 node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/source.mp4
 ```
 
+Import a user-confirmed reference-derived template draft into Codecut system
+templates only after explicit confirmation:
+
+```bash
+node scripts/codex-bridge.mjs import-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true
+```
+
 Apply a strict implemented EditPlan:
 
 ```bash
@@ -74,7 +81,7 @@ node scripts/codex-bridge.mjs send --project-id <id> --tool get_timeline_state -
 
 ## Failure Rule
 
-Do not continue after `doctor-install`, `doctor`, `import-media`, `transcribe`, `build-post-cut-captions`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
+Do not continue after `doctor-install`, `doctor`, `import-media`, `import-system-template-script`, `transcribe`, `build-post-cut-captions`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
 
 ## Completion
 

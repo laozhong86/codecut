@@ -29,6 +29,11 @@ const planJsonFileSchema = z
 	.trim()
 	.min(1)
 	.describe("Absolute path to an EditPlan JSON file.");
+const templateJsonFileSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.describe("Absolute path to a confirmed LocalTemplateScript JSON draft file.");
 
 const verificationJsonFileSchema = z
 	.string()
@@ -419,6 +424,22 @@ export const CODECUT_MCP_TOOLS = [
 			limit: z.number().int().positive().optional(),
 		},
 		readOnly: true,
+	},
+	{
+		name: "import_system_template_script",
+		title: "Import Codecut System Template Script",
+		description:
+			"Import one user-confirmed reference-derived template draft into the Codecut system template library used by Templates UI and future Codex planning context.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			templateJsonFile: templateJsonFileSchema,
+			confirmedByUser: z
+				.literal(true)
+				.describe(
+					"Must be true only after the user explicitly confirmed this exact template draft for import.",
+				),
+		},
+		readOnly: false,
 	},
 	{
 		name: "validate_edit_plan",
@@ -1299,6 +1320,15 @@ function requireRawBooleanArg(args, key) {
 	return args[key];
 }
 
+function requireConfirmedByUser(args) {
+	if (args?.confirmedByUser !== true) {
+		throw new Error(
+			"confirmedByUser must be true after explicit user confirmation",
+		);
+	}
+	return true;
+}
+
 function optionalBooleanArg(args, key) {
 	if (args?.[key] === undefined) return undefined;
 	if (typeof args[key] !== "boolean") {
@@ -1540,6 +1570,18 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 						: { limit: optionalNumberArg(args, "limit") }),
 				},
 			});
+		case "import_system_template_script":
+			requireConfirmedByUser(args);
+			return [
+				"scripts/codex-bridge.mjs",
+				"import-system-template-script",
+				"--project-id",
+				projectId,
+				"--template-json-file",
+				requireStringArg(args, "templateJsonFile"),
+				"--confirmed-by-user",
+				"true",
+			];
 		case "validate_edit_plan":
 			return [
 				"scripts/codex-bridge.mjs",
@@ -1998,6 +2040,7 @@ export function createCodecutMcpServer() {
 					destructiveHint:
 						tool.name === "apply_edit_plan" ||
 						tool.name === "apply_narrated_remix_plan" ||
+						tool.name === "import_system_template_script" ||
 						tool.name === "create_text_background_effect" ||
 						tool.name === "create_human_pip_effect" ||
 						tool.name === "generate_digital_human" ||

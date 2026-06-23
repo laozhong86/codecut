@@ -21,16 +21,30 @@ describe("fresh-session MCP smoke helpers", () => {
 				},
 			},
 		};
+		const templateImportTool = {
+			name: "import_system_template_script",
+			inputSchema: {
+				properties: {
+					projectId: {},
+					templateJsonFile: {},
+					confirmedByUser: {},
+				},
+			},
+		};
 		const tools = [
 			importTool,
-			...REQUIRED_MCP_TOOLS.filter((name) => name !== "import_media").map(
-				(name) => ({ name, inputSchema: { properties: {} } }),
-			),
+			templateImportTool,
+			...REQUIRED_MCP_TOOLS.filter(
+				(name) =>
+					name !== "import_media" &&
+					name !== "import_system_template_script",
+			).map((name) => ({ name, inputSchema: { properties: {} } })),
 		];
 
 		expect(assertFreshMcpToolSurface({ tools })).toEqual({
 			toolNames: REQUIRED_MCP_TOOLS,
 			importMediaInputs: ["bytes", "filePath", "url"],
+			templateImportInputs: ["confirmedByUser", "templateJsonFile"],
 		});
 	});
 

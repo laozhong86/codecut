@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codecut Reference Template"
+  short_description: "Derive reusable Codecut templates from reference edits."
+  default_prompt: "Use $codecut-reference-template to analyze finished reference videos and produce a reusable Codecut template script."

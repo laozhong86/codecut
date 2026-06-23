@@ -58,7 +58,7 @@ describe("buildSystemPrompt", () => {
 		expect(prompt).toContain("image B-roll");
 	});
 
-	test("exposes local template scripts as read-only editing context", () => {
+	test("exposes Codecut system template scripts as read-only editing context", () => {
 		initializePromptProject();
 
 		const prompt = buildSystemPrompt({
@@ -87,10 +87,13 @@ describe("buildSystemPrompt", () => {
 			],
 		});
 
-		expect(prompt).toContain("Local Template Scripts");
+		expect(prompt).toContain("Codecut System Template Scripts");
 		expect(prompt).toContain("ugc-proof");
 		expect(prompt).toContain("Default triggers: product-proof-ad");
 		expect(prompt).toContain("Open with the strongest visible proof.");
-		expect(prompt).toContain("Read the matching local template script");
+		expect(prompt).toContain("Read the matching system template script");
+		expect(prompt).toContain(
+			"Do not read draft template JSON files as the source of truth",
+		);
 	});
 });

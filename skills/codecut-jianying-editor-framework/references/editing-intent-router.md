@@ -34,7 +34,7 @@ P0 template ids:
 | Subtitle/caption pass | None in P0 | "加字幕", "字幕好看点", "翻译字幕" | Readability | transcript or supplied captions | [subtitle-pass](workflow-recipes/subtitle-pass.md) | Implemented within EditPlan v1 caption limits |
 | Voiceover/narration | `narrated-broll` when existing narration and video B-roll exist | "配音", "旁白", "讲解" | Narrative clarity | script, existing audio path, target duration | [voiceover-remix](workflow-recipes/voiceover-remix.md) | Existing audio insertion is implemented; bridge-exposed speech generation and multi-source remix are gated |
 | Timeline inspection | None in P0 | "看看项目里有什么", "验证剪辑结果", "能导出吗" | Confidence before mutation/export | active editor project, timeline state | [timeline-inspection](workflow-recipes/timeline-inspection.md) | Implemented read-only |
-| Template/style application | Only if expressible as a P0 manifest | "套模板", "像这个风格", "统一样式" | Reusable visual language | template/style reference, existing timeline | [timeline-inspection](workflow-recipes/timeline-inspection.md) first | Future/gated unless expressible in EditPlan v1 |
+| Template/style application | Only if expressible as a P0 manifest or Codecut system template script | "套模板", "像这个风格", "统一样式", "复刻这个剪辑手法" | Reusable visual language | system template, style reference, existing timeline or accessible finished reference videos | Use `codecut-reference-template` for reference-derived drafts/imports, then [timeline-inspection](workflow-recipes/timeline-inspection.md) before mutation | Gated unless expressible in system template script guidance plus current EditPlan v1/NarratedRemixPlan v1 |
 | Batch variants | Resolve per variant | "批量剪", "多个版本", "不同角度" | Scale | shared assets, variant goals | [long-to-short](workflow-recipes/long-to-short.md) per variant | Gated; run one verified variant before scaling |
 
 ## Recipe Selection Rule
@@ -159,6 +159,7 @@ Acceptance: project ID, track/element counts, media references, and blockers are
 ## Gated Intent Rules
 
 - Template/style application is not a free-form styling promise. If the style cannot be represented in current EditPlan v1, report the unsupported fields.
+- Reference-derived template drafts are not truth until imported. After user confirmation, Codecut system template scripts guide Codex planning and must not bypass requirement intake, evidence checks, plan validation, or `get_timeline_state` readback.
 - Batch variants must start with one verified variant. Do not enqueue multiple edits before the first variant passes timeline verification.
 - Voiceover generation, BGM, effects, multi-source B-roll, OCR, keyframe inspection, and animated subtitle templates are gated unless the current bridge/tool surface exposes them. Existing audio assets can be placed on audio tracks, but that is not the same as bridge-exposed speech generation.
 - A gated request can still produce an implementation plan, but it must not be reported as an executed edit.

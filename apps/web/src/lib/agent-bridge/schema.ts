@@ -20,6 +20,7 @@ export const BridgeToolNameSchema = z.enum([
 	"create_text_background_effect",
 	"create_human_pip_effect",
 	"generate_digital_human",
+	"import_system_template_script",
 ]);
 
 export const BridgeCommandSchema = z.object({

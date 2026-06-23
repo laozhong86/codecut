@@ -28,6 +28,7 @@ For every request, choose one path before running commands:
 | --- | --- |
 | New creative job, new source material, remote URL, local media path, "make a short", "剪辑", "提取到本地" | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` first. |
 | Source needs download, file copy, workspace init, or ffprobe audit | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest`. |
+| Finished/reference videos, "learn this editing style", "复刻模板", reference-derived template draft/import/application | **REQUIRED SUB-SKILL:** Use `codecut-reference-template` before EditPlan authoring or executor mutation. |
 | Transcript, VideoContext, candidate clips, decision ledger, or EditPlan authoring | Use `references/editing-intent-router.md` and exactly one workflow recipe. |
 | Executor service, env, doctor, import, apply, caption build, timeline readback | **REQUIRED SUB-SKILL:** Use `codecut-executor-apply`. |
 | Existing project inspection or export readiness | Use `references/workflow-recipes/timeline-inspection.md`. |
@@ -120,6 +121,7 @@ Read only what matches the task:
 - Current workflow: `../../docs/codex-driven-editing.md`
 - Workspace spec: `../../docs/codecut-workspace.md`
 - Intent router: `references/editing-intent-router.md`
+- Reference-template derivation: `../codecut-reference-template/SKILL.md`
 - Long-to-short: `references/workflow-recipes/long-to-short.md`
 - Talking-head polish: `references/workflow-recipes/talking-head-polish.md`
 - Subtitle pass: `references/workflow-recipes/subtitle-pass.md`
