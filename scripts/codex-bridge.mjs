@@ -340,6 +340,17 @@ function parseRsyncChangedPaths(output) {
 		.split(/\r?\n/)
 		.map((line) => line.trim())
 		.filter(Boolean)
+		.filter((line) => {
+			const itemizedMatch = line.match(/^(\S+)\s+(.+)$/);
+			if (!itemizedMatch) return true;
+			const code = itemizedMatch[1];
+			const flags = code.slice(2);
+			return !(
+				code.startsWith(".") &&
+				flags.includes("t") &&
+				flags.replace(/[.t]/g, "") === ""
+			);
+		})
 		.map((line) => {
 			const deletingMatch = line.match(/^\*deleting\s+(.+)$/);
 			if (deletingMatch) return deletingMatch[1];
