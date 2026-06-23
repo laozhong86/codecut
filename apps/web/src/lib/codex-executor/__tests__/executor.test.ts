@@ -3278,6 +3278,101 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("aligns scripted TTS captions when ASR timing segment count differs", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "tts-1",
+					name: "proof-reveal-generated-tts.mp3",
+					type: "audio",
+					mimeType: "audio/mpeg",
+					duration: 10,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/proof-reveal-generated-tts.mp3",
+					spokenScript: {
+						source: "tts",
+						text: "These texts already sound like a song. A pizza portion costs $2.34. The reveal is the last line. Venmo that ASAP.",
+						captions: [
+							"These texts already sound like a song.",
+							"A pizza portion costs $2.34.",
+							"The reveal is the last line.",
+							"Venmo that ASAP.",
+						],
+						protectedTerms: ["$2.34", "Venmo", "ASAP"],
+					},
+				},
+			],
+			tracks: [
+				{
+					id: "audio-track-1",
+					type: "audio",
+					name: "Narration",
+					muted: false,
+					elements: [
+						{
+							id: "tts-clip-1",
+							type: "audio",
+							name: "Narration",
+							mediaId: "tts-1",
+							startTime: 0,
+							duration: 10,
+							trimStart: 0,
+							trimEnd: 10,
+							sourceType: "upload",
+							volume: 1,
+							muted: false,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_post_cut_captions",
+				args: {
+					language: "en",
+					modelId: "whisper-small",
+				},
+			}),
+			transcribeMediaRange: async () => ({
+				text: "These texts already sound like a song. A pizza portion costs $2.30. The review is the last line. The AMO that ASAP.",
+				language: "en",
+				modelId: "whisper-small",
+				segments: [
+					{
+						text: "These texts already sound like a song. A pizza portion costs $2.30.",
+						start: 0,
+						end: 6,
+					},
+					{
+						text: "The review is the last line. The AMO that ASAP.",
+						start: 6,
+						end: 10,
+					},
+				],
+				...asrContractFields(),
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({ success: true });
+		const data = resultData<{ source: string; captions: EditPlanCaption[] }>(
+			result.results[0],
+		);
+		const captionText = data.captions
+			.map((caption) => caption.text)
+			.join(" ");
+
+		expect(data.source).toBe("scripted_tts_audio");
+		expect(captionText).toContain("$2.34");
+		expect(captionText).toContain("Venmo that ASAP");
+		expect(captionText).toContain("The reveal is the last line.");
+		expect(captionText).not.toContain("$2.30");
+		expect(captionText).not.toContain("The review is the last line.");
+		expect(captionText).not.toContain("The AMO that ASAP");
+	});
+
 	test("applies clip-only SpeechCleanup then rebuilds post-cut captions into the final EditPlan", async () => {
 		await createExecutorProject({ projectId, name: "Speech cleanup captions" });
 		const importResult = await executeCodexExecutorEnvelope({

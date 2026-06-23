@@ -2872,6 +2872,122 @@ function normalizeSpokenScriptCaptionTexts({
 	return { success: true, captions };
 }
 
+type TimedTextSegment = { text: string; start: number; end: number };
+
+function timingSegmentWeight(segment: TimedTextSegment): number {
+	return Math.max(0, segment.end - segment.start);
+}
+
+function buildTimingWeights(segments: TimedTextSegment[]): number[] {
+	const durationWeights = segments.map(timingSegmentWeight);
+	const totalDurationWeight = durationWeights.reduce(
+		(total, weight) => total + weight,
+		0,
+	);
+	if (totalDurationWeight > 0) {
+		return durationWeights;
+	}
+	return segments.map(() => 1);
+}
+
+function groupWeightedItemsByTiming({
+	items,
+	itemWeight,
+	joinItems,
+	timingSegments,
+}: {
+	items: string[];
+	itemWeight: (item: string) => number;
+	joinItems: (items: string[]) => string;
+	timingSegments: TimedTextSegment[];
+}): string[] {
+	if (items.length === 0) {
+		return timingSegments.map(() => "");
+	}
+	const weights = buildTimingWeights(timingSegments);
+	const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+	const itemWeights = items.map((item) => Math.max(1, itemWeight(item)));
+	const totalItemWeight = itemWeights.reduce(
+		(total, weight) => total + weight,
+		0,
+	);
+	const chunks: string[] = [];
+	let itemIndex = 0;
+	let consumedItemWeight = 0;
+	let cumulativeTimingWeight = 0;
+
+	for (let segmentIndex = 0; segmentIndex < timingSegments.length; segmentIndex += 1) {
+		const remainingSegments = timingSegments.length - segmentIndex;
+		const remainingItems = items.length - itemIndex;
+		if (remainingSegments === 1) {
+			chunks.push(joinItems(items.slice(itemIndex)));
+			break;
+		}
+		if (remainingItems <= remainingSegments) {
+			chunks.push(items[itemIndex] ?? "");
+			consumedItemWeight += itemWeights[itemIndex] ?? 0;
+			itemIndex += 1;
+			cumulativeTimingWeight += weights[segmentIndex];
+			continue;
+		}
+
+		cumulativeTimingWeight += weights[segmentIndex];
+		const targetWeight = (totalItemWeight * cumulativeTimingWeight) / totalWeight;
+		const chunkItems: string[] = [];
+		let chunkWeight = 0;
+		while (itemIndex < items.length - (remainingSegments - 1)) {
+			const nextItem = items[itemIndex];
+			const nextWeight = itemWeights[itemIndex] ?? 1;
+			if (chunkItems.length > 0) {
+				const currentDistance = Math.abs(
+					consumedItemWeight + chunkWeight - targetWeight,
+				);
+				const nextDistance = Math.abs(
+					consumedItemWeight + chunkWeight + nextWeight - targetWeight,
+				);
+				if (nextDistance > currentDistance) break;
+			}
+			chunkItems.push(nextItem);
+			chunkWeight += nextWeight;
+			itemIndex += 1;
+		}
+		consumedItemWeight += chunkWeight;
+		chunks.push(joinItems(chunkItems));
+	}
+
+	return chunks;
+}
+
+function alignScriptedCaptionsToTimingSegments({
+	captions,
+	timingSegments,
+}: {
+	captions: string[];
+	timingSegments: TimedTextSegment[];
+}): TimedTextSegment[] {
+	if (timingSegments.length === 0) {
+		return [];
+	}
+	const alignedTexts =
+		captions.length >= timingSegments.length
+			? groupWeightedItemsByTiming({
+					items: captions,
+					itemWeight: (caption) => caption.length,
+					joinItems: (items) => items.join(" "),
+					timingSegments,
+				})
+			: groupWeightedItemsByTiming({
+					items: captions.join(" ").split(/\s+/).filter(Boolean),
+					itemWeight: (word) => word.length,
+					joinItems: (items) => items.join(" "),
+					timingSegments,
+				});
+	return timingSegments.map((segment, index) => ({
+		...segment,
+		text: alignedTexts[index] ?? "",
+	}));
+}
+
 async function buildPostCutCaptionsData({
 	state,
 	language,
@@ -3003,20 +3119,11 @@ async function buildPostCutCaptionsData({
 		if (scriptedCaptions && !scriptedCaptions.success) {
 			return scriptedCaptions;
 		}
-		if (
-			scriptedCaptions &&
-			scriptedCaptions.captions.length !== result.segments.length
-		) {
-			return {
-				success: false,
-				message: `Scripted TTS media '${mediaAsset.name}' has ${scriptedCaptions.captions.length} caption line(s), but ASR returned ${result.segments.length} timing segment(s).`,
-			};
-		}
 		const effectiveSegments = scriptedCaptions
-			? result.segments.map((segment, index) => ({
-					...segment,
-					text: scriptedCaptions.captions[index],
-				}))
+			? alignScriptedCaptionsToTimingSegments({
+					captions: scriptedCaptions.captions,
+					timingSegments: result.segments,
+				})
 			: result.segments;
 		await writeTranscriptCache({
 			state,
