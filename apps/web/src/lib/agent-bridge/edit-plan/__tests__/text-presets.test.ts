@@ -14,6 +14,11 @@ const verticalCanvas = {
 	height: 1920,
 };
 
+const horizontalCanvas = {
+	width: 1920,
+	height: 1080,
+};
+
 const implementedCaptionPresets: EditPlanCaptionStyle["preset"][] = [
 	"short-form-bold",
 	"black-bar",
@@ -28,26 +33,30 @@ const implementedCaptionPresets: EditPlanCaptionStyle["preset"][] = [
 function layoutPresetCaption({
 	content,
 	preset,
+	aspectRatio = "9:16",
+	canvasSize = verticalCanvas,
 }: {
 	content: string;
 	preset: EditPlanCaptionStyle["preset"];
+	aspectRatio?: "9:16" | "16:9" | "1:1";
+	canvasSize?: { width: number; height: number };
 }) {
-	const canvas = createCanvas(verticalCanvas.width, verticalCanvas.height);
+	const canvas = createCanvas(canvasSize.width, canvasSize.height);
 	const context = canvas.getContext("2d");
 	const raw = resolveCaptionStylePreset({
 		captionStyle: { preset, position: "lower-safe" },
-		aspectRatio: "9:16",
+		aspectRatio,
 	});
 	if (raw.fontSize === undefined) {
 		throw new Error("Caption preset must define fontSize.");
 	}
-	const scaledFontSize = raw.fontSize * (verticalCanvas.height / 90);
+	const scaledFontSize = raw.fontSize * (canvasSize.height / 90);
 	const scaledBoxWidth =
 		raw.boxWidth === undefined
 			? undefined
 			: scaleBoxWidth({
 					boxWidth: raw.boxWidth,
-					canvasHeight: verticalCanvas.height,
+					canvasHeight: canvasSize.height,
 				});
 	const layout = createTextLayout({
 		content,
@@ -65,6 +74,34 @@ function layoutPresetCaption({
 	});
 
 	return { raw, scaledFontSize, layout };
+}
+
+function captionCanvasBounds({
+	content,
+	preset,
+	aspectRatio,
+	canvasSize,
+}: {
+	content: string;
+	preset: EditPlanCaptionStyle["preset"];
+	aspectRatio: "9:16" | "16:9" | "1:1";
+	canvasSize: { width: number; height: number };
+}) {
+	const { raw, scaledFontSize, layout } = layoutPresetCaption({
+		content,
+		preset,
+		aspectRatio,
+		canvasSize,
+	});
+	const totalHeight = layout.lines.length * scaledFontSize * 1.3;
+	const centerY = canvasSize.height / 2 + (raw.transform?.position.y ?? 0);
+	return {
+		lines: layout.lines.map((line) =>
+			line.runs.map((run) => run.text).join(""),
+		),
+		minY: centerY - totalHeight / 2,
+		maxY: centerY + totalHeight / 2,
+	};
 }
 
 describe("caption style presets", () => {
@@ -113,10 +150,9 @@ describe("caption style presets", () => {
 				captionBottomY,
 				`${preset} lower-third bottom`,
 			).toBeLessThanOrEqual(1600);
-			expect(
-				scaledFontSize,
-				`${preset} scaled font size`,
-			).toBeLessThanOrEqual(128);
+			expect(scaledFontSize, `${preset} scaled font size`).toBeLessThanOrEqual(
+				128,
+			);
 		}
 	});
 
@@ -129,5 +165,19 @@ describe("caption style presets", () => {
 
 			expect(raw.fontFamily, preset).toBe(CODECUT_CJK_FONT_FAMILY);
 		}
+	});
+
+	test("talking-head-pop lower-safe captions stay inside a horizontal 1080p canvas", () => {
+		const bounds = captionCanvasBounds({
+			content:
+				"This is the exact kind of long interview subtitle that used to sit below the canvas.",
+			preset: "talking-head-pop",
+			aspectRatio: "16:9",
+			canvasSize: horizontalCanvas,
+		});
+
+		expect(bounds.lines.length).toBeGreaterThan(1);
+		expect(bounds.minY).toBeGreaterThanOrEqual(0);
+		expect(bounds.maxY).toBeLessThanOrEqual(horizontalCanvas.height);
 	});
 });

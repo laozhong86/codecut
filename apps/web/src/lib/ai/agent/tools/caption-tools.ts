@@ -3,6 +3,7 @@ import type {
 	EditPlanCaption,
 	EditPlanCaptionStyle,
 } from "@/lib/agent-bridge/edit-plan/schema";
+import { buildPostCutCaptionEntries } from "@/lib/agent-bridge/edit-plan/caption-chunking";
 import { decodeAudioToFloat32 } from "@/lib/media/audio";
 import { extractTimelineAudio } from "@/lib/media/mediabunny";
 import {
@@ -255,9 +256,9 @@ async function buildPostCutCaptionsData({
 			const relativeEnd = Math.min(element.duration, segment.end);
 			const startTime = roundCaptionSeconds(element.startTime + relativeStart);
 			const endTime = roundCaptionSeconds(element.startTime + relativeEnd);
-			const duration = roundCaptionSeconds(endTime - startTime);
-			if (!text || duration <= 0) continue;
-			captions.push({ text, startTime, duration });
+			captions.push(
+				...buildPostCutCaptionEntries({ text, startTime, endTime }),
+			);
 		}
 
 		trace.push({

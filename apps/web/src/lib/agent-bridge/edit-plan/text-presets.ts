@@ -28,6 +28,16 @@ function getTitleBoxWidth({
 	return 128;
 }
 
+function getLowerSafeCaptionY({
+	aspectRatio,
+}: {
+	aspectRatio: EditPlan["target"]["aspectRatio"];
+}): number {
+	if (aspectRatio === "9:16") return 520;
+	if (aspectRatio === "1:1") return 360;
+	return 320;
+}
+
 export function resolveTitleStylePreset({
 	preset,
 	aspectRatio,
@@ -83,7 +93,7 @@ export function resolveCaptionStylePreset({
 		scale: 1,
 		position:
 			captionStyle.position === "lower-safe"
-				? { x: 0, y: 520 }
+				? { x: 0, y: getLowerSafeCaptionY({ aspectRatio }) }
 				: { x: 0, y: 0 },
 		rotate: 0,
 	};

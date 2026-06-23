@@ -19,6 +19,7 @@ import {
 	EditPlanCaptionStyleSchema,
 	type EditPlanCaptionStyle,
 } from "@/lib/agent-bridge/edit-plan/schema";
+import { buildPostCutCaptionEntries } from "@/lib/agent-bridge/edit-plan/caption-chunking";
 import { resolveCaptionStylePreset } from "@/lib/agent-bridge/edit-plan/text-presets";
 import { applyNarratedRemixPlanToEditor } from "@/lib/agent-bridge/narrated-remix/apply";
 import {
@@ -3041,13 +3042,9 @@ async function buildPostCutCaptionsData({
 			const relativeEnd = Math.min(element.duration, segment.end);
 			const startTime = roundTimelineSeconds(element.startTime + relativeStart);
 			const endTime = roundTimelineSeconds(element.startTime + relativeEnd);
-			const duration = roundTimelineSeconds(endTime - startTime);
-			if (!text || duration <= 0) continue;
-			captions.push({
-				text,
-				startTime,
-				duration,
-			});
+			captions.push(
+				...buildPostCutCaptionEntries({ text, startTime, endTime }),
+			);
 		}
 
 		trace.push({
