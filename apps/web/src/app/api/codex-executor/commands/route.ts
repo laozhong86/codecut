@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateExecutorToken } from "@/lib/codex-executor/auth";
-import { executeCodexExecutorEnvelope } from "@/lib/codex-executor/executor";
+import {
+	executeCodexExecutorEnvelope,
+	isExecutorProjectNotFoundError,
+} from "@/lib/codex-executor/executor";
 
 const postBodySchema = z
 	.object({
@@ -31,6 +34,7 @@ export async function POST(request: NextRequest) {
 		});
 		return NextResponse.json(result);
 	} catch (error) {
+		const status = error instanceof z.ZodError ? 400 : 500;
 		return NextResponse.json(
 			{
 				error:
@@ -38,7 +42,9 @@ export async function POST(request: NextRequest) {
 						? error.message
 						: "Executor command could not be executed.",
 			},
-			{ status: 400 },
+			{
+				status: isExecutorProjectNotFoundError(error) ? 404 : status,
+			},
 		);
 	}
 }
