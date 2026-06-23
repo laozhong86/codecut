@@ -177,6 +177,32 @@ describe("Codecut MCP server contract", () => {
 		});
 	});
 
+	test("accepts mediaPath as a workspace open alias for filePath", () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "Creator Launch",
+			mediaPath: "/tmp/creator-launch.mp4",
+		});
+
+		expect(result.structuredContent.intentDefaults.mediaSource).toEqual({
+			kind: "filePath",
+			filePath: "/tmp/creator-launch.mp4",
+		});
+		expect(result._meta.widgetData.intentDefaults.mediaSource).toEqual({
+			kind: "filePath",
+			filePath: "/tmp/creator-launch.mp4",
+		});
+	});
+
+	test("rejects conflicting workspace open filePath aliases", () => {
+		expect(() =>
+			serverModule.openCodecutWorkspace({
+				projectName: "Creator Launch",
+				filePath: "/tmp/creator-launch.mp4",
+				mediaPath: "/tmp/other-launch.mp4",
+			}),
+		).toThrow("filePath and mediaPath must match");
+	});
+
 	test("inspects setup inputs without mutation and reports blockers", async () => {
 		const filePath = join(await mkdtemp(join(tmpdir(), "codecut-widget-")), "source.mp4");
 		await writeFile(filePath, "video");
