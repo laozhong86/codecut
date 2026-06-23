@@ -7,7 +7,6 @@ import {
 } from "@/components/editor/codex-executor-sync";
 import { AgentBridgeProvider } from "@/components/providers/agent-bridge-provider";
 import { readExecutorBrowserBridgeTokenFromLocation } from "@/lib/codex-executor/browser-bridge-token";
-import { useRouter } from "@/lib/navigation";
 import { Loader2 } from "lucide-react";
 import { useEditor } from "@/hooks/use-editor";
 import {
@@ -24,13 +23,17 @@ interface EditorProviderProps {
 type LoadExecutorSnapshot = typeof loadCodexExecutorSnapshot;
 type ApplyExecutorSnapshot = typeof applyCodexExecutorSnapshot;
 
+interface BridgeTokenChangeTarget {
+	addEventListener: (eventName: "hashchange", listener: () => void) => void;
+	removeEventListener: (eventName: "hashchange", listener: () => void) => void;
+}
+
 interface LoadEditorProviderProjectParams {
 	projectId: string;
 	bridgeToken?: string | null;
 	editor: ReturnType<typeof useEditor>;
 	loadSnapshot?: LoadExecutorSnapshot;
 	applySnapshot?: ApplyExecutorSnapshot;
-	createProject?: () => Promise<string>;
 }
 
 function isProjectNotFoundError(error: unknown): boolean {
@@ -41,24 +44,43 @@ function isProjectNotFoundError(error: unknown): boolean {
 	);
 }
 
+export function subscribeToBridgeTokenChanges({
+	target,
+	readBridgeToken = readExecutorBrowserBridgeTokenFromLocation,
+	onBridgeTokenChange,
+}: {
+	target?: BridgeTokenChangeTarget;
+	readBridgeToken?: () => string | null;
+	onBridgeTokenChange: (bridgeToken: string | null) => void;
+}): () => void {
+	const eventTarget =
+		target ??
+		(typeof window === "undefined"
+			? null
+			: (window as unknown as BridgeTokenChangeTarget));
+	if (!eventTarget) return () => undefined;
+
+	const handleHashChange = () => {
+		onBridgeTokenChange(readBridgeToken());
+	};
+	eventTarget.addEventListener("hashchange", handleHashChange);
+	return () => eventTarget.removeEventListener("hashchange", handleHashChange);
+}
+
 export async function loadEditorProviderProject({
 	projectId,
 	bridgeToken,
 	editor,
 	loadSnapshot = loadCodexExecutorSnapshot,
 	applySnapshot = applyCodexExecutorSnapshot,
-	createProject = () =>
-		editor.project.createNewProject({
-			name: "Untitled Project",
-		}),
 }: LoadEditorProviderProjectParams): Promise<{
 	executorRevision?: number;
-	redirectProjectId?: string;
 }> {
-	const snapshot = bridgeToken
-		? await loadSnapshot({ projectId, bridgeToken })
-		: null;
-	if (snapshot) {
+	if (bridgeToken) {
+		const snapshot = await loadSnapshot({ projectId, bridgeToken });
+		if (!snapshot) {
+			throw new Error(`CodeCut executor project "${projectId}" was not found.`);
+		}
 		await applySnapshot({ editor, snapshot, bridgeToken });
 		return { executorRevision: snapshot.revision };
 	}
@@ -71,13 +93,17 @@ export async function loadEditorProviderProject({
 			throw error;
 		}
 
-		return { redirectProjectId: await createProject() };
+		throw new Error(
+			`Project "${projectId}" was not found in browser storage. If this is a CodeCut executor project, open the editorUrl returned by create-project so the browser bridge token is present.`,
+		);
 	}
 }
 
 export function EditorProvider({ projectId, children }: EditorProviderProps) {
 	const editor = useEditor();
-	const router = useRouter();
+	const [bridgeToken, setBridgeToken] = useState<string | null>(() =>
+		readExecutorBrowserBridgeTokenFromLocation(),
+	);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const { disableKeybindings, enableKeybindings } = useKeybindingDisabler();
@@ -91,22 +117,27 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		}
 	}, [isLoading, disableKeybindings, enableKeybindings]);
 
+	useEffect(
+		() =>
+			subscribeToBridgeTokenChanges({
+				onBridgeTokenChange: setBridgeToken,
+			}),
+		[],
+	);
+
 	useEffect(() => {
 		let cancelled = false;
 
 		const loadProject = async () => {
 			try {
 				setIsLoading(true);
-				const result = await loadEditorProviderProject({
+				setError(null);
+				await loadEditorProviderProject({
 					projectId,
-					bridgeToken: readExecutorBrowserBridgeTokenFromLocation(),
+					bridgeToken,
 					editor,
 				});
 				if (cancelled) return;
-				if (result.redirectProjectId) {
-					router.replace(`/editor/${result.redirectProjectId}`);
-					return;
-				}
 				setIsLoading(false);
 			} catch (err) {
 				if (cancelled) return;
@@ -120,7 +151,7 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		return () => {
 			cancelled = true;
 		};
-	}, [projectId, editor, router]);
+	}, [projectId, bridgeToken, editor]);
 
 	if (error) {
 		return (

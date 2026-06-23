@@ -187,11 +187,9 @@ local MP4 file without matching draft tracks is not a completed Codecut edit.
 Opening a browser page is not a startup gate for Codex. After the service is
 ready, Codex should actively open the local projects page in the Codex in-app
 browser. After `create-project` succeeds, Codex must immediately open the
-created project's editor URL:
-
-```text
-http://127.0.0.1:4100/en/editor/<projectId>
-```
+returned `editorUrl`. Do not reconstruct a bare `/editor/<projectId>` URL for
+executor projects; the returned URL carries the browser bridge token required
+for the editor to load executor state.
 
 This link is for human preview and manual adjustment only. Do not use browser visibility, screenshots, DOM control, macOS global hotkeys, AppleScript, external browser windows, or standalone Playwright as an Agent execution dependency.
 
@@ -207,9 +205,10 @@ The editing target must be explicit before Codex sends bridge commands:
 - Use the project ID from the user's request, a local project listing, or the CLI response that created the project.
 - Before creating a new executor project, define a business project name from the user's brief or ask for one when the brief does not contain enough context.
 - Create projects with `node scripts/codex-bridge.mjs create-project --project-id <id> --name "<business project name>"`.
-- Immediately open the returned `editorUrl` in the Codex in-app browser. If the
-  response omits `editorUrl`, construct and open
-  `http://127.0.0.1:4100/en/editor/<projectId>`.
+- Immediately open the returned `editorUrl` in the Codex in-app browser.
+- Treat a missing `editorUrl` in the create-project response as a product
+  contract failure. Stop and fix the local executor or API response instead of
+  constructing a bare `/editor/<projectId>` URL.
 - Do not create projects with generic names such as `New project`, `Untitled Project`, or `Codex cut`.
 - Do not reuse a stale project ID from a previous run.
 - The CLI `--project-id` must match the local project store entry being modified.

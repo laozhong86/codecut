@@ -38,6 +38,13 @@ export interface MigrationState {
 	projectName: string | null;
 }
 
+export class ProjectNotFoundError extends Error {
+	constructor(id: string) {
+		super(`Project with id ${id} not found`);
+		this.name = "ProjectNotFoundError";
+	}
+}
+
 export class ProjectManager {
 	private active: TProject | null = null;
 	private savedProjects: TProjectMetadata[] = [];
@@ -134,7 +141,7 @@ export class ProjectManager {
 		try {
 			const result = await storageService.loadProject({ id });
 			if (!result) {
-				throw new Error(`Project with id ${id} not found`);
+				throw new ProjectNotFoundError(id);
 			}
 
 			const project = result.project;
@@ -163,7 +170,9 @@ export class ProjectManager {
 				}
 			}
 		} catch (error) {
-			console.error("Failed to load project:", error);
+			if (!(error instanceof ProjectNotFoundError)) {
+				console.error("Failed to load project:", error);
+			}
 			throw error;
 		} finally {
 			this.isLoading = false;

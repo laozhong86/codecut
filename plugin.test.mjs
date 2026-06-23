@@ -75,7 +75,10 @@ describe("Codecut plugin startup guidance", () => {
 		expect(skill).toContain('browser.capabilities.get("visibility")');
 		expect(skill).toContain("browser.tabs.selected()");
 		expect(skill).toContain("http://127.0.0.1:4100/en/projects");
-		expect(skill).toContain("http://127.0.0.1:4100/en/editor/<projectId>");
+		expect(skill).toContain("the `editorUrl` returned by `create-project`");
+		expect(skill).toContain(
+			"Do not reconstruct a bare `/editor/<projectId>` URL for executor projects",
+		);
 		expect(skill).toContain(
 			"Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview URL",
 		);
