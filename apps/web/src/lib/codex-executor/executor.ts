@@ -1118,6 +1118,7 @@ function serializeReferencedMedia(state: ExecutorProjectState) {
 					...(asset.duration !== undefined ? { duration: asset.duration } : {}),
 					...(asset.width !== undefined ? { width: asset.width } : {}),
 					...(asset.height !== undefined ? { height: asset.height } : {}),
+					...serializeSpokenScriptSummary(asset),
 				},
 			]),
 	);
@@ -1574,11 +1575,21 @@ function runListMediaAssets({ state }: { state: ExecutorProjectState }) {
 		width: asset.width,
 		height: asset.height,
 		size: asset.size,
+		...serializeSpokenScriptSummary(asset),
 	}));
 	return {
 		success: true,
 		message: `Found ${assets.length} media asset(s)`,
 		data: { assets },
+	};
+}
+
+function serializeSpokenScriptSummary(asset: ExecutorMediaAsset) {
+	const spokenScript = asset.spokenScript;
+	return {
+		hasSpokenScript: Boolean(spokenScript),
+		spokenScriptCaptionLineCount: spokenScript?.captions.length ?? 0,
+		spokenScriptProtectedTermCount: spokenScript?.protectedTerms?.length ?? 0,
 	};
 }
 

@@ -397,6 +397,149 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("summarizes spokenScript metadata in media asset readback", async () => {
+		await createExecutorProject({ projectId, name: "Scripted TTS readback" });
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.wav",
+					mimeType: "audio/wav",
+					base64: Buffer.from("audio").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 8,
+					spokenScript: {
+						source: "tts",
+						text: "A pizza portion costs $2.34. Venmo that ASAP.",
+						captions: [
+							"A pizza portion costs $2.34.",
+							"Venmo that ASAP.",
+						],
+						protectedTerms: ["$2.34", "Venmo that ASAP"],
+					},
+				},
+			}),
+		});
+
+		const listResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "list_media_assets", args: {} }),
+		});
+
+		const data = resultData<{
+			assets: Array<Record<string, unknown>>;
+		}>(listResult.results[0]);
+		expect(data.assets[0]).toMatchObject({
+			name: "narration.wav",
+			type: "audio",
+			hasSpokenScript: true,
+			spokenScriptCaptionLineCount: 2,
+			spokenScriptProtectedTermCount: 2,
+		});
+		expect(data.assets[0]).not.toHaveProperty("spokenScript");
+		expect(JSON.stringify(data.assets[0])).not.toContain("$2.34");
+	});
+
+	test("summarizes spokenScript metadata in referenced media readback", async () => {
+		await createExecutorProject({ projectId, name: "Scripted TTS timeline" });
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 12,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const audioImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.wav",
+					mimeType: "audio/wav",
+					base64: Buffer.from("audio").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 8,
+					spokenScript: {
+						source: "tts",
+						text: "A pizza portion costs $2.34. Venmo that ASAP.",
+						captions: [
+							"A pizza portion costs $2.34.",
+							"Venmo that ASAP.",
+						],
+						protectedTerms: ["$2.34", "Venmo that ASAP"],
+					},
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const audioId = resultData<{ assets: Array<{ id: string }> }>(
+			audioImport.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: videoId,
+						target: { durationSec: 8, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 8,
+								timelineStart: 0,
+								reason: "Reference clip",
+							},
+						],
+						audio: {
+							bgm: {
+								assetId: audioId,
+								volume: 1,
+								mode: "loop_to_timeline",
+							},
+						},
+						rationale: "Referenced scripted TTS media readback",
+					},
+				},
+			}),
+		});
+
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2", includeReferencedMedia: true },
+			}),
+		});
+
+		const data = resultData<{
+			referencedMedia?: Record<string, Record<string, unknown>>;
+		}>(timelineResult.results[0]);
+		expect(data.referencedMedia?.[audioId]).toMatchObject({
+			name: "narration.wav",
+			type: "audio",
+			hasSpokenScript: true,
+			spokenScriptCaptionLineCount: 2,
+			spokenScriptProtectedTermCount: 2,
+		});
+		expect(data.referencedMedia?.[audioId]).not.toHaveProperty("spokenScript");
+		expect(JSON.stringify(data.referencedMedia?.[audioId])).not.toContain(
+			"$2.34",
+		);
+	});
+
 	test("lazily adds a browser bridge token to existing executor projects", async () => {
 		await createExecutorProject({ projectId, name: "Legacy Codex cut" });
 		const state = await getExecutorProjectState({ projectId });
