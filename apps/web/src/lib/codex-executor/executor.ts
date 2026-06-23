@@ -123,6 +123,7 @@ interface ExecutorMediaAsset {
 	duration?: number;
 	width?: number;
 	height?: number;
+	fps?: number;
 	size: number;
 	lastModified: number;
 	path: string;
@@ -781,6 +782,8 @@ async function toMediaAsset(asset: ExecutorMediaAsset): Promise<MediaAsset> {
 		duration: asset.duration,
 		width: asset.width,
 		height: asset.height,
+		fps: asset.fps,
+		sourcePath: asset.path,
 		file: await fileForMediaAsset(asset),
 	};
 }

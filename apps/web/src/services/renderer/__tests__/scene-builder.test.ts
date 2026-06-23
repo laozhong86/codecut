@@ -12,6 +12,7 @@ function videoAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 		duration: 10,
 		width: 1920,
 		height: 1080,
+		fps: 30,
 		file: new File(["video"], "talking-head.mp4", { type: "video/mp4" }),
 		url: "blob:video-1",
 		...overrides,
@@ -31,6 +32,31 @@ function personMask(overrides: Partial<DerivedAsset> = {}): DerivedAsset {
 		confidence: 0.8,
 		createdAt: "2026-06-21T00:00:00.000Z",
 		...overrides,
+	};
+}
+
+function videoTrack(): TimelineTrack {
+	return {
+		id: "track-1",
+		name: "Video",
+		type: "video",
+		isMain: true,
+		muted: false,
+		hidden: false,
+		elements: [
+			{
+				id: "element-1",
+				type: "video",
+				name: "Video",
+				mediaId: "video-1",
+				duration: 4,
+				startTime: 0,
+				trimStart: 0,
+				trimEnd: 4,
+				transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+				opacity: 1,
+			},
+		],
 	};
 }
 
@@ -104,5 +130,36 @@ describe("buildScene masked video", () => {
 				background: { type: "color", color: "#000000" },
 			}),
 		).toThrow("Masked video alpha media asset was not found.");
+	});
+
+	test("rejects video when source dimensions are missing", () => {
+		expect(() =>
+			buildScene({
+				tracks: [videoTrack()],
+				mediaAssets: [videoAsset({ width: undefined })],
+				derivedAssets: [],
+				duration: 4,
+				canvasSize: { width: 1080, height: 1920 },
+				background: { type: "color", color: "#000000" },
+			}),
+		).toThrow("Timeline video source width is required for media asset video-1.");
+	});
+
+	test("rejects masked video when alpha frame rate is missing", () => {
+		expect(() =>
+			buildScene({
+				tracks: [maskedVideoTrack()],
+				mediaAssets: [
+					videoAsset(),
+					videoAsset({ id: "alpha-1", fps: undefined }),
+				],
+				derivedAssets: [personMask()],
+				duration: 4,
+				canvasSize: { width: 1080, height: 1920 },
+				background: { type: "color", color: "#000000" },
+			}),
+		).toThrow(
+			"Timeline masked video alpha source frame rate is required for media asset alpha-1.",
+		);
 	});
 });

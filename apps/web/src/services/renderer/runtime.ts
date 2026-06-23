@@ -34,6 +34,10 @@ export type RendererRuntime = {
 	getFrameAt(params: {
 		mediaId: string;
 		file: File;
+		sourcePath?: string;
+		sourceWidth?: number;
+		sourceHeight?: number;
+		sourceFrameRate?: number;
 		time: number;
 	}): Promise<RendererVideoFrame | null>;
 };

@@ -4,6 +4,10 @@ import { VideoNode, type VideoNodeParams } from "./video-node";
 export interface MaskedVideoNodeParams extends VideoNodeParams {
 	alphaMediaId: string;
 	alphaFile: File;
+	alphaSourcePath?: string;
+	alphaSourceWidth?: number;
+	alphaSourceHeight?: number;
+	alphaSourceFrameRate?: number;
 }
 
 export class MaskedVideoNode extends VideoNode {
@@ -19,11 +23,19 @@ export class MaskedVideoNode extends VideoNode {
 			renderer.runtime.getFrameAt({
 				mediaId: this.params.mediaId,
 				file: this.params.file,
+				sourcePath: this.params.sourcePath,
+				sourceWidth: this.params.sourceWidth,
+				sourceHeight: this.params.sourceHeight,
+				sourceFrameRate: this.params.sourceFrameRate,
 				time: videoTime,
 			}),
 			renderer.runtime.getFrameAt({
 				mediaId: this.params.alphaMediaId,
 				file: this.params.alphaFile,
+				sourcePath: this.params.alphaSourcePath,
+				sourceWidth: this.params.alphaSourceWidth,
+				sourceHeight: this.params.alphaSourceHeight,
+				sourceFrameRate: this.params.alphaSourceFrameRate,
 				time: videoTime,
 			}),
 		]);
