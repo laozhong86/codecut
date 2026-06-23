@@ -3099,6 +3099,91 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("splits long post-cut ASR segments into readable caption entries", async () => {
+		await createExecutorProject({ projectId, name: "Long interview caption" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "interview.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 60,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 12, aspectRatio: "16:9" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 12,
+								timelineStart: 0,
+								reason: "Keep the strongest answer.",
+							},
+						],
+						rationale: "Post-cut caption chunking proof.",
+					},
+				},
+			}),
+		});
+
+		const captionsResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_post_cut_captions",
+				args: {
+					language: "en",
+					modelId: "whisper-base",
+				},
+			}),
+			transcribeMediaRange: async ({ language, modelId }) => ({
+				text: "long segment",
+				language,
+				modelId,
+				segments: [
+					{
+						text: "The companies that survive this transition are the ones that redesign the workflow around the person doing the actual work, not around the software demo.",
+						start: 0,
+						end: 12,
+					},
+				],
+				...asrContractFields(),
+			}),
+		});
+		const captions = resultData<{
+			captions: EditPlanCaption[];
+			trace: Array<{ captionCount: number }>;
+		}>(captionsResult.results[0]);
+
+		expect(captions.captions.length).toBeGreaterThan(1);
+		expect(captions.trace[0].captionCount).toBe(captions.captions.length);
+		expect(captions.captions.at(0)?.startTime).toBe(0);
+		const finalCaption = captions.captions.at(-1);
+		expect(
+			finalCaption ? finalCaption.startTime + finalCaption.duration : null,
+		).toBe(12);
+		for (const caption of captions.captions) {
+			expect(caption.text.length).toBeLessThanOrEqual(52);
+			expect(caption.duration).toBeLessThanOrEqual(4);
+		}
+	});
+
 	test("builds post-cut captions from scripted TTS text instead of ASR text", async () => {
 		await seedDraftState({
 			mediaAssets: [
