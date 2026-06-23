@@ -47,6 +47,8 @@ describe("SpeechCleanup workflow docs", () => {
 		expect(docs).toContain('captionMode: "clip-only"');
 		expect(docs).toContain('captionMode: "source-transcript-remap"');
 		expect(docs).toContain("build_post_cut_captions");
+		expect(docs).toContain("Agent/executor tool");
+		expect(docs).toContain("Copy the returned `captions` and `captionStyle`");
 		expect(recipe).toContain("drop earlier restarts or repeats");
 		expect(recipe).toContain(
 			"High-risk drops require `retainedMeaningEvidence`",

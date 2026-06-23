@@ -36,7 +36,7 @@ type TranscribeMedia = ({
 	modelId: TranscriptionModelId;
 }) => Promise<TranscriptionResult>;
 
-function parseLanguage(value: unknown): TranscriptionLanguage {
+export function parseLanguage(value: unknown): TranscriptionLanguage {
 	if (value === undefined) {
 		throw new Error("language is required");
 	}
@@ -50,7 +50,7 @@ function parseLanguage(value: unknown): TranscriptionLanguage {
 	throw new Error("language must be auto or a supported transcription language");
 }
 
-function parseModelId(value: unknown): TranscriptionModelId {
+export function parseModelId(value: unknown): TranscriptionModelId {
 	if (value === undefined) {
 		throw new Error("modelId is required");
 	}

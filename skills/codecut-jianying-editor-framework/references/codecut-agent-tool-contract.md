@@ -42,9 +42,10 @@ get_project_info -> optional update_project_settings -> list_media_assets -> opt
 
 Codecut validates and executes. Codex does all LLM reasoning and plan repair.
 
-`build_post_cut_captions` does not mutate the timeline. It reads unmuted edited
-video clips, transcribes each `trimStart` to `trimEnd` source range, and returns
-captions in output timeline time. Codex must copy those captions into the final
+`build_post_cut_captions` is a non-mutating Agent/executor tool. It reads
+unmuted edited video or uploaded-audio clips, transcribes each `trimStart` to
+`trimEnd` source range, and returns captions in output timeline time plus
+`captionStyle` and a clip trace. Codex must copy those captions into the final
 EditPlan and apply that plan.
 
 Existing narration plus B-roll uses the separate deterministic path:

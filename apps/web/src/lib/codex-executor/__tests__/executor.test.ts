@@ -22,6 +22,14 @@ import {
 	Output,
 	WavOutputFormat,
 } from "mediabunny";
+import type {
+	EditPlanCaption,
+	EditPlanCaptionStyle,
+} from "@/lib/agent-bridge/edit-plan/schema";
+import {
+	rebuildTimelineFromSpeechCleanup,
+	type SpeechCleanupPlan,
+} from "@/lib/speech-cleanup";
 import type { DerivedAsset } from "@/types/project";
 import {
 	createExecutorProject,
@@ -3073,6 +3081,186 @@ describe("codex executor", () => {
 						sourceStart: 30,
 						sourceEnd: 35,
 						captionCount: 1,
+					},
+				],
+			},
+		});
+	});
+
+	test("applies clip-only SpeechCleanup then rebuilds post-cut captions into the final EditPlan", async () => {
+		await createExecutorProject({ projectId, name: "Speech cleanup captions" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 36,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		const speechCleanupPlan: SpeechCleanupPlan = {
+			version: 2,
+			projectId,
+			sourceMediaId: mediaId,
+			target: { durationSec: 5, aspectRatio: "9:16" },
+			decisions: [
+				{
+					id: "drop-1",
+					action: "drop",
+					text: "开头准备",
+					sourceStart: 0,
+					sourceEnd: 10,
+					reason: "Remove setup before the hook.",
+					dropReason: "pause",
+					risk: "low",
+				},
+				{
+					id: "keep-1",
+					action: "keep",
+					text: "第一句",
+					sourceStart: 10,
+					sourceEnd: 13,
+					reason: "Hook sentence.",
+				},
+				{
+					id: "drop-2",
+					action: "drop",
+					text: "重复解释",
+					sourceStart: 13,
+					sourceEnd: 30,
+					reason: "Remove repeated explanation.",
+					dropReason: "repeat",
+					risk: "low",
+				},
+				{
+					id: "keep-2",
+					action: "keep",
+					text: "第二句",
+					sourceStart: 30,
+					sourceEnd: 32,
+					reason: "Proof sentence.",
+				},
+				{
+					id: "drop-3",
+					action: "drop",
+					text: "结尾停顿",
+					sourceStart: 32,
+					sourceEnd: 36,
+					reason: "Remove trailing pause.",
+					dropReason: "pause",
+					risk: "low",
+				},
+			],
+			rationale: "Remove setup and repeated explanation before captions.",
+		};
+		const clipOnlyResult = rebuildTimelineFromSpeechCleanup({
+			plan: speechCleanupPlan,
+			sourceDuration: 36,
+			captionMode: "clip-only",
+		});
+		expect(clipOnlyResult.editPlan.captions).toBeUndefined();
+
+		const clipApplyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: clipOnlyResult.editPlan,
+				},
+			}),
+		});
+		const ranges: Array<{ start: number; end: number }> = [];
+		const captionsResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_post_cut_captions",
+				args: {
+					language: "zh",
+					modelId: "whisper-base",
+				},
+			}),
+			transcribeMediaRange: async ({ range, language, modelId }) => {
+				ranges.push(range);
+				if (range.start === 10) {
+					return {
+						text: "first clip",
+						language,
+						modelId,
+						segments: [{ text: "第一句", start: 0.25, end: 1.25 }],
+					};
+				}
+				return {
+					text: "second clip",
+					language,
+					modelId,
+					segments: [{ text: "第二句", start: 0.5, end: 1.5 }],
+				};
+			},
+		});
+		const postCutCaptions = resultData<{
+			captions: EditPlanCaption[];
+			captionStyle: EditPlanCaptionStyle;
+		}>(captionsResult.results[0]);
+		const finalApplyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						...clipOnlyResult.editPlan,
+						captions: postCutCaptions.captions,
+						captionStyle: postCutCaptions.captionStyle,
+						rationale: "Final post-cut captioned SpeechCleanup edit.",
+					},
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+
+		expect(clipApplyResult.results[0]).toMatchObject({
+			success: true,
+			summary: { clipCount: 2, textElementCount: 0 },
+		});
+		expect(ranges).toEqual([
+			{ start: 10, end: 13 },
+			{ start: 30, end: 32 },
+		]);
+		expect(captionsResult.results[0]).toMatchObject({
+			success: true,
+			message: "Built 2 post-cut caption(s) from 2 video clip(s).",
+		});
+		expect(finalApplyResult.results[0]).toMatchObject({
+			success: true,
+			summary: { clipCount: 2, textElementCount: 2 },
+		});
+		expect(timelineResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				totalDuration: 5,
+				tracks: [
+					{
+						type: "text",
+						elements: [
+							{ type: "text", content: "第一句", startTime: 0.25 },
+							{ type: "text", content: "第二句", startTime: 3.5 },
+						],
+					},
+					{
+						type: "video",
+						elements: [
+							{ type: "video", mediaId, trimStart: 10, trimEnd: 13 },
+							{ type: "video", mediaId, trimStart: 30, trimEnd: 32 },
+						],
 					},
 				],
 			},
