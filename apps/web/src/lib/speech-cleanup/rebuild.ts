@@ -3,8 +3,10 @@ import type {
 	EditPlanClip,
 } from "@/lib/agent-bridge/edit-plan/schema";
 import {
+	SpeechCleanupCaptionModeSchema,
 	SpeechCleanupPlanSchema,
 	type RebuiltSpeechCaption,
+	type SpeechCleanupCaptionMode,
 	type SpeechCleanupDecision,
 	type SpeechCleanupDropReason,
 	type SpeechCleanupDropRisk,
@@ -22,11 +24,22 @@ export interface SpeechCleanupResult {
 	rebuiltCaptions: RebuiltSpeechCaption[];
 	stats: SpeechCleanupStats;
 	verification: SpeechCleanupVerification;
+	captionMode: SpeechCleanupCaptionMode;
 	editPlan: EditPlan;
 }
 
 function roundTime(value: number): number {
 	return Math.round(value * 1000) / 1000;
+}
+
+function parseCaptionMode(captionMode: unknown): SpeechCleanupCaptionMode {
+	const result = SpeechCleanupCaptionModeSchema.safeParse(captionMode);
+	if (!result.success) {
+		throw new Error(
+			'captionMode must be "clip-only" or "source-transcript-remap".',
+		);
+	}
+	return result.data;
 }
 
 function assertSourceBounds({
@@ -178,11 +191,14 @@ export function assertSpeechCleanupVerification(
 export function rebuildTimelineFromSpeechCleanup({
 	plan,
 	sourceDuration,
+	captionMode,
 }: {
 	plan: unknown;
 	sourceDuration: number;
+	captionMode: unknown;
 }): SpeechCleanupResult {
 	const parsed = SpeechCleanupPlanSchema.parse(plan);
+	const parsedCaptionMode = parseCaptionMode(captionMode);
 	if (!Number.isFinite(sourceDuration) || sourceDuration <= 0) {
 		throw new Error("sourceDuration must be positive.");
 	}
@@ -240,17 +256,19 @@ export function rebuildTimelineFromSpeechCleanup({
 			aspectRatio: parsed.target.aspectRatio,
 		},
 		clips,
-		captions: rebuiltCaptions.map((caption) => ({
+		rationale: parsed.rationale,
+	};
+	if (parsedCaptionMode === "source-transcript-remap") {
+		editPlan.captions = rebuiltCaptions.map((caption) => ({
 			text: caption.text,
 			startTime: caption.startTime,
 			duration: caption.duration,
-		})),
-		captionStyle: {
+		}));
+		editPlan.captionStyle = {
 			preset: "short-form-bold",
 			position: "lower-safe",
-		},
-		rationale: parsed.rationale,
-	};
+		};
+	}
 
 	return {
 		plan: parsed,
@@ -258,6 +276,7 @@ export function rebuildTimelineFromSpeechCleanup({
 		rebuiltCaptions,
 		stats,
 		verification,
+		captionMode: parsedCaptionMode,
 		editPlan,
 	};
 }

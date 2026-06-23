@@ -1,11 +1,13 @@
 export {
 	SpeechCleanupActionSchema,
+	SpeechCleanupCaptionModeSchema,
 	SpeechCleanupDecisionSchema,
 	SpeechCleanupDropReasonSchema,
 	SpeechCleanupDropRiskSchema,
 	SpeechCleanupPlanSchema,
 	type RebuiltSpeechCaption,
 	type SpeechCleanupAction,
+	type SpeechCleanupCaptionMode,
 	type SpeechCleanupDecision,
 	type SpeechCleanupDropReason,
 	type SpeechCleanupDropRisk,

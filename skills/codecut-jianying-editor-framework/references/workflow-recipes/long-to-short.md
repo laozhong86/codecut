@@ -61,7 +61,7 @@ If transcript is unavailable for speech-led content, stop and report the missing
    - choose the reframe policy before caption placement. For talking-head footage where the face can remain large and the old subtitle band can be removed by reframing, use `vertical_face_safe_crop_above_burned_captions`.
    - Do not use `black-bar` as a subtitle mask to cover source subtitles.
    - If the chosen policy requires source crop, face anchor, or per-clip transform fields outside current EditPlan v1, stop and report the runtime gap instead of hiding the problem with captions.
-15. If the user asks to remove filler, restarts, repeated setup, or dead air, generate a strict SpeechCleanupPlan v2 and project it with `rebuildTimelineFromSpeechCleanup()` before applying.
+15. If the user asks to remove filler, restarts, repeated setup, or dead air, generate a strict SpeechCleanupPlan v2 and project it with `rebuildTimelineFromSpeechCleanup({ captionMode: "clip-only" })` before applying when post-cut captions are available; use `captionMode: "source-transcript-remap"` only when source transcript remap is the declared caption source.
 16. Otherwise, select candidate clips with a clear role: hook, pain, proof, process, value, trust, objection, CTA, or tutorial step.
 
 ### Stage 4: Timeline Restructure

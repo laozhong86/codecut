@@ -386,9 +386,11 @@ Flow:
 ```text
 transcribe_media
   -> Codex labels SpeechCleanupDecision[]
-  -> rebuildTimelineFromSpeechCleanup()
-  -> EditPlan v1 projection
+  -> rebuildTimelineFromSpeechCleanup({ captionMode: "clip-only" })
+  -> clip-only EditPlan v1 projection
   -> apply_edit_plan
+  -> build_post_cut_captions
+  -> final captioned EditPlan v1 if captions are requested
   -> get_timeline_state
 ```
 
@@ -426,6 +428,13 @@ Rules:
   "um", "uh", "嗯", or "额" inside kept text.
 - Do not claim word-level precision unless the selected transcription model
   supports word timestamps.
+- `rebuildTimelineFromSpeechCleanup()` requires an explicit `captionMode`.
+  Use `captionMode: "clip-only"` when edited audio transcription is available;
+  the projected EditPlan must omit `captions` and `captionStyle` so
+  `build_post_cut_captions` can create captions from the edited audio.
+- Use `captionMode: "source-transcript-remap"` only when post-cut caption
+  building is unavailable and every kept source transcript segment maps cleanly
+  into the selected clips. Do not send source-remapped captions by default.
 - Apply only the generated EditPlan v1 projection through `apply_edit_plan`.
 - After the clip-only cleanup plan is applied, prefer `build_post_cut_captions`
   or the equivalent `build-post-cut-captions` CLI path to rebuild captions from
