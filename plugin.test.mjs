@@ -104,6 +104,75 @@ describe("Codecut plugin startup guidance", () => {
 		expect(skill).not.toContain("View -> Open Browser Tab");
 	});
 
+	test("routes new creative intake through the workspace widget before text fallback", async () => {
+		const pluginManifest = JSON.parse(
+			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
+		);
+		const routerSkill = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut-jianying-editor-framework",
+				"SKILL.md",
+			),
+			"utf8",
+		);
+		const routerAgentCard = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut-jianying-editor-framework",
+				"agents",
+				"openai.yaml",
+			),
+			"utf8",
+		);
+		const intakeSkill = await readFile(
+			join(pluginRoot, "skills", "codecut-requirement-intake", "SKILL.md"),
+			"utf8",
+		);
+		const intakeAgentCard = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut-requirement-intake",
+				"agents",
+				"openai.yaml",
+			),
+			"utf8",
+		);
+		const startupPrompt = pluginManifest.interface.defaultPrompt.join("\n");
+
+		for (const content of [
+			startupPrompt,
+			routerSkill,
+			routerAgentCard,
+			intakeSkill,
+			intakeAgentCard,
+		]) {
+			expect(content).toContain("open_codecut_workspace");
+		}
+
+		expect(intakeSkill).toContain("workspace widget tool is unavailable");
+		expect(intakeSkill).toContain("tool_search");
+		expect(intakeSkill).toContain("mcp__codecut_mcp.open_codecut_workspace");
+		expect(intakeSkill).toContain("text-only questions");
+	});
+
+	test("documents fresh-thread widget intake verification", async () => {
+		const agents = await readFile(join(pluginRoot, "AGENTS.md"), "utf8");
+		const checklist = await readFile(
+			join(pluginRoot, "docs", "codecut-widget-intake-fresh-thread.md"),
+			"utf8",
+		);
+
+		for (const content of [agents, checklist]) {
+			expect(content).toContain("fresh-thread");
+			expect(content).toContain("verify-codecut-widget-intake-thread.mjs");
+			expect(content).toContain("open_codecut_workspace");
+		}
+	});
+
 	test("keeps bridge env command details on the executor surface", async () => {
 		const executorSkill = await readFile(
 			join(pluginRoot, "skills", "codecut-executor-apply", "SKILL.md"),

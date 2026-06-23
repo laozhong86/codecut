@@ -53,6 +53,15 @@ CodeCut is a Codex-first editing plugin. Design it so Codex can autonomously use
 - The web editor status view is product evidence for the human user. It should not be the agent's only source of truth when code or executor readback is available.
 - After timeline mutation tools, return machine-readable data that supports both Codex self-correction and human-visible UI updates.
 
+### Plugin, Skill, And Widget Verification
+
+- Changes to the plugin manifest, skills, MCP tool schemas, MCP resources, widgets, or Codex-host tool routing are not done with source tests alone.
+- Before reporting success, prove the active plugin source with `codex plugin list --json`, sync from that exact source with `node scripts/sync-codex-local-plugin.mjs`, and confirm the installed cache contains the changed guidance or tool contract.
+- Confirm the Codex host tool surface can discover the target MCP tool with `tool_search`; source and cache truth are not enough when host tool schemas may be stale.
+- For widget-intake behavior, create a fresh `@codecut` validation thread with a prompt that forbids downloads, shell commands, file writes, and editing execution. The proof must show a real `codecut_mcp.open_codecut_workspace` MCP call, not text fallback questions.
+- Validate that fresh-thread proof with `node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId>` or `--session-file <path>` when using an exported `read_thread` JSON/session JSONL file. Shell calls, file changes, or text fallback prompts fail this verification.
+- Keep the detailed checklist in `docs/codecut-widget-intake-fresh-thread.md` current whenever the widget intake contract changes.
+
 ## Lib vs Utils
 
 - `lib/` - domain logic (specific to this app)

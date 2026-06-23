@@ -1,4 +1,4 @@
 interface:
   display_name: Codecut Requirement Intake
   short_description: Confirms platform, aspect ratio, output form, captions, and business intent before Codecut editing execution.
-  default_prompt: Use $codecut-requirement-intake before any new Codecut creative editing job. Do not run Codecut executor mutation commands until requirement intake passes.
+  default_prompt: Use $codecut-requirement-intake before any new Codecut creative editing job. When setup fields are missing, call open_codecut_workspace so the Codecut workspace setup widget collects the answers before text-only questions. If the tool is not visible, discover it with tool_search first. Do not run Codecut executor mutation commands until requirement intake passes.
