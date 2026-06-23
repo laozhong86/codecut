@@ -31,9 +31,14 @@ expose atomic primitives only.
 
 Choose one path before running commands:
 
+For new creative jobs with missing setup fields, route through the
+`open_codecut_workspace` MCP tool so the user sees the Codecut workspace setup
+widget first. Text clarification is only a fallback when the workspace widget
+tool is unavailable in the current Codex tool surface.
+
 | Request shape | Required stage |
 | --- | --- |
-| New creative job, new source material, remote URL, local media path, "make a short", "剪辑", "提取到本地" | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` first. |
+| New creative job, new source material, remote URL, local media path, "make a short", "剪辑", "提取到本地" | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` first; it should open `open_codecut_workspace` when setup fields are missing. |
 | Source needs download, file copy, workspace init, or ffprobe audit | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest`. |
 | Finished/reference videos, "learn this editing style", "复刻模板", reference-derived template draft/import/application | **REQUIRED SUB-SKILL:** Use `codecut-reference-template` before EditPlan authoring or executor mutation. |
 | Transcript, VideoContext, candidate clips, decision ledger, or EditPlan authoring | Read `references/editing-intent-router.md` and exactly one workflow recipe. |
