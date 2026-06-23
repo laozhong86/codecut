@@ -18,6 +18,60 @@ function fail({
 	return { success: false, message, path };
 }
 
+function schemaPath(path: Array<string | number>): string | undefined {
+	if (path.length === 0) return undefined;
+	return path
+		.map((segment) =>
+			typeof segment === "number" ? `[${segment}]` : `.${segment}`,
+		)
+		.join("")
+		.replace(/^\./, "");
+}
+
+function valueAtPath({
+	value,
+	path,
+}: {
+	value: unknown;
+	path: Array<string | number>;
+}): unknown {
+	let current = value;
+	for (const segment of path) {
+		if (typeof current !== "object" || current === null) return undefined;
+		current = (current as Record<string | number, unknown>)[segment];
+	}
+	return current;
+}
+
+function receivedValue(value: unknown): string {
+	if (typeof value === "string") return JSON.stringify(value);
+	if (value === undefined) return "undefined";
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return String(value);
+	}
+}
+
+function schemaFailure({
+	plan,
+	path,
+	message,
+}: {
+	plan: unknown;
+	path: Array<string | number>;
+	message: string;
+}): EditPlanValidationResult {
+	const formattedPath = schemaPath(path);
+	const received = valueAtPath({ value: plan, path });
+	return fail({
+		message: formattedPath
+			? `EditPlan schema is invalid at ${formattedPath}: ${message}. Received ${receivedValue(received)}.`
+			: `EditPlan schema is invalid: ${message}.`,
+		...(formattedPath ? { path: formattedPath } : {}),
+	});
+}
+
 function getGeneratedTimelineDuration({ plan }: { plan: EditPlan }): number {
 	let duration = 0;
 	for (const clip of plan.clips) {
@@ -96,7 +150,13 @@ export function validateEditPlan({
 }): EditPlanValidationResult {
 	const parsed = EditPlanSchema.safeParse(plan);
 	if (!parsed.success) {
-		return fail({ message: "EditPlan schema is invalid." });
+		const [issue] = parsed.error.issues;
+		if (!issue) return fail({ message: "EditPlan schema is invalid." });
+		return schemaFailure({
+			plan,
+			path: issue.path,
+			message: issue.message,
+		});
 	}
 
 	const normalizedPlan = parsed.data;

@@ -3,6 +3,11 @@ import type { MediaAsset } from "@/types/assets";
 import { EditPlanSchema, type EditPlan } from "../schema";
 import { validateEditPlan } from "../validate";
 
+type ValidationFailure = Extract<
+	ReturnType<typeof validateEditPlan>,
+	{ success: false }
+>;
+
 function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	return {
 		id: "media-1",
@@ -70,6 +75,16 @@ function audioAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 		file: new File(["audio"], "music-bed.mp3", { type: "audio/mpeg" }),
 		...overrides,
 	});
+}
+
+function expectValidationFailure(
+	result: ReturnType<typeof validateEditPlan>,
+): ValidationFailure {
+	expect(result.success).toBe(false);
+	if (result.success) {
+		throw new Error("Expected EditPlan validation to fail.");
+	}
+	return result;
 }
 
 describe("validateEditPlan", () => {
@@ -380,10 +395,13 @@ describe("validateEditPlan", () => {
 			mediaAssets: [mediaAsset()],
 		});
 
-		expect(result).toEqual({
+		const failure = expectValidationFailure(result);
+		expect(failure).toMatchObject({
 			success: false,
-			message: "EditPlan schema is invalid.",
+			path: "captionStyle.preset",
 		});
+		expect(failure.message).toContain("captionStyle.preset");
+		expect(failure.message).toContain("keyword-highlight");
 	});
 
 	test("rejects bold_caption captionStyle preset", () => {
@@ -401,10 +419,12 @@ describe("validateEditPlan", () => {
 			mediaAssets: [mediaAsset()],
 		});
 
-		expect(result).toEqual({
+		const failure = expectValidationFailure(result);
+		expect(failure).toMatchObject({
 			success: false,
-			message: "EditPlan schema is invalid.",
+			path: "captionStyle.preset",
 		});
+		expect(failure.message).toContain("bold_caption");
 	});
 
 	test("rejects keyword_caption captionStyle preset", () => {
@@ -422,10 +442,12 @@ describe("validateEditPlan", () => {
 			mediaAssets: [mediaAsset()],
 		});
 
-		expect(result).toEqual({
+		const failure = expectValidationFailure(result);
+		expect(failure).toMatchObject({
 			success: false,
-			message: "EditPlan schema is invalid.",
+			path: "captionStyle.preset",
 		});
+		expect(failure.message).toContain("keyword_caption");
 	});
 
 	test("rejects arbitrary caption style fields", () => {
@@ -444,10 +466,12 @@ describe("validateEditPlan", () => {
 			mediaAssets: [mediaAsset()],
 		});
 
-		expect(result).toEqual({
+		const failure = expectValidationFailure(result);
+		expect(failure).toMatchObject({
 			success: false,
-			message: "EditPlan schema is invalid.",
+			path: "captionStyle",
 		});
+		expect(failure.message).toContain("css");
 	});
 
 	test("rejects overlapping title richSpans", () => {
@@ -496,10 +520,12 @@ describe("validateEditPlan", () => {
 			mediaAssets: [mediaAsset()],
 		});
 
-		expect(result).toEqual({
+		const failure = expectValidationFailure(result);
+		expect(failure).toMatchObject({
 			success: false,
-			message: "EditPlan schema is invalid.",
+			path: "captions[0]",
 		});
+		expect(failure.message).toContain("stylePreset");
 	});
 
 	test("schema rejects per-caption stylePreset", () => {

@@ -729,9 +729,9 @@ describe("applyEditPlanToEditor", () => {
 			editor,
 		});
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			success: false,
-			message: "EditPlan schema is invalid.",
+			path: "captionStyle.preset",
 		});
 		expect(editor.timeline.getTracks()).toEqual([videoTrack()]);
 	});
