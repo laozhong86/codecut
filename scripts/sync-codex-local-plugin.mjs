@@ -187,6 +187,17 @@ export function buildRsyncArgs({ sourceRoot, cacheRoot, dryRun = false }) {
 	];
 }
 
+export function buildReloadGuidance({ dryRun = false } = {}) {
+	return {
+		cacheSynced: !dryRun,
+		reopenWidget: true,
+		newSessionRecommended: true,
+		restartCodexAppOnlyIfStale: true,
+		reason:
+			"Codex loads plugins from the installed cache, but running sessions and MCP server processes may keep old tool schemas or server code until a new session starts.",
+	};
+}
+
 async function removeStaleCacheMetadata({ cacheRoot, dryRun }) {
 	if (dryRun) {
 		return;
@@ -228,6 +239,7 @@ export async function runSync({
 		sourceRoot: plan.sourceRoot,
 		cacheRoot: plan.cacheRoot,
 		excluded: EXCLUDES,
+		reloadGuidance: buildReloadGuidance({ dryRun }),
 	};
 	stdout(JSON.stringify(summary, null, 2));
 	return summary;

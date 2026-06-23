@@ -152,6 +152,14 @@ enabled = true
 				version: "0.1.1",
 				marketplaceName: "local-opc",
 				cacheRoot,
+				reloadGuidance: {
+					cacheSynced: false,
+					reopenWidget: true,
+					newSessionRecommended: true,
+					restartCodexAppOnlyIfStale: true,
+					reason:
+						"Codex loads plugins from the installed cache, but running sessions and MCP server processes may keep old tool schemas or server code until a new session starts.",
+				},
 			});
 		} finally {
 			await rm(sourceRoot, { recursive: true, force: true });
