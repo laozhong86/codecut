@@ -1,7 +1,7 @@
 {
   "name": "codecut",
   "version": "0.1.1+codex.p0-verifiable-loop-20260622",
-  "description": "Codex-only Codecut editing workflow for local executor transcription, EditPlan application, verification, and export.",
+  "description": "Local video editing workspace for Codex-controlled media import, transcript-aware planning, verified timeline updates, preview, and export checks.",
   "author": {
     "name": "Local OPC"
   },
@@ -11,19 +11,22 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Codecut",
-    "shortDescription": "Codex-only Codecut editing workflow.",
-    "longDescription": "Codecut packages a Codex-only editing workflow for operating Codecut through the local executor and codex-bridge CLI. Codecut stays deterministic: it exposes project state, media assets, local executor transcription, EditPlan validation/application, timeline verification, and export. Codex remains the only LLM and Agent layer.",
+    "shortDescription": "Create, inspect, and verify local video edits with Codex.",
+    "longDescription": "Codecut gives Codex a local video editing workspace for importing media, reading transcript and timeline state, applying validated EditPlans, previewing the visible editor state, and checking export readiness. Codex stays the planning layer; Codecut keeps timeline mutation, readback, and export local and verifiable.",
     "developerName": "Local OPC",
     "category": "Developer Tools",
     "capabilities": [
-      "Interactive",
-      "Read",
-      "Write"
+      "Local editing workspace",
+      "Media import and probing",
+      "Transcript-aware planning",
+      "Validated EditPlan timeline updates",
+      "Timeline readback and preview",
+      "Export readiness checks"
     ],
     "defaultPrompt": [
-      "Use Codecut to start a new edit from my video.",
-      "Use Codecut to make a short social cut from this source clip.",
-      "Use Codecut to open my editing workspace and set up the project."
+      "Open Codecut and set up a local video editing workspace.",
+      "Import my local video into Codecut and prepare a short-form edit.",
+      "Turn this source clip into a 30-90 second vertical short with captions."
     ],
     "brandColor": "#2563EB",
     "composerIcon": "./assets/codecut-logo-flat-dynamic.svg",

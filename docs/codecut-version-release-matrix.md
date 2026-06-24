@@ -9,13 +9,36 @@ sync pass, but the active Codex session still sees an older tool schema or a
 different `codex` binary. A release is only ready when every layer below has a
 recorded readback.
 
+## Publication Readiness Checklist
+
+Use this checklist before asking another user to install Codecut or before
+claiming a local plugin update is visible in Codex:
+
+- manifest version: `.codex-plugin/plugin.json` has the intended `name` and
+  `version`, and the release notes name both values.
+- MCP server version: the MCP server reports the same release version as the
+  plugin manifest. Codecut currently reads this from the manifest at runtime;
+  keep it that way instead of adding a second version constant.
+- skills: the installed bundle includes every intended `skills/*/SKILL.md`
+  entry and the public `codecut` skill still routes to stage skills rather than
+  hard-coded workflows.
+- source-to-cache sync: `node scripts/sync-codex-local-plugin.mjs` has run for
+  the target marketplace, and the follow-up dry run or `bun run
+  plugin:freshness` shows no release-relevant drift.
+- enabled config: Codex config enables the intended `codecut@<marketplace-name>`
+  entry, and the marketplace source points at the source checkout being
+  released.
+- fresh-session tool surface: after cache sync, a fresh Codex session can find
+  `mcp__codecut_mcp.open_codecut_workspace` through `tool_search`; current
+  sessions may still hold stale host schemas.
+
 ## Required Matrix
 
 | Layer | Required Evidence | Command Or Readback | Pass Criteria |
 | --- | --- | --- | --- |
 | Git source | Branch, clean status, commit SHA | `git status -sb`; `git rev-parse HEAD`; `git log -1 --pretty='%h %cd %s' --date=iso-strict` | Release source is the intended branch or landed mainline commit. Unrelated dirty files are not part of the release. |
 | Plugin manifest | Plugin name and version | `jq '{name,version}' .codex-plugin/plugin.json` | `name` is `codecut`; `version` is the release version being installed. |
-| Marketplace and config | Enabled plugin entry and marketplace source | `bun run plugin:freshness` | `codecut@local-opc` is enabled, and the marketplace entry points to the source checkout being released. |
+| Marketplace and config | Enabled plugin entry and marketplace source | `bun run plugin:freshness` | `codecut@<marketplace-name>` is enabled, and the marketplace entry points to the source checkout being released. |
 | Installed cache | Cache path and source-to-cache sync | `bun run plugin:freshness`; `node scripts/sync-codex-local-plugin.mjs --dry-run` | Cache version path matches the manifest version, and `plugin_sync` is ok or the dry-run reports no release-relevant drift. |
 | Codex CLI and app | Every visible Codex binary and version | `which -a codex`; `codex --version`; `/Applications/Codex.app/Contents/Resources/codex --version` when present | The release note records the binary actually used. Missing `codex plugin list --json` support is treated as CLI-version drift, not a Codecut plugin failure. |
 | Host tool surface | Current or fresh-session tool discovery | `tool_search` query: `open_codecut_workspace Codecut MCP workspace setup widget` | The callable tool `mcp__codecut_mcp.open_codecut_workspace` is visible after cache sync. |

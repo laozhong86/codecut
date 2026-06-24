@@ -6,6 +6,13 @@ import { fileURLToPath } from "node:url";
 
 const pluginRoot = dirname(fileURLToPath(import.meta.url));
 
+function sectionBetween(content, startHeading, nextHeadingLevel = "##") {
+	const start = content.indexOf(startHeading);
+	expect(start).toBeGreaterThanOrEqual(0);
+	const next = content.indexOf(`\n${nextHeadingLevel} `, start + startHeading.length);
+	return next === -1 ? content.slice(start) : content.slice(start, next);
+}
+
 describe("Codecut plugin startup guidance", () => {
 	test("exposes user-clickable starter prompts and plugin icons", async () => {
 		const pluginManifest = JSON.parse(
@@ -14,14 +21,25 @@ describe("Codecut plugin startup guidance", () => {
 		const pluginInterface = pluginManifest.interface;
 
 		expect(pluginInterface.defaultPrompt).toEqual([
-			"Use Codecut to start a new edit from my video.",
-			"Use Codecut to make a short social cut from this source clip.",
-			"Use Codecut to open my editing workspace and set up the project.",
+			"Open Codecut and set up a local video editing workspace.",
+			"Import my local video into Codecut and prepare a short-form edit.",
+			"Turn this source clip into a 30-90 second vertical short with captions.",
+		]);
+		expect(pluginInterface.capabilities).toEqual([
+			"Local editing workspace",
+			"Media import and probing",
+			"Transcript-aware planning",
+			"Validated EditPlan timeline updates",
+			"Timeline readback and preview",
+			"Export readiness checks",
 		]);
 		for (const prompt of pluginInterface.defaultPrompt) {
 			expect(prompt.length).toBeLessThanOrEqual(90);
 		}
-		const promptText = pluginInterface.defaultPrompt.join("\n");
+		const promptText = [
+			...pluginInterface.defaultPrompt,
+			...pluginInterface.capabilities,
+		].join("\n");
 		for (const stageSkill of [
 			"$codecut",
 			"$codecut-requirement-intake",
@@ -48,6 +66,48 @@ describe("Codecut plugin startup guidance", () => {
 		);
 		await access(join(pluginRoot, pluginInterface.composerIcon));
 		await access(join(pluginRoot, pluginInterface.logo));
+	});
+
+	test("documents plugin installation, publication, and verification as separate layers", async () => {
+		const readme = await readFile(join(pluginRoot, "README.md"), "utf8");
+		const zhReadme = await readFile(join(pluginRoot, "README.zh-CN.md"), "utf8");
+		const releaseMatrix = await readFile(
+			join(pluginRoot, "docs", "codecut-version-release-matrix.md"),
+			"utf8",
+		);
+		const installSection = sectionBetween(
+			readme,
+			"## Codex Plugin Install, Publish, And Verify",
+		);
+		const zhInstallSection = sectionBetween(
+			zhReadme,
+			"## Codex 插件安装、发布与验证",
+		);
+
+		for (const content of [installSection, zhInstallSection]) {
+			expect(content).toContain(".codex-plugin/plugin.json");
+			expect(content).toContain("~/.agents/plugins/marketplace.json");
+			expect(content).toContain("codex plugin marketplace add");
+			expect(content).toContain("codex plugin add codecut@");
+			expect(content).toContain("node scripts/sync-codex-local-plugin.mjs");
+			expect(content).toContain("bun run plugin:freshness");
+			expect(content).toContain("fresh Codex");
+			expect(content).toContain("tool_search");
+			expect(content).toContain("open_codecut_workspace");
+			expect(content).toContain("docs/codecut-version-release-matrix.md");
+			expect(content).not.toContain("local-opc");
+		}
+
+		for (const checklistItem of [
+			"manifest version",
+			"MCP server version",
+			"skills",
+			"source-to-cache sync",
+			"enabled config",
+			"fresh-session tool surface",
+		]) {
+			expect(releaseMatrix).toContain(checklistItem);
+		}
 	});
 
 	test("declares a local web server app for the Codecut preview", async () => {
