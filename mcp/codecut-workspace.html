@@ -37,6 +37,8 @@
         --cc-space-sm: 8px;
         --cc-space-md: 12px;
         --cc-space-lg: 14px;
+        --cc-media-list-max-height: 280px;
+        --cc-media-thumbnail-size: 56px;
         color-scheme: light dark;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: var(--cc-foreground);
@@ -132,20 +134,61 @@
         align-items: center;
       }
 
-      .media-sources,
       .choice-options {
         display: flex;
         flex-wrap: wrap;
         gap: var(--cc-space-md) var(--cc-space-lg);
       }
 
+      .media-sources {
+        display: grid;
+        gap: var(--cc-space-sm);
+        max-height: var(--cc-media-list-max-height);
+        overflow-y: auto;
+        padding: var(--cc-space-xs);
+        border: 1px solid var(--cc-subtle-border);
+        border-radius: var(--cc-radius-sm);
+        background: var(--cc-accent);
+      }
+
       .media-source-row {
         display: grid;
+        grid-template-columns: var(--cc-media-thumbnail-size) minmax(0, 1fr) auto;
+        align-items: start;
         gap: 10px;
         padding: 10px;
         border: 1px solid var(--cc-subtle-border);
         border-radius: var(--cc-radius-sm);
         background: var(--cc-surface-muted);
+      }
+
+      .media-source-thumbnail {
+        display: grid;
+        place-items: center;
+        width: var(--cc-media-thumbnail-size);
+        height: var(--cc-media-thumbnail-size);
+        overflow: hidden;
+        border: 1px solid var(--cc-control-border);
+        border-radius: var(--cc-radius-sm);
+        color: var(--cc-muted-foreground);
+        background: var(--cc-surface);
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+
+      .media-source-thumbnail img,
+      .media-source-thumbnail video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .media-source-fields {
+        display: grid;
+        min-width: 0;
+        gap: 10px;
       }
 
       .switch-row {
@@ -209,10 +252,6 @@
       button.secondary {
         color: var(--cc-primary);
         background: var(--cc-surface);
-      }
-
-      button.custom-toggle {
-        padding: 8px var(--cc-control-padding-x);
       }
 
       .create-project-cta {
@@ -292,6 +331,14 @@
         .grid {
           grid-template-columns: 1fr;
         }
+
+        .media-source-row {
+          grid-template-columns: var(--cc-media-thumbnail-size) minmax(0, 1fr);
+        }
+
+        .media-source-row > .row-actions {
+          grid-column: 2;
+        }
       }
     </style>
   </head>
@@ -311,7 +358,7 @@
 
         <fieldset aria-labelledby="source-section-title">
           <h2 id="source-section-title" class="section-heading" data-i18n="source">Source</h2>
-          <div id="media-sources" class="media-sources"></div>
+          <div id="media-sources" class="media-sources media-sources-list" role="list"></div>
           <input id="media-file-picker" class="file-picker-input" type="file" multiple>
           <p id="file-picker-selection" class="muted"></p>
           <div class="row-actions">
@@ -391,13 +438,11 @@
           <div class="intent-field">
             <span id="brief-label" data-i18n="brief">Brief</span>
             <div id="brief-options" class="choice-options"></div>
-            <button id="brief-custom-toggle" class="secondary custom-toggle" type="button" data-i18n="briefCustomToggle">Add custom brief</button>
             <textarea id="brief" class="hidden" name="brief" aria-labelledby="brief-label" data-i18n-placeholder="briefCustomPlaceholder"></textarea>
           </div>
           <div class="intent-field">
             <span id="success-criteria-label" data-i18n="successCriteria">Success criteria</span>
             <div id="success-criteria-options" class="choice-options"></div>
-            <button id="success-criteria-custom-toggle" class="secondary custom-toggle" type="button" data-i18n="successCriteriaCustomToggle">Add custom success criteria</button>
             <textarea id="success-criteria" class="hidden" name="successCriteria" aria-labelledby="success-criteria-label" data-i18n-placeholder="successCriteriaCustomPlaceholder"></textarea>
           </div>
         </fieldset>
@@ -436,6 +481,7 @@
             addMediaSource: "Add source",
             chooseFiles: "Choose files",
             removeMediaSource: "Remove source",
+            noMediaSources: "No media sources selected.",
             selectedFiles: "Selected files",
             selectedFilesNeedAbsolutePath: "Selected files were added below. If a path is not absolute, paste the full local path before creating.",
             selectedHostFilesAdded: "Host library files were added as HTTPS URLs.",
@@ -470,11 +516,10 @@
             intent: "Intent",
             brief: "Brief",
             briefPlaceholder: "Cut a clear short with the key message, readable captions, and natural audio.",
-            briefCustomToggle: "Add custom brief",
+            customOption: "Custom",
             briefCustomPlaceholder: "Add custom brief details.",
             successCriteria: "Success criteria",
             successCriteriaPlaceholder: "Clear hook, tight pacing, readable captions, export-ready ending.",
-            successCriteriaCustomToggle: "Add custom success criteria",
             successCriteriaCustomPlaceholder: "Add custom success criteria.",
             readyToCreate: "Ready to create",
             defaultsReady: "Required fields are prefilled. Change only what you need.",
@@ -509,6 +554,7 @@
             addMediaSource: "添加素材",
             chooseFiles: "选择文件",
             removeMediaSource: "移除素材",
+            noMediaSources: "尚未选择素材。",
             selectedFiles: "已选择文件",
             selectedFilesNeedAbsolutePath: "已把选择的文件加入下方素材列表。如果路径不是绝对路径，请先补全本地完整路径再创建。",
             selectedHostFilesAdded: "已把宿主文件库素材作为 HTTPS 链接加入下方列表。",
@@ -543,11 +589,10 @@
             intent: "剪辑需求",
             brief: "需求说明",
             briefPlaceholder: "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
-            briefCustomToggle: "补充自定义需求",
+            customOption: "自定义",
             briefCustomPlaceholder: "补充自定义需求。",
             successCriteria: "成功标准",
             successCriteriaPlaceholder: "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
-            successCriteriaCustomToggle: "补充自定义成功标准",
             successCriteriaCustomPlaceholder: "补充自定义成功标准。",
             readyToCreate: "可创建",
             defaultsReady: "必填项已预填，大部分情况下可直接创建项目。",
@@ -586,10 +631,8 @@
           includeAudio: document.getElementById("include-audio"),
           generateIntroCover: document.getElementById("generate-intro-cover"),
           brief: document.getElementById("brief"),
-          briefCustomToggle: document.getElementById("brief-custom-toggle"),
           briefOptions: document.getElementById("brief-options"),
           successCriteria: document.getElementById("success-criteria"),
-          successCriteriaCustomToggle: document.getElementById("success-criteria-custom-toggle"),
           successCriteriaOptions: document.getElementById("success-criteria-options"),
           statusTitle: document.getElementById("status-title"),
           statusMessage: document.getElementById("status-message"),
@@ -675,11 +718,12 @@
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
           fields.generateIntroCover.checked = defaults.generateIntroCover !== false;
-          renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t("briefPlaceholder")], defaults.brief);
+          renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t("briefPlaceholder")], defaults.brief, fields.brief);
           renderChoiceOptions(
             fields.successCriteriaOptions,
             defaults.successCriteriaOptions || [defaults.successCriteria || t("successCriteriaPlaceholder")],
             defaults.successCriteria,
+            fields.successCriteria,
           );
           fields.brief.value = "";
           fields.successCriteria.value = "";
@@ -708,41 +752,49 @@
         }
 
         function renderMediaSources(mediaSources) {
-          fields.mediaSources.innerHTML = "";
+          clearMediaSourceRows();
           const normalized = Array.isArray(mediaSources) && mediaSources.length
             ? mediaSources
             : [{ kind: "filePath", filePath: "" }];
           normalized.forEach((mediaSource) => appendMediaSourceRow(mediaSource));
+          refreshMediaSourcesEmptyState();
         }
 
         function appendMediaSourceRow(mediaSource = { kind: "filePath", filePath: "" }) {
+          fields.mediaSources.querySelector('[data-role="empty-media-sources"]')?.remove();
           const row = document.createElement("div");
           row.className = "media-source-row";
+          row.setAttribute("role", "listitem");
+          row.dataset.previewUrl = mediaSource.previewUrl || "";
+          row.dataset.previewObjectUrl = mediaSource.previewObjectUrl ? "true" : "false";
           row.innerHTML = `
-            <label>
-              <span data-i18n="mediaSource">${escapeHtml(t("mediaSource"))}</span>
-              <select data-field="kind">
-                <option value="filePath">${escapeHtml(t("localFilePath"))}</option>
-                <option value="url">${escapeHtml(t("httpsUrl"))}</option>
-              </select>
-            </label>
-            <label data-role="filePath">
-              <span data-i18n="absoluteFilePath">${escapeHtml(t("absoluteFilePath"))}</span>
-              <input data-field="filePath" spellcheck="false" data-i18n-placeholder="filePathPlaceholder" placeholder="${escapeAttribute(t("filePathPlaceholder"))}">
-            </label>
-            <div data-role="url" class="grid hidden">
+            <div class="media-source-thumbnail" data-role="thumbnail" aria-hidden="true"></div>
+            <div class="media-source-fields">
               <label>
-                <span data-i18n="httpsUrl">${escapeHtml(t("httpsUrl"))}</span>
-                <input data-field="url" spellcheck="false" data-i18n-placeholder="urlPlaceholder" placeholder="${escapeAttribute(t("urlPlaceholder"))}">
-              </label>
-              <label>
-                <span data-i18n="mimeType">${escapeHtml(t("mimeType"))}</span>
-                <select data-field="mimeType">
-                  <option value="video/mp4">video/mp4</option>
-                  <option value="video/webm">video/webm</option>
-                  <option value="video/quicktime">video/quicktime</option>
+                <span data-i18n="mediaSource">${escapeHtml(t("mediaSource"))}</span>
+                <select data-field="kind">
+                  <option value="filePath">${escapeHtml(t("localFilePath"))}</option>
+                  <option value="url">${escapeHtml(t("httpsUrl"))}</option>
                 </select>
               </label>
+              <label data-role="filePath">
+                <span data-i18n="absoluteFilePath">${escapeHtml(t("absoluteFilePath"))}</span>
+                <input data-field="filePath" spellcheck="false" data-i18n-placeholder="filePathPlaceholder" placeholder="${escapeAttribute(t("filePathPlaceholder"))}">
+              </label>
+              <div data-role="url" class="grid hidden">
+                <label>
+                  <span data-i18n="httpsUrl">${escapeHtml(t("httpsUrl"))}</span>
+                  <input data-field="url" spellcheck="false" data-i18n-placeholder="urlPlaceholder" placeholder="${escapeAttribute(t("urlPlaceholder"))}">
+                </label>
+                <label>
+                  <span data-i18n="mimeType">${escapeHtml(t("mimeType"))}</span>
+                  <select data-field="mimeType">
+                    <option value="video/mp4">video/mp4</option>
+                    <option value="video/webm">video/webm</option>
+                    <option value="video/quicktime">video/quicktime</option>
+                  </select>
+                </label>
+              </div>
             </div>
             <div class="row-actions">
               <button class="secondary" type="button" data-action="remove-source">${escapeHtml(t("removeMediaSource"))}</button>
@@ -757,23 +809,118 @@
           url.value = mediaSource.url || "";
           setSelectValue(mimeType, mediaSource.mimeType || "video/mp4");
           kind.addEventListener("change", () => {
+            clearMediaSourcePreview(row);
             updateMediaSourceRow(row);
+            renderMediaSourceThumbnail(row);
             resetReadyState();
           });
+          filePath.addEventListener("input", () => {
+            renderMediaSourceThumbnail(row);
+          });
+          url.addEventListener("input", () => {
+            renderMediaSourceThumbnail(row);
+          });
           row.querySelector('[data-action="remove-source"]').addEventListener("click", () => {
-            if (fields.mediaSources.children.length > 1) {
-              row.remove();
-              resetReadyState();
-            }
+            revokeMediaPreviewUrl(row);
+            row.remove();
+            refreshMediaSourcesEmptyState();
+            resetReadyState();
           });
           fields.mediaSources.appendChild(row);
           updateMediaSourceRow(row);
+          renderMediaSourceThumbnail(row, mediaSource);
+          refreshMediaSourcesEmptyState();
         }
 
         function updateMediaSourceRow(row) {
           const isUrl = row.querySelector('[data-field="kind"]').value === "url";
           row.querySelector('[data-role="filePath"]').classList.toggle("hidden", isUrl);
           row.querySelector('[data-role="url"]').classList.toggle("hidden", !isUrl);
+        }
+
+        function renderMediaSourceThumbnail(row, mediaSource = {}) {
+          const thumbnail = row.querySelector('[data-role="thumbnail"]');
+          thumbnail.innerHTML = "";
+          const previewUrl = row.dataset.previewUrl || "";
+          const kind = row.querySelector('[data-field="kind"]').value;
+          const pathValue = kind === "url"
+            ? row.querySelector('[data-field="url"]').value
+            : row.querySelector('[data-field="filePath"]').value;
+          const mimeType = String(mediaSource.previewMimeType || mediaSource.mimeType || "").toLowerCase();
+          const previewKind = mediaPreviewKind(previewUrl, mimeType);
+          if (previewKind === "image") {
+            const image = document.createElement("img");
+            image.src = previewUrl;
+            image.alt = "";
+            thumbnail.appendChild(image);
+            return;
+          }
+          if (previewKind === "video") {
+            const video = document.createElement("video");
+            video.src = previewUrl;
+            video.muted = true;
+            video.playsInline = true;
+            video.preload = "metadata";
+            thumbnail.appendChild(video);
+            return;
+          }
+          const fallback = document.createElement("span");
+          fallback.textContent = mediaThumbnailLabel(pathValue, kind);
+          thumbnail.appendChild(fallback);
+        }
+
+        function mediaPreviewKind(previewUrl, mimeType) {
+          if (!previewUrl) return "";
+          if (mimeType.startsWith("image/") || /^data:image\//i.test(previewUrl)) return "image";
+          if (mimeType.startsWith("video/") || /^data:video\//i.test(previewUrl) || /^blob:/i.test(previewUrl)) return "video";
+          return "";
+        }
+
+        function mediaThumbnailLabel(value, kind) {
+          const source = String(value || "").trim();
+          if (kind === "filePath" && !source) return "FILE";
+          if (kind === "url" && !source) return "URL";
+          const fileName = source.split(/[\\/]/).filter(Boolean).pop() || "";
+          const extension = fileName.includes(".") ? fileName.split(".").pop() : "";
+          return (extension || kind || "media").slice(0, 5).toUpperCase();
+        }
+
+        function refreshMediaSourcesEmptyState() {
+          const hasRows = Boolean(fields.mediaSources.querySelector(".media-source-row"));
+          const existing = fields.mediaSources.querySelector('[data-role="empty-media-sources"]');
+          if (hasRows) {
+            existing?.remove();
+            return;
+          }
+          if (existing) return;
+          const empty = document.createElement("p");
+          empty.className = "muted";
+          empty.dataset.role = "empty-media-sources";
+          empty.textContent = t("noMediaSources");
+          fields.mediaSources.appendChild(empty);
+        }
+
+        function clearMediaSourceRows() {
+          fields.mediaSources.querySelectorAll(".media-source-row").forEach(revokeMediaPreviewUrl);
+          fields.mediaSources.innerHTML = "";
+        }
+
+        function revokeMediaPreviewUrl(row) {
+          const previewUrl = row.dataset.previewUrl || "";
+          if (
+            row.dataset.previewObjectUrl === "true" &&
+            previewUrl &&
+            typeof URL !== "undefined" &&
+            typeof URL.revokeObjectURL === "function"
+          ) {
+            URL.revokeObjectURL(previewUrl);
+          }
+        }
+
+        function clearMediaSourcePreview(row) {
+          revokeMediaPreviewUrl(row);
+          row.dataset.previewUrl = "";
+          row.dataset.previewObjectUrl = "false";
         }
 
         function collectMediaSources() {
@@ -802,11 +949,30 @@
             return Boolean(source.filePath);
           });
           if (!hasExistingSource) {
-            fields.mediaSources.innerHTML = "";
+            clearMediaSourceRows();
           }
           for (const file of pickedFiles) {
-            appendMediaSourceRow({ kind: "filePath", filePath: pickedFilePath(file) });
+            appendMediaSourceRow({
+              kind: "filePath",
+              filePath: pickedFilePath(file),
+              ...createPickedFilePreview(file),
+            });
           }
+        }
+
+        function createPickedFilePreview(file) {
+          const mimeType = String(file?.type || "");
+          if (!/^image\//i.test(mimeType) && !/^video\//i.test(mimeType)) {
+            return {};
+          }
+          if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+            return {};
+          }
+          return {
+            previewUrl: URL.createObjectURL(file),
+            previewObjectUrl: true,
+            previewMimeType: mimeType,
+          };
         }
 
         function selectedFileName(file) {
@@ -922,7 +1088,7 @@
           resetReadyState();
         }
 
-        function renderChoiceOptions(container, options, recommendedText = "") {
+        function renderChoiceOptions(container, options, recommendedText = "", customField) {
           container.innerHTML = "";
           const normalizedOptions = normalizeChoiceOptions(options);
           const recommendedChoices = recommendedChoiceSet(normalizedOptions, recommendedText);
@@ -942,6 +1108,21 @@
             });
             container.appendChild(button);
           }
+          appendCustomChoiceOption(container, customField);
+        }
+
+        function appendCustomChoiceOption(container, customField) {
+          if (!customField) return;
+          const customButton = document.createElement("button");
+          customButton.type = "button";
+          customButton.className = "choice-option";
+          customButton.dataset.action = "toggle-custom";
+          customButton.setAttribute("aria-expanded", customField.classList.contains("hidden") ? "false" : "true");
+          customButton.textContent = t("customOption");
+          customButton.addEventListener("click", () => {
+            toggleCustomField(customField, customButton);
+          });
+          container.appendChild(customButton);
         }
 
         function recommendedChoiceSet(options, recommendedText) {
@@ -997,8 +1178,11 @@
           return [...selected, ...(custom ? [custom] : [])].join("\n");
         }
 
-        function toggleCustomField(field) {
+        function toggleCustomField(field, trigger) {
           field.classList.toggle("hidden");
+          const expanded = !field.classList.contains("hidden");
+          trigger?.setAttribute("aria-expanded", expanded ? "true" : "false");
+          trigger?.classList.toggle("is-active", expanded);
           if (!field.classList.contains("hidden")) {
             field.focus();
           }
@@ -1207,12 +1391,6 @@
           openHostFilePicker();
         });
         fields.mediaFilePicker.addEventListener("change", handlePickedFiles);
-        fields.briefCustomToggle.addEventListener("click", () => {
-          toggleCustomField(fields.brief);
-        });
-        fields.successCriteriaCustomToggle.addEventListener("click", () => {
-          toggleCustomField(fields.successCriteria);
-        });
         fields.form.addEventListener("input", () => {
           resetReadyState();
         });

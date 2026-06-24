@@ -137,6 +137,7 @@ const workspaceOpenInputSchema = {
 	successCriteria: z.string().optional(),
 	filePath: z.string().trim().optional(),
 	mediaPath: z.string().trim().optional(),
+	mediaPaths: z.array(z.string().trim().min(1)).optional(),
 	url: z.string().trim().optional(),
 	mimeType: z.string().trim().optional(),
 	mediaSources: workspaceMediaSourcesSchema.optional(),
@@ -963,7 +964,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Pass mediaPaths for multiple resolved local media files; do not pass directories as media files. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1375,7 +1376,19 @@ function buildWorkspaceIntentDefaults(input = {}) {
 
 function buildWorkspaceOpenMediaSources(input = {}) {
 	if (Array.isArray(input.mediaSources) && input.mediaSources.length) {
+		if (Array.isArray(input.mediaPaths) && input.mediaPaths.length) {
+			throw new Error("mediaSources and mediaPaths cannot both be provided.");
+		}
 		return input.mediaSources.map(normalizeWorkspaceMediaSource);
+	}
+	const mediaPaths = normalizeWorkspaceMediaPaths(input.mediaPaths);
+	if (mediaPaths.length) {
+		if (resolveWorkspaceOpenFilePath(input) || String(input.url || "").trim()) {
+			throw new Error(
+				"mediaPaths cannot be combined with filePath, mediaPath, or url.",
+			);
+		}
+		return mediaPaths.map((filePath) => ({ kind: "filePath", filePath }));
 	}
 	const filePath = resolveWorkspaceOpenFilePath(input);
 	const url = String(input.url || "").trim();
@@ -1390,6 +1403,11 @@ function buildWorkspaceOpenMediaSources(input = {}) {
 	}
 	if (mediaSources.length) return mediaSources;
 	return [{ kind: "filePath", filePath: "" }];
+}
+
+function normalizeWorkspaceMediaPaths(mediaPaths) {
+	if (!Array.isArray(mediaPaths)) return [];
+	return mediaPaths.map((mediaPath) => String(mediaPath || "").trim()).filter(Boolean);
 }
 
 function normalizeWorkspaceOptionList(options, fallback) {
