@@ -22,6 +22,10 @@
         --cc-disabled-background: #eef1ee;
         --cc-success: #0b6d45;
         --cc-danger: #9d2b22;
+        --cc-create-cta-background: #ecfdf3;
+        --cc-create-cta-background-hover: #d7fbe6;
+        --cc-create-cta-border: #38b56e;
+        --cc-create-cta-foreground: #073f29;
         --cc-radius-sm: 6px;
         --cc-radius-md: 8px;
         --cc-radius-pill: 999px;
@@ -211,6 +215,19 @@
         padding: 8px var(--cc-control-padding-x);
       }
 
+      .create-project-cta {
+        min-height: 46px;
+        border-color: var(--cc-create-cta-border);
+        padding: 11px 24px;
+        color: var(--cc-create-cta-foreground);
+        background: var(--cc-create-cta-background);
+        box-shadow: 0 0 0 1px rgba(56, 181, 110, 0.22), 0 10px 24px rgba(7, 63, 41, 0.18);
+      }
+
+      .create-project-cta:hover {
+        background: var(--cc-create-cta-background-hover);
+      }
+
       button:disabled {
         border-color: var(--cc-disabled-border);
         color: var(--cc-disabled-foreground);
@@ -392,7 +409,7 @@
         </section>
 
         <div class="actions">
-          <button id="submit-button" type="submit" data-i18n="createProject">Create project</button>
+          <button id="submit-button" class="create-project-cta" type="submit" data-i18n="createProject">Create project</button>
         </div>
       </form>
 
