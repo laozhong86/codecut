@@ -213,7 +213,7 @@ export function Timeline() {
 				"panel bg-background relative flex h-full flex-col overflow-hidden rounded-sm border"
 			}
 			{...dragProps}
-			aria-label="Timeline"
+			aria-label={t("Timeline")}
 		>
 			<TimelineToolbar
 				zoomLevel={zoomLevel}

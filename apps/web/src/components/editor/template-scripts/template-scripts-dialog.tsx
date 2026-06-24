@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -37,18 +38,40 @@ import {
 	type LocalTemplateTriggerType,
 } from "@/lib/template-scripts";
 
-const TRIGGER_OPTIONS: Array<{
-	value: LocalTemplateTriggerType;
-	label: string;
-}> = [
-	{ value: "product-proof-ad", label: "Product proof ad" },
-	{ value: "talking-head-short", label: "Talking-head short" },
-	{ value: "tutorial-demo", label: "Tutorial / demo" },
-	{ value: "narrated-broll", label: "Narrated B-roll" },
-	{ value: "subtitle-pass", label: "Subtitle pass" },
-	{ value: "timeline-inspection", label: "Timeline inspection" },
-	{ value: "custom", label: "Custom" },
+const TRIGGER_OPTIONS: LocalTemplateTriggerType[] = [
+	"product-proof-ad",
+	"talking-head-short",
+	"tutorial-demo",
+	"narrated-broll",
+	"subtitle-pass",
+	"timeline-inspection",
+	"custom",
 ];
+
+function getTriggerOptionLabel({
+	type,
+	t,
+}: {
+	type: LocalTemplateTriggerType;
+	t: (key: string) => string;
+}) {
+	switch (type) {
+		case "product-proof-ad":
+			return t("Product proof ad");
+		case "talking-head-short":
+			return t("Talking-head short");
+		case "tutorial-demo":
+			return t("Tutorial / demo");
+		case "narrated-broll":
+			return t("Narrated B-roll");
+		case "subtitle-pass":
+			return t("Subtitle pass");
+		case "timeline-inspection":
+			return t("Timeline inspection");
+		case "custom":
+			return t("Custom");
+	}
+}
 
 interface TemplateFormState {
 	id: string;
@@ -155,6 +178,7 @@ function templateFromForm({
 }
 
 function TemplateScriptsDialogContent() {
+	const { t } = useTranslation();
 	const [templates, setTemplates] = useState<LocalTemplateScriptRecord[]>([]);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [form, setForm] = useState<TemplateFormState>(EMPTY_FORM);
@@ -178,14 +202,14 @@ function TemplateScriptsDialogContent() {
 				setForm(EMPTY_FORM);
 			}
 		} catch (error) {
-			toast.error("Failed to load template scripts", {
+			toast.error(t("Failed to load template scripts"), {
 				description:
-					error instanceof Error ? error.message : "Please try again",
+					error instanceof Error ? error.message : t("Please try again"),
 			});
 		} finally {
 			setIsLoading(false);
 		}
-	}, [selectedId]);
+	}, [selectedId, t]);
 
 	useEffect(() => {
 		loadTemplates();
@@ -228,11 +252,11 @@ function TemplateScriptsDialogContent() {
 				setSelectedId(nextTemplate.id);
 			}
 			await loadTemplates();
-			toast.success("Template script saved");
+			toast.success(t("Template script saved"));
 		} catch (error) {
-			toast.error("Failed to save template script", {
+			toast.error(t("Failed to save template script"), {
 				description:
-					error instanceof Error ? error.message : "Please try again",
+					error instanceof Error ? error.message : t("Please try again"),
 			});
 		}
 	};
@@ -245,11 +269,11 @@ function TemplateScriptsDialogContent() {
 			});
 			resetForm();
 			await loadTemplates();
-			toast.success("Template script deleted");
+			toast.success(t("Template script deleted"));
 		} catch (error) {
-			toast.error("Failed to delete template script", {
+			toast.error(t("Failed to delete template script"), {
 				description:
-					error instanceof Error ? error.message : "Please try again",
+					error instanceof Error ? error.message : t("Please try again"),
 			});
 		}
 	};
@@ -257,21 +281,21 @@ function TemplateScriptsDialogContent() {
 	return (
 		<DialogContent className="max-w-5xl">
 			<DialogHeader>
-				<DialogTitle>Template scripts</DialogTitle>
+				<DialogTitle>{t("Template scripts")}</DialogTitle>
 				<DialogDescription>
-					Local editing scripts for named or trigger-based cuts.
+					{t("Local editing scripts for named or trigger-based cuts.")}
 				</DialogDescription>
 			</DialogHeader>
 			<DialogBody className="grid max-h-[70vh] grid-cols-1 gap-5 overflow-y-auto md:grid-cols-[260px_1fr]">
 				<div className="flex flex-col gap-3">
 					<Button type="button" variant="outline" onClick={resetForm}>
 						<HugeiconsIcon icon={PlusSignIcon} className="size-4" />
-						New script
+						{t("New script")}
 					</Button>
 					<div className="flex flex-col gap-2">
 						{templates.length === 0 ? (
 							<div className="text-muted-foreground rounded-md border p-3 text-sm">
-								No template scripts
+								{t("No template scripts")}
 							</div>
 						) : (
 							templates.map((template) => (
@@ -298,7 +322,7 @@ function TemplateScriptsDialogContent() {
 
 				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-script-id">ID</Label>
+						<Label htmlFor="template-script-id">{t("ID")}</Label>
 						<Input
 							id="template-script-id"
 							value={form.id}
@@ -307,7 +331,7 @@ function TemplateScriptsDialogContent() {
 						/>
 					</div>
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-script-name">Name</Label>
+						<Label htmlFor="template-script-name">{t("Name")}</Label>
 						<Input
 							id="template-script-name"
 							value={form.name}
@@ -315,7 +339,9 @@ function TemplateScriptsDialogContent() {
 						/>
 					</div>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-script-description">Description</Label>
+						<Label htmlFor="template-script-description">
+							{t("Description")}
+						</Label>
 						<Input
 							id="template-script-description"
 							value={form.description}
@@ -325,7 +351,7 @@ function TemplateScriptsDialogContent() {
 						/>
 					</div>
 					<div className="flex flex-col gap-2">
-						<Label>Trigger type</Label>
+						<Label>{t("Trigger type")}</Label>
 						<Select
 							value={form.triggerType}
 							onValueChange={(value) =>
@@ -337,8 +363,8 @@ function TemplateScriptsDialogContent() {
 							</SelectTrigger>
 							<SelectContent>
 								{TRIGGER_OPTIONS.map((option) => (
-									<SelectItem key={option.value} value={option.value}>
-										{option.label}
+									<SelectItem key={option} value={option}>
+										{getTriggerOptionLabel({ type: option, t })}
 									</SelectItem>
 								))}
 							</SelectContent>
@@ -351,10 +377,10 @@ function TemplateScriptsDialogContent() {
 								updateForm("isDefaultForTrigger", checked === true)
 							}
 						/>
-						Default for trigger
+						{t("Default for trigger")}
 					</Label>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-script-aliases">Aliases</Label>
+						<Label htmlFor="template-script-aliases">{t("Aliases")}</Label>
 						<Input
 							id="template-script-aliases"
 							value={form.aliases}
@@ -362,7 +388,9 @@ function TemplateScriptsDialogContent() {
 						/>
 					</div>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-script-objective">Objective</Label>
+						<Label htmlFor="template-script-objective">
+							{t("Objective")}
+						</Label>
 						<Textarea
 							id="template-script-objective"
 							value={form.objective}
@@ -370,7 +398,7 @@ function TemplateScriptsDialogContent() {
 						/>
 					</div>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-script-steps">Steps</Label>
+						<Label htmlFor="template-script-steps">{t("Steps")}</Label>
 						<Textarea
 							id="template-script-steps"
 							className="min-h-32"
@@ -379,7 +407,9 @@ function TemplateScriptsDialogContent() {
 						/>
 					</div>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-script-verification">Verification</Label>
+						<Label htmlFor="template-script-verification">
+							{t("Verification")}
+						</Label>
 						<Textarea
 							id="template-script-verification"
 							value={form.verification}
@@ -394,12 +424,12 @@ function TemplateScriptsDialogContent() {
 				{selectedTemplate ? (
 					<Button type="button" variant="destructive" onClick={deleteTemplate}>
 						<HugeiconsIcon icon={Delete02Icon} className="size-4" />
-						Delete
+						{t("Delete")}
 					</Button>
 				) : null}
 				<Button type="button" onClick={saveTemplate} disabled={isLoading}>
 					<HugeiconsIcon icon={Edit03Icon} className="size-4" />
-					Save script
+					{t("Save script")}
 				</Button>
 			</DialogFooter>
 		</DialogContent>
@@ -407,12 +437,14 @@ function TemplateScriptsDialogContent() {
 }
 
 export function TemplateScriptsDialog() {
+	const { t } = useTranslation();
+
 	return (
 		<Dialog>
 			<DialogTrigger asChild>
 				<Button variant="outline" type="button" className="gap-1.5">
 					<HugeiconsIcon icon={Edit03Icon} className="size-4" />
-					<span className="hidden sm:inline">Templates</span>
+					<span className="hidden sm:inline">{t("Templates")}</span>
 				</Button>
 			</DialogTrigger>
 			<TemplateScriptsDialogContent />

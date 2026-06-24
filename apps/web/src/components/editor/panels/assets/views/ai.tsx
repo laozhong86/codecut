@@ -61,7 +61,7 @@ import { UserIcon } from "@hugeicons/core-free-icons";
 import { Link, useRouter } from "@/lib/navigation";
 
 const ASPECT_RATIOS = [
-	{ value: "auto", label: "Auto" },
+	{ value: "auto", label: null },
 	{ value: "1:1", label: "1:1" },
 	{ value: "16:9", label: "16:9" },
 	{ value: "9:16", label: "9:16" },
@@ -92,6 +92,18 @@ const VIDEO_RESOLUTIONS = [
 	{ value: "720p", label: "720p" },
 	{ value: "1080p", label: "1080p" },
 ] as const;
+
+function formatAspectRatioLabel({
+	value,
+	label,
+	t,
+}: {
+	value: string;
+	label: string | null;
+	t: (key: string) => string;
+}) {
+	return value === "auto" ? t("Auto") : label;
+}
 
 function ReferenceImagePicker({
 	previewUrl,
@@ -285,7 +297,11 @@ function AIImageView() {
 						<SelectContent>
 							{ASPECT_RATIOS.map((ratio) => (
 								<SelectItem key={ratio.value} value={ratio.value}>
-									{ratio.label}
+									{formatAspectRatioLabel({
+										value: ratio.value,
+										label: ratio.label,
+										t,
+									})}
 								</SelectItem>
 							))}
 						</SelectContent>
@@ -360,7 +376,7 @@ function AssetStatusBadge({
 					strokeLinecap="round"
 					strokeLinejoin="round"
 				>
-					<title>Added</title>
+					<title>{t("Added")}</title>
 					<path d="M5 13l4 4L19 7" />
 				</svg>
 			</div>
@@ -404,7 +420,7 @@ function AssetStatusBadge({
 					strokeLinecap="round"
 					strokeLinejoin="round"
 				>
-					<title>Retry</title>
+					<title>{t("Retry")}</title>
 					<path d="M18 6L6 18M6 6l12 12" />
 				</svg>
 			</button>

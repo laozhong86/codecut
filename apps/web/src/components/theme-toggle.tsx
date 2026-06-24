@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "./ui/button";
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { useTheme } from "@/components/providers/theme-provider";
 import { cn } from "@/utils/ui";
 import { Sun03Icon } from "@hugeicons/core-free-icons";
@@ -18,6 +19,7 @@ export function ThemeToggle({
 	onToggle,
 }: ThemeToggleProps) {
 	const { theme, setTheme } = useTheme();
+	const { t } = useTranslation();
 
 	return (
 		<Button
@@ -30,7 +32,9 @@ export function ThemeToggle({
 			}}
 		>
 			<HugeiconsIcon icon={Sun03Icon} className={cn("!size-[1.1rem]", iconClassName)} />
-			<span className="sr-only">{theme === "dark" ? "Light" : "Dark"}</span>
+			<span className="sr-only">
+				{theme === "dark" ? t("Light") : t("Dark")}
+			</span>
 		</Button>
 	);
 }

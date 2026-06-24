@@ -16,6 +16,7 @@ import { Input } from "./input";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { ScrollArea } from "./scroll-area";
 import { cn } from "@/utils/ui";
+import { i18next } from "@/lib/i18n";
 
 type PhoneInputProps = Omit<
 	React.ComponentProps<"input">,
@@ -106,10 +107,10 @@ const CountrySelect = ({
 			</PopoverTrigger>
 			<PopoverContent className="w-[300px] p-0">
 				<Command>
-					<CommandInput placeholder="Search country..." />
+					<CommandInput placeholder={i18next.t("Search country...")} />
 					<CommandList>
 						<ScrollArea className="h-72">
-							<CommandEmpty>No country found.</CommandEmpty>
+							<CommandEmpty>{i18next.t("No country found.")}</CommandEmpty>
 							<CommandGroup>
 								{countryList.map(({ value, label }) =>
 									value ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { lazy, Suspense } from "react";
 import {
 	ResizablePanelGroup,
@@ -37,6 +38,7 @@ export default function Editor() {
 
 function EditorShell() {
 	const isMobile = useIsMobile();
+	const { t } = useTranslation();
 
 	return (
 		<div className="bg-background flex h-screen w-screen flex-col overflow-hidden">
@@ -44,7 +46,7 @@ function EditorShell() {
 				<Suspense
 					fallback={
 						<div className="flex h-screen items-center justify-center">
-							Loading...
+							{t("Loading...")}
 						</div>
 					}
 				>
