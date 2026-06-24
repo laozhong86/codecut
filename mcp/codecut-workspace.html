@@ -261,7 +261,7 @@
   <body>
     <main>
       <h1 data-i18n="title">CodeCut Workspace</h1>
-      <p data-i18n="subtitle">Confirm the editing intent, validate local setup, then create the executor project.</p>
+      <p data-i18n="subtitle">Review the prefilled editing intent, adjust only if needed, then create the executor project.</p>
 
       <form id="workspace-form">
         <fieldset aria-labelledby="project-section-title">
@@ -359,14 +359,13 @@
         </fieldset>
 
         <section class="status" aria-live="polite">
-          <strong id="status-title" data-i18n="notInspected">Not inspected</strong>
-          <p id="status-message" class="muted" data-i18n="inspectBeforeSubmit">Run inspection before submitting.</p>
+          <strong id="status-title" data-i18n="readyToCreate">Ready to create</strong>
+          <p id="status-message" class="muted" data-i18n="defaultsReady">Required fields are prefilled. Change only what you need.</p>
           <ul id="checks" class="checks"></ul>
         </section>
 
         <div class="actions">
-          <button id="inspect-button" class="secondary" type="button" data-i18n="inspectSetup">Inspect setup</button>
-          <button id="submit-button" type="submit" disabled data-i18n="createProject">Create project</button>
+          <button id="submit-button" type="submit" data-i18n="createProject">Create project</button>
         </div>
       </form>
 
@@ -381,7 +380,7 @@
         const WORKSPACE_I18N = {
           en: {
             title: "CodeCut Workspace",
-            subtitle: "Confirm the editing intent, validate local setup, then create the executor project.",
+            subtitle: "Review the prefilled editing intent, adjust only if needed, then create the executor project.",
             project: "Project",
             projectName: "Project name",
             projectNamePlaceholder: "CodeCut Project",
@@ -394,7 +393,7 @@
             chooseFiles: "Choose files",
             removeMediaSource: "Remove source",
             selectedFiles: "Selected files",
-            selectedFilesNeedAbsolutePath: "Selected files were added below. If a path is not absolute, paste the full local path before inspecting.",
+            selectedFilesNeedAbsolutePath: "Selected files were added below. If a path is not absolute, paste the full local path before creating.",
             selectedHostFilesAdded: "Host library files were added as HTTPS URLs.",
             hostFilePickerFailed: "Selected host files could not be resolved. Choose local files or paste absolute paths.",
             filePathPlaceholder: "/Users/me/Movies/source.mp4",
@@ -431,17 +430,12 @@
             successCriteriaPlaceholder: "Clear hook, tight pacing, readable captions, export-ready ending.",
             successCriteriaCustomToggle: "Add custom success criteria",
             successCriteriaCustomPlaceholder: "Add custom success criteria.",
-            notInspected: "Not inspected",
-            inspectBeforeSubmit: "Run inspection before submitting.",
-            inspectSetup: "Inspect setup",
+            readyToCreate: "Ready to create",
+            defaultsReady: "Required fields are prefilled. Change only what you need.",
             createProject: "Create project",
-            ready: "Ready",
             blocked: "Blocked",
             ok: "OK",
-            setupReady: "Setup can create a project and import media.",
-            setupBlocked: "Resolve the failed checks before creating a project.",
-            inspecting: "Inspecting",
-            inspectingDetail: "Checking project, media, and local bridge.",
+            setupBlocked: "Resolve the failed fields before creating a project.",
             creating: "Creating",
             creatingDetail: "Creating project and importing media.",
             setupFailed: "CodeCut setup failed.",
@@ -456,7 +450,7 @@
           },
           "zh-CN": {
             title: "CodeCut 工作区",
-            subtitle: "确认剪辑需求，检查本地环境，然后创建执行器项目。",
+            subtitle: "确认已预填的剪辑需求，如需修改再调整，然后创建执行器项目。",
             project: "项目",
             projectName: "项目名称",
             projectNamePlaceholder: "CodeCut 项目",
@@ -469,7 +463,7 @@
             chooseFiles: "选择文件",
             removeMediaSource: "移除素材",
             selectedFiles: "已选择文件",
-            selectedFilesNeedAbsolutePath: "已把选择的文件加入下方素材列表。如果路径不是绝对路径，请先补全本地完整路径再检查。",
+            selectedFilesNeedAbsolutePath: "已把选择的文件加入下方素材列表。如果路径不是绝对路径，请先补全本地完整路径再创建。",
             selectedHostFilesAdded: "已把宿主文件库素材作为 HTTPS 链接加入下方列表。",
             hostFilePickerFailed: "无法解析宿主选择的文件。请选择本地文件，或粘贴绝对文件路径。",
             filePathPlaceholder: "/Users/x/Movies/source.mp4",
@@ -506,17 +500,12 @@
             successCriteriaPlaceholder: "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
             successCriteriaCustomToggle: "补充自定义成功标准",
             successCriteriaCustomPlaceholder: "补充自定义成功标准。",
-            notInspected: "未检查",
-            inspectBeforeSubmit: "创建项目前需要先检查。",
-            inspectSetup: "检查设置",
+            readyToCreate: "可创建",
+            defaultsReady: "必填项已预填，大部分情况下可直接创建项目。",
             createProject: "创建项目",
-            ready: "可创建",
             blocked: "已阻塞",
             ok: "通过",
-            setupReady: "当前设置可以创建项目并导入素材。",
-            setupBlocked: "请先解决失败检查项，再创建项目。",
-            inspecting: "检查中",
-            inspectingDetail: "正在检查项目、素材和本地桥接服务。",
+            setupBlocked: "请先解决失败项，再创建项目。",
             creating: "创建中",
             creatingDetail: "正在创建项目并导入素材。",
             setupFailed: "CodeCut 设置失败。",
@@ -554,14 +543,12 @@
           statusTitle: document.getElementById("status-title"),
           statusMessage: document.getElementById("status-message"),
           checks: document.getElementById("checks"),
-          inspectButton: document.getElementById("inspect-button"),
           submitButton: document.getElementById("submit-button"),
           result: document.getElementById("result"),
           followUp: document.getElementById("follow-up"),
         };
 
         let currentProjectId = "";
-        let lastInspectionReady = false;
         let activeLanguage = "en";
 
         function normalizeUiLanguage(value) {
@@ -636,7 +623,7 @@
           );
           fields.brief.value = "";
           fields.successCriteria.value = "";
-          invalidateInspection();
+          resetReadyState();
         }
 
         function setSelectValue(select, value) {
@@ -652,9 +639,12 @@
           select.value = normalized;
         }
 
-        function invalidateInspection() {
-          lastInspectionReady = false;
-          fields.submitButton.disabled = true;
+        function resetReadyState() {
+          fields.submitButton.disabled = false;
+          fields.statusTitle.textContent = t("readyToCreate");
+          fields.statusTitle.className = "";
+          fields.statusMessage.textContent = t("defaultsReady");
+          fields.checks.innerHTML = "";
         }
 
         function renderMediaSources(mediaSources) {
@@ -708,12 +698,12 @@
           setSelectValue(mimeType, mediaSource.mimeType || "video/mp4");
           kind.addEventListener("change", () => {
             updateMediaSourceRow(row);
-            invalidateInspection();
+            resetReadyState();
           });
           row.querySelector('[data-action="remove-source"]').addEventListener("click", () => {
             if (fields.mediaSources.children.length > 1) {
               row.remove();
-              invalidateInspection();
+              resetReadyState();
             }
           });
           fields.mediaSources.appendChild(row);
@@ -822,7 +812,7 @@
           for (const mediaSource of mediaSources) {
             appendMediaSourceRow(mediaSource);
           }
-          invalidateInspection();
+          resetReadyState();
           return true;
         }
 
@@ -869,7 +859,7 @@
             ? `${t("selectedFiles")}: ${names.join(", ")}. ${t("selectedFilesNeedAbsolutePath")}`
             : "";
           appendPickedFileRows(files);
-          invalidateInspection();
+          resetReadyState();
         }
 
         function renderChoiceOptions(container, options) {
@@ -885,7 +875,7 @@
               const isActive = button.getAttribute("aria-pressed") === "true";
               button.setAttribute("aria-pressed", isActive ? "false" : "true");
               button.classList.toggle("is-active", !isActive);
-              invalidateInspection();
+              resetReadyState();
             });
             container.appendChild(button);
           }
@@ -928,7 +918,7 @@
           if (!field.classList.contains("hidden")) {
             field.focus();
           }
-          invalidateInspection();
+          resetReadyState();
         }
 
         function collectIntent() {
@@ -967,15 +957,7 @@
           return result?.structuredContent || result || {};
         }
 
-        function renderInspection(payload) {
-          const ready = payload.status === "ready";
-          lastInspectionReady = ready;
-          fields.submitButton.disabled = !ready;
-          fields.statusTitle.textContent = ready ? t("ready") : t("blocked");
-          fields.statusTitle.className = ready ? "ok" : "blocked";
-          fields.statusMessage.textContent = ready
-            ? t("setupReady")
-            : t("setupBlocked");
+        function renderChecks(payload) {
           fields.checks.innerHTML = "";
           for (const check of payload.checks || []) {
             const item = document.createElement("li");
@@ -993,33 +975,16 @@
           }
         }
 
-        async function inspect() {
-          fields.inspectButton.disabled = true;
-          fields.statusTitle.textContent = t("inspecting");
-          fields.statusTitle.className = "";
-          fields.statusMessage.textContent = t("inspectingDetail");
-          try {
-            const result = await callTool("inspect_codecut_setup", collectIntent());
-            renderInspection(structuredContent(result));
-          } catch (error) {
-            lastInspectionReady = false;
-            fields.submitButton.disabled = true;
-            fields.statusTitle.textContent = t("blocked");
-            fields.statusTitle.className = "blocked";
-            fields.statusMessage.textContent = error instanceof Error ? error.message : String(error);
-          } finally {
-            fields.inspectButton.disabled = false;
-          }
+        function renderBlocked(payload) {
+          fields.statusTitle.textContent = t("blocked");
+          fields.statusTitle.className = "blocked";
+          fields.statusMessage.textContent = payload?.error || payload?.message || t("setupBlocked");
+          renderChecks(payload || {});
         }
 
         async function submit(event) {
           event.preventDefault();
-          if (!lastInspectionReady) {
-            await inspect();
-            if (!lastInspectionReady) return;
-          }
           fields.submitButton.disabled = true;
-          fields.inspectButton.disabled = true;
           fields.statusTitle.textContent = t("creating");
           fields.statusTitle.className = "";
           fields.statusMessage.textContent = t("creatingDetail");
@@ -1027,18 +992,18 @@
             const result = await callTool("submit_codecut_setup", collectIntent());
             const payload = structuredContent(result);
             if (result?.isError || payload.status !== "created") {
-              throw new Error(payload.error || t("setupFailed"));
+              renderBlocked(payload?.status ? payload : { error: payload.error || t("setupFailed") });
+              return;
             }
             renderSuccess(payload);
             await openEditor(payload.editorUrl);
             await sendFollowUp(payload.continuePrompt);
           } catch (error) {
-            fields.statusTitle.textContent = t("blocked");
-            fields.statusTitle.className = "blocked";
-            fields.statusMessage.textContent = error instanceof Error ? error.message : String(error);
+            renderBlocked({
+              error: error instanceof Error ? error.message : String(error),
+            });
           } finally {
-            fields.inspectButton.disabled = false;
-            fields.submitButton.disabled = !lastInspectionReady;
+            fields.submitButton.disabled = false;
           }
         }
 
@@ -1121,11 +1086,11 @@
 
         fields.projectName.addEventListener("input", () => {
           currentProjectId = slugify(fields.projectName.value);
-          invalidateInspection();
+          resetReadyState();
         });
         fields.addMediaSourceButton.addEventListener("click", () => {
           appendMediaSourceRow();
-          invalidateInspection();
+          resetReadyState();
         });
         fields.mediaFilePickerButton.addEventListener("click", () => {
           openHostFilePicker();
@@ -1138,9 +1103,8 @@
           toggleCustomField(fields.successCriteria);
         });
         fields.form.addEventListener("input", () => {
-          invalidateInspection();
+          resetReadyState();
         });
-        fields.inspectButton.addEventListener("click", inspect);
         fields.form.addEventListener("submit", submit);
 
         const defaults = initialDefaults();

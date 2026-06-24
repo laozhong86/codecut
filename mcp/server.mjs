@@ -963,8 +963,12 @@ export function openCodecutWorkspace(input = {}) {
 
 export async function inspectCodecutSetup(
 	intent,
-	{ bridgeToolImpl = callBridgeCliTool, statImpl = stat } = {},
+	{ statImpl = stat } = {},
 ) {
+	return validateCodecutSetupIntent(intent, { statImpl });
+}
+
+async function validateCodecutSetupIntent(intent, { statImpl = stat } = {}) {
 	const checks = [];
 	const normalized = normalizeWorkspaceIntent(intent || {});
 
@@ -1028,50 +1032,6 @@ export async function inspectCodecutSetup(
 		"Duration goal must be a positive number of seconds.",
 	);
 
-	let projectList = null;
-	try {
-		const listResult = await bridgeToolImpl("list_projects", {});
-		if (listResult?.isError) {
-			pushCheck(
-				checks,
-				"bridge",
-				"CodeCut bridge",
-				false,
-				extractErrorMessage(listResult),
-			);
-		} else {
-			projectList = extractProjects(listResult?.structuredContent || listResult);
-			pushCheck(
-				checks,
-				"bridge",
-				"CodeCut bridge",
-				true,
-				"CodeCut bridge and project list are reachable.",
-			);
-		}
-	} catch (error) {
-		pushCheck(
-			checks,
-			"bridge",
-			"CodeCut bridge",
-			false,
-			error instanceof Error ? error.message : String(error),
-		);
-	}
-
-	if (projectList) {
-		const exists = projectList.some(
-			(project) => String(project?.projectId || project?.id || "") === normalized.projectId,
-		);
-		pushCheck(
-			checks,
-			"project-collision",
-			"Project ID availability",
-			!exists,
-			`Project ID already exists: ${normalized.projectId}`,
-		);
-	}
-
 	return {
 		status: checks.every((check) => check.ok) ? "ready" : "blocked",
 		checks,
@@ -1083,10 +1043,7 @@ export async function submitCodecutSetup(
 	intent,
 	{ bridgeToolImpl = callBridgeCliTool, statImpl = stat } = {},
 ) {
-	const inspection = await inspectCodecutSetup(intent, {
-		bridgeToolImpl,
-		statImpl,
-	});
+	const inspection = await validateCodecutSetupIntent(intent, { statImpl });
 	if (inspection.status !== "ready") {
 		return {
 			content: [
@@ -1489,16 +1446,6 @@ function pushCheck(checks, id, label, ok, detail) {
 		ok: Boolean(ok),
 		...(ok ? {} : { detail }),
 	});
-}
-
-function extractProjects(content) {
-	if (Array.isArray(content)) return content;
-	if (Array.isArray(content?.projects)) return content.projects;
-	if (Array.isArray(content?.data?.projects)) return content.data.projects;
-	if (Array.isArray(content?.results?.[0]?.data?.projects)) {
-		return content.results[0].data.projects;
-	}
-	return [];
 }
 
 function extractProjectInfo(content) {

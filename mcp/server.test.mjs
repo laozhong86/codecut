@@ -291,7 +291,6 @@ describe("Codecut MCP server contract", () => {
 			"selectFiles",
 			"appendPickedFileRows",
 			'fields.mediaFilePicker.addEventListener("change", handlePickedFiles)',
-			'callTool("inspect_codecut_setup"',
 			'callTool("submit_codecut_setup"',
 			"openExternal",
 			"sendFollowUpMessage",
@@ -329,6 +328,15 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain('id="media-url"');
 		expect(html).not.toContain('<input id="duration-goal-seconds"');
 		expect(html).not.toContain('<input id="caption-language"');
+		expect(html).not.toContain('id="inspect-button"');
+		expect(html).not.toContain('callTool("inspect_codecut_setup"');
+		expect(html).not.toContain("lastInspectionReady");
+		expect(html).not.toContain("Run inspection before submitting.");
+		expect(html).not.toContain("检查设置");
+		expect(html).not.toContain("创建项目前需要先检查。");
+		expect(html).toContain(
+			'<button id="submit-button" type="submit" data-i18n="createProject">Create project</button>',
+		);
 	});
 
 	test("workspace widget reads Codex host metadata defaults", async () => {
@@ -478,7 +486,7 @@ describe("Codecut MCP server contract", () => {
 		).toThrow("filePath and mediaPath must match");
 	});
 
-	test("inspects setup inputs without mutation and reports blockers", async () => {
+	test("inspects setup inputs without bridge preflight and reports local blockers", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
 		const filePath = join(directory, "source.mp4");
 		const secondFilePath = join(directory, "second.mp4");
@@ -487,9 +495,7 @@ describe("Codecut MCP server contract", () => {
 		const bridgeCalls = [];
 		const bridgeToolImpl = async (toolName) => {
 			bridgeCalls.push(toolName);
-			return {
-				structuredContent: { projects: [{ projectId: "existing-cut" }] },
-			};
+			throw new Error(`Unexpected bridge call ${toolName}`);
 		};
 
 		try {
@@ -505,7 +511,7 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(ready.status).toBe("ready");
 			expect(ready.checks.every((check) => check.ok)).toBe(true);
-			expect(bridgeCalls).toEqual(["list_projects"]);
+			expect(bridgeCalls).toEqual([]);
 
 			for (const [label, intent] of [
 				["invalid project id", setupIntent({ projectId: "../bad" })],
@@ -526,7 +532,6 @@ describe("Codecut MCP server contract", () => {
 				],
 				["bad aspect ratio", setupIntent({ targetAspectRatio: "4:5" })],
 				["bad duration", setupIntent({ durationGoalSeconds: 0 })],
-				["existing project", setupIntent({ projectId: "existing-cut" })],
 			]) {
 				const blocked = await serverModule.inspectCodecutSetup(intent, {
 					bridgeToolImpl,
@@ -554,9 +559,6 @@ describe("Codecut MCP server contract", () => {
 		const calls = [];
 		const bridgeToolImpl = async (toolName, args) => {
 			calls.push({ toolName, args });
-			if (toolName === "list_projects") {
-				return { structuredContent: { projects: [] } };
-			}
 			if (toolName === "create_project") {
 				return {
 					structuredContent: {
@@ -615,7 +617,6 @@ describe("Codecut MCP server contract", () => {
 			);
 
 			expect(calls.map((call) => call.toolName)).toEqual([
-				"list_projects",
 				"create_project",
 				"import_media",
 				"import_media",
