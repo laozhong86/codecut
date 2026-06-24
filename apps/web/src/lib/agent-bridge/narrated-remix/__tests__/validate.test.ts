@@ -26,6 +26,19 @@ function audioAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	});
 }
 
+function imageAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
+	return mediaAsset({
+		id: "image-1",
+		name: "Property card.jpg",
+		type: "image",
+		duration: undefined,
+		width: 1080,
+		height: 1920,
+		file: new File(["image"], "property-card.jpg", { type: "image/jpeg" }),
+		...overrides,
+	});
+}
+
 function validPlan() {
 	return {
 		version: 1,
@@ -88,6 +101,54 @@ describe("validateNarratedRemixPlan", () => {
 		});
 	});
 
+	test("accepts image card beats with editable card text", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 30, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						mediaType: "image",
+						id: "card-1",
+						mediaId: "image-1",
+						timelineStart: 0,
+						duration: 10,
+						fit: "cover",
+						cardText: {
+							title: "天府新区双华麓港",
+							info: "117.55㎡ 套三双卫 总价186万",
+							bottomText: "地铁口商圈边",
+						},
+						reason: "Property qualification card.",
+					},
+					{
+						id: "beat-2",
+						mediaId: "video-2",
+						sourceStart: 12,
+						sourceEnd: 32,
+						timelineStart: 10,
+						muted: true,
+						reason: "Shows the process.",
+					},
+				],
+			},
+			projectId: "project-1",
+			mediaAssets: [imageAsset(), mediaAsset({ id: "video-2" }), audioAsset()],
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) throw new Error(result.message);
+		expect(result.normalizedPlan.visualBeats[0]).toMatchObject({
+			mediaType: "image",
+			mediaId: "image-1",
+			cardText: {
+				title: "天府新区双华麓港",
+				info: "117.55㎡ 套三双卫 总价186万",
+				bottomText: "地铁口商圈边",
+			},
+		});
+	});
+
 	test("rejects captions without an explicit captionStyle", () => {
 		const { captionStyle: _captionStyle, ...plan } = validPlan();
 
@@ -144,7 +205,7 @@ describe("validateNarratedRemixPlan", () => {
 		});
 	});
 
-	test("rejects image B-roll assets", () => {
+	test("rejects legacy video beats that reference image assets", () => {
 		const result = validateNarratedRemixPlan({
 			plan: validPlan(),
 			projectId: "project-1",
@@ -159,6 +220,103 @@ describe("validateNarratedRemixPlan", () => {
 			success: false,
 			message: "NarratedRemixPlan visualBeat media must be video.",
 			path: "visualBeats[0].mediaId",
+		});
+	});
+
+	test("rejects image card beats that reference video assets", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				visualBeats: [
+					{
+						mediaType: "image",
+						id: "card-1",
+						mediaId: "video-1",
+						timelineStart: 0,
+						duration: 30,
+						fit: "cover",
+						cardText: {
+							title: "天府新区双华麓港",
+							info: "117.55㎡ 套三双卫 总价186万",
+							bottomText: "地铁口商圈边",
+						},
+						reason: "Property qualification card.",
+					},
+				],
+			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "NarratedRemixPlan imageBeat media must be image.",
+			path: "visualBeats[0].mediaId",
+		});
+	});
+
+	test("rejects image card beats missing editable info text", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				visualBeats: [
+					{
+						mediaType: "image",
+						id: "card-1",
+						mediaId: "image-1",
+						timelineStart: 0,
+						duration: 30,
+						fit: "cover",
+						cardText: {
+							title: "天府新区双华麓港",
+							info: "",
+							bottomText: "地铁口商圈边",
+						},
+						reason: "Property qualification card.",
+					},
+				],
+			},
+			projectId: "project-1",
+			mediaAssets: [imageAsset(), audioAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "NarratedRemixPlan schema is invalid.",
+			path: "visualBeats[0].cardText.info",
+		});
+	});
+
+	test("rejects image card beats outside the 9:16 card contract", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 30, aspectRatio: "16:9" },
+				visualBeats: [
+					{
+						mediaType: "image",
+						id: "card-1",
+						mediaId: "image-1",
+						timelineStart: 0,
+						duration: 30,
+						fit: "cover",
+						cardText: {
+							title: "天府新区双华麓港",
+							info: "117.55㎡ 套三双卫 总价186万",
+							bottomText: "地铁口商圈边",
+						},
+						reason: "Property qualification card.",
+					},
+				],
+			},
+			projectId: "project-1",
+			mediaAssets: [imageAsset(), audioAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "NarratedRemixPlan image cards only support 9:16 target.",
+			path: "visualBeats[0]",
 		});
 	});
 

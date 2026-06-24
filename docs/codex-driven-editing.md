@@ -123,7 +123,7 @@ material audit
   -> get_timeline_state readback
 ```
 
-If required evidence is missing, Codex must report the selected template and the missing evidence. It must not use another template as a downgrade path. Unsupported capabilities such as TTS, image B-roll, animated subtitle templates, arbitrary CSS, smart face crop, BGM/SFX inside narrated remix, and template effects must fail fast unless the current plan contract supports them.
+If required evidence is missing, Codex must report the selected template and the missing evidence. It must not use another template as a downgrade path. Unsupported capabilities such as TTS, generic image B-roll or image cards outside 9:16, animated subtitle templates, arbitrary CSS, smart face crop, BGM/SFX inside narrated remix, and template effects must fail fast unless the current plan contract supports them.
 
 ## Required Local Environment
 
@@ -511,23 +511,33 @@ storage in the first implementation phase.
 
 ## NarratedRemixPlan Contract
 
-For existing narration audio plus multi-video B-roll, Codex may use the separate
-`NarratedRemixPlan v1` contract with `apply_narrated_remix_plan`.
+For existing narration audio plus multi-asset B-roll, Codex may use the
+separate `NarratedRemixPlan v1` contract with `apply_narrated_remix_plan`.
 
-P0 supports only:
+P1 supports only:
 
 - already imported narration audio;
 - already imported video B-roll assets;
+- already imported image card assets for 9:16 narrated card beats;
+- editable image card text fields for `title`, `info`, and `bottomText`;
 - captions authored by Codex;
 - full timeline replacement after validation.
 
-P0 does not support:
+P1 does not support:
 
 - TTS or speech generation fields;
 - BGM, SFX, or generated audio;
-- image B-roll;
+- generic image B-roll without card text;
+- image cards outside `target.aspectRatio: "9:16"`;
 - partial append mode;
 - visual effects or template effects.
+
+Product gap note: business copy that must be revised later, such as real-estate
+price, title, region, layout, and bottom selling point, must not be pre-rendered
+into a derived slideshow video by default. Use image card beats so those fields
+remain editable `TextElement`s in the timeline. One-time rendered videos are
+allowed only as explicitly documented runtime-gap fallbacks, and the limitation
+must be recorded in the project verification artifact.
 
 ```ts
 {
@@ -537,15 +547,32 @@ P0 does not support:
     durationSec: number,
     aspectRatio: "9:16" | "16:9" | "1:1"
   },
-  visualBeats: Array<{
-    id: string,
-    mediaId: string,
-    sourceStart: number,
-    sourceEnd: number,
-    timelineStart: number,
-    muted: true,
-    reason: string
-  }>,
+  visualBeats: Array<
+    | {
+        id: string,
+        mediaType?: "video",
+        mediaId: string,
+        sourceStart: number,
+        sourceEnd: number,
+        timelineStart: number,
+        muted: true,
+        reason: string
+      }
+    | {
+        id: string,
+        mediaType: "image",
+        mediaId: string,
+        timelineStart: number,
+        duration: number,
+        fit: "cover",
+        cardText: {
+          title: string,
+          info: string,
+          bottomText: string
+        },
+        reason: string
+      }
+  >,
   narration: {
     mediaId: string,
     sourceStart: number
@@ -563,10 +590,15 @@ Validation is all-or-nothing:
 
 - `projectId` must match the active project.
 - `narration.mediaId` must resolve to an imported audio asset with known duration.
-- every `visualBeats[].mediaId` must resolve to an imported video asset with
-  known duration.
-- every source range must be inside the source asset and have
+- every video beat `mediaId` must resolve to an imported video asset with known
+  duration.
+- every video beat source range must be inside the source asset and have
   `sourceEnd > sourceStart`.
+- every image beat must use `mediaType: "image"`, `fit: "cover"`, and an
+  imported image asset with known width and height.
+- image beats are allowed only when `target.aspectRatio` is `"9:16"`.
+- image beat `cardText.title`, `cardText.info`, and `cardText.bottomText` are
+  required non-empty editable copy fields.
 - visual beats must be continuous from `0` with no gaps or overlaps.
 - total visual beat duration must equal `target.durationSec`.
 - captions must fit inside `target.durationSec`.
@@ -575,13 +607,18 @@ Validation is all-or-nothing:
 
 When applied, Codecut replaces the timeline with:
 
-- one video track containing muted B-roll clips;
+- one video track containing muted video B-roll clips and image card elements;
 - one audio track containing the narration audio;
-- one text track containing captions.
+- one `Card Text` text track containing editable image card copy when image
+  beats are present;
+- one `Captions` text track containing narration captions only.
 
 After application, Codex must verify `get_timeline_state` proof fields:
 
 - video elements expose `visual.muted`;
+- image elements expose `mediaId`, timing, and `visual.transform`;
+- card text elements expose `content` in the `Card Text` track and can be
+  revised through text element property mutation without regenerating media;
 - audio elements expose `audio.sourceType`, `audio.volume`, and `audio.muted`;
 - track-level `muted` and `hidden` fields are present when the track type
   supports them.
@@ -1017,7 +1054,7 @@ Do not start the render if either freshness gate fails.
 - If `verify_timeline` fails, Codex must inspect the returned mismatch fields and correct the plan or verification JSON. Do not treat a failed verification as success because `apply_edit_plan` completed.
 - If the timeline is not empty, Codex must pass `replaceExisting=true` only when replacing the current cut is intentional.
 - If BGM/SFX is requested, Codex must import or select valid audio assets before writing the EditPlan. Missing or non-audio assets must stop the workflow.
-- If TTS, image B-roll, BGM, or SFX is requested for narrated remix, stop and report that the current `NarratedRemixPlan v1` path only supports existing narration audio, video B-roll, and captions.
+- If TTS, generic image B-roll, image cards outside 9:16, BGM, or SFX is requested for narrated remix, stop and report that the current `NarratedRemixPlan v1` path only supports existing narration audio, video B-roll, 9:16 editable image cards, and captions.
 - If transitions are requested, Codex must generate adjacent clip timings before applying the EditPlan. Do not rely on Codecut to reposition clips.
 - If a masked effect is requested, Codex must verify `get_timeline_state` exposes a matching `derivedAssets[]` person-mask entry before calling the effect action.
 - If `create_text_background_effect` or `create_human_pip_effect` fails, fix the media or derived-asset input. Do not simulate the effect with unrelated low-level timeline tools.

@@ -27,6 +27,19 @@ function audioAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	});
 }
 
+function imageAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
+	return mediaAsset({
+		id: "image-1",
+		name: "Property card.jpg",
+		type: "image",
+		duration: undefined,
+		width: 1080,
+		height: 1920,
+		file: new File(["image"], "property-card.jpg", { type: "image/jpeg" }),
+		...overrides,
+	});
+}
+
 function validPlan() {
 	return {
 		version: 1,
@@ -171,6 +184,116 @@ describe("applyNarratedRemixPlanToEditor", () => {
 						transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
 					},
 					{ type: "text", content: "The proof", startTime: 10, duration: 4 },
+				],
+			},
+		]);
+	});
+
+	test("projects image card beats into image elements and editable card text track", () => {
+		const updates: TimelineTrack[][] = [];
+		const result = applyNarratedRemixPlanToEditor({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 30, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "opening-video",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 10,
+						timelineStart: 0,
+						muted: true,
+						reason: "Opening b-roll.",
+					},
+					{
+						mediaType: "image",
+						id: "property-card",
+						mediaId: "image-1",
+						timelineStart: 10,
+						duration: 20,
+						fit: "cover",
+						cardText: {
+							title: "天府新区双华麓港",
+							info: "117.55㎡ 套三双卫 总价186万",
+							bottomText: "地铁口商圈边",
+						},
+						reason: "Editable property qualification card.",
+					},
+				],
+				captions: [{ text: "Voiceover caption", startTime: 24, duration: 3 }],
+				captionStyle: {
+					preset: "talking-head-pop",
+					position: "lower-safe",
+				},
+			},
+			projectId: "project-1",
+			replaceExisting: true,
+			editor: editorWithMedia({
+				mediaAssets: [mediaAsset(), imageAsset(), audioAsset()],
+				onUpdate: (tracks) => updates.push(tracks),
+			}),
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			summary: {
+				visualBeatCount: 2,
+				imageBeatCount: 1,
+				cardTextElementCount: 3,
+				captionCount: 1,
+				totalDuration: 30,
+			},
+		});
+		expect(updates).toHaveLength(1);
+		expect(updates[0]).toMatchObject([
+			{
+				type: "video",
+				elements: [
+					{ type: "video", mediaId: "video-1", startTime: 0, duration: 10 },
+					{ type: "image", mediaId: "image-1", startTime: 10, duration: 20 },
+				],
+			},
+			{
+				type: "audio",
+				elements: [{ type: "audio", mediaId: "narration-1" }],
+			},
+			{
+				type: "text",
+				name: "Card Text",
+				elements: [
+					{
+						type: "text",
+						name: "Card title",
+						content: "天府新区双华麓港",
+						startTime: 10,
+						duration: 20,
+					},
+					{
+						type: "text",
+						name: "Card info",
+						content: "117.55㎡ 套三双卫 总价186万",
+						startTime: 10,
+						duration: 20,
+					},
+					{
+						type: "text",
+						name: "Card bottomText",
+						content: "地铁口商圈边",
+						startTime: 10,
+						duration: 20,
+					},
+				],
+			},
+			{
+				type: "text",
+				name: "Captions",
+				elements: [
+					{
+						type: "text",
+						content: "Voiceover caption",
+						startTime: 24,
+						duration: 3,
+					},
 				],
 			},
 		]);
