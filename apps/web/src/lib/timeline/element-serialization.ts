@@ -16,6 +16,7 @@ export function serializeElementVisualProperties(element: TimelineElement) {
 				opacity: element.opacity,
 				transform: element.transform,
 				...(element.hidden !== undefined ? { hidden: element.hidden } : {}),
+				...(element.motionPreset ? { motionPreset: element.motionPreset } : {}),
 				...(element.stroke ? { stroke: element.stroke } : {}),
 				...(element.shadow ? { shadow: element.shadow } : {}),
 				...(element.boxWidth !== undefined ? { boxWidth: element.boxWidth } : {}),
@@ -32,6 +33,13 @@ export function serializeElementVisualProperties(element: TimelineElement) {
 					? { backgroundPaddingY: element.backgroundPaddingY }
 					: {}),
 			},
+			...(element.keyframes
+				? {
+						motion: {
+							keyframes: element.keyframes,
+						},
+					}
+				: {}),
 		};
 	}
 

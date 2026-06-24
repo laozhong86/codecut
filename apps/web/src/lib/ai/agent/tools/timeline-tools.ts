@@ -11,7 +11,7 @@ import type { AgentTool } from "./types";
 export const getTimelineStateTool: AgentTool = {
 	name: "get_timeline_state",
 	description:
-		"Get the current timeline state including all tracks and their elements with timing information.",
+		"Get the current timeline state including tracks, elements, timing, text style, text motion preset, resolved keyframes, transitions, audio, and visual readback fields.",
 	parameters: {
 		type: "object",
 		properties: {},
