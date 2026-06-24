@@ -1952,12 +1952,12 @@ describe("codex bridge CLI helpers", () => {
 			".codex/plugins/cache/local-opc/codecut/0.1.1",
 		);
 		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
-		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
+		await mkdir(join(sourceRoot, "skills/codecut"), {
 			recursive: true,
 		});
 		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
 		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
-		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
+		await mkdir(join(cacheRoot, "skills/codecut"), {
 			recursive: true,
 		});
 		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
@@ -1967,8 +1967,8 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-			"---\nname: codecut-jianying-editor-framework\n---\n",
+			join(sourceRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
 			"utf8",
 		);
 		await writeFile(
@@ -1987,8 +1987,8 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(cacheRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-			"---\nname: codecut-jianying-editor-framework\n---\n",
+			join(cacheRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
 			"utf8",
 		);
 		await writeFile(
@@ -2069,12 +2069,12 @@ describe("codex bridge CLI helpers", () => {
 			".codex/plugins/cache/local-opc/codecut/0.1.1",
 		);
 		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
-		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
+		await mkdir(join(sourceRoot, "skills/codecut"), {
 			recursive: true,
 		});
 		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
 		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
-		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
+		await mkdir(join(cacheRoot, "skills/codecut"), {
 			recursive: true,
 		});
 		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
@@ -2084,8 +2084,8 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-			"---\nname: codecut-jianying-editor-framework\n---\n",
+			join(sourceRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
 			"utf8",
 		);
 		await writeFile(
@@ -2104,8 +2104,8 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(cacheRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-			"---\nname: codecut-jianying-editor-framework\n---\n",
+			join(cacheRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
 			"utf8",
 		);
 		await writeFile(
@@ -2181,12 +2181,12 @@ describe("codex bridge CLI helpers", () => {
 			".codex/plugins/cache/local-opc/codecut/0.1.1",
 		);
 		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
-		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
+		await mkdir(join(sourceRoot, "skills/codecut"), {
 			recursive: true,
 		});
 		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
 		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
-		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
+		await mkdir(join(cacheRoot, "skills/codecut"), {
 			recursive: true,
 		});
 		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
@@ -2196,8 +2196,8 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-			"---\nname: codecut-jianying-editor-framework\n---\n",
+			join(sourceRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
 			"utf8",
 		);
 		const incompleteBridgeEnv = [
@@ -2216,8 +2216,8 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(cacheRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-			"---\nname: codecut-jianying-editor-framework\n---\n",
+			join(cacheRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
 			"utf8",
 		);
 		await writeFile(
@@ -2285,12 +2285,12 @@ describe("codex bridge CLI helpers", () => {
 			".codex/plugins/cache/local-opc/codecut/0.1.1",
 		);
 		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
-		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
+		await mkdir(join(sourceRoot, "skills/codecut"), {
 			recursive: true,
 		});
 		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
 		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
-		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
+		await mkdir(join(cacheRoot, "skills/codecut"), {
 			recursive: true,
 		});
 		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
@@ -2306,8 +2306,8 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-			"---\nname: codecut-jianying-editor-framework\n---\n",
+			join(sourceRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
 			"utf8",
 		);
 		await writeFile(join(sourceRoot, "apps/web/.env.local"), bridgeEnv, "utf8");
@@ -2317,8 +2317,8 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(cacheRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-			"---\nname: codecut-jianying-editor-framework\n---\n",
+			join(cacheRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
 			"utf8",
 		);
 		await writeFile(join(cacheRoot, "apps/web/.env.local"), bridgeEnv, "utf8");
@@ -2384,11 +2384,11 @@ describe("codex bridge CLI helpers", () => {
 			".codex/plugins/cache/local-opc/codecut/0.1.1",
 		);
 		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
-		await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
+		await mkdir(join(sourceRoot, "skills/codecut"), {
 			recursive: true,
 		});
 		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
-		await mkdir(join(cacheRoot, "skills/codecut-jianying-editor-framework"), {
+		await mkdir(join(cacheRoot, "skills/codecut"), {
 			recursive: true,
 		});
 		await writeFile(
@@ -2397,8 +2397,8 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-			"---\nname: codecut-jianying-editor-framework\n---\n",
+			join(sourceRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
 			"utf8",
 		);
 		await writeFile(
@@ -2407,8 +2407,8 @@ describe("codex bridge CLI helpers", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(cacheRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-			"---\nname: codecut-jianying-editor-framework\n---\n",
+			join(cacheRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
 			"utf8",
 		);
 

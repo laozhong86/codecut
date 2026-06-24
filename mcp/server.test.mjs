@@ -601,7 +601,7 @@ describe("Codecut MCP server contract", () => {
 				],
 			});
 			expect(result.structuredContent.continuePrompt).toContain(
-				"$codecut-jianying-editor-framework",
+				"$codecut",
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				"$browser:control-in-app-browser",

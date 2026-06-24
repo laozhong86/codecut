@@ -190,7 +190,7 @@ async function checkSourcePlugin({ cwd }) {
 	const manifestPath = join(cwd, ".codex-plugin/plugin.json");
 	const skillPath = join(
 		cwd,
-		"skills/codecut-jianying-editor-framework/SKILL.md",
+		"skills/codecut/SKILL.md",
 	);
 
 	let manifest;
@@ -273,7 +273,7 @@ async function checkCachePlugin({ homeDir, sourceManifest }) {
 	const manifestPath = join(cacheRoot, ".codex-plugin/plugin.json");
 	const skillPath = join(
 		cacheRoot,
-		"skills/codecut-jianying-editor-framework/SKILL.md",
+		"skills/codecut/SKILL.md",
 	);
 	let manifest;
 	try {

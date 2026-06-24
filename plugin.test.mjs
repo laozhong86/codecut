@@ -7,13 +7,13 @@ import { fileURLToPath } from "node:url";
 const pluginRoot = dirname(fileURLToPath(import.meta.url));
 
 describe("Codecut plugin startup guidance", () => {
-	test("keeps the framework skill as the single default plugin entrypoint", async () => {
+	test("keeps the Codecut skill as the single default plugin entrypoint", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
 		);
 		const startupPrompt = pluginManifest.interface.defaultPrompt.join("\n");
 
-		expect(startupPrompt).toContain("$codecut-jianying-editor-framework");
+		expect(startupPrompt).toContain("$codecut");
 		for (const stageSkill of [
 			"$codecut-requirement-intake",
 			"$codecut-material-ingest",
@@ -70,7 +70,7 @@ describe("Codecut plugin startup guidance", () => {
 			join(
 				pluginRoot,
 				"skills",
-				"codecut-jianying-editor-framework",
+				"codecut",
 				"SKILL.md",
 			),
 			"utf8",
@@ -79,7 +79,7 @@ describe("Codecut plugin startup guidance", () => {
 			join(
 				pluginRoot,
 				"skills",
-				"codecut-jianying-editor-framework",
+				"codecut",
 				"agents",
 				"openai.yaml",
 			),
@@ -114,7 +114,7 @@ describe("Codecut plugin startup guidance", () => {
 			join(
 				pluginRoot,
 				"skills",
-				"codecut-jianying-editor-framework",
+				"codecut",
 				"SKILL.md",
 			),
 			"utf8",
@@ -123,7 +123,7 @@ describe("Codecut plugin startup guidance", () => {
 			join(
 				pluginRoot,
 				"skills",
-				"codecut-jianying-editor-framework",
+				"codecut",
 				"agents",
 				"openai.yaml",
 			),
@@ -159,7 +159,7 @@ describe("Codecut plugin startup guidance", () => {
 		expect(startupPrompt).toContain("MCP tool directly");
 		expect(startupPrompt).toContain("before reading local files");
 		expect(startupPrompt.indexOf("open_codecut_workspace")).toBeLessThan(
-			startupPrompt.indexOf("$codecut-jianying-editor-framework"),
+			startupPrompt.indexOf("$codecut"),
 		);
 		expect(intakeSkill).toContain("workspace widget tool is unavailable");
 		expect(intakeSkill).toContain("tool_search");
@@ -202,7 +202,7 @@ describe("Codecut plugin startup guidance", () => {
 			"utf8",
 		);
 		const frameworkSkill = await readFile(
-			join(pluginRoot, "skills", "codecut-jianying-editor-framework", "SKILL.md"),
+			join(pluginRoot, "skills", "codecut", "SKILL.md"),
 			"utf8",
 		);
 		const workflowDocs = await readFile(
@@ -219,7 +219,7 @@ describe("Codecut plugin startup guidance", () => {
 
 	test("documents stage ownership and import confirmation boundaries", async () => {
 		const frameworkSkill = await readFile(
-			join(pluginRoot, "skills", "codecut-jianying-editor-framework", "SKILL.md"),
+			join(pluginRoot, "skills", "codecut", "SKILL.md"),
 			"utf8",
 		);
 		const requirementIntake = await readFile(
@@ -256,13 +256,13 @@ describe("Codecut plugin startup guidance", () => {
 		const contractPath = join(
 			pluginRoot,
 			"skills",
-			"codecut-jianying-editor-framework",
+			"codecut",
 			"references",
 			"workflow-stage-contract.md",
 		);
 		const contract = await readFile(contractPath, "utf8");
 		const frameworkSkill = await readFile(
-			join(pluginRoot, "skills", "codecut-jianying-editor-framework", "SKILL.md"),
+			join(pluginRoot, "skills", "codecut", "SKILL.md"),
 			"utf8",
 		);
 		const workflowDocs = await readFile(
@@ -310,7 +310,7 @@ describe("Codecut plugin startup guidance", () => {
 			join(
 				pluginRoot,
 				"skills",
-				"codecut-jianying-editor-framework",
+				"codecut",
 				"references",
 				"codecut-agent-tool-contract.md",
 			),
@@ -350,14 +350,14 @@ describe("Codecut plugin startup guidance", () => {
 
 	test("routes TikTok source downloads through a dedicated stage skill", async () => {
 		const frameworkSkill = await readFile(
-			join(pluginRoot, "skills", "codecut-jianying-editor-framework", "SKILL.md"),
+			join(pluginRoot, "skills", "codecut", "SKILL.md"),
 			"utf8",
 		);
 		const frameworkAgentCard = await readFile(
 			join(
 				pluginRoot,
 				"skills",
-				"codecut-jianying-editor-framework",
+				"codecut",
 				"agents",
 				"openai.yaml",
 			),
@@ -438,7 +438,7 @@ describe("Codecut plugin startup guidance", () => {
 		const skillRoot = join(
 			pluginRoot,
 			"skills",
-			"codecut-jianying-editor-framework",
+			"codecut",
 		);
 		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
 		const longToShort = await readFile(
@@ -480,7 +480,7 @@ describe("Codecut plugin startup guidance", () => {
 		const skillRoot = join(
 			pluginRoot,
 			"skills",
-			"codecut-jianying-editor-framework",
+			"codecut",
 		);
 		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
 		const subtitlePass = await readFile(
@@ -519,7 +519,7 @@ describe("Codecut plugin startup guidance", () => {
 			join(
 				pluginRoot,
 				"skills",
-				"codecut-jianying-editor-framework",
+				"codecut",
 				"references",
 				"workflow-recipes",
 				"subtitle-pass.md",

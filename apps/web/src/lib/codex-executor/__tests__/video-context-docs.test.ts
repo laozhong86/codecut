@@ -5,7 +5,7 @@ describe("VideoContext contract docs", () => {
 	test("document suggestTrimFillers as a marker-class hint", () => {
 		const docs = readFileSync(
 			new URL(
-				"../../../../../../skills/codecut-jianying-editor-framework/references/video-context-contract.md",
+				"../../../../../../skills/codecut/references/video-context-contract.md",
 				import.meta.url,
 			),
 			"utf8",

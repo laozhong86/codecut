@@ -12,7 +12,7 @@ describe("Codex project naming docs", () => {
 		);
 		const skill = readFileSync(
 			new URL(
-				"../../../../../../skills/codecut-jianying-editor-framework/SKILL.md",
+				"../../../../../../skills/codecut/SKILL.md",
 				import.meta.url,
 			),
 			"utf8",

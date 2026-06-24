@@ -14,7 +14,7 @@ async function createPluginSource({ version = "0.1.1" } = {}) {
 	await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
 	await mkdir(join(sourceRoot, "mcp"), { recursive: true });
 	await mkdir(join(sourceRoot, "scripts"), { recursive: true });
-	await mkdir(join(sourceRoot, "skills/codecut-jianying-editor-framework"), {
+	await mkdir(join(sourceRoot, "skills/codecut"), {
 		recursive: true,
 	});
 	await writeFile(
@@ -34,8 +34,8 @@ async function createPluginSource({ version = "0.1.1" } = {}) {
 		"utf8",
 	);
 	await writeFile(
-		join(sourceRoot, "skills/codecut-jianying-editor-framework/SKILL.md"),
-		"---\nname: codecut-jianying-editor-framework\n---\n",
+		join(sourceRoot, "skills/codecut/SKILL.md"),
+		"---\nname: codecut\n---\n",
 		"utf8",
 	);
 	return sourceRoot;

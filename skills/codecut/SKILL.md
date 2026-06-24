@@ -1,9 +1,9 @@
 ---
-name: codecut-jianying-editor-framework
+name: codecut
 description: Use when operating or extending the Codex-only Codecut editing MVP, including local executor projects, material intake, EditPlan validation/application, timeline verification, or human preview.
 ---
 
-# Codecut Jianying Editor Framework
+# Codecut
 
 ## Core Boundary
 
@@ -20,7 +20,7 @@ expose atomic primitives only.
 - `AGENTS.md`: durable product boundaries and safety principles.
 - `../../docs/codex-driven-editing.md`: current implementation truth, command
   contract, EditPlan/NarratedRemixPlan details, and failure handling.
-- `codecut-jianying-editor-framework`: route requests to the correct stage
+- `codecut`: route requests to the correct stage
   skill or recipe.
 - Stage skills: own one gate, input set, output shape, handoff, and stop
   conditions.

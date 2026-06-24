@@ -28,7 +28,7 @@ Codex is the only LLM and Agent layer. Codecut is the visual executor and valida
 For a user-visible stage map that separates requirement intake, material ingest,
 evidence building, planning, executor application, verification/export, and
 reference-template work, use
-`skills/codecut-jianying-editor-framework/references/workflow-stage-contract.md`.
+`skills/codecut/references/workflow-stage-contract.md`.
 That reference owns stage status, proof artifacts, stop conditions, and handoff
 shape; this document remains the runtime command and plan-contract truth.
 
