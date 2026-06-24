@@ -8,6 +8,12 @@ import {
 	NarratedRemixPlanSchema,
 } from "./schema";
 
+type NarratedRemixVisualBeat = NarratedRemixPlan["visualBeats"][number];
+type NarratedRemixImageBeat = Extract<
+	NarratedRemixVisualBeat,
+	{ mediaType: "image" }
+>;
+
 export type NarratedRemixPlanValidationResult =
 	| {
 			success: true;
@@ -40,6 +46,12 @@ function findAsset({
 	mediaId: string;
 }): MediaAsset | undefined {
 	return mediaAssets.find((asset) => asset.id === mediaId);
+}
+
+function isImageBeat(
+	visualBeat: NarratedRemixVisualBeat,
+): visualBeat is NarratedRemixImageBeat {
+	return visualBeat.mediaType === "image";
 }
 
 function exceeds({
@@ -144,6 +156,50 @@ export function validateNarratedRemixPlan({
 			mediaId: visualBeat.mediaId,
 		});
 		const beatPath = `visualBeats[${index}]`;
+
+		if (isImageBeat(visualBeat)) {
+			if (normalizedPlan.target.aspectRatio !== "9:16") {
+				return {
+					success: false,
+					message: "NarratedRemixPlan image cards only support 9:16 target.",
+					path: beatPath,
+				};
+			}
+			if (!visualAsset) {
+				return {
+					success: false,
+					message: "NarratedRemixPlan imageBeat mediaId was not found.",
+					path: `${beatPath}.mediaId`,
+				};
+			}
+			if (visualAsset.type !== "image") {
+				return {
+					success: false,
+					message: "NarratedRemixPlan imageBeat media must be image.",
+					path: `${beatPath}.mediaId`,
+				};
+			}
+			if (!visualAsset.width || !visualAsset.height) {
+				return {
+					success: false,
+					message: "NarratedRemixPlan imageBeat dimensions are required.",
+					path: `${beatPath}.mediaId`,
+				};
+			}
+			if (
+				Math.abs(visualBeat.timelineStart - expectedTimelineStart) >
+				TIME_EPSILON
+			) {
+				return {
+					success: false,
+					message: "NarratedRemixPlan visualBeats must be continuous.",
+					path: `${beatPath}.timelineStart`,
+				};
+			}
+
+			expectedTimelineStart += visualBeat.duration;
+			continue;
+		}
 
 		if (!visualAsset) {
 			return {

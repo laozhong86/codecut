@@ -5,6 +5,7 @@ export const NarratedRemixAspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 
 export const NarratedRemixVisualBeatSchema = z
 	.object({
+		mediaType: z.literal("video").optional(),
 		id: z.string().min(1),
 		mediaId: z.string().min(1),
 		sourceStart: z.number().min(0),
@@ -14,6 +15,30 @@ export const NarratedRemixVisualBeatSchema = z
 		reason: z.string().min(1),
 	})
 	.strict();
+
+export const NarratedRemixImageBeatSchema = z
+	.object({
+		mediaType: z.literal("image"),
+		id: z.string().min(1),
+		mediaId: z.string().min(1),
+		timelineStart: z.number().min(0),
+		duration: z.number().positive(),
+		fit: z.literal("cover"),
+		cardText: z
+			.object({
+				title: z.string().trim().min(1),
+				info: z.string().trim().min(1),
+				bottomText: z.string().trim().min(1),
+			})
+			.strict(),
+		reason: z.string().min(1),
+	})
+	.strict();
+
+export const NarratedRemixVisualBeatUnionSchema = z.union([
+	NarratedRemixImageBeatSchema,
+	NarratedRemixVisualBeatSchema,
+]);
 
 export const NarratedRemixNarrationSchema = z
 	.object({
@@ -40,7 +65,7 @@ export const NarratedRemixPlanSchema = z
 				aspectRatio: NarratedRemixAspectRatioSchema,
 			})
 			.strict(),
-		visualBeats: z.array(NarratedRemixVisualBeatSchema).min(1),
+		visualBeats: z.array(NarratedRemixVisualBeatUnionSchema).min(1),
 		narration: NarratedRemixNarrationSchema,
 		captions: z.array(NarratedRemixCaptionSchema),
 		captionStyle: EditPlanCaptionStyleSchema.optional(),

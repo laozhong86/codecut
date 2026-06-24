@@ -4290,6 +4290,250 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("keeps image card text editable through timeline readback", async () => {
+		await createExecutorProject({ projectId, name: "Narrated image cards" });
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "opening.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 10,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const imageImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "property-card.jpg",
+					mimeType: "image/jpeg",
+					base64: Buffer.from("image").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const narrationImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("narration").toString("base64"),
+					size: 9,
+					lastModified: 1,
+					duration: 30,
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const imageId = resultData<{ assets: Array<{ id: string }> }>(
+			imageImport.results[0],
+		).assets[0].id;
+		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
+			narrationImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_narrated_remix_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 30, aspectRatio: "9:16" },
+						visualBeats: [
+							{
+								id: "opening-video",
+								mediaId: videoId,
+								sourceStart: 0,
+								sourceEnd: 10,
+								timelineStart: 0,
+								muted: true,
+								reason: "Opening b-roll",
+							},
+							{
+								mediaType: "image",
+								id: "property-card",
+								mediaId: imageId,
+								timelineStart: 10,
+								duration: 20,
+								fit: "cover",
+								cardText: {
+									title: "天府新区双华麓港",
+									info: "117.55㎡ 套三双卫 总价186万",
+									bottomText: "地铁口商圈边",
+								},
+								reason: "Editable property qualification card",
+							},
+						],
+						narration: { mediaId: narrationId, sourceStart: 0 },
+						captions: [{ text: "Voiceover caption", startTime: 24, duration: 3 }],
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+						},
+						rationale: "Narration-led image card remix",
+					},
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2", includeReferencedMedia: true },
+			}),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				visualBeatCount: 2,
+				imageBeatCount: 1,
+				cardTextElementCount: 3,
+				captionCount: 1,
+			},
+		});
+		const timeline = resultData<{
+			referencedMedia?: Record<string, unknown>;
+			tracks: Array<{
+				type: string;
+				name: string;
+				elements: Array<{
+					id: string;
+					type: string;
+					name: string;
+					mediaId?: string;
+					content?: string;
+					visual?: {
+						transform?: unknown;
+					};
+					startTime: number;
+					duration: number;
+				}>;
+			}>;
+		}>(timelineResult.results[0]);
+		const visualTrack = timeline.tracks.find((track) => track.type === "video");
+		const cardTextTrack = timeline.tracks.find(
+			(track) => track.name === "Card Text",
+		);
+		const captionTrack = timeline.tracks.find(
+			(track) => track.name === "Captions",
+		);
+		expect(visualTrack?.elements).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ type: "image", mediaId: imageId }),
+			]),
+		);
+		expect(cardTextTrack?.elements.map((element) => element.content)).toEqual([
+			"天府新区双华麓港",
+			"117.55㎡ 套三双卫 总价186万",
+			"地铁口商圈边",
+		]);
+		expect(
+			cardTextTrack?.elements.every(
+				(element) => element.startTime === 10 && element.duration === 20,
+			),
+		).toBe(true);
+		expect(captionTrack?.elements.map((element) => element.content)).toEqual([
+			"Voiceover caption",
+		]);
+		const referencedMediaKeys = Object.keys(timeline.referencedMedia ?? {}).sort();
+		expect(referencedMediaKeys).toHaveLength(3);
+		const imageElement = visualTrack?.elements.find(
+			(element) => element.type === "image",
+		);
+		expect(imageElement).toMatchObject({
+			type: "image",
+			mediaId: imageId,
+			startTime: 10,
+			duration: 20,
+			visual: {
+				transform: {
+					position: { x: 0, y: 0 },
+					rotate: 0,
+				},
+			},
+		});
+
+		const infoElementId = cardTextTrack?.elements.find(
+			(element) => element.name === "Card info",
+		)?.id;
+		expect(infoElementId).toBeString();
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_clip_properties",
+				args: {
+					elementIds: [infoElementId],
+					properties: { content: "117.55㎡ 套三双卫 总价183万" },
+				},
+			}),
+		});
+		const updatedTimelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2", includeReferencedMedia: true },
+			}),
+		});
+		const updatedTimeline = resultData<{
+			referencedMedia?: Record<string, unknown>;
+			tracks: Array<{
+				type: string;
+				name: string;
+				elements: Array<{
+					id: string;
+					type: string;
+					mediaId?: string;
+					content?: string;
+					startTime: number;
+					duration: number;
+					visual?: {
+						transform?: unknown;
+					};
+				}>;
+			}>;
+		}>(updatedTimelineResult.results[0]);
+		const updatedVisualTrack = updatedTimeline.tracks.find(
+			(track) => track.type === "video",
+		);
+		const updatedCardTextTrack = updatedTimeline.tracks.find(
+			(track) => track.name === "Card Text",
+		);
+		expect(updatedCardTextTrack?.elements.map((element) => element.content)).toEqual(
+			expect.arrayContaining([
+				"天府新区双华麓港",
+				"117.55㎡ 套三双卫 总价183万",
+				"地铁口商圈边",
+				]),
+		);
+		expect(Object.keys(updatedTimeline.referencedMedia ?? {}).sort()).toEqual(
+			referencedMediaKeys,
+		);
+		const updatedImageElement = updatedVisualTrack?.elements.find(
+			(element) => element.type === "image",
+		);
+		expect(updatedImageElement).toMatchObject({
+			id: imageElement?.id,
+			mediaId: imageElement?.mediaId,
+			startTime: imageElement?.startTime,
+			duration: imageElement?.duration,
+			visual: {
+				transform: imageElement?.visual?.transform,
+			},
+		});
+	});
+
 	test("creates a text-background masked effect from local executor state", async () => {
 		await createExecutorProject({ projectId, name: "Masked cut" });
 		const sourceImport = await executeCodexExecutorEnvelope({
