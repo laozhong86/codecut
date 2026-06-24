@@ -1,4 +1,5 @@
 import type { SnapGuide } from "@/lib/preview/snap";
+import { i18next } from "@/lib/i18n";
 
 const GUIDE_COLOR = "var(--primary)";
 
@@ -27,7 +28,7 @@ export function GuideLines({
 			height={displaySize.height}
 			style={{ zIndex: 999 }}
 		>
-			<title>Alignment guides</title>
+			<title>{i18next.t("Alignment guides")}</title>
 			{guides.map((guide) => {
 				const key = `${guide.orientation}-${guide.type}-${guide.position}`;
 

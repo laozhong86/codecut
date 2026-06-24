@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { TIMELINE_CONSTANTS } from "@/constants/timeline-constants";
 import { useTimelinePlayhead } from "@/hooks/timeline/use-timeline-playhead";
 import { useEditor } from "@/hooks/use-editor";
@@ -25,6 +26,7 @@ export function TimelinePlayhead({
 	isSnappingToPlayhead = false,
 }: TimelinePlayheadProps) {
 	const editor = useEditor();
+	const { t } = useTranslation();
 	const duration = editor.timeline.getTotalDuration();
 	const internalPlayheadRef = useRef<HTMLDivElement>(null);
 	const playheadRef = externalPlayheadRef || internalPlayheadRef;
@@ -79,7 +81,7 @@ export function TimelinePlayhead({
 		<div
 			ref={playheadRef}
 			role="slider"
-			aria-label="Timeline playhead"
+			aria-label={t("Timeline playhead")}
 			aria-valuemin={0}
 			aria-valuemax={duration}
 			aria-valuenow={playheadPosition}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useCallback } from "react";
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { useEditor } from "@/hooks/use-editor";
 import { useRafLoop } from "@/hooks/use-raf-loop";
 import { useTimelineScroll } from "../hooks/use-timeline-scroll";
@@ -14,6 +15,7 @@ const TIMELINE_HEIGHT = 180;
 const CONTENT_END_PADDING_SECONDS = 2;
 
 export function MobileTimeline() {
+	const { t } = useTranslation();
 	const editor = useEditor();
 	const containerRef = useRef<HTMLElement>(null);
 	const translateXRef = useRef(0);
@@ -96,7 +98,7 @@ export function MobileTimeline() {
 				"touch-none select-none",
 			)}
 			style={{ height: TIMELINE_HEIGHT }}
-			aria-label="Timeline"
+			aria-label={t("Timeline")}
 		>
 			{/* Scrollable content layer */}
 			<div

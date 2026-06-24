@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -46,6 +47,11 @@ import type {
 	TranscriptionChunk,
 	CaptionChunk,
 } from "@/types/transcription";
+
+type TranslateFn = (
+	key: string,
+	options?: Record<string, unknown>,
+) => string;
 
 function encodeFloat32ToWav({
 	samples,
@@ -102,15 +108,17 @@ function formatTimestamp({ seconds }: { seconds: number }): string {
 
 function getStatusLabel({
 	status,
+	t,
 }: {
 	status: TranscriptionProgress["status"];
+	t: TranslateFn;
 }): string {
 	const labels: Record<TranscriptionProgress["status"], string> = {
-		idle: "Idle",
-		"loading-model": "Loading Model",
-		transcribing: "Transcribing",
-		complete: "Complete",
-		error: "Error",
+		idle: t("Idle"),
+		"loading-model": t("Loading Model"),
+		transcribing: t("Transcribing"),
+		complete: t("Complete"),
+		error: t("Error"),
 	};
 	return labels[status];
 }
@@ -145,6 +153,7 @@ interface PreprocessedAudio {
 }
 
 export function TranscriptionPlayground() {
+	const { t } = useTranslation();
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const recordedChunksRef = useRef<Blob[]>([]);
@@ -198,6 +207,32 @@ export function TranscriptionPlayground() {
 		return URL.createObjectURL(wavBlob);
 	}, [preprocessedAudio]);
 
+	const modelLabels = useMemo(
+		() => ({
+			"whisper-tiny": {
+				name: t("Tiny"),
+				description: t("Fastest, lower accuracy (120MB)"),
+			},
+			"whisper-base": {
+				name: t("Base"),
+				description: t("Fast with decent accuracy (206MB)"),
+			},
+			"whisper-small": {
+				name: t("Small"),
+				description: t("Good balance of speed and accuracy (586MB)"),
+			},
+			"whisper-large-v3-turbo": {
+				name: t("Large v3 Turbo"),
+				description: t("Best accuracy, requires WebGPU (1604MB)"),
+			},
+			"distil-small.en": {
+				name: t("Distil Small (English)"),
+				description: t("Optimized for English only (538MB)"),
+			},
+		}),
+		[t],
+	);
+
 	useEffect(() => {
 		return () => {
 			if (audioUrl) {
@@ -249,7 +284,9 @@ export function TranscriptionPlayground() {
 	const handleStartRecording = useCallback(async () => {
 		if (!navigator.mediaDevices?.getUserMedia) {
 			setMicError(
-				"Microphone API not available. Ensure you are using HTTPS or localhost.",
+				t(
+					"Microphone API not available. Ensure you are using HTTPS or localhost.",
+				),
 			);
 			return;
 		}
@@ -307,7 +344,7 @@ export function TranscriptionPlayground() {
 			const rawMessage =
 				caughtError instanceof Error
 					? caughtError.message
-					: "Failed to access microphone";
+					: t("Failed to access microphone");
 
 			const isPermissionDenied =
 				rawMessage.includes("Permission denied") ||
@@ -316,12 +353,14 @@ export function TranscriptionPlayground() {
 					caughtError.name === "NotAllowedError");
 
 			const message = isPermissionDenied
-				? "Microphone permission denied. Click the lock/site-settings icon in the address bar, allow microphone access, then reload the page."
+				? t(
+						"Microphone permission denied. Click the lock/site-settings icon in the address bar, allow microphone access, then reload the page.",
+					)
 				: rawMessage;
 
 			setMicError(message);
 		}
-	}, [clearResults]);
+	}, [clearResults, t]);
 
 	const handleStopRecording = useCallback(() => {
 		if (mediaRecorderRef.current?.state === "recording") {
@@ -346,12 +385,12 @@ export function TranscriptionPlayground() {
 			const message =
 				caughtError instanceof Error
 					? caughtError.message
-					: "Failed to preprocess audio";
+					: t("Failed to preprocess audio");
 			setError(message);
 		} finally {
 			setIsPreprocessing(false);
 		}
-	}, [selectedFile]);
+	}, [selectedFile, t]);
 
 	const handleTranscribe = useCallback(async () => {
 		if (!selectedFile) return;
@@ -414,11 +453,11 @@ export function TranscriptionPlayground() {
 			const message =
 				caughtError instanceof Error
 					? caughtError.message
-					: "Unknown error occurred";
+					: t("Unknown error occurred");
 			setError(message);
 			setProgress({ status: "error", progress: 0 });
 		}
-	}, [selectedFile, modelId, language, wordsPerChunk, preprocessedAudio]);
+	}, [selectedFile, modelId, language, wordsPerChunk, preprocessedAudio, t]);
 
 	const handleCancel = useCallback(() => {
 		transcriptionService.cancel();
@@ -494,17 +533,17 @@ export function TranscriptionPlayground() {
 		<div className="flex flex-col gap-6">
 			<Card>
 				<CardHeader>
-					<CardTitle>Transcription Debugger</CardTitle>
+					<CardTitle>{t("Transcription Debugger")}</CardTitle>
 					<CardDescription>
-						Upload an audio/video file, configure the model, and inspect
-						transcription results with full segment detail. Uses WebGPU
-						acceleration with streaming output.
+						{t(
+							"Upload an audio/video file, configure the model, and inspect transcription results with full segment detail. Uses WebGPU acceleration with streaming output.",
+						)}
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
 						<div className="flex flex-col gap-2">
-							<Label htmlFor="audio-file">Audio / Video File</Label>
+							<Label htmlFor="audio-file">{t("Audio / Video File")}</Label>
 							<Input
 								id="audio-file"
 								ref={fileInputRef}
@@ -523,9 +562,10 @@ export function TranscriptionPlayground() {
 											onClick={handleStopRecording}
 										>
 											<span className="mr-1.5 inline-block size-2 animate-pulse rounded-full bg-white" />
-											Stop{" "}
-											{formatRecordingDuration({
-												seconds: recordingDuration,
+											{t("Stop {{duration}}", {
+												duration: formatRecordingDuration({
+													seconds: recordingDuration,
+												}),
 											})}
 										</Button>
 									) : (
@@ -536,7 +576,9 @@ export function TranscriptionPlayground() {
 											onClick={handleStartRecording}
 											disabled={isProcessing || isRequestingMic}
 										>
-											{isRequestingMic ? "Requesting mic..." : "Record Mic"}
+											{isRequestingMic
+												? t("Requesting mic...")
+												: t("Record Mic")}
 										</Button>
 									)}
 								</div>
@@ -546,14 +588,16 @@ export function TranscriptionPlayground() {
 							</div>
 							{selectedFile && !isRecording && (
 								<p className="text-muted-foreground text-xs">
-									{selectedFile.name} (
-									{(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+									{t("{{name}} ({{size}} MB)", {
+										name: selectedFile.name,
+										size: (selectedFile.size / 1024 / 1024).toFixed(2),
+									})}
 								</p>
 							)}
 						</div>
 
 						<div className="flex flex-col gap-2">
-							<Label>Model</Label>
+							<Label>{t("Model")}</Label>
 							<Select
 								value={modelId}
 								onValueChange={(value) =>
@@ -567,7 +611,8 @@ export function TranscriptionPlayground() {
 								<SelectContent>
 									{TRANSCRIPTION_MODELS.map((model) => (
 										<SelectItem key={model.id} value={model.id}>
-											{model.name} — {model.description}
+											{modelLabels[model.id].name} —{" "}
+											{modelLabels[model.id].description}
 										</SelectItem>
 									))}
 								</SelectContent>
@@ -575,7 +620,7 @@ export function TranscriptionPlayground() {
 						</div>
 
 						<div className="flex flex-col gap-2">
-							<Label>Language</Label>
+							<Label>{t("Language")}</Label>
 							<Select
 								value={language}
 								onValueChange={(value) =>
@@ -587,7 +632,7 @@ export function TranscriptionPlayground() {
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="auto">Auto Detect</SelectItem>
+									<SelectItem value="auto">{t("Auto Detect")}</SelectItem>
 									{TRANSCRIPTION_LANGUAGES.map((lang) => (
 										<SelectItem key={lang.code} value={lang.code}>
 											{lang.name} ({lang.code})
@@ -598,7 +643,9 @@ export function TranscriptionPlayground() {
 						</div>
 
 						<div className="flex flex-col gap-2">
-							<Label htmlFor="words-per-chunk">Words per Caption</Label>
+							<Label htmlFor="words-per-chunk">
+								{t("Words per Caption")}
+							</Label>
 							<Input
 								id="words-per-chunk"
 								type="number"
@@ -619,7 +666,7 @@ export function TranscriptionPlayground() {
 						<div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
 							<div className="flex flex-col gap-2">
 								<Label className="text-muted-foreground text-xs font-medium">
-									Original Audio
+									{t("Original Audio")}
 								</Label>
 								{audioUrl && (
 									<audio controls src={audioUrl} className="h-10 w-full">
@@ -630,17 +677,22 @@ export function TranscriptionPlayground() {
 							<div className="flex flex-col gap-2">
 								<div className="flex items-center gap-2">
 									<Label className="text-muted-foreground text-xs font-medium">
-										Preprocessed (16kHz mono)
+										{t("Preprocessed (16kHz mono)")}
 									</Label>
 									{preprocessedAudio && (
 										<Badge variant="outline" className="text-xs">
-											{preprocessedAudio.sampleRate}Hz ·{" "}
-											{(
-												preprocessedAudio.samples.length /
-												preprocessedAudio.sampleRate
-											).toFixed(2)}
-											s · {preprocessedAudio.samples.length.toLocaleString()}{" "}
-											samples
+											{t(
+												"{{sampleRate}}Hz · {{duration}}s · {{sampleCount}} samples",
+												{
+													sampleRate: preprocessedAudio.sampleRate,
+													duration: (
+														preprocessedAudio.samples.length /
+														preprocessedAudio.sampleRate
+													).toFixed(2),
+													sampleCount:
+														preprocessedAudio.samples.length.toLocaleString(),
+												},
+											)}
 										</Badge>
 									)}
 								</div>
@@ -663,7 +715,9 @@ export function TranscriptionPlayground() {
 										onClick={handlePreprocess}
 										disabled={isPreprocessing || isProcessing}
 									>
-										{isPreprocessing ? "Preprocessing..." : "Preprocess Audio"}
+										{isPreprocessing
+											? t("Preprocessing...")
+											: t("Preprocess Audio")}
 									</Button>
 								)}
 							</div>
@@ -676,12 +730,12 @@ export function TranscriptionPlayground() {
 							onClick={handleTranscribe}
 							disabled={!selectedFile || isProcessing || isRecording}
 						>
-							{isProcessing ? "Transcribing..." : "Start Transcription"}
+							{isProcessing ? t("Transcribing...") : t("Start Transcription")}
 						</Button>
 
 						{isProcessing && (
 							<Button type="button" variant="outline" onClick={handleCancel}>
-								Cancel
+								{t("Cancel")}
 							</Button>
 						)}
 					</div>
@@ -697,7 +751,7 @@ export function TranscriptionPlayground() {
 									<Badge
 										variant={getStatusVariant({ status: progress.status })}
 									>
-										{getStatusLabel({ status: progress.status })}
+										{getStatusLabel({ status: progress.status, t })}
 									</Badge>
 									{progress.message && (
 										<span className="text-muted-foreground text-sm">
@@ -706,13 +760,17 @@ export function TranscriptionPlayground() {
 									)}
 									{streamingTps > 0 && (
 										<Badge variant="outline">
-											{streamingTps.toFixed(1)} tokens/s
+											{t("{{rate}} tokens/s", {
+												rate: streamingTps.toFixed(1),
+											})}
 										</Badge>
 									)}
 								</div>
 								{elapsedMs !== null && (
 									<span className="text-muted-foreground text-sm">
-										{(elapsedMs / 1000).toFixed(2)}s
+										{t("{{seconds}}s", {
+											seconds: (elapsedMs / 1000).toFixed(2),
+										})}
 									</span>
 								)}
 							</div>
@@ -735,12 +793,17 @@ export function TranscriptionPlayground() {
 			{streamingChunks.length > 0 && !result && (
 				<Card>
 					<CardHeader>
-						<CardTitle>Live Transcription</CardTitle>
+						<CardTitle>{t("Live Transcription")}</CardTitle>
 						<CardDescription>
-							{streamingChunks.length} chunks —{" "}
+							{t("{{count}} chunks", {
+								count: streamingChunks.length,
+							})}{" "}
+							—{" "}
 							{streamingTps > 0
-								? `${streamingTps.toFixed(1)} tokens/s`
-								: "starting..."}
+								? t("{{rate}} tokens/s", {
+										rate: streamingTps.toFixed(1),
+									})
+								: t("starting...")}
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
@@ -754,10 +817,10 @@ export function TranscriptionPlayground() {
 								<TableHeader>
 									<TableRow>
 										<TableHead className="w-12">#</TableHead>
-										<TableHead className="w-36">Start</TableHead>
-										<TableHead className="w-36">End</TableHead>
-										<TableHead className="w-20">Status</TableHead>
-										<TableHead>Text</TableHead>
+										<TableHead className="w-36">{t("Start")}</TableHead>
+										<TableHead className="w-36">{t("End")}</TableHead>
+										<TableHead className="w-20">{t("Status")}</TableHead>
+										<TableHead>{t("Text")}</TableHead>
 									</TableRow>
 								</TableHeader>
 								<TableBody>
@@ -780,7 +843,7 @@ export function TranscriptionPlayground() {
 												<Badge
 													variant={chunk.finalised ? "default" : "secondary"}
 												>
-													{chunk.finalised ? "Done" : "Live"}
+													{chunk.finalised ? t("Done") : t("Live")}
 												</Badge>
 											</TableCell>
 											<TableCell>{chunk.text}</TableCell>
@@ -796,41 +859,60 @@ export function TranscriptionPlayground() {
 			{result && (
 				<Card>
 					<CardHeader>
-						<CardTitle>Results</CardTitle>
+						<CardTitle>{t("Results")}</CardTitle>
 						<CardDescription>
-							{result.segments.length} segments — Language: {result.language}
-							{result.tps ? ` — ${result.tps.toFixed(1)} tokens/s` : ""}
+							{t("{{count}} segments — Language: {{language}}", {
+								count: result.segments.length,
+								language: result.language,
+							})}
+							{result.tps
+								? ` — ${t("{{rate}} tokens/s", {
+										rate: result.tps.toFixed(1),
+									})}`
+								: ""}
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<Tabs defaultValue="raw">
 							<TabsList>
-								<TabsTrigger value="raw">Raw Result</TabsTrigger>
+								<TabsTrigger value="raw">{t("Raw Result")}</TabsTrigger>
 								<TabsTrigger value="segments">
-									Segments ({result.segments.length})
+									{t("Segments ({{count}})", {
+										count: result.segments.length,
+									})}
 								</TabsTrigger>
 								<TabsTrigger value="captions">
-									Caption Chunks ({captionChunks.length})
+									{t("Caption Chunks ({{count}})", {
+										count: captionChunks.length,
+									})}
 								</TabsTrigger>
 							</TabsList>
 
 							<TabsContent value="raw" className="mt-4">
 								<div className="flex flex-col gap-4">
 									<div className="flex items-center gap-2">
-										<Badge variant="outline">Language: {result.language}</Badge>
 										<Badge variant="outline">
-											Segments: {result.segments.length}
+											{t("Language: {{language}}", {
+												language: result.language,
+											})}
+										</Badge>
+										<Badge variant="outline">
+											{t("Segments: {{count}}", {
+												count: result.segments.length,
+											})}
 										</Badge>
 										{result.tps && (
 											<Badge variant="outline">
-												{result.tps.toFixed(1)} tokens/s
+												{t("{{rate}} tokens/s", {
+													rate: result.tps.toFixed(1),
+												})}
 											</Badge>
 										)}
 									</div>
 
 									<div className="bg-muted rounded-md p-4">
 										<pre className="whitespace-pre-wrap text-sm">
-											{result.text || "(empty)"}
+											{result.text || t("(empty)")}
 										</pre>
 									</div>
 								</div>
@@ -842,10 +924,12 @@ export function TranscriptionPlayground() {
 										<TableHeader>
 											<TableRow>
 												<TableHead className="w-12">#</TableHead>
-												<TableHead className="w-36">Start</TableHead>
-												<TableHead className="w-36">End</TableHead>
-												<TableHead className="w-28">Duration</TableHead>
-												<TableHead>Text</TableHead>
+												<TableHead className="w-36">{t("Start")}</TableHead>
+												<TableHead className="w-36">{t("End")}</TableHead>
+												<TableHead className="w-28">
+													{t("Duration")}
+												</TableHead>
+												<TableHead>{t("Text")}</TableHead>
 											</TableRow>
 										</TableHeader>
 										<TableBody>
@@ -873,7 +957,11 @@ export function TranscriptionPlayground() {
 															{formatTimestamp({ seconds: segment.end })}
 														</TableCell>
 														<TableCell className="text-muted-foreground font-mono text-xs">
-															{(segment.end - segment.start).toFixed(3)}s
+															{t("{{seconds}}s", {
+																seconds: (
+																	segment.end - segment.start
+																).toFixed(3),
+															})}
 														</TableCell>
 														<TableCell>{segment.text}</TableCell>
 													</TableRow>
@@ -888,7 +976,7 @@ export function TranscriptionPlayground() {
 								<div className="flex flex-col gap-4">
 									<div className="flex items-center gap-3">
 										<Label htmlFor="caption-words-per-chunk">
-											Words per Chunk
+											{t("Words per Chunk")}
 										</Label>
 										<Input
 											id="caption-words-per-chunk"
@@ -912,21 +1000,23 @@ export function TranscriptionPlayground() {
 											size="sm"
 											onClick={handleRegenerateCaptions}
 										>
-											Regenerate
+											{t("Regenerate")}
 										</Button>
 									</div>
 
 									<div className="max-h-[500px] overflow-auto">
 										<Table>
 											<TableHeader>
-												<TableRow>
-													<TableHead className="w-12">#</TableHead>
-													<TableHead className="w-36">Start</TableHead>
-													<TableHead className="w-28">Duration</TableHead>
-													<TableHead className="w-36">End</TableHead>
-													<TableHead>Text</TableHead>
-												</TableRow>
-											</TableHeader>
+											<TableRow>
+												<TableHead className="w-12">#</TableHead>
+												<TableHead className="w-36">{t("Start")}</TableHead>
+												<TableHead className="w-28">
+													{t("Duration")}
+												</TableHead>
+												<TableHead className="w-36">{t("End")}</TableHead>
+												<TableHead>{t("Text")}</TableHead>
+											</TableRow>
+										</TableHeader>
 											<TableBody>
 												{captionChunks.map((chunk, index) => {
 													const isActive = index === activeCaptionIndex;
@@ -956,7 +1046,9 @@ export function TranscriptionPlayground() {
 																})}
 															</TableCell>
 															<TableCell className="text-muted-foreground font-mono text-xs">
-																{chunk.duration.toFixed(3)}s
+																{t("{{seconds}}s", {
+																	seconds: chunk.duration.toFixed(3),
+																})}
 															</TableCell>
 															<TableCell className="font-mono text-xs">
 																{formatTimestamp({

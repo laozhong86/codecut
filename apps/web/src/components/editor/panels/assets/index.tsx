@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { Separator } from "@/components/ui/separator";
 import { type Tab, useAssetsPanelStore } from "@/stores/assets-panel-store";
 import { TabBar } from "./tabbar";
@@ -13,6 +14,7 @@ import { TextView } from "./views/text";
 import { TransitionsView } from "./views/transitions";
 
 export function AssetsPanel() {
+	const { t } = useTranslation();
 	const { activeTab } = useAssetsPanelStore();
 
 	const viewMap: Record<Tab, React.ReactNode> = {
@@ -22,19 +24,19 @@ export function AssetsPanel() {
 		stickers: <StickersView />,
 		effects: (
 			<div className="text-muted-foreground p-4">
-				Effects view coming soon...
+				{t("Effects view coming soon...")}
 			</div>
 		),
 		transitions: <TransitionsView />,
 		captions: <Captions />,
 		filters: (
 			<div className="text-muted-foreground p-4">
-				Filters view coming soon...
+				{t("Filters view coming soon...")}
 			</div>
 		),
 		adjustment: (
 			<div className="text-muted-foreground p-4">
-				Adjustment view coming soon...
+				{t("Adjustment view coming soon...")}
 			</div>
 		),
 		ai: <AIView />,

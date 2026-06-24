@@ -365,7 +365,7 @@ export function TextProperties({
 							collapsible={false}
 						>
 							<Textarea
-								placeholder="Name"
+								placeholder={t("Name")}
 								value={contentDisplay}
 								className="bg-accent min-h-20"
 								onFocus={() => {
@@ -1633,6 +1633,7 @@ function PresetButton({
 	preset: TextStylePreset;
 	onClick: () => void;
 }) {
+	const { t } = useTranslation();
 	const { preview } = preset;
 	const isClearAll = preset.id === "clear-all";
 
@@ -1679,7 +1680,7 @@ function PresetButton({
 					fill="none"
 					className="text-muted-foreground"
 				>
-					<title>Clear All</title>
+					<title>{t("Clear All")}</title>
 					<circle
 						cx="11"
 						cy="11"

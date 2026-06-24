@@ -11,6 +11,7 @@ import { cn } from "@/utils/ui";
 import {
 	useLocale,
 	useChangeLocale,
+	useTranslation,
 } from "@i18next-toolkit/nextjs-approuter";
 import { Languages, Check } from "lucide-react";
 
@@ -40,6 +41,7 @@ export function LanguageToggle({
 }: LanguageToggleProps) {
 	const currentLanguage = useLocale();
 	const changeLocale = useChangeLocale();
+	const { t } = useTranslation();
 
 	return (
 		<DropdownMenu>
@@ -51,7 +53,7 @@ export function LanguageToggle({
 					className={cn("size-8", className)}
 				>
 					<Languages className={cn("!size-[1.1rem]", iconClassName)} />
-					<span className="sr-only">Switch language</span>
+					<span className="sr-only">{t("Switch language")}</span>
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">

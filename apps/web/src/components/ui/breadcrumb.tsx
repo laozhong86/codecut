@@ -3,13 +3,16 @@ import { Slot as SlotPrimitive } from "radix-ui";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 
 import { cn } from "@/utils/ui";
+import { i18next } from "@/lib/i18n";
 
 const Breadcrumb = React.forwardRef<
 	HTMLElement,
 	React.ComponentPropsWithoutRef<"nav"> & {
 		separator?: React.ReactNode;
 	}
->(({ ...props }, ref) => <nav ref={ref} aria-label="breadcrumb" {...props} />);
+>(({ ...props }, ref) => (
+	<nav ref={ref} aria-label={i18next.t("breadcrumb")} {...props} />
+));
 Breadcrumb.displayName = "Breadcrumb";
 
 const BreadcrumbList = React.forwardRef<
@@ -99,7 +102,7 @@ const BreadcrumbEllipsis = ({
 		{...props}
 	>
 		<MoreHorizontal className="size-4" />
-		<span className="sr-only">More</span>
+		<span className="sr-only">{i18next.t("More")}</span>
 	</span>
 );
 BreadcrumbEllipsis.displayName = "BreadcrumbElipssis";

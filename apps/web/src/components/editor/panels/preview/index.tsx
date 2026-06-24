@@ -139,10 +139,12 @@ function PreviewHeader({
 	assetName: string;
 	onClose: () => void;
 }) {
+	const { t } = useTranslation();
+
 	return (
 		<div className="flex h-9 items-center justify-between border-b px-3">
 			<span className="text-muted-foreground truncate text-xs">
-				正在预览: {assetName}
+				{t("Previewing: {{assetName}}", { assetName })}
 			</span>
 			<Button
 				variant="ghost"
@@ -150,7 +152,7 @@ function PreviewHeader({
 				type="button"
 				className="size-6"
 				onClick={onClose}
-				title="Close preview"
+				title={t("Close preview")}
 			>
 				<X className="size-3.5" />
 			</Button>
