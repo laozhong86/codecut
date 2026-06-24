@@ -348,11 +348,26 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["create_human_pip_effect", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
 	["import_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	["import_system_template_script", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
+	["update_system_template_script", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	["delete_system_template_script", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	["export_project", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
 	["generate_digital_human", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
 	["generate_runninghub_voice_design", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
 	["generate_runninghub_voice_clone", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
+]);
+
+export const DESTRUCTIVE_MCP_TOOL_NAMES = new Set([
+	"apply_edit_plan",
+	"apply_narrated_remix_plan",
+	"import_system_template_script",
+	"update_system_template_script",
+	"delete_system_template_script",
+	"create_text_background_effect",
+	"create_human_pip_effect",
+	"generate_digital_human",
+	"generate_runninghub_voice_design",
+	"generate_runninghub_voice_clone",
+	"export_project",
 ]);
 
 export const CODECUT_MCP_TOOLS = [
@@ -506,6 +521,22 @@ export const CODECUT_MCP_TOOLS = [
 				.literal(true)
 				.describe(
 					"Must be true only after the user explicitly confirmed this exact template draft for import.",
+				),
+		},
+		readOnly: false,
+	},
+	{
+		name: "update_system_template_script",
+		title: "Update Codecut System Template Script",
+		description:
+			"Update one user-confirmed Codecut system template script in place from a strict LocalTemplateScript JSON file with the same template ID.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			templateJsonFile: templateJsonFileSchema,
+			confirmedByUser: z
+				.literal(true)
+				.describe(
+					"Must be true only after the user explicitly confirmed updating this exact system template.",
 				),
 		},
 		readOnly: false,
@@ -1866,6 +1897,18 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--confirmed-by-user",
 				"true",
 			];
+		case "update_system_template_script":
+			requireConfirmedByUser(args);
+			return [
+				"scripts/codex-bridge.mjs",
+				"update-system-template-script",
+				"--project-id",
+				projectId,
+				"--template-json-file",
+				requireStringArg(args, "templateJsonFile"),
+				"--confirmed-by-user",
+				"true",
+			];
 		case "delete_system_template_script":
 			requireConfirmedByUser(args);
 			return [
@@ -2360,17 +2403,7 @@ export function createCodecutMcpServer() {
 				inputSchema: tool.inputSchema,
 				annotations: {
 					readOnlyHint: tool.readOnly,
-					destructiveHint:
-						tool.name === "apply_edit_plan" ||
-						tool.name === "apply_narrated_remix_plan" ||
-						tool.name === "import_system_template_script" ||
-						tool.name === "delete_system_template_script" ||
-						tool.name === "create_text_background_effect" ||
-						tool.name === "create_human_pip_effect" ||
-						tool.name === "generate_digital_human" ||
-						tool.name === "generate_runninghub_voice_design" ||
-						tool.name === "generate_runninghub_voice_clone" ||
-						tool.name === "export_project",
+					destructiveHint: DESTRUCTIVE_MCP_TOOL_NAMES.has(tool.name),
 					idempotentHint: tool.readOnly,
 					openWorldHint: false,
 				},

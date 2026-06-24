@@ -51,6 +51,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs list-models --project-id <id> [--type <transcription|digital_human>]",
 		"  node scripts/codex-bridge.mjs search-media --project-id <id> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs import-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
+		"  node scripts/codex-bridge.mjs update-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs delete-system-template-script --project-id <id> --template-id <id> --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
 		'  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text "..." --motion-prompt "..." --width 1280 --height 720 --fps 25',
@@ -1807,6 +1808,27 @@ export async function buildImportSystemTemplateScriptEnvelope({
 	});
 }
 
+export async function buildUpdateSystemTemplateScriptEnvelope({
+	projectId,
+	templateJsonFile,
+	confirmedByUser,
+}) {
+	requireConfirmedTemplateImport(confirmedByUser);
+	const template = await readJsonObjectFile({
+		filePath: templateJsonFile,
+		flagName: "template-json-file",
+	});
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "update_system_template_script",
+		args: {
+			confirmedByUser: true,
+			template,
+		},
+	});
+}
+
 export function buildDeleteSystemTemplateScriptEnvelope({
 	projectId,
 	templateId,
@@ -2964,6 +2986,15 @@ export async function runCli({
 				"confirmedByUser",
 			),
 		});
+	} else if (command === "update-system-template-script") {
+		envelope = await buildUpdateSystemTemplateScriptEnvelope({
+			projectId: flags.projectId,
+			templateJsonFile: flags.templateJsonFile,
+			confirmedByUser: parseBoolean(
+				flags.confirmedByUser,
+				"confirmedByUser",
+			),
+		});
 	} else if (command === "delete-system-template-script") {
 		envelope = buildDeleteSystemTemplateScriptEnvelope({
 			projectId: flags.projectId,
@@ -3082,6 +3113,7 @@ export async function runCli({
 
 	const result =
 		command === "import-system-template-script" ||
+		command === "update-system-template-script" ||
 		command === "delete-system-template-script"
 			? await postAgentBridgeEnvelopeAndWait({ config, envelope, fetchImpl })
 			: await (async () => {

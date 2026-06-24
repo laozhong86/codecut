@@ -25,6 +25,7 @@ export const REQUIRED_MCP_TOOLS = [
 	"set_keyframes",
 	"import_media",
 	"import_system_template_script",
+	"update_system_template_script",
 	"delete_system_template_script",
 	"apply_edit_plan",
 	"get_timeline_state_v2",
@@ -117,6 +118,20 @@ export function assertFreshMcpToolSurface({ tools }) {
 		);
 	}
 
+	const templateUpdateProperties = schemaProperties(
+		requireTool({ toolsByName, name: "update_system_template_script" }),
+	);
+	if (
+		!templateUpdateProperties ||
+		typeof templateUpdateProperties !== "object" ||
+		!Object.hasOwn(templateUpdateProperties, "templateJsonFile") ||
+		!Object.hasOwn(templateUpdateProperties, "confirmedByUser")
+	) {
+		throw new Error(
+			"update_system_template_script input schema must expose templateJsonFile and confirmedByUser.",
+		);
+	}
+
 	const templateDeleteProperties = schemaProperties(
 		requireTool({ toolsByName, name: "delete_system_template_script" }),
 	);
@@ -136,6 +151,7 @@ export function assertFreshMcpToolSurface({ tools }) {
 		importMediaInputs: importMediaInputs.sort(),
 		templateDeleteInputs: ["confirmedByUser", "templateId"],
 		templateImportInputs: ["confirmedByUser", "templateJsonFile"],
+		templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
 	};
 }
 
