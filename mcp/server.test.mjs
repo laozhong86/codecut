@@ -286,6 +286,8 @@ describe("Codecut MCP server contract", () => {
 			"class=\"media-sources media-sources-list\"",
 			"role=\"list\"",
 			"--cc-media-list-max-height",
+			"--cc-media-list-max-height: 192px",
+			"--cc-media-thumbnail-size: 44px",
 			"max-height: var(--cc-media-list-max-height)",
 			"overflow-y: auto",
 			"media-source-thumbnail",
@@ -341,6 +343,17 @@ describe("Codecut MCP server contract", () => {
 		expect(html).toContain('data-role="thumbnail"');
 		expect(html).toContain('class="media-source-path"');
 		expect(html).toContain('data-action="remove-source"');
+		expect(html).toContain('class="media-source-remove-button"');
+		expect(html).toContain('aria-label="${escapeAttribute(t("removeMediaSource"))}"');
+		expect(html).toContain('title="${escapeAttribute(t("removeMediaSource"))}"');
+		expect(html).toContain(">X</button>");
+		expect(html).toContain(".media-source-remove-button {");
+		expect(html).toContain("opacity: 0;");
+		expect(html).toContain("pointer-events: none;");
+		expect(html).toContain(".media-source-row:hover .media-source-remove-button,");
+		expect(html).toContain(".media-source-row:focus-within .media-source-remove-button");
+		expect(html).toContain("pointer-events: auto;");
+		expect(html).toContain("color: var(--cc-danger);");
 		expect(html).toContain("row.remove();");
 		expect(html).not.toContain("fields.mediaSources.children.length > 1");
 		for (const marker of [
