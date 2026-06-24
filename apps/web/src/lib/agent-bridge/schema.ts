@@ -23,6 +23,7 @@ export const BridgeToolNameSchema = z.enum([
 	"generate_runninghub_voice_design",
 	"generate_runninghub_voice_clone",
 	"import_system_template_script",
+	"update_system_template_script",
 	"delete_system_template_script",
 ]);
 

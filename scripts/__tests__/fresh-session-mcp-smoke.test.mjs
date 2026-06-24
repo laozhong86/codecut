@@ -33,6 +33,16 @@ describe("fresh-session MCP smoke helpers", () => {
 				},
 			},
 		};
+		const templateUpdateTool = {
+			name: "update_system_template_script",
+			inputSchema: {
+				properties: {
+					projectId: {},
+					templateJsonFile: {},
+					confirmedByUser: {},
+				},
+			},
+		};
 		const templateDeleteTool = {
 			name: "delete_system_template_script",
 			inputSchema: {
@@ -46,11 +56,13 @@ describe("fresh-session MCP smoke helpers", () => {
 		const tools = [
 			importTool,
 			templateImportTool,
+			templateUpdateTool,
 			templateDeleteTool,
 			...REQUIRED_MCP_TOOLS.filter(
 				(name) =>
 					name !== "import_media" &&
 					name !== "import_system_template_script" &&
+					name !== "update_system_template_script" &&
 					name !== "delete_system_template_script",
 			).map((name) => ({ name, inputSchema: { properties: {} } })),
 		];
@@ -60,6 +72,7 @@ describe("fresh-session MCP smoke helpers", () => {
 			importMediaInputs: ["bytes", "filePath", "url"],
 			templateDeleteInputs: ["confirmedByUser", "templateId"],
 			templateImportInputs: ["confirmedByUser", "templateJsonFile"],
+			templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
 		});
 	});
 
@@ -101,6 +114,16 @@ describe("fresh-session MCP smoke helpers", () => {
 								},
 							},
 							{
+								name: "update_system_template_script",
+								inputSchema: {
+									properties: {
+										projectId: {},
+										templateJsonFile: {},
+										confirmedByUser: {},
+									},
+								},
+							},
+							{
 								name: "delete_system_template_script",
 								inputSchema: {
 									properties: {
@@ -114,6 +137,7 @@ describe("fresh-session MCP smoke helpers", () => {
 								(name) =>
 									name !== "import_media" &&
 									name !== "import_system_template_script" &&
+									name !== "update_system_template_script" &&
 									name !== "delete_system_template_script",
 							).map((name) => ({ name, inputSchema: { properties: {} } })),
 						],
@@ -130,6 +154,7 @@ describe("fresh-session MCP smoke helpers", () => {
 				importMediaInputs: ["bytes", "filePath", "url"],
 				templateDeleteInputs: ["confirmedByUser", "templateId"],
 				templateImportInputs: ["confirmedByUser", "templateJsonFile"],
+				templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
 			},
 		});
 		expect(calls).toEqual(["mcp"]);

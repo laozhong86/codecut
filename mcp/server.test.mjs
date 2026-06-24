@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
 	CODECUT_MCP_TOOLS,
 	CODECUT_TOOL_GOVERNANCE_CATEGORIES,
+	DESTRUCTIVE_MCP_TOOL_NAMES,
 	buildBridgeCliArgs,
 	callBridgeCliTool,
 	normalizeCliResult,
@@ -48,6 +49,7 @@ describe("Codecut MCP server contract", () => {
 			"list_models",
 			"search_media",
 			"import_system_template_script",
+			"update_system_template_script",
 			"delete_system_template_script",
 			"validate_edit_plan",
 			"preview_edit_plan",
@@ -130,6 +132,7 @@ describe("Codecut MCP server contract", () => {
 		expect(readOnlyByTool.get("list_models")).toBe(true);
 		expect(readOnlyByTool.get("search_media")).toBe(true);
 		expect(readOnlyByTool.get("import_system_template_script")).toBe(false);
+		expect(readOnlyByTool.get("update_system_template_script")).toBe(false);
 		expect(readOnlyByTool.get("delete_system_template_script")).toBe(false);
 		expect(readOnlyByTool.get("add_texts")).toBe(false);
 		expect(readOnlyByTool.get("add_captions")).toBe(false);
@@ -190,6 +193,17 @@ describe("Codecut MCP server contract", () => {
 		}
 
 		for (const toolName of [
+			"import_media",
+			"import_system_template_script",
+			"update_system_template_script",
+			"delete_system_template_script",
+		]) {
+			expect(categoryByTool.get(toolName)).toBe(
+				CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT,
+			);
+		}
+
+		for (const toolName of [
 			"generate_digital_human",
 			"generate_runninghub_voice_design",
 			"generate_runninghub_voice_clone",
@@ -199,6 +213,18 @@ describe("Codecut MCP server contract", () => {
 				CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
 			);
 		}
+	});
+
+	test("marks template mutation tools as destructive in MCP annotations", () => {
+		expect(DESTRUCTIVE_MCP_TOOL_NAMES.has("import_system_template_script")).toBe(
+			true,
+		);
+		expect(DESTRUCTIVE_MCP_TOOL_NAMES.has("update_system_template_script")).toBe(
+			true,
+		);
+		expect(DESTRUCTIVE_MCP_TOOL_NAMES.has("delete_system_template_script")).toBe(
+			true,
+		);
 	});
 
 	test("defines a versioned workspace widget resource and tools", async () => {
@@ -873,6 +899,23 @@ describe("Codecut MCP server contract", () => {
 		).toEqual([
 			"scripts/codex-bridge.mjs",
 			"import-system-template-script",
+			"--project-id",
+			"project-1",
+			"--template-json-file",
+			"/tmp/local-template-script.json",
+			"--confirmed-by-user",
+			"true",
+		]);
+
+		expect(
+			buildBridgeCliArgs("update_system_template_script", {
+				projectId: "project-1",
+				templateJsonFile: "/tmp/local-template-script.json",
+				confirmedByUser: true,
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"update-system-template-script",
 			"--project-id",
 			"project-1",
 			"--template-json-file",

@@ -73,6 +73,13 @@ describe("agent bridge schema", () => {
 		expect(result.success).toBe(true);
 	});
 
+	test("accepts the system template update tool", () => {
+		const result = BridgeToolNameSchema.safeParse(
+			"update_system_template_script",
+		);
+		expect(result.success).toBe(true);
+	});
+
 	test("accepts the system template delete tool", () => {
 		const result = BridgeToolNameSchema.safeParse(
 			"delete_system_template_script",

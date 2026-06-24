@@ -12,6 +12,15 @@ interface SystemTemplateScriptService {
 	}: {
 		template: LocalTemplateScriptRecord;
 	}): Promise<LocalTemplateScriptRecord>;
+	updateTemplate({
+		id,
+		updates,
+	}: {
+		id: string;
+		updates: Partial<
+			Omit<LocalTemplateScriptRecord, "id" | "createdAt" | "updatedAt">
+		>;
+	}): Promise<LocalTemplateScriptRecord>;
 	getTemplate({
 		id,
 	}: {
@@ -43,6 +52,59 @@ export async function executeImportSystemTemplateScriptTool({
 	return {
 		success: true,
 		message: `Imported system template script "${template.name}" (${template.id}).`,
+		data: {
+			templateId: template.id,
+			name: template.name,
+			triggerTypes: template.trigger.types,
+			defaultForTypes: template.trigger.defaultForTypes,
+			aliases: template.trigger.aliases,
+			stepCount: template.script.steps.length,
+			verificationCount: template.script.verification.length,
+			templateCount: templates.length,
+			sourceOfTruth: "codecut-system-template-library",
+			visibleInTemplatesUi: true,
+		},
+	};
+}
+
+export async function executeUpdateSystemTemplateScriptTool({
+	args,
+	service = localTemplateScriptService,
+}: {
+	args: Record<string, unknown>;
+	service?: SystemTemplateScriptService;
+}): Promise<AgentToolResult> {
+	if (args.confirmedByUser !== true) {
+		return {
+			success: false,
+			message:
+				"Template update requires explicit user confirmation before changing Codecut system templates.",
+		};
+	}
+
+	const parsed = LocalTemplateScriptSchema.parse(args.template);
+	const existing = await service.getTemplate({ id: parsed.id });
+	if (!existing) {
+		return {
+			success: false,
+			message: `System template script not found: ${parsed.id}.`,
+		};
+	}
+
+	const template = await service.updateTemplate({
+		id: parsed.id,
+		updates: {
+			name: parsed.name,
+			description: parsed.description,
+			trigger: parsed.trigger,
+			script: parsed.script,
+		},
+	});
+	const templates = await service.listTemplates();
+
+	return {
+		success: true,
+		message: `Updated system template script "${template.name}" (${template.id}).`,
 		data: {
 			templateId: template.id,
 			name: template.name,
@@ -131,6 +193,32 @@ export const importSystemTemplateScriptTool: AgentTool = {
 	},
 };
 
+export const updateSystemTemplateScriptTool: AgentTool = {
+	name: "update_system_template_script",
+	description:
+		"Update one user-confirmed Codecut system template script in place using a strict LocalTemplateScript JSON object with the same template ID. Do not call this before the user explicitly confirms the update.",
+	requiresConfirmation: true,
+	parameters: {
+		type: "object",
+		properties: {
+			confirmedByUser: {
+				type: "boolean",
+				description:
+					"Must be true only after the user explicitly confirmed updating this exact system template.",
+			},
+			template: {
+				type: "object",
+				description:
+					"The strict LocalTemplateScript JSON object to apply to an existing Codecut system template with the same ID.",
+			},
+		},
+		required: ["confirmedByUser", "template"],
+	},
+	async execute(args) {
+		return executeUpdateSystemTemplateScriptTool({ args });
+	},
+};
+
 export const deleteSystemTemplateScriptTool: AgentTool = {
 	name: "delete_system_template_script",
 	description:
@@ -158,5 +246,6 @@ export const deleteSystemTemplateScriptTool: AgentTool = {
 
 export const systemTemplateTools: AgentTool[] = [
 	importSystemTemplateScriptTool,
+	updateSystemTemplateScriptTool,
 	deleteSystemTemplateScriptTool,
 ];
