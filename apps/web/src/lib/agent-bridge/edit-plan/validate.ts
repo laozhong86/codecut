@@ -1,5 +1,9 @@
 import type { MediaAsset } from "@/types/assets";
 import { validateTextRichSpans } from "@/services/renderer/nodes/text-layout";
+import {
+	auditCaptions,
+	canonicalCaptionCanvasSizeForAspectRatio,
+} from "@/lib/agent-bridge/caption-quality";
 import { EditPlanSchema, type EditPlan } from "./schema";
 
 const TIMED_TEXT_TOLERANCE_SECONDS = 0.001;
@@ -416,6 +420,24 @@ export function validateEditPlan({
 					path: `captions[${index}].richSpans`,
 				});
 			}
+		}
+	}
+	if (hasCaptions && normalizedPlan.captionStyle) {
+		const captionQuality = auditCaptions({
+			captions: normalizedPlan.captions ?? [],
+			captionStyle: normalizedPlan.captionStyle,
+			aspectRatio: normalizedPlan.target.aspectRatio,
+			canvasSize: canonicalCaptionCanvasSizeForAspectRatio({
+				aspectRatio: normalizedPlan.target.aspectRatio,
+			}),
+			timelineDuration,
+		});
+		const firstIssue = captionQuality.issues[0];
+		if (firstIssue) {
+			return fail({
+				message: firstIssue.message,
+				path: firstIssue.path,
+			});
 		}
 	}
 

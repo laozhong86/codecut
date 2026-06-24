@@ -89,7 +89,13 @@ function parseFlags(argv) {
 			throw new Error(`Missing value for --${key}`);
 		}
 
-		flags[key] = value;
+		if (Object.hasOwn(flags, key)) {
+			flags[key] = Array.isArray(flags[key])
+				? [...flags[key], value]
+				: [flags[key], value];
+		} else {
+			flags[key] = value;
+		}
 		index += 1;
 	}
 	return flags;
@@ -2015,6 +2021,17 @@ function parsePositiveNumber(value, label) {
 	return parsed;
 }
 
+function normalizeProtectedTerms({ protectedTerms }) {
+	const terms = Array.isArray(protectedTerms)
+		? protectedTerms
+		: [protectedTerms];
+	const normalized = terms.map((term) => String(term).trim()).filter(Boolean);
+	if (normalized.length === 0) {
+		throw new Error("--protected-term must not be empty");
+	}
+	return normalized;
+}
+
 export function buildDigitalHumanEnvelope({
 	projectId,
 	imageMediaId,
@@ -2060,6 +2077,7 @@ export function buildRunningHubVoiceDesignEnvelope({
 	projectId,
 	text,
 	emotionPrompt,
+	protectedTerms,
 }) {
 	if (!text?.trim()) {
 		throw new Error("--text is required");
@@ -2074,6 +2092,9 @@ export function buildRunningHubVoiceDesignEnvelope({
 		args: {
 			text: text.trim(),
 			emotionPrompt: emotionPrompt.trim(),
+			...(protectedTerms === undefined
+				? {}
+				: { protectedTerms: normalizeProtectedTerms({ protectedTerms }) }),
 		},
 	});
 }
@@ -2082,6 +2103,7 @@ export function buildRunningHubVoiceCloneEnvelope({
 	projectId,
 	audioPath,
 	text,
+	protectedTerms,
 }) {
 	if (!audioPath?.trim()) {
 		throw new Error("--audio-path is required");
@@ -2096,6 +2118,9 @@ export function buildRunningHubVoiceCloneEnvelope({
 		args: {
 			audioPath: audioPath.trim(),
 			text: text.trim(),
+			...(protectedTerms === undefined
+				? {}
+				: { protectedTerms: normalizeProtectedTerms({ protectedTerms }) }),
 		},
 	});
 }
@@ -3014,6 +3039,7 @@ export async function runCli({
 			projectId: flags.projectId,
 			text: flags.text,
 			emotionPrompt: flags.emotionPrompt,
+			protectedTerms: flags.protectedTerm,
 		});
 	} else if (command === "generate-runninghub-voice-clone") {
 		requireRunningHubApiKey({ env });
@@ -3021,6 +3047,7 @@ export async function runCli({
 			projectId: flags.projectId,
 			audioPath: flags.audioPath,
 			text: flags.text,
+			protectedTerms: flags.protectedTerm,
 		});
 	} else if (command === "validate-edit-plan") {
 		envelope = await buildValidateEditPlanEnvelope({

@@ -130,6 +130,7 @@ enabled = true
 		expect(args).toContain("--dry-run");
 		expect(args).toContain("--exclude=.git");
 		expect(args).toContain("--exclude=.git/");
+		expect(args).toContain("--exclude=.codecut-worktree.json");
 		expect(args).toContain("--exclude=node_modules/");
 		expect(args).toContain("--exclude=.next/");
 		expect(args).toContain("--exclude=.turbo/");

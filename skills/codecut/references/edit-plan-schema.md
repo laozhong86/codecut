@@ -124,6 +124,9 @@ Current validation fail-fast checks include:
 - title and captions must fit inside the generated timeline.
 - captions must use top-level `captionStyle`; per-caption style objects are not
   accepted.
+- captions must not overlap, each caption duration must be `0.5s..4s`, and the
+  resolved preset/layout must render at most two lines with no 1-2 character
+  orphan final line.
 - captionStyle preset must be one of the implemented local presets:
   `short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`,
   `documentary-soft`, `product-punch`, `lifestyle-warm`, or
@@ -144,10 +147,10 @@ Current validation fail-fast checks include:
 Caption timing must use a post-cut caption source. Prefer edited clip audio
 transcription through `build-post-cut-captions`: apply a clip-first EditPlan,
 run the command, copy the returned captions into the final EditPlan, then apply
-the final plan. Otherwise use source transcript remap: convert source transcript
-segment timestamps into output timeline timestamps through the selected
-`clips[]`. Do not copy source transcript timestamps directly into
-`captions[].startTime`.
+the final plan. The returned `captionQuality` must pass before mutation.
+Otherwise use source transcript remap: convert source transcript segment
+timestamps into output timeline timestamps through the selected `clips[]`. Do
+not copy source transcript timestamps directly into `captions[].startTime`.
 
 `clips[].fit: "cover"` creates a centered cover crop by converting source and
 target aspect ratios into `visual.transform.scale`. It is readable through
@@ -245,6 +248,18 @@ only this shape when calling `apply_narrated_remix_plan`:
     startTime: number,
     duration: number
   }>,
+  captionStyle: {
+    preset:
+      | "short-form-bold"
+      | "black-bar"
+      | "talking-head-pop"
+      | "tutorial-clean"
+      | "documentary-soft"
+      | "product-punch"
+      | "lifestyle-warm"
+      | "cinematic-serif",
+    position: "lower-safe" | "center"
+  },
   rationale: string
 }
 ```
@@ -260,6 +275,8 @@ Current validation fail-fast checks include:
 - visual beats must start at `0`, be continuous, and have no gaps or overlaps.
 - visual beat total duration must equal `target.durationSec`.
 - captions must fit inside `target.durationSec`.
+- captions require top-level `captionStyle` and must pass the same duration,
+  overlap, two-line, and orphan-line quality contract as EditPlan captions.
 - narration must cover `target.durationSec` from `narration.sourceStart`.
 
 Do not include TTS, generated speech, BGM, SFX, image B-roll, external media

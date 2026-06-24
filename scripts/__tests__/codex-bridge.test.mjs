@@ -650,6 +650,7 @@ describe("codex bridge CLI helpers", () => {
 				projectId: "project-1",
 				text: "欢迎来到今天的测试",
 				emotionPrompt: "温柔、稳定的中文播客女声",
+				protectedTerms: ["今天的测试"],
 			}),
 		).toEqual({
 			version: 1,
@@ -662,6 +663,7 @@ describe("codex bridge CLI helpers", () => {
 					args: {
 						text: "欢迎来到今天的测试",
 						emotionPrompt: "温柔、稳定的中文播客女声",
+						protectedTerms: ["今天的测试"],
 					},
 				},
 			],
@@ -674,6 +676,7 @@ describe("codex bridge CLI helpers", () => {
 				projectId: "project-1",
 				audioPath: "/tmp/reference.wav",
 				text: "欢迎来到今天的测试",
+				protectedTerms: ["今天的测试"],
 			}),
 		).toEqual({
 			version: 1,
@@ -686,6 +689,7 @@ describe("codex bridge CLI helpers", () => {
 					args: {
 						audioPath: "/tmp/reference.wav",
 						text: "欢迎来到今天的测试",
+						protectedTerms: ["今天的测试"],
 					},
 				},
 			],

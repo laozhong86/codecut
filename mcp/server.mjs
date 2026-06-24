@@ -283,6 +283,7 @@ const captionStyleSchema = z
 		position: z.enum(["lower-safe", "center"]).optional(),
 	})
 	.strict();
+const protectedTermsSchema = z.array(z.string().trim().min(1)).optional();
 
 const keyframeInterpolationSchema = z.enum(["linear", "hold"]);
 const scalarKeyframeSchema = z
@@ -758,6 +759,7 @@ export const CODECUT_MCP_TOOLS = [
 			projectId: projectIdSchema,
 			text: z.string().trim().min(1),
 			emotionPrompt: z.string().trim().min(1),
+			protectedTerms: protectedTermsSchema,
 		},
 		readOnly: false,
 	},
@@ -770,6 +772,7 @@ export const CODECUT_MCP_TOOLS = [
 			projectId: projectIdSchema,
 			audioPath: filePathSchema,
 			text: z.string().trim().min(1),
+			protectedTerms: protectedTermsSchema,
 		},
 		readOnly: false,
 	},
@@ -1575,6 +1578,17 @@ function requireNumberArg(args, key) {
 	return String(args[key]);
 }
 
+function protectedTermCliArgs(args) {
+	if (args?.protectedTerms === undefined) return [];
+	if (!Array.isArray(args.protectedTerms)) {
+		throw new Error("protectedTerms must be an array");
+	}
+	return args.protectedTerms.flatMap((term) => [
+		"--protected-term",
+		String(term),
+	]);
+}
+
 function requireBooleanArg(args, key) {
 	if (typeof args?.[key] !== "boolean") {
 		throw new Error(`${key} is required`);
@@ -2120,6 +2134,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				requireStringArg(args, "text"),
 				"--emotion-prompt",
 				requireStringArg(args, "emotionPrompt"),
+				...protectedTermCliArgs(args),
 			];
 		case "generate_runninghub_voice_clone":
 			return [
@@ -2131,6 +2146,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				requireStringArg(args, "audioPath"),
 				"--text",
 				requireStringArg(args, "text"),
+				...protectedTermCliArgs(args),
 			];
 		case "verify_timeline":
 			return [

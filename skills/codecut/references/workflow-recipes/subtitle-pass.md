@@ -9,9 +9,10 @@ Use this recipe when the user asks for subtitles, caption cleanup, subtitle timi
 - Captions fit inside the generated timeline.
 - Text stays on text tracks.
 - `get_timeline_state` confirms caption element count and timing bounds.
-- `build_video_quality_report` passes `layout.captionLines`: captions render
-  within two lines and multi-line captions do not end with a 1-2 character
-  orphan line.
+- `build_video_quality_report` passes `caption_quality` and
+  `layout.captionLines`: captions do not overlap, each item is `0.5s..4s`, and
+  the selected preset renders within two lines with no 1-2 character orphan
+  final line.
 
 ## Required Context
 
@@ -60,7 +61,8 @@ confirms a translation overlay or duplicate-language caption.
 6. Select the caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` as the fallback.
 7. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`.
 8. Generate or update an implemented EditPlan v1 with `captions`.
-9. Validate, preview, apply, and verify the final EditPlan.
+9. Validate, preview, apply, read back with `get_timeline_state` v2, run
+   `build_video_quality_report`, then export only after quality passes.
 
 ## Executor Recipe
 
@@ -82,7 +84,9 @@ node scripts/codex-bridge.mjs build-post-cut-captions \
 ```
 
 Codex then merges the returned `captions[]` and `captionStyle` into a final
-EditPlan file. The fixture
+EditPlan file only when the returned `captionQuality.ok` is true. If
+`voiceConsistency` is present, preserve the scripted caption text and treat ASR
+as timing evidence only. The fixture
 `workflow-recipes/fixtures/post-cut-captions-final-edit-plan.json` shows the
 shape of that final plan.
 
@@ -123,8 +127,9 @@ node scripts/codex-bridge.mjs build-video-quality-report \
   --frame-count 6
 ```
 
-Stop if `layout.captionLines` fails. Fix the caption text or selected preset,
-then re-apply the final EditPlan and re-run the report.
+Stop if `caption_quality`, `voice_consistency`, or `layout.captionLines` fails.
+Fix the caption text, timing, script binding, or selected preset, then re-apply
+the final EditPlan and re-run the report.
 
 If burned-in source subtitles require a crop that current EditPlan `sourceCrop`
 cannot express, do not silently generate a fallback. Present two choices:
@@ -146,6 +151,8 @@ Do not route simple fixed title text, labels, badges, or stickers into this reci
 
 - No transcript or timed caption source exists.
 - Captions cannot be tied to edited audio transcription or source transcript remap.
+- Captions fail the quality contract: overlap, shorter than `0.5s`, longer than
+  `4s`, more than two rendered lines, or a 1-2 character orphan final line.
 - The user requests animated subtitle templates, karaoke words, or styling not represented in current EditPlan v1.
 - Translation is requested but no translation source/tool is available in the current workflow.
 

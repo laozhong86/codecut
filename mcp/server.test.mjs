@@ -112,6 +112,16 @@ describe("Codecut MCP server contract", () => {
 		expect(tool?.inputSchema.granularity.safeParse("word").success).toBe(true);
 	});
 
+	test("exposes protected terms for RunningHub voice tools", () => {
+		for (const name of [
+			"generate_runninghub_voice_design",
+			"generate_runninghub_voice_clone",
+		]) {
+			const tool = CODECUT_MCP_TOOLS.find((candidate) => candidate.name === name);
+			expect(tool?.inputSchema).toHaveProperty("protectedTerms");
+		}
+	});
+
 	test("marks search and model catalog tools as read-only", () => {
 		const readOnlyByTool = new Map(
 			CODECUT_MCP_TOOLS.map((tool) => [tool.name, tool.readOnly]),
@@ -948,6 +958,28 @@ describe("Codecut MCP server contract", () => {
 					position: "lower-safe",
 				},
 			}),
+		]);
+
+		expect(
+			buildBridgeCliArgs("generate_runninghub_voice_design", {
+				projectId: "project-1",
+				text: "欢迎来到今天的测试",
+				emotionPrompt: "温柔、稳定的中文播客女声",
+				protectedTerms: ["今天的测试", "Codex"],
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"generate-runninghub-voice-design",
+			"--project-id",
+			"project-1",
+			"--text",
+			"欢迎来到今天的测试",
+			"--emotion-prompt",
+			"温柔、稳定的中文播客女声",
+			"--protected-term",
+			"今天的测试",
+			"--protected-term",
+			"Codex",
 		]);
 
 		expect(

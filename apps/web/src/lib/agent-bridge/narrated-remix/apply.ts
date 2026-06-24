@@ -9,6 +9,7 @@ import type {
 	VideoTrack,
 } from "@/types/timeline";
 import { calculateTotalDuration } from "@/lib/timeline";
+import { resolveCaptionStylePreset } from "@/lib/agent-bridge/edit-plan/text-presets";
 import {
 	buildTextElement,
 	buildUploadAudioElement,
@@ -112,13 +113,22 @@ function buildCaptionElement({
 	text,
 	startTime,
 	duration,
+	plan,
 }: {
 	text: string;
 	startTime: number;
 	duration: number;
+	plan: NarratedRemixPlan;
 }): TextElement {
+	if (!plan.captionStyle) {
+		throw new Error("NarratedRemixPlan captionStyle is required for captions.");
+	}
 	const element = buildTextElement({
 		raw: {
+			...resolveCaptionStylePreset({
+				captionStyle: plan.captionStyle,
+				aspectRatio: plan.target.aspectRatio,
+			}),
 			name: "Caption",
 			content: text,
 			duration,
@@ -171,6 +181,7 @@ function buildNarratedRemixTracks({
 				text: caption.text,
 				startTime: caption.startTime,
 				duration: caption.duration,
+				plan,
 			}),
 		),
 	};

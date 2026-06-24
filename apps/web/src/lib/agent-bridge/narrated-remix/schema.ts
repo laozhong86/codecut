@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EditPlanCaptionStyleSchema } from "@/lib/agent-bridge/edit-plan/schema";
 
 export const NarratedRemixAspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 
@@ -42,6 +43,7 @@ export const NarratedRemixPlanSchema = z
 		visualBeats: z.array(NarratedRemixVisualBeatSchema).min(1),
 		narration: NarratedRemixNarrationSchema,
 		captions: z.array(NarratedRemixCaptionSchema),
+		captionStyle: EditPlanCaptionStyleSchema.optional(),
 		rationale: z.string().min(1),
 	})
 	.strict();

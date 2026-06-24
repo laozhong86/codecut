@@ -15,6 +15,7 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import { applyEditPlanToEditor } from "@/lib/agent-bridge/edit-plan/apply";
 import { validateEditPlan } from "@/lib/agent-bridge/edit-plan/validate";
+import { auditCaptions } from "@/lib/agent-bridge/caption-quality";
 import {
 	EditPlanCaptionStyleSchema,
 	type EditPlanCaptionStyle,
@@ -76,6 +77,7 @@ import {
 	TRANSCRIPTION_LANGUAGES,
 	TRANSCRIPTION_MODELS,
 } from "@/constants/transcription-constants";
+import { buildTtsSpokenScript } from "@/lib/tts/spoken-script";
 import {
 	createHumanPipEffect,
 	createTextBackgroundEffect,
@@ -166,6 +168,8 @@ interface ExecutorSpokenScript {
 	text: string;
 	captions: string[];
 	protectedTerms?: string[];
+	provider?: "imported-tts" | "runninghub-voice-design" | "runninghub-voice-clone";
+	providerTaskId?: string;
 }
 
 export interface ExecutorProjectState {
@@ -279,6 +283,10 @@ const importMediaArgsSchema = z
 				text: z.string().min(1),
 				captions: z.array(z.string().min(1)).min(1),
 				protectedTerms: z.array(z.string().min(1)).optional(),
+				provider: z
+					.enum(["imported-tts", "runninghub-voice-design", "runninghub-voice-clone"])
+					.optional(),
+				providerTaskId: z.string().min(1).optional(),
 			})
 			.strict()
 			.optional(),
@@ -684,6 +692,7 @@ const generateVoiceDesignArgsSchema = z
 	.object({
 		text: z.string().trim().min(1),
 		emotionPrompt: z.string().trim().min(1),
+		protectedTerms: z.array(z.string().trim().min(1)).optional(),
 	})
 	.strict();
 
@@ -691,6 +700,7 @@ const generateVoiceCloneArgsSchema = z
 	.object({
 		audioPath: z.string().trim().min(1),
 		text: z.string().trim().min(1),
+		protectedTerms: z.array(z.string().trim().min(1)).optional(),
 	})
 	.strict();
 
@@ -1653,6 +1663,12 @@ function serializeSpokenScriptSummary(asset: ExecutorMediaAsset) {
 	const spokenScript = asset.spokenScript;
 	return {
 		hasSpokenScript: Boolean(spokenScript),
+		...(spokenScript?.provider
+			? { spokenScriptProvider: spokenScript.provider }
+			: {}),
+		...(spokenScript?.providerTaskId
+			? { spokenScriptProviderTaskId: spokenScript.providerTaskId }
+			: {}),
 		spokenScriptCaptionLineCount: spokenScript?.captions.length ?? 0,
 		spokenScriptProtectedTermCount: spokenScript?.protectedTerms?.length ?? 0,
 	};
@@ -2573,12 +2589,16 @@ async function saveGeneratedRunningHubVoiceAsset({
 	state,
 	providerId,
 	taskId,
+	text,
+	protectedTerms,
 	audioBytes,
 	mimeType,
 }: {
 	state: ExecutorProjectState;
 	providerId: string;
 	taskId: string;
+	text: string;
+	protectedTerms?: string[];
 	audioBytes: Buffer;
 	mimeType: string;
 }) {
@@ -2600,6 +2620,15 @@ async function saveGeneratedRunningHubVoiceAsset({
 		mediaId,
 	);
 	await writeFile(mediaPath, normalizedAudio.audioBytes);
+	const spokenScript = buildTtsSpokenScript({
+		text,
+		protectedTerms,
+		provider:
+			providerId === RUNNINGHUB_VOICE_CLONE_PROVIDER_ID
+				? "runninghub-voice-clone"
+				: "runninghub-voice-design",
+		providerTaskId: taskId,
+	});
 	const asset: ExecutorMediaAsset = {
 		id: mediaId,
 		name,
@@ -2609,6 +2638,7 @@ async function saveGeneratedRunningHubVoiceAsset({
 		size: normalizedAudio.audioBytes.byteLength,
 		lastModified: Date.now(),
 		path: mediaPath,
+		spokenScript,
 	};
 	state.mediaAssets = [...state.mediaAssets, asset];
 	await saveProjectState({ state });
@@ -2622,6 +2652,12 @@ async function saveGeneratedRunningHubVoiceAsset({
 			duration: normalizedAudio.duration,
 			audioPath: mediaPath,
 			name,
+			voiceConsistency: {
+				provider: providerId,
+				providerTaskId: taskId,
+				scriptCaptionLineCount: spokenScript.captions.length,
+				protectedTermCount: spokenScript.protectedTerms?.length ?? 0,
+			},
 		},
 	};
 }
@@ -2737,6 +2773,8 @@ async function runGenerateRunningHubVoiceDesign({
 		state,
 		providerId: RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID,
 		taskId: generated.taskId,
+		text: parsed.text,
+		protectedTerms: parsed.protectedTerms,
 		audioBytes: generated.audioBytes,
 		mimeType: generated.mimeType || "audio/mpeg",
 	});
@@ -2777,6 +2815,8 @@ async function runGenerateRunningHubVoiceClone({
 		state,
 		providerId: RUNNINGHUB_VOICE_CLONE_PROVIDER_ID,
 		taskId: generated.taskId,
+		text: parsed.text,
+		protectedTerms: parsed.protectedTerms,
 		audioBytes: generated.audioBytes,
 		mimeType: generated.mimeType || "audio/mpeg",
 	});
@@ -3507,6 +3547,14 @@ async function buildPostCutCaptionsData({
 				modelId: string;
 				captionStyle: EditPlanCaptionStyle;
 				captions: Array<{ text: string; startTime: number; duration: number }>;
+				captionQuality: ReturnType<typeof auditCaptions>;
+				voiceConsistency?: {
+					provider: NonNullable<ExecutorSpokenScript["provider"]>;
+					providerTaskId?: string;
+					alignmentMethod: "scripted_captions_to_asr_segments";
+					scriptCaptionLineCount: number;
+					protectedTermCount: number;
+				};
 				trace: Array<{
 					mediaId: string;
 					timelineStart: number;
@@ -3570,6 +3618,15 @@ async function buildPostCutCaptionsData({
 		sourceEnd: number;
 		captionCount: number;
 	}> = [];
+	let voiceConsistency:
+		| {
+				provider: NonNullable<ExecutorSpokenScript["provider"]>;
+				providerTaskId?: string;
+				alignmentMethod: "scripted_captions_to_asr_segments";
+				scriptCaptionLineCount: number;
+				protectedTermCount: number;
+		  }
+		| undefined;
 
 	for (const { element } of clips) {
 		const mediaId = element.mediaId;
@@ -3617,6 +3674,21 @@ async function buildPostCutCaptionsData({
 			: null;
 		if (scriptedCaptions && !scriptedCaptions.success) {
 			return scriptedCaptions;
+		}
+		if (scriptedCaptions && mediaAsset.spokenScript) {
+			voiceConsistency = {
+				provider: mediaAsset.spokenScript.provider ?? "imported-tts",
+				...(mediaAsset.spokenScript.providerTaskId
+					? { providerTaskId: mediaAsset.spokenScript.providerTaskId }
+					: {}),
+				alignmentMethod: "scripted_captions_to_asr_segments",
+				scriptCaptionLineCount:
+					(voiceConsistency?.scriptCaptionLineCount ?? 0) +
+					scriptedCaptions.captions.length,
+				protectedTermCount:
+					(voiceConsistency?.protectedTermCount ?? 0) +
+					(mediaAsset.spokenScript.protectedTerms?.length ?? 0),
+			};
 		}
 		const effectiveSegments = scriptedCaptions
 			? alignScriptedCaptionsToTimingSegments({
@@ -3668,6 +3740,13 @@ async function buildPostCutCaptionsData({
 			captionCount: captions.length - beforeCount,
 		});
 	}
+	const captionQuality = auditCaptions({
+		captions,
+		captionStyle,
+		aspectRatio,
+		canvasSize,
+		timelineDuration: calculateTotalDuration({ tracks: state.tracks }),
+	});
 
 	return {
 		success: true,
@@ -3677,6 +3756,8 @@ async function buildPostCutCaptionsData({
 			modelId,
 			captionStyle,
 			captions,
+			captionQuality,
+			...(voiceConsistency ? { voiceConsistency } : {}),
 			trace,
 		},
 	};
@@ -3727,6 +3808,13 @@ async function runAddCaptions({
 		transcribeMediaRange,
 	});
 	if (!captions.success) return captions;
+	if (!captions.data.captionQuality.ok) {
+		return {
+			success: false,
+			message: "Generated captions failed caption quality validation.",
+			data: { captionQuality: captions.data.captionQuality },
+		};
+	}
 	const raw = resolveCaptionStylePreset({
 		captionStyle,
 		aspectRatio: aspectRatioForState(state),

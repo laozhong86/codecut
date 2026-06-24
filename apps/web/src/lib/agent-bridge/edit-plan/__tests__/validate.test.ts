@@ -458,6 +458,49 @@ describe("validateEditPlan", () => {
 		});
 	});
 
+	test("rejects captions below the readable duration contract", () => {
+		const plan = validPlan();
+		plan.captions = [
+			{
+				text: "Too fast",
+				startTime: 0,
+				duration: 0.25,
+			},
+		];
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan caption duration is below the readable minimum.",
+			path: "captions[0].duration",
+		});
+	});
+
+	test("rejects overlapping captions before mutation", () => {
+		const plan = validPlan();
+		plan.captions = [
+			{ text: "First", startTime: 0, duration: 1 },
+			{ text: "Second", startTime: 0.9, duration: 1 },
+		];
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "EditPlan captions must not overlap.",
+			path: "captions[1].startTime",
+		});
+	});
+
 	test("accepts implemented caption style presets for different video types", () => {
 		const presets = [
 			"short-form-bold",

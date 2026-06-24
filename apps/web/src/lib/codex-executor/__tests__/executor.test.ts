@@ -955,6 +955,7 @@ describe("codex executor", () => {
 				args: {
 					text: "欢迎来到今天的测试",
 					emotionPrompt: "温柔、稳定的中文播客女声",
+					protectedTerms: ["今天的测试"],
 				},
 			}),
 			env: { RUNNINGHUB_API_KEY: "rh-key" },
@@ -981,6 +982,12 @@ describe("codex executor", () => {
 				taskId: "voice-task-1",
 				provider: "runninghub-voice-design",
 				name: "runninghub-voice-design-voice-task-1.wav",
+				voiceConsistency: {
+					provider: "runninghub-voice-design",
+					providerTaskId: "voice-task-1",
+					scriptCaptionLineCount: 1,
+					protectedTermCount: 1,
+				},
 			},
 		});
 		expect(
@@ -998,12 +1005,36 @@ describe("codex executor", () => {
 				mimeType: "audio/wav",
 			}),
 		);
-		const asset = snapshot.mediaAssets.find(
+		const state = await getExecutorProjectState({ projectId });
+		const asset = state.mediaAssets.find(
 			(item) => item.name === "runninghub-voice-design-voice-task-1.wav",
 		);
 		expect(asset?.size).toBeGreaterThan(0);
 		expect(asset?.duration).toBeGreaterThan(0.9);
 		expect(asset?.duration).toBeLessThan(1.1);
+		expect(asset?.spokenScript).toMatchObject({
+			source: "tts",
+			text: "欢迎来到今天的测试",
+			captions: ["欢迎来到今天的测试"],
+			protectedTerms: ["今天的测试"],
+			provider: "runninghub-voice-design",
+			providerTaskId: "voice-task-1",
+		});
+
+		const listResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "list_media_assets", args: {} }),
+		});
+		const listData = resultData<{
+			assets: Array<Record<string, unknown>>;
+		}>(listResult.results[0]);
+		expect(listData.assets[0]).toMatchObject({
+			hasSpokenScript: true,
+			spokenScriptProvider: "runninghub-voice-design",
+			spokenScriptProviderTaskId: "voice-task-1",
+			spokenScriptCaptionLineCount: 1,
+			spokenScriptProtectedTermCount: 1,
+		});
+		expect(JSON.stringify(listData.assets[0])).not.toContain("欢迎来到今天");
 	});
 
 	test("generate_runninghub_voice_design normalizes FLAC results to timeline-ready WAV", async () => {
@@ -1103,6 +1134,7 @@ describe("codex executor", () => {
 					args: {
 						audioPath: referencePath,
 						text: "欢迎来到今天的测试",
+						protectedTerms: ["今天的测试"],
 					},
 				}),
 				env: { RUNNINGHUB_API_KEY: "rh-key" },
@@ -1129,6 +1161,12 @@ describe("codex executor", () => {
 					taskId: "voice-clone-task-1",
 					provider: "runninghub-voice-clone",
 					name: "runninghub-voice-clone-voice-clone-task-1.wav",
+					voiceConsistency: {
+						provider: "runninghub-voice-clone",
+						providerTaskId: "voice-clone-task-1",
+						scriptCaptionLineCount: 1,
+						protectedTermCount: 1,
+					},
 				},
 			});
 			expect(
@@ -1137,6 +1175,16 @@ describe("codex executor", () => {
 			expect(
 				resultData<{ audioPath: string }>(result.results[0]).audioPath,
 			).toContain("generated-voice-");
+			const state = await getExecutorProjectState({ projectId });
+			const asset = state.mediaAssets.find(
+				(item) =>
+					item.id === resultData<{ mediaId: string }>(result.results[0]).mediaId,
+			);
+			expect(asset?.spokenScript).toMatchObject({
+				provider: "runninghub-voice-clone",
+				providerTaskId: "voice-clone-task-1",
+				protectedTerms: ["今天的测试"],
+			});
 		} finally {
 			await rm(tempDir, { recursive: true, force: true });
 		}
@@ -3500,6 +3548,16 @@ describe("codex executor", () => {
 					{ text: "截断句", startTime: 4.8, duration: 0.2 },
 					{ text: "第二句", startTime: 5.5, duration: 1.25 },
 				],
+				captionQuality: {
+					ok: false,
+					issueCount: 1,
+					issues: [
+						{
+							code: "caption_too_short",
+							path: "captions[1].duration",
+						},
+					],
+				},
 				trace: [
 					{
 						mediaId,
@@ -3590,9 +3648,14 @@ describe("codex executor", () => {
 		const captions = resultData<{
 			captions: EditPlanCaption[];
 			trace: Array<{ captionCount: number }>;
+			captionQuality: { ok: boolean; issueCount: number };
 		}>(captionsResult.results[0]);
 
 		expect(captions.captions.length).toBeGreaterThan(1);
+		expect(captions.captionQuality).toMatchObject({
+			ok: true,
+			issueCount: 0,
+		});
 		expect(captions.trace[0].captionCount).toBe(captions.captions.length);
 		expect(captions.captions.at(0)?.startTime).toBe(0);
 		const finalCaption = captions.captions.at(-1);
@@ -3689,6 +3752,12 @@ describe("codex executor", () => {
 			success: true,
 			data: {
 				source: "scripted_tts_audio",
+				voiceConsistency: {
+					provider: "imported-tts",
+					alignmentMethod: "scripted_captions_to_asr_segments",
+					scriptCaptionLineCount: 4,
+					protectedTermCount: 3,
+				},
 				captions: [
 					{ text: "These texts already sound like a song.", startTime: 0 },
 					{ text: "A pizza portion costs $2.34.", startTime: 2 },
@@ -4150,6 +4219,10 @@ describe("codex executor", () => {
 							{ text: "Opening line", startTime: 0, duration: 3 },
 							{ text: "Closing line", startTime: 24, duration: 4 },
 						],
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+						},
 						rationale: "Narration-led B-roll remix",
 					},
 				},
@@ -4644,7 +4717,7 @@ describe("codex executor", () => {
 			success: true,
 			message: "Built VideoQualityReport: fail",
 			data: {
-				schemaVersion: 1,
+				schemaVersion: 2,
 				status: "fail",
 				artifacts: [],
 				checks: [
@@ -4690,7 +4763,7 @@ describe("codex executor", () => {
 			success: true,
 			message: "Built VideoQualityReport: pass",
 			data: {
-				schemaVersion: 1,
+				schemaVersion: 2,
 				status: "pass",
 				revision: before.revision,
 				checks: expect.arrayContaining([
@@ -4712,6 +4785,16 @@ describe("codex executor", () => {
 					}),
 					expect.objectContaining({
 						id: "layout.textBounds",
+						status: "pass",
+					}),
+					expect.objectContaining({
+						id: "captionQuality.contract",
+						category: "caption_quality",
+						status: "pass",
+					}),
+					expect.objectContaining({
+						id: "voiceConsistency.scriptedTts",
+						category: "voice_consistency",
 						status: "pass",
 					}),
 				]),
@@ -4739,7 +4822,107 @@ describe("codex executor", () => {
 		expect(after).toEqual(before);
 	});
 
-	test("build_video_quality_report fails captions that render beyond two lines", async () => {
+	test("build_video_quality_report fails when scripted TTS captions are not represented", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const state = await getExecutorProjectState({ projectId });
+		const audioPath = join(stateDir, "quality-voice.wav");
+		const audioBytes = await createFixtureBareAudio({
+			format: "wav",
+			duration: 2,
+		});
+		await writeFile(audioPath, audioBytes);
+		await writeDraftState({
+			...state,
+			mediaAssets: [
+				...state.mediaAssets,
+				{
+					id: "tts-quality-1",
+					name: "quality-voice.wav",
+					type: "audio",
+					mimeType: "audio/wav",
+					duration: 2,
+					size: audioBytes.byteLength,
+					lastModified: 1,
+					path: audioPath,
+					spokenScript: {
+						source: "tts",
+						text: "Caption proof Missing script line",
+						captions: ["Caption proof", "Missing script line"],
+						provider: "runninghub-voice-design",
+						providerTaskId: "voice-task-quality",
+					},
+				},
+			],
+			tracks: [
+				...state.tracks,
+				{
+					id: "audio-track-quality",
+					type: "audio",
+					name: "Narration",
+					muted: false,
+					elements: [
+						{
+							id: "tts-quality-element",
+							type: "audio",
+							name: "Narration",
+							sourceType: "upload",
+							mediaId: "tts-quality-1",
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 2,
+							volume: 1,
+							muted: false,
+							playbackRate: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan,
+					inspection: { startTime: 0, endTime: 1, frameCount: 1 },
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: fail",
+			data: {
+				schemaVersion: 2,
+				status: "fail",
+				checks: expect.arrayContaining([
+					expect.objectContaining({
+						id: "voiceConsistency.scriptedTts",
+						category: "voice_consistency",
+						status: "fail",
+						evidence: {
+							mismatches: [
+								{
+									mediaId: "tts-quality-1",
+									provider: "runninghub-voice-design",
+									scriptCaptionLineCount: 2,
+									protectedTermCount: 0,
+									missingScriptCaptionLineCount: 1,
+									missingProtectedTermCount: 0,
+								},
+							],
+						},
+					}),
+				]),
+			},
+		});
+		expect(JSON.stringify(result.results[0])).not.toContain(
+			"Missing script line",
+		);
+	});
+
+	test("build_video_quality_report returns validation failure for unreadable captions", async () => {
 		const { plan } = await createAppliedQualityFixture();
 		const badCaptionPlan = {
 			...plan,
@@ -4755,16 +4938,6 @@ describe("codex executor", () => {
 				position: "lower-safe",
 			},
 		};
-		const applyResult = await executeCodexExecutorEnvelope({
-			envelope: envelope({
-				tool: "apply_edit_plan",
-				args: {
-					replaceExisting: true,
-					plan: badCaptionPlan,
-				},
-			}),
-		});
-		expect(applyResult.results[0]).toMatchObject({ success: true });
 
 		const result = await executeCodexExecutorEnvelope({
 			envelope: envelope({
@@ -4780,19 +4953,14 @@ describe("codex executor", () => {
 			message: "Built VideoQualityReport: fail",
 			data: {
 				status: "fail",
+				artifacts: [],
 				checks: expect.arrayContaining([
 					expect.objectContaining({
-						id: "layout.captionLines",
+						id: "editPlan.validation",
 						status: "fail",
-						evidence: expect.objectContaining({
-							overLimit: [
-								expect.objectContaining({
-									kind: "caption",
-									index: 0,
-									lineCount: 3,
-								}),
-							],
-						}),
+						message:
+							"Caption text cannot fit the selected preset within the line limits.",
+						evidence: { path: "captions[0].text" },
 					}),
 				]),
 			},
@@ -6332,6 +6500,84 @@ describe("codex executor", () => {
 			color: "#fff3b0",
 			transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
 		});
+	});
+
+	test("add_captions rejects unreadable generated captions before mutating", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "media-1",
+					name: "talk.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 30,
+					width: 1920,
+					height: 1080,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/talk.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Main Track",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Talk",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 5,
+							trimStart: 0,
+							trimEnd: 5,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_captions",
+				args: {
+					language: "auto",
+					modelId: "whisper-tiny",
+				},
+			}),
+			transcribeMediaRange: async () => ({
+				text: "too fast",
+				segments: [{ text: "too fast", start: 1, end: 1.2 }],
+				language: "auto",
+				modelId: "whisper-tiny",
+				...asrContractFields(),
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: false,
+			message: "Generated captions failed caption quality validation.",
+			data: {
+				captionQuality: {
+					ok: false,
+					issues: [
+						expect.objectContaining({
+							code: "caption_too_short",
+							path: "captions[0].duration",
+						}),
+					],
+				},
+			},
+		});
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
 	});
 
 	test("add_captions writes segment-level captions from edited audio clips", async () => {

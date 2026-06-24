@@ -369,6 +369,13 @@ omitted. Caption styling is intentionally limited to top-level local presets:
 objects, `bold_caption`, `keyword_caption`, or `keyword-highlight` in this
 contract.
 
+Caption quality is part of validation, post-cut caption generation,
+`add_captions`, and the read-only video quality report. Captions must not
+overlap, each caption duration must be `0.5s..4s`, and the selected
+`captionStyle` must render each item as no more than two lines with no
+1-2 character orphan final line. Codecut rejects invalid caption plans instead
+of repairing text, changing timing, or switching presets.
+
 Caption timing must declare a post-cut caption source. Prefer edited audio transcription
 from edited clip ranges through `build-post-cut-captions`: apply a clip-only
 EditPlan first, run `build-post-cut-captions`, copy the returned captions into
@@ -806,9 +813,30 @@ node scripts/codex-bridge.mjs build-post-cut-captions \
 `language` and `modelId` inputs. The tool reads the current timeline,
 transcribes each unmuted edited video or uploaded-audio clip range from
 `trimStart` to `trimEnd`, and offsets the returned segments into output
-timeline time. It returns caption items, a recommended `captionStyle`, and a
-trace; it does not mutate the timeline. Codex must copy those captions into the
+timeline time. It returns caption items, a recommended `captionStyle`,
+`captionQuality`, and a trace; it does not mutate the timeline. When the audio
+asset has `spokenScript` metadata from imported TTS or RunningHub voice
+generation, the tool uses the scripted caption text and only borrows ASR timing
+segments, so ASR misrecognition cannot rewrite the user-approved script. In
+that case the response also includes a `voiceConsistency` summary without raw
+script text or protected term values. Codex must copy those captions into the
 final EditPlan and apply that plan.
+
+RunningHub voice generation can bind protected terms to the generated audio
+asset:
+
+```bash
+node scripts/codex-bridge.mjs generate-runninghub-voice-design \
+  --project-id <id> \
+  --text "approved narration script" \
+  --protected-term "BrandName" \
+  --protected-term "$2.34"
+```
+
+The generated media asset stores sanitized `spokenScript` metadata with the
+provider and task id. `list_media_assets`, referenced media readback, and
+quality reports expose counts and provider identifiers, not the raw script or
+protected term text.
 
 Apply a local EditPlan file:
 
@@ -879,6 +907,11 @@ node scripts/codex-bridge.mjs build-video-quality-report \
   --end-time 6 \
   --frame-count 4
 ```
+
+`build_video_quality_report` returns `schemaVersion: 2`. It includes
+`caption_quality` and `voice_consistency` checks alongside the existing
+readback, layout, transition, and contact-sheet evidence. It remains read-only
+and does not claim OCR, face detection, or burned-in subtitle detection.
 
 Create a text-background masked effect from an existing person-mask derived asset:
 
