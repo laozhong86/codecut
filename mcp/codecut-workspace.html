@@ -430,6 +430,39 @@
               </select>
             </label>
             <label>
+              <span data-i18n="captionFont">Caption font</span>
+              <select id="caption-font" name="captionFont">
+                <option value="auto" data-i18n="captionFontAuto">Follow preset</option>
+                <option value="sans" data-i18n="captionFontSans">Sans</option>
+                <option value="serif" data-i18n="captionFontSerif">Serif</option>
+                <option value="handwriting" data-i18n="captionFontHandwriting">Handwriting</option>
+              </select>
+            </label>
+            <label>
+              <span data-i18n="captionSize">Caption size</span>
+              <select id="caption-size" name="captionSize">
+                <option value="small" data-i18n="captionSizeSmall">Small</option>
+                <option value="medium" data-i18n="captionSizeMedium">Medium</option>
+                <option value="large" data-i18n="captionSizeLarge">Large</option>
+              </select>
+            </label>
+            <label>
+              <span data-i18n="captionStylePreset">Preset style</span>
+              <select id="caption-style-preset" name="captionStylePreset">
+                <option value="short-form-bold" data-i18n="captionStyleShortFormBold">Short-form bold</option>
+                <option value="black-bar" data-i18n="captionStyleBlackBar">Black bar</option>
+                <option value="talking-head-pop" data-i18n="captionStyleTalkingHeadPop">Talking head pop</option>
+                <option value="tutorial-clean" data-i18n="captionStyleTutorialClean">Tutorial clean</option>
+                <option value="documentary-soft" data-i18n="captionStyleDocumentarySoft">Documentary soft</option>
+                <option value="product-punch" data-i18n="captionStyleProductPunch">Product punch</option>
+                <option value="lifestyle-warm" data-i18n="captionStyleLifestyleWarm">Lifestyle warm</option>
+                <option value="cinematic-serif" data-i18n="captionStyleCinematicSerif">Cinematic serif</option>
+                <option value="social-highlight" data-i18n="captionStyleSocialHighlight">Social highlight</option>
+                <option value="comment-bubble" data-i18n="captionStyleCommentBubble">Comment bubble</option>
+                <option value="minimal-reel" data-i18n="captionStyleMinimalReel">Minimal reel</option>
+              </select>
+            </label>
+            <label>
               <span data-i18n="format">Format</span>
               <select id="output-format" name="outputFormat">
                 <option value="mp4">mp4</option>
@@ -515,6 +548,27 @@
             captionJapanese: "Japanese",
             captionKorean: "Korean",
             captionSpanish: "Spanish",
+            captionFont: "Caption font",
+            captionFontAuto: "Follow preset",
+            captionFontSans: "Sans",
+            captionFontSerif: "Serif",
+            captionFontHandwriting: "Handwriting",
+            captionSize: "Caption size",
+            captionSizeSmall: "Small",
+            captionSizeMedium: "Medium",
+            captionSizeLarge: "Large",
+            captionStylePreset: "Preset style",
+            captionStyleShortFormBold: "Short-form bold",
+            captionStyleBlackBar: "Black bar",
+            captionStyleTalkingHeadPop: "Talking head pop",
+            captionStyleTutorialClean: "Tutorial clean",
+            captionStyleDocumentarySoft: "Documentary soft",
+            captionStyleProductPunch: "Product punch",
+            captionStyleLifestyleWarm: "Lifestyle warm",
+            captionStyleCinematicSerif: "Cinematic serif",
+            captionStyleSocialHighlight: "Social highlight",
+            captionStyleCommentBubble: "Comment bubble",
+            captionStyleMinimalReel: "Minimal reel",
             format: "Format",
             quality: "Quality",
             qualityLow: "low",
@@ -576,6 +630,27 @@
             captionJapanese: "日文",
             captionKorean: "韩文",
             captionSpanish: "西班牙文",
+            captionFont: "字幕字体",
+            captionFontAuto: "跟随预设",
+            captionFontSans: "黑体/无衬线",
+            captionFontSerif: "宋体/衬线",
+            captionFontHandwriting: "手写风格",
+            captionSize: "字号大小",
+            captionSizeSmall: "小",
+            captionSizeMedium: "中",
+            captionSizeLarge: "大",
+            captionStylePreset: "预设样式",
+            captionStyleShortFormBold: "短视频加粗",
+            captionStyleBlackBar: "黑底字幕",
+            captionStyleTalkingHeadPop: "口播醒目",
+            captionStyleTutorialClean: "教程清爽",
+            captionStyleDocumentarySoft: "纪录片柔和",
+            captionStyleProductPunch: "产品强调",
+            captionStyleLifestyleWarm: "生活方式",
+            captionStyleCinematicSerif: "电影感",
+            captionStyleSocialHighlight: "社媒高亮",
+            captionStyleCommentBubble: "评论气泡",
+            captionStyleMinimalReel: "极简短片",
             format: "格式",
             quality: "质量",
             qualityLow: "低",
@@ -624,6 +699,9 @@
           targetAspectRatio: document.getElementById("target-aspect-ratio"),
           durationGoalSeconds: document.getElementById("duration-goal-seconds"),
           captionLanguage: document.getElementById("caption-language"),
+          captionFont: document.getElementById("caption-font"),
+          captionSize: document.getElementById("caption-size"),
+          captionStylePreset: document.getElementById("caption-style-preset"),
           outputFormat: document.getElementById("output-format"),
           outputQuality: document.getElementById("output-quality"),
           includeAudio: document.getElementById("include-audio"),
@@ -709,6 +787,9 @@
           setSelectValue(fields.targetAspectRatio, defaults.targetAspectRatio || "9:16");
           setSelectValue(fields.durationGoalSeconds, String(Number(defaults.durationGoalSeconds || 60)));
           setSelectValue(fields.captionLanguage, defaults.captionLanguage || "auto");
+          setSelectValue(fields.captionFont, defaults.output?.captionFont || "auto");
+          setSelectValue(fields.captionSize, defaults.output?.captionSize || "medium");
+          setSelectValue(fields.captionStylePreset, defaults.output?.captionStylePreset || "short-form-bold");
           setSelectValue(fields.outputFormat, defaults.output?.format || "mp4");
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
@@ -1109,6 +1190,9 @@
               format: fields.outputFormat.value,
               quality: fields.outputQuality.value,
               includeAudio: fields.includeAudio.value === "true",
+              captionFont: fields.captionFont.value,
+              captionSize: fields.captionSize.value,
+              captionStylePreset: fields.captionStylePreset.value,
             },
             generateIntroCover: collectIntroCoverChoice(),
             brief: collectChoiceText(fields.briefOptions, fields.brief),
