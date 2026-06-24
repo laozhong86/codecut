@@ -84,12 +84,17 @@ ready. This is mandatory for setup-widget project creation and direct executor
 and the browser-control blocker explicitly; do not claim browser-visible
 preview.
 
-Use `setupBrowserRuntime` through the current Codex browser API:
+Use `setupBrowserRuntime` through the current Codex browser API, make the
+browser visible, and navigate only when needed:
 
 ```ts
+const previewUrl = editorUrl;
 const browser = await agent.browsers.get("iab");
-await browser.capabilities.get("visibility");
-const tab = await browser.tabs.selected();
+await (await browser.capabilities.get("visibility")).set(true);
+const tab = (await browser.tabs.selected()) ?? await browser.tabs.new();
+if ((await tab.url()) !== previewUrl) {
+  await tab.goto(previewUrl);
+}
 ```
 
 Preview URLs:

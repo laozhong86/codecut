@@ -104,7 +104,13 @@ describe("Codecut plugin startup guidance", () => {
 		expect(skill).toContain("setupBrowserRuntime");
 		expect(skill).toContain('agent.browsers.get("iab")');
 		expect(skill).toContain('browser.capabilities.get("visibility")');
+		expect(skill).toContain(
+			'await (await browser.capabilities.get("visibility")).set(true);',
+		);
 		expect(skill).toContain("browser.tabs.selected()");
+		expect(skill).toContain("browser.tabs.new()");
+		expect(skill).toContain("await tab.goto(previewUrl);");
+		expect(skill).toContain("if ((await tab.url()) !== previewUrl)");
 		expect(skill).toContain("http://127.0.0.1:4100/en/projects");
 		expect(skill).toContain("the `editorUrl` returned by `create-project`");
 		expect(normalizedSkill).toContain(
