@@ -77,6 +77,19 @@ function audioAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	});
 }
 
+function imageAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
+	return mediaAsset({
+		id: "cover-1",
+		name: "Opening cover.png",
+		type: "image",
+		width: 1080,
+		height: 1920,
+		duration: undefined,
+		file: new File(["image"], "opening-cover.png", { type: "image/png" }),
+		...overrides,
+	});
+}
+
 function expectValidationFailure(
 	result: ReturnType<typeof validateEditPlan>,
 ): ValidationFailure {
@@ -101,6 +114,163 @@ describe("validateEditPlan", () => {
 				projectId: "project-1",
 				sourceMediaId: "media-1",
 			},
+		});
+	});
+
+	test("accepts an introCover image before the first video clip", () => {
+		const plan = structuredClone(validPlan());
+		plan.target.durationSec = 31.2;
+		plan.introCover = {
+			mediaId: "cover-1",
+			duration: 1.2,
+			fit: "cover",
+			reason: "Opening image generated from the selected first frame.",
+		};
+		plan.clips = plan.clips.map((clip) => ({
+			...clip,
+			timelineStart: clip.timelineStart + 1.2,
+		}));
+		plan.title = undefined;
+		plan.captions = undefined;
+		plan.captionStyle = undefined;
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset(), imageAsset()],
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			normalizedPlan: {
+				introCover: {
+					mediaId: "cover-1",
+					duration: 1.2,
+					fit: "cover",
+				},
+			},
+		});
+	});
+
+	test("rejects introCover when the image asset is missing", () => {
+		const plan = structuredClone(validPlan());
+		plan.target.durationSec = 31.2;
+		plan.introCover = {
+			mediaId: "missing-cover",
+			duration: 1.2,
+			fit: "cover",
+			reason: "Generated cover should lead the edit.",
+		};
+		plan.clips = plan.clips.map((clip) => ({
+			...clip,
+			timelineStart: clip.timelineStart + 1.2,
+		}));
+
+		expect(validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		})).toEqual({
+			success: false,
+			message:
+				"EditPlan introCover mediaId was not found in the project media library.",
+			path: "introCover.mediaId",
+		});
+	});
+
+	test("rejects introCover when the media asset is not an image", () => {
+		const plan = structuredClone(validPlan());
+		plan.target.durationSec = 31.2;
+		plan.introCover = {
+			mediaId: "media-1",
+			duration: 1.2,
+			fit: "cover",
+			reason: "Generated cover should lead the edit.",
+		};
+		plan.clips = plan.clips.map((clip) => ({
+			...clip,
+			timelineStart: clip.timelineStart + 1.2,
+		}));
+
+		expect(validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		})).toEqual({
+			success: false,
+			message: "EditPlan introCover media asset must be image.",
+			path: "introCover.mediaId",
+		});
+	});
+
+	test("rejects introCover image assets without dimensions", () => {
+		const plan = structuredClone(validPlan());
+		plan.target.durationSec = 31.2;
+		plan.introCover = {
+			mediaId: "cover-1",
+			duration: 1.2,
+			fit: "cover",
+			reason: "Generated cover should lead the edit.",
+		};
+		plan.clips = plan.clips.map((clip) => ({
+			...clip,
+			timelineStart: clip.timelineStart + 1.2,
+		}));
+
+		expect(validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset(), imageAsset({ width: undefined })],
+		})).toEqual({
+			success: false,
+			message: "EditPlan introCover image dimensions are required.",
+			path: "introCover.mediaId",
+		});
+	});
+
+	test("rejects introCover when the first clip does not start after the cover", () => {
+		const plan = structuredClone(validPlan());
+		plan.target.durationSec = 31.2;
+		plan.introCover = {
+			mediaId: "cover-1",
+			duration: 1.2,
+			fit: "cover",
+			reason: "Generated cover should lead the edit.",
+		};
+
+		expect(validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset(), imageAsset()],
+		})).toEqual({
+			success: false,
+			message:
+				"EditPlan first clip must start exactly after introCover duration.",
+			path: "clips[0].timelineStart",
+		});
+	});
+
+	test("counts introCover duration in target duration validation", () => {
+		const plan = structuredClone(validPlan());
+		plan.introCover = {
+			mediaId: "cover-1",
+			duration: 8,
+			fit: "cover",
+			reason: "Generated cover should lead the edit.",
+		};
+		plan.clips = plan.clips.map((clip) => ({
+			...clip,
+			timelineStart: clip.timelineStart + 8,
+		}));
+
+		expect(validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset(), imageAsset()],
+		})).toEqual({
+			success: false,
+			message: "EditPlan clip duration total is outside the target tolerance.",
+			path: "target.durationSec",
 		});
 	});
 

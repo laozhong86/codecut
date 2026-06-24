@@ -41,6 +41,19 @@ function audioAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 	});
 }
 
+function imageAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
+	return mediaAsset({
+		id: "cover-1",
+		name: "Opening cover.png",
+		type: "image",
+		width: 1080,
+		height: 1920,
+		duration: undefined,
+		file: new File(["image"], "opening-cover.png", { type: "image/png" }),
+		...overrides,
+	});
+}
+
 type VideoTrack = Extract<TimelineTrack, { type: "video" }>;
 type TextTrack = Extract<TimelineTrack, { type: "text" }>;
 type AudioTrack = Extract<TimelineTrack, { type: "audio" }>;
@@ -291,6 +304,78 @@ describe("applyEditPlanToEditor", () => {
 				duration: 15,
 				trimStart: 50,
 				trimEnd: 65,
+			},
+		]);
+	});
+
+	test("inserts an introCover image at the beginning of the main track", () => {
+		const editor = fakeEditor({
+			mediaAssets: [mediaAsset(), imageAsset()],
+		});
+		const plan = {
+			...shortVideoPlan(),
+			target: { durationSec: 11.2, aspectRatio: "9:16" },
+			introCover: {
+				mediaId: "cover-1",
+				duration: 1.2,
+				fit: "cover",
+				reason: "Generated from the selected first frame.",
+			},
+			clips: shortVideoPlan().clips.map((clip) => ({
+				...clip,
+				timelineStart: clip.timelineStart + 1.2,
+			})),
+		};
+
+		const result = applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const visualElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "video" ? track.elements : []));
+
+		expect(result).toMatchObject({
+			success: true,
+			summary: {
+				clipCount: 2,
+				introCoverCount: 1,
+				totalDuration: 11.2,
+				appliedElementIds: ["element-1", "element-2", "element-3"],
+			},
+		});
+		expect(visualElements).toMatchObject([
+			{
+				type: "image",
+				mediaId: "cover-1",
+				startTime: 0,
+				duration: 1.2,
+				trimStart: 0,
+				trimEnd: 0,
+				transform: {
+					scale: 1,
+					position: { x: 0, y: 0 },
+					rotate: 0,
+				},
+			},
+			{
+				type: "video",
+				mediaId: "media-1",
+				startTime: 1.2,
+				duration: 5,
+				trimStart: 0,
+				trimEnd: 5,
+			},
+			{
+				type: "video",
+				mediaId: "media-1",
+				startTime: 6.2,
+				duration: 5,
+				trimStart: 20,
+				trimEnd: 25,
 			},
 		]);
 	});
@@ -1165,6 +1250,39 @@ describe("applyEditPlanToEditor", () => {
 			success: false,
 			message: "EditPlan projectId does not match the active project.",
 			path: "projectId",
+		});
+		expect(editor.timeline.getTracks()).toEqual([videoTrack()]);
+	});
+
+	test("does not modify the timeline when introCover validation fails", () => {
+		const editor = fakeEditor({ mediaAssets: [mediaAsset()] });
+		const plan = {
+			...shortVideoPlan(),
+			target: { durationSec: 11.2, aspectRatio: "9:16" },
+			introCover: {
+				mediaId: "missing-cover",
+				duration: 1.2,
+				fit: "cover",
+				reason: "Generated from the selected first frame.",
+			},
+			clips: shortVideoPlan().clips.map((clip) => ({
+				...clip,
+				timelineStart: clip.timelineStart + 1.2,
+			})),
+		};
+
+		const result = applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message:
+				"EditPlan introCover mediaId was not found in the project media library.",
+			path: "introCover.mediaId",
 		});
 		expect(editor.timeline.getTracks()).toEqual([videoTrack()]);
 	});

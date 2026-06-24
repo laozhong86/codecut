@@ -26,6 +26,7 @@ function setupIntent(overrides = {}) {
 			quality: "high",
 			includeAudio: true,
 		},
+		generateIntroCover: true,
 		brief: "Cut a high-retention short for a product launch.",
 		successCriteria: "Show a hook, proof, and CTA with readable captions.",
 		...overrides,
@@ -273,6 +274,10 @@ describe("Codecut MCP server contract", () => {
 			'id="brief-options"',
 			'id="brief-label"',
 			'aria-labelledby="brief-label"',
+			'id="generate-intro-cover"',
+			'type="checkbox"',
+			"introCoverRecommended",
+			"collectIntroCoverChoice",
 			'id="success-criteria-options"',
 			'id="success-criteria-label"',
 			'aria-labelledby="success-criteria-label"',
@@ -319,7 +324,6 @@ describe("Codecut MCP server contract", () => {
 			expect(html).toContain(marker);
 		}
 		expect(html).not.toContain("<legend");
-		expect(html).not.toContain('type="checkbox"');
 		expect(html).not.toContain("querySelectorAll('input[type=\"checkbox\"]:checked')");
 		expect(html).not.toContain("#315cec");
 		expect(html).not.toContain('id="project-id"');
@@ -371,6 +375,7 @@ describe("Codecut MCP server contract", () => {
 
 		expect(result.structuredContent.intentDefaults).toMatchObject({
 			projectName: "Creator Launch",
+			generateIntroCover: true,
 			brief: "Make a concise vertical launch cut.",
 			briefOptions: ["Keep the launch hook", "Remove repeated setup"],
 			successCriteriaOptions: [
@@ -441,7 +446,23 @@ describe("Codecut MCP server contract", () => {
 			],
 			captionLanguage: "auto",
 			durationGoalSeconds: 60,
+			generateIntroCover: true,
 			output: { format: "mp4", quality: "high", includeAudio: true },
+		});
+	});
+
+	test("opens the workspace with intro cover disabled when explicitly requested", () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "No Cover Cut",
+			generateIntroCover: false,
+		});
+
+		expect(result.structuredContent.intentDefaults).toMatchObject({
+			projectName: "No Cover Cut",
+			generateIntroCover: false,
+		});
+		expect(result._meta.widgetData.intentDefaults).toMatchObject({
+			generateIntroCover: false,
 		});
 	});
 
@@ -550,6 +571,18 @@ describe("Codecut MCP server contract", () => {
 					label,
 				).toBe(true);
 			}
+
+			const missingIntroCoverChoice = await serverModule.inspectCodecutSetup(
+				setupIntent({ generateIntroCover: undefined }),
+				{ bridgeToolImpl },
+			);
+			expect(missingIntroCoverChoice.status).toBe("blocked");
+			expect(missingIntroCoverChoice.checks).toContainEqual({
+				id: "generate-intro-cover",
+				label: "Intro cover",
+				ok: false,
+				detail: "Choose whether CodeCut should generate an opening cover image.",
+			});
 		} finally {
 			await rm(directory, {
 				recursive: true,
@@ -676,6 +709,7 @@ describe("Codecut MCP server contract", () => {
 				editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
 				intent: {
 					projectId: "launch-cut-canonical",
+					generateIntroCover: true,
 				},
 				importedMedia: [
 					{ id: "media-1", name: "source.mp4" },
@@ -716,6 +750,9 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				confirmationToken,
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				'"generateIntroCover":true',
 			);
 			expect(result.structuredContent.continuePrompt).not.toContain(
 				"launch-cut-001",

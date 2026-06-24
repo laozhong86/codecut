@@ -93,6 +93,7 @@ Check these fields for every new creative job:
 | Aspect ratio | yes when not implied by platform | Prevents accidental 9:16 crop. |
 | Duration | no if user gave a target | `1 minute` is sufficient for duration. |
 | Caption policy | yes when speech/subtitles are relevant | Prevents overlapping new captions with burned-in subtitles. |
+| Opening cover image | no | Widget defaults this to recommended on. The user can turn it off; the confirmed intent must preserve `generateIntroCover` as `true` or `false`. |
 | Video type | yes when style or selection depends on it | Prevents wrong selection strategy. |
 | Editing style | yes when output quality depends on it | Prevents arbitrary pacing. |
 | Business intent | yes for ads/conversion/offers | Prevents invented claims. |
@@ -174,6 +175,14 @@ Editing style:
    B. Clean tutorial - clearer for demos and screen recordings.
    C. Documentary soft - calmer narrative pacing.
    D. Other/custom - provide a reference or style description.
+```
+
+Opening cover image:
+
+```text
+生成开头封面图？
+A. 生成开头封面图 (Recommended) - uses the final first clip frame as evidence, then places the generated image at the start.
+B. 不生成 - starts directly from the first selected video clip.
 ```
 
 ## File Rules

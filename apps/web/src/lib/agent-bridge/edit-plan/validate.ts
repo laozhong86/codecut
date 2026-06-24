@@ -78,7 +78,7 @@ function schemaFailure({
 }
 
 function getGeneratedTimelineDuration({ plan }: { plan: EditPlan }): number {
-	let duration = 0;
+	let duration = plan.introCover?.duration ?? 0;
 	for (const clip of plan.clips) {
 		const clipEnd = clip.timelineStart + clip.sourceEnd - clip.sourceStart;
 		duration = Math.max(duration, clipEnd);
@@ -234,6 +234,49 @@ export function validateEditPlan({
 		});
 	}
 
+	if (normalizedPlan.introCover) {
+		if (sourceMedia.type !== "video") {
+			return fail({
+				message: "EditPlan introCover requires video source media.",
+				path: "sourceMediaId",
+			});
+		}
+		const introCoverMedia = mediaAssets.find(
+			(asset) => asset.id === normalizedPlan.introCover?.mediaId,
+		);
+		if (!introCoverMedia) {
+			return fail({
+				message:
+					"EditPlan introCover mediaId was not found in the project media library.",
+				path: "introCover.mediaId",
+			});
+		}
+		if (introCoverMedia.type !== "image") {
+			return fail({
+				message: "EditPlan introCover media asset must be image.",
+				path: "introCover.mediaId",
+			});
+		}
+		if (!hasPositiveSourceDimensions({ sourceMedia: introCoverMedia })) {
+			return fail({
+				message: "EditPlan introCover image dimensions are required.",
+				path: "introCover.mediaId",
+			});
+		}
+		if (
+			Math.abs(
+				normalizedPlan.clips[0].timelineStart -
+					normalizedPlan.introCover.duration,
+			) > TIMED_TEXT_TOLERANCE_SECONDS
+		) {
+			return fail({
+				message:
+					"EditPlan first clip must start exactly after introCover duration.",
+				path: "clips[0].timelineStart",
+			});
+		}
+	}
+
 	const hasCoverFit = normalizedPlan.clips.some((clip) => clip.fit === "cover");
 	const firstSourceCropIndex = normalizedPlan.clips.findIndex(
 		(clip) => clip.sourceCrop !== undefined,
@@ -358,10 +401,9 @@ export function validateEditPlan({
 		3,
 		normalizedPlan.target.durationSec * 0.15,
 	);
-	if (
-		Math.abs(clipDurationTotal - normalizedPlan.target.durationSec) >
-		durationTolerance
-	) {
+	const plannedDurationTotal =
+		clipDurationTotal + (normalizedPlan.introCover?.duration ?? 0);
+	if (Math.abs(plannedDurationTotal - normalizedPlan.target.durationSec) > durationTolerance) {
 		return fail({
 			message: "EditPlan clip duration total is outside the target tolerance.",
 			path: "target.durationSec",

@@ -45,6 +45,17 @@ export const EditPlanTransitionTypeSchema = z.enum([
 
 export const EditPlanClipFitSchema = z.enum(["cover"]);
 
+export const EditPlanIntroCoverFitSchema = z.enum(["cover"]);
+
+export const EditPlanIntroCoverSchema = z
+	.object({
+		mediaId: z.string().min(1),
+		duration: z.number().positive(),
+		fit: EditPlanIntroCoverFitSchema,
+		reason: z.string().min(1),
+	})
+	.strict();
+
 export const EditPlanSourceCropFitSchema = z.enum(["cover-to-canvas"]);
 
 export const EditPlanSourceCropSchema = z
@@ -153,6 +164,7 @@ export const EditPlanSchema = z
 				aspectRatio: EditPlanAspectRatioSchema,
 			})
 			.strict(),
+		introCover: EditPlanIntroCoverSchema.optional(),
 		clips: z.array(EditPlanClipSchema).min(1),
 		title: EditPlanTitleSchema.optional(),
 		captions: z.array(EditPlanCaptionSchema).optional(),
@@ -165,6 +177,7 @@ export const EditPlanSchema = z
 
 export type EditPlan = z.infer<typeof EditPlanSchema>;
 export type EditPlanClip = z.infer<typeof EditPlanClipSchema>;
+export type EditPlanIntroCover = z.infer<typeof EditPlanIntroCoverSchema>;
 export type EditPlanTitle = z.infer<typeof EditPlanTitleSchema>;
 export type EditPlanCaption = z.infer<typeof EditPlanCaptionSchema>;
 export type EditPlanCaptionStyle = z.infer<typeof EditPlanCaptionStyleSchema>;
@@ -175,6 +188,9 @@ export type EditPlanAudio = z.infer<typeof EditPlanAudioSchema>;
 export type EditPlanTransition = z.infer<typeof EditPlanTransitionSchema>;
 export type EditPlanTextRichSpan = z.infer<typeof EditPlanTextRichSpanSchema>;
 export type EditPlanClipFit = z.infer<typeof EditPlanClipFitSchema>;
+export type EditPlanIntroCoverFit = z.infer<
+	typeof EditPlanIntroCoverFitSchema
+>;
 export type EditPlanSourceCrop = z.infer<typeof EditPlanSourceCropSchema>;
 export type EditPlanSourceCropFit = z.infer<
 	typeof EditPlanSourceCropFitSchema
