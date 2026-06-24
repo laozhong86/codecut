@@ -22,14 +22,31 @@ without shell.
 
 ## Checklist
 
-1. Confirm the active plugin source:
+1. Confirm the active plugin source, cache, and Codex CLI compatibility:
 
 ```bash
-codex plugin list --json
+bun run plugin:freshness
+which -a codex
+codex --version
 ```
 
-The `codecut@local-opc` source path must be the source tree that contains the
-change.
+`plugin:freshness` is the primary release gate because it verifies the source,
+installed cache, enabled config, and marketplace entry without depending on the
+local Codex CLI's plugin-list command surface. The output must show
+`codecut@local-opc` enabled, the marketplace entry pointing at this source tree,
+and the installed cache matching the source tree.
+
+`codex plugin list --json` is useful only when the local `codex` binary supports
+that subcommand. Before using it as a readback, confirm support with:
+
+```bash
+codex plugin --help
+```
+
+If `list` is missing from the help output, do not treat that as a Codecut plugin
+failure. Record the `codex --version` output in the release matrix and continue
+with `plugin:freshness`, installed-cache readback, and fresh-session tool
+discovery.
 
 2. Sync from that exact source:
 
@@ -39,6 +56,10 @@ node scripts/sync-codex-local-plugin.mjs
 
 The JSON output must show `sourceRoot` as the active source path and
 `cacheRoot` as the installed Codecut cache.
+
+For release-level changes, record the exact Git SHA, plugin version, cache path,
+Codex CLI/App versions, and fresh-session proof in
+`docs/codecut-version-release-matrix.md`.
 
 3. Confirm source and cache contain the new widget-intake contract:
 
