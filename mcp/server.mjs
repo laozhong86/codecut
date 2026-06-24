@@ -130,6 +130,20 @@ const captionStylePresetValues = [
 const captionFontSchema = z.enum(captionFontValues);
 const captionSizeSchema = z.enum(captionSizeValues);
 const captionStylePresetSchema = z.enum(captionStylePresetValues);
+const durationGoalModeSchema = z.enum(["auto", "custom"]);
+const durationGoalRangeSecondsSchema = z
+	.object({
+		minSeconds: z.number().positive(),
+		maxSeconds: z.number().positive(),
+	})
+	.strict();
+const durationGoalRangeOptionSchema = z
+	.object({
+		label: z.string().trim().min(1).optional(),
+		minSeconds: z.number().positive(),
+		maxSeconds: z.number().positive(),
+	})
+	.strict();
 
 const workspaceMediaSourceSchema = z
 	.object({
@@ -160,7 +174,8 @@ const workspaceIntentInputSchema = {
 	mediaSource: workspaceMediaSourceSchema.optional(),
 	mediaSources: workspaceMediaSourcesSchema.optional(),
 	targetAspectRatio: targetAspectRatioSchema,
-	durationGoalSeconds: z.number(),
+	durationGoalMode: durationGoalModeSchema,
+	durationGoalRangeSeconds: durationGoalRangeSecondsSchema.optional(),
 	captionLanguage: z.string().trim(),
 	output: workspaceOutputSchema,
 	generateIntroCover: z.boolean(),
@@ -183,7 +198,9 @@ const workspaceOpenInputSchema = {
 	briefOptions: z.array(z.string().trim().min(1)).optional(),
 	successCriteriaOptions: z.array(z.string().trim().min(1)).optional(),
 	targetAspectRatio: targetAspectRatioSchema.optional(),
-	durationGoalSeconds: z.number().optional(),
+	durationGoalMode: durationGoalModeSchema.optional(),
+	durationGoalRangeSeconds: durationGoalRangeSecondsSchema.optional(),
+	durationGoalRangeOptions: z.array(durationGoalRangeOptionSchema).optional(),
 	captionLanguage: z.string().trim().optional(),
 	locale: z.string().trim().optional(),
 	uiLanguage: z.string().trim().optional(),
@@ -1031,7 +1048,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Pass mediaPaths for multiple resolved local media files and directoryPaths for local source folders that Codex should decide how to inspect later. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Pass mediaPaths for multiple resolved local media files and directoryPaths for local source folders that Codex should decide how to inspect later. Pass durationGoalRangeOptions as ranges inferred from the user's request; keep durationGoalMode auto unless the user explicitly asked for a duration range. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1194,9 +1211,10 @@ async function validateCodecutSetupIntent(intent) {
 		checks,
 		"duration",
 		"Duration",
-		Number.isFinite(normalized.durationGoalSeconds) &&
-			normalized.durationGoalSeconds > 0,
-		"Duration goal must be a positive number of seconds.",
+		normalized.durationGoalMode === "auto" ||
+			(normalized.durationGoalMode === "custom" &&
+				isValidDurationGoalRange(normalized.durationGoalRangeSeconds)),
+		"Duration goal must be automatic or a valid positive seconds range.",
 	);
 	pushCheck(
 		checks,
@@ -1416,7 +1434,7 @@ function buildWorkspaceIntentDefaults(input = {}) {
 	const successCriteria =
 		String(input.successCriteria || "").trim() ||
 		defaultWorkspaceSuccessCriteria(uiLanguage);
-	return {
+	const defaults = {
 		projectId:
 			String(input.projectId || "").trim() ||
 			buildWorkspaceProjectSlug(projectName || "codecut-project"),
@@ -1424,10 +1442,7 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		mediaSource: mediaSources[0],
 		mediaSources,
 		targetAspectRatio: input.targetAspectRatio || "9:16",
-		durationGoalSeconds:
-			typeof input.durationGoalSeconds === "number"
-				? input.durationGoalSeconds
-				: 60,
+		durationGoalMode: input.durationGoalMode === "custom" ? "custom" : "auto",
 		captionLanguage: String(input.captionLanguage || "auto"),
 		uiLanguage,
 		output: {
@@ -1456,6 +1471,19 @@ function buildWorkspaceIntentDefaults(input = {}) {
 			defaultWorkspaceSuccessCriteriaOptions(uiLanguage),
 		),
 	};
+	const durationGoalRangeSeconds = normalizeDurationGoalRangeSeconds(
+		input.durationGoalRangeSeconds,
+	);
+	if (durationGoalRangeSeconds) {
+		defaults.durationGoalRangeSeconds = durationGoalRangeSeconds;
+	}
+	const durationGoalRangeOptions = normalizeDurationGoalRangeOptions(
+		input.durationGoalRangeOptions,
+	);
+	if (durationGoalRangeOptions.length) {
+		defaults.durationGoalRangeOptions = durationGoalRangeOptions;
+	}
+	return defaults;
 }
 
 function buildWorkspaceOpenMediaSources(input = {}) {
@@ -1622,7 +1650,10 @@ function normalizeWorkspaceIntent(intent) {
 		mediaSource: mediaSources[0],
 		mediaSources,
 		targetAspectRatio: String(intent.targetAspectRatio || ""),
-		durationGoalSeconds: Number(intent.durationGoalSeconds),
+		durationGoalMode: intent.durationGoalMode === "custom" ? "custom" : "auto",
+		durationGoalRangeSeconds: normalizeDurationGoalRangeSeconds(
+			intent.durationGoalRangeSeconds,
+		),
 		captionLanguage: String(intent.captionLanguage || "auto").trim() || "auto",
 		output: {
 			format: String(intent.output?.format || ""),
@@ -1636,6 +1667,39 @@ function normalizeWorkspaceIntent(intent) {
 		brief: String(intent.brief || "").trim(),
 		successCriteria: String(intent.successCriteria || "").trim(),
 	};
+}
+
+function normalizeDurationGoalRangeSeconds(value) {
+	if (!value || typeof value !== "object") return undefined;
+	return {
+		minSeconds: Number(value.minSeconds),
+		maxSeconds: Number(value.maxSeconds),
+	};
+}
+
+function normalizeDurationGoalRangeOptions(options) {
+	if (!Array.isArray(options)) return [];
+	return options
+		.map((option) => {
+			const range = normalizeDurationGoalRangeSeconds(option);
+			if (!range || !isValidDurationGoalRange(range)) return null;
+			const label = String(option.label || "").trim();
+			return {
+				...(label ? { label } : {}),
+				...range,
+			};
+		})
+		.filter(Boolean);
+}
+
+function isValidDurationGoalRange(range) {
+	return (
+		Boolean(range) &&
+		Number.isFinite(range.minSeconds) &&
+		Number.isFinite(range.maxSeconds) &&
+		range.minSeconds > 0 &&
+		range.maxSeconds >= range.minSeconds
+	);
 }
 
 function normalizeWorkspaceMediaSource(mediaSource = {}) {
