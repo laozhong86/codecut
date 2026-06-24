@@ -144,6 +144,26 @@
         background: var(--cc-surface-muted);
       }
 
+      .switch-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px;
+        border: 1px solid var(--cc-subtle-border);
+        border-radius: var(--cc-radius-sm);
+        background: var(--cc-surface-muted);
+      }
+
+      .switch-row input {
+        width: auto;
+        margin-top: 2px;
+      }
+
+      .switch-copy {
+        display: grid;
+        gap: 3px;
+      }
+
       .file-picker-input {
         position: absolute;
         width: 1px;
@@ -340,6 +360,13 @@
               </select>
             </label>
           </div>
+          <label class="switch-row" for="generate-intro-cover">
+            <input id="generate-intro-cover" name="generateIntroCover" type="checkbox">
+            <span class="switch-copy">
+              <span data-i18n="introCoverRecommended">Generate opening cover image (recommended)</span>
+              <span class="muted" data-i18n="introCoverHelp">Codex uses the first selected frame as visual evidence, generates a separate image, imports it, and places it at the start.</span>
+            </span>
+          </label>
         </fieldset>
 
         <fieldset aria-labelledby="intent-section-title">
@@ -419,6 +446,8 @@
             qualityHigh: "high",
             qualityVeryHigh: "very_high",
             includeAudio: "Include audio",
+            introCoverRecommended: "Generate opening cover image (recommended)",
+            introCoverHelp: "Codex uses the first selected frame as visual evidence, generates a separate image, imports it, and places it at the start.",
             yes: "true",
             no: "false",
             intent: "Intent",
@@ -489,6 +518,8 @@
             qualityHigh: "高",
             qualityVeryHigh: "很高",
             includeAudio: "包含音频",
+            introCoverRecommended: "生成开头封面图（推荐）",
+            introCoverHelp: "Codex 会基于首个入选片段的首帧证据单独生成图片，导入后放在视频开头。",
             yes: "是",
             no: "否",
             intent: "剪辑需求",
@@ -534,6 +565,7 @@
           outputFormat: document.getElementById("output-format"),
           outputQuality: document.getElementById("output-quality"),
           includeAudio: document.getElementById("include-audio"),
+          generateIntroCover: document.getElementById("generate-intro-cover"),
           brief: document.getElementById("brief"),
           briefCustomToggle: document.getElementById("brief-custom-toggle"),
           briefOptions: document.getElementById("brief-options"),
@@ -623,6 +655,7 @@
           setSelectValue(fields.outputFormat, defaults.output?.format || "mp4");
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
+          fields.generateIntroCover.checked = defaults.generateIntroCover !== false;
           renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t("briefPlaceholder")]);
           renderChoiceOptions(
             fields.successCriteriaOptions,
@@ -928,6 +961,10 @@
           resetReadyState();
         }
 
+        function collectIntroCoverChoice() {
+          return fields.generateIntroCover.checked;
+        }
+
         function collectIntent() {
           const mediaSources = collectMediaSources();
           return {
@@ -944,6 +981,7 @@
               quality: fields.outputQuality.value,
               includeAudio: fields.includeAudio.value === "true",
             },
+            generateIntroCover: collectIntroCoverChoice(),
             brief: collectChoiceText(fields.briefOptions, fields.brief),
             successCriteria: collectChoiceText(fields.successCriteriaOptions, fields.successCriteria),
           };

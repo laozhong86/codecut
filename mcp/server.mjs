@@ -119,6 +119,7 @@ const workspaceIntentInputSchema = {
 	durationGoalSeconds: z.number(),
 	captionLanguage: z.string().trim(),
 	output: workspaceOutputSchema,
+	generateIntroCover: z.boolean(),
 	brief: z.string(),
 	successCriteria: z.string(),
 };
@@ -140,6 +141,7 @@ const workspaceOpenInputSchema = {
 	locale: z.string().trim().optional(),
 	uiLanguage: z.string().trim().optional(),
 	output: workspaceOutputSchema.partial().optional(),
+	generateIntroCover: z.boolean().optional(),
 };
 
 const projectOnlyInputSchema = {
@@ -1066,6 +1068,13 @@ async function validateCodecutSetupIntent(intent, { statImpl = stat } = {}) {
 			normalized.durationGoalSeconds > 0,
 		"Duration goal must be a positive number of seconds.",
 	);
+	pushCheck(
+		checks,
+		"generate-intro-cover",
+		"Intro cover",
+		typeof normalized.generateIntroCover === "boolean",
+		"Choose whether CodeCut should generate an opening cover image.",
+	);
 
 	return {
 		status: checks.every((check) => check.ok) ? "ready" : "blocked",
@@ -1272,6 +1281,10 @@ function buildWorkspaceIntentDefaults(input = {}) {
 					? input.output.includeAudio
 					: true,
 		},
+		generateIntroCover:
+			typeof input.generateIntroCover === "boolean"
+				? input.generateIntroCover
+				: true,
 		brief,
 		briefOptions: normalizeWorkspaceOptionList(
 			input.briefOptions,
@@ -1410,6 +1423,7 @@ function normalizeWorkspaceIntent(intent) {
 			quality: String(intent.output?.quality || ""),
 			includeAudio: Boolean(intent.output?.includeAudio),
 		},
+		generateIntroCover: intent.generateIntroCover,
 		brief: String(intent.brief || "").trim(),
 		successCriteria: String(intent.successCriteria || "").trim(),
 	};

@@ -15,6 +15,12 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
     durationSec: number,
     aspectRatio: "9:16" | "16:9" | "1:1"
   },
+  introCover?: {
+    mediaId: string,
+    duration: number,
+    fit: "cover",
+    reason: string
+  },
   clips: Array<{
     id: string,
     sourceStart: number,
@@ -110,6 +116,11 @@ Current validation fail-fast checks include:
 - `projectId` must match the active project.
 - `sourceMediaId` must resolve to an imported audio/video media asset.
 - media duration must be known.
+- `introCover`, when present, must point to an already imported image asset
+  with known `width` and `height`.
+- `introCover.duration` must be positive and is counted toward
+  `target.durationSec`; the first video clip must start exactly at
+  `introCover.duration`.
 - every clip must have `sourceEnd > sourceStart`.
 - every clip range must fit inside source media duration.
 - `clips[].fit` only accepts `cover`, requires video source media, and requires
@@ -155,6 +166,12 @@ not copy source transcript timestamps directly into `captions[].startTime`.
 `clips[].fit: "cover"` creates a centered cover crop by converting source and
 target aspect ratios into `visual.transform.scale`. It is readable through
 `get_timeline_state`.
+
+`introCover` creates a generated image element at `startTime: 0` on the main
+video track. Codex must import the generated cover image first, then reference
+that imported image asset by `introCover.mediaId`. After applying, verify
+`get_timeline_state` readback includes an element with `type: "image"`,
+`startTime: 0`, the requested `duration`, and the same `mediaId`.
 
 Use `clips[].sourceCrop` when visual evidence supports a fixed source rectangle
 that removes burned-in subtitle pixels before adding new editable text

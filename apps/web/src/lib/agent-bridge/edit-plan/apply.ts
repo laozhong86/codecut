@@ -7,6 +7,7 @@ import type {
 	TrackTransition,
 } from "@/types/timeline";
 import {
+	buildImageElement,
 	buildTextElement,
 	buildVideoElement,
 	buildUploadAudioElement,
@@ -58,6 +59,7 @@ export type ApplyEditPlanResult =
 			success: true;
 			summary: {
 				clipCount: number;
+				introCoverCount: number;
 				totalDuration: number;
 				appliedElementIds: string[];
 				textElementCount: number;
@@ -140,7 +142,7 @@ function insertElementAndCollectIds({
 }
 
 function getTimelineDuration({ plan }: { plan: EditPlan }): number {
-	let duration = 0;
+	let duration = plan.introCover?.duration ?? 0;
 	for (const clip of plan.clips) {
 		duration = Math.max(
 			duration,
@@ -256,6 +258,37 @@ function createClipElement({
 	};
 }
 
+function createIntroCoverElement({
+	plan,
+	introCoverMedia,
+}: {
+	plan: EditPlan;
+	introCoverMedia: MediaAsset;
+}): CreateTimelineElement {
+	if (!plan.introCover) {
+		throw new Error("EditPlan introCover is required.");
+	}
+	return {
+		...buildImageElement({
+			mediaId: plan.introCover.mediaId,
+			name: `${introCoverMedia.name} Intro Cover`,
+			duration: plan.introCover.duration,
+			startTime: 0,
+		}),
+		transform: getCoverTransform({
+			sourceWidth: requireSourceDimension({
+				value: introCoverMedia.width,
+				label: "width",
+			}),
+			sourceHeight: requireSourceDimension({
+				value: introCoverMedia.height,
+				label: "height",
+			}),
+			aspectRatio: plan.target.aspectRatio,
+		}),
+	};
+}
+
 function createTextElement({
 	text,
 	startTime,
@@ -359,9 +392,35 @@ export function applyEditPlanToEditor({
 	});
 	const appliedElementIds: string[] = [];
 	const planClipElementIds = new Map<string, string>();
+	let introCoverCount = 0;
 	let textElementCount = 0;
 	let audioElementCount = 0;
 	let transitionCount = 0;
+
+	if (normalizedPlan.introCover) {
+		const introCoverMedia = mediaAssets.find(
+			(asset) => asset.id === normalizedPlan.introCover?.mediaId,
+		);
+		if (!introCoverMedia) {
+			return failAndRestore({
+				editor,
+				tracks: originalTracks,
+				message:
+					"EditPlan introCover mediaId was not found in the project media library.",
+				path: "introCover.mediaId",
+			});
+		}
+		const insertedIds = insertElementAndCollectIds({
+			editor,
+			trackId: mainTrackId,
+			element: createIntroCoverElement({
+				plan: normalizedPlan,
+				introCoverMedia,
+			}),
+		});
+		appliedElementIds.push(...insertedIds);
+		introCoverCount += insertedIds.length;
+	}
 
 	for (const clip of normalizedPlan.clips) {
 		const insertedIds = insertElementAndCollectIds({
@@ -576,6 +635,7 @@ export function applyEditPlanToEditor({
 		success: true,
 		summary: {
 			clipCount: normalizedPlan.clips.length,
+			introCoverCount,
 			totalDuration: getTimelineDuration({ plan: normalizedPlan }),
 			appliedElementIds,
 			textElementCount,
