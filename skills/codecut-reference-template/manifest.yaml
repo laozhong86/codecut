@@ -1,0 +1,49 @@
+name: codecut-reference-template
+version: 1
+type: functional
+primary_dimension: functional
+
+intent:
+  one_line: Turn finished reference videos into evidence-backed CodeCut template drafts, import only confirmed drafts, and apply saved templates as planning constraints.
+  target_user: Codex deriving or using reusable editing techniques from reference videos without bypassing CodeCut execution gates.
+  success_looks_like:
+    - Reference drafts include speech, visible-copy, visual, and timing evidence when those factors drive the style.
+    - Visual-only drafts are labeled not import-ready when transcript or copy evidence is missing.
+    - System-template import requires explicit user confirmation and confirmedByUser true.
+    - Applying a saved template still runs normal intake, material, plan, executor, and readback stages.
+
+known_failure_modes:
+  - mode: Draft JSON validation is mistaken for strategy completeness.
+    severity: high
+    example: A local-template-script.json parses but lacks per-reference speech or copy breakdown.
+  - mode: Draft files are treated as system-template truth.
+    severity: high
+    example: The agent applies a job-folder draft without user-confirmed import.
+  - mode: Unsupported reference effects are silently downgraded.
+    severity: medium
+    example: Animated subtitle behavior is written as executable when CodeCut cannot represent it.
+
+style_constraints:
+  must_have:
+    - Evidence source and confidence are stated for reusable rules.
+    - Unsupported runtime gaps are named explicitly.
+  must_not_have:
+    - CapCut-style effect-package claims.
+    - Import before user confirmation.
+
+arena_config:
+  noise_band: 0.15
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-reference-template/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-reference-template/retrospective.jsonl
+  log_entry_note: Record reference inputs, evidence collected, draft package paths, confirmation state, import result, and user correction. Do not fabricate usage data.
+
+cold_start_mode: false

@@ -10,7 +10,6 @@ Current implemented loop:
 
 ```text
 get_project_info
-  -> optional update_project_settings
   -> list_media_assets
   -> transcribe_media
   -> build_video_context

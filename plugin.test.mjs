@@ -21,7 +21,7 @@ describe("Codecut plugin startup guidance", () => {
 			"$codecut-reference-template",
 			"$codecut-tiktok-downloader",
 		]) {
-			expect(startupPrompt).not.toContain(stageSkill);
+		expect(startupPrompt).not.toContain(stageSkill);
 		}
 	});
 
@@ -180,7 +180,7 @@ describe("Codecut plugin startup guidance", () => {
 			intakeSkill,
 			intakeAgentCard,
 		]) {
-			expect(content).toContain("open_codecut_workspace");
+		expect(content).toContain("open_codecut_workspace");
 		}
 
 		expect(startupPrompt).toContain("MCP tool directly");
@@ -212,9 +212,9 @@ describe("Codecut plugin startup guidance", () => {
 		);
 
 		for (const content of [agents, checklist]) {
-			expect(content).toContain("fresh-thread");
-			expect(content).toContain("verify-codecut-widget-intake-thread.mjs");
-			expect(content).toContain("open_codecut_workspace");
+		expect(content).toContain("fresh-thread");
+		expect(content).toContain("verify-codecut-widget-intake-thread.mjs");
+		expect(content).toContain("open_codecut_workspace");
 		}
 		expect(checklist).toContain("do not inspect skills");
 		expect(checklist).toContain(
@@ -238,8 +238,8 @@ describe("Codecut plugin startup guidance", () => {
 		);
 
 		for (const content of [executorSkill, workflowDocs]) {
-			expect(content).toContain("apps/web/.env.local");
-			expect(content).toContain("source apps/web/.env.local");
+		expect(content).toContain("apps/web/.env.local");
+		expect(content).toContain("source apps/web/.env.local");
 		}
 		expect(frameworkSkill).toContain("Use `codecut-executor-apply`");
 	});
@@ -309,7 +309,7 @@ describe("Codecut plugin startup guidance", () => {
 			"verification-export",
 			"reference-template",
 		]) {
-			expect(contract).toContain(`\`${stage}\``);
+		expect(contract).toContain(`\`${stage}\``);
 		}
 
 		for (const requiredColumn of [
@@ -320,7 +320,7 @@ describe("Codecut plugin startup guidance", () => {
 			"Stop Condition",
 			"Next Handoff",
 		]) {
-			expect(contract).toContain(requiredColumn);
+		expect(contract).toContain(requiredColumn);
 		}
 
 		for (const rule of [
@@ -328,7 +328,7 @@ describe("Codecut plugin startup guidance", () => {
 			"Do not let MCP tools choose the workflow.",
 			"Do not treat a local MP4 as completion without matching Codecut timeline readback.",
 		]) {
-			expect(contract).toContain(rule);
+		expect(contract).toContain(rule);
 		}
 	});
 
@@ -352,7 +352,7 @@ describe("Codecut plugin startup guidance", () => {
 			"Failure Shape",
 			"Agent Next Action",
 		]) {
-			expect(toolContract).toContain(requiredColumn);
+		expect(toolContract).toContain(requiredColumn);
 		}
 		for (const requiredField of [
 			"`structuredContent`",
@@ -362,7 +362,7 @@ describe("Codecut plugin startup guidance", () => {
 			"`import_failed`",
 			"`readback_failed`",
 		]) {
-			expect(toolContract).toContain(requiredField);
+		expect(toolContract).toContain(requiredField);
 		}
 		for (const toolName of [
 			"open_codecut_workspace",
@@ -371,7 +371,69 @@ describe("Codecut plugin startup guidance", () => {
 			"verify_timeline",
 			"export_project",
 		]) {
-			expect(toolContract).toContain(`\`${toolName}\``);
+		expect(toolContract).toContain(`\`${toolName}\``);
+		}
+	});
+
+	test("keeps current agent-facing tool contracts on callable MCP names", async () => {
+		const currentContractPaths = [
+			["skills", "codecut", "references", "codecut-agent-tool-contract.md"],
+			["skills", "codecut", "references", "execution-contract.md"],
+			["skills", "codecut", "references", "round-trip-editing-contract.md"],
+			[
+				"skills",
+				"codecut",
+				"references",
+				"workflow-recipes",
+				"long-to-short.md",
+			],
+			["docs", "codex-driven-editing.md"],
+		];
+
+		for (const pathParts of currentContractPaths) {
+			const content = await readFile(join(pluginRoot, ...pathParts), "utf8");
+		expect(content).not.toContain("import_media_file");
+		expect(content).not.toContain("update_project_settings");
+		}
+
+		const toolContract = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut",
+				"references",
+				"codecut-agent-tool-contract.md",
+			),
+			"utf8",
+		);
+		expect(toolContract).toContain("Current callable MCP tools");
+		expect(toolContract).toContain("`import_media`");
+		expect(toolContract).toContain("optional import_media");
+		expect(toolContract).toContain("`export_project`");
+	});
+
+	test("declares gardener manifests and usage-log entrypoints for CodeCut skills", async () => {
+		const skillNames = [
+			"codecut",
+			"codecut-requirement-intake",
+			"codecut-material-ingest",
+			"codecut-executor-apply",
+			"codecut-reference-template",
+			"codecut-tiktok-downloader",
+		];
+
+		for (const skillName of skillNames) {
+			const manifest = await readFile(
+				join(pluginRoot, "skills", skillName, "manifest.yaml"),
+				"utf8",
+		);
+		expect(manifest).toContain(`name: ${skillName}`);
+		expect(manifest).toContain("type: functional");
+		expect(manifest).toContain("usage_log_entrypoint:");
+		expect(manifest).toContain(`_runtime/logs/${skillName}/usage.jsonl`);
+		expect(manifest).toContain("retrospective_log_entrypoint:");
+		expect(manifest).toContain("Do not fabricate usage data");
+		expect(manifest).toContain("cold_start_mode: false");
 		}
 	});
 
@@ -431,6 +493,13 @@ describe("Codecut plugin startup guidance", () => {
 		expect(tiktokDownloader).toContain("Do not run executor mutation commands");
 		expect(tiktokDownloader).toContain("hand off to `codecut-material-ingest`");
 		expect(tiktokDownloader).toContain("hand back to `codecut-requirement-intake`");
+		expect(frameworkSkill).toContain("Source-only acquisition is not a creative editing job");
+		expect(frameworkSkill).toContain("Do not open the creative editing widget");
+		expect(frameworkAgentCard).toContain("source-only download/save/extract requests");
+		expect(materialIngest).toContain("For source-only acquisition requests");
+		expect(tiktokDownloader).toContain(
+			"Do not open creative editing intake unless the user later asks for editing",
+		);
 		expect(tiktokDownloader).toContain("scripts/download_tiktok.py");
 		expect(tiktokDownloaderScript).toContain("required=True");
 		expect(tiktokDownloaderScript).toContain("download_manifest.json");
@@ -455,7 +524,7 @@ describe("Codecut plugin startup guidance", () => {
 			requirementIntake,
 			materialIngest,
 		]) {
-			expect(content).toContain("codecut-tiktok-downloader");
+		expect(content).toContain("codecut-tiktok-downloader");
 		}
 
 		expect(startupPrompt).not.toContain("$codecut-tiktok-downloader");
@@ -486,11 +555,11 @@ describe("Codecut plugin startup guidance", () => {
 		);
 
 		for (const content of [skill, longToShort, platformPresets]) {
-			expect(content).toContain("visual preflight");
-			expect(content).toContain(
+		expect(content).toContain("visual preflight");
+		expect(content).toContain(
 				"vertical_face_safe_crop_above_burned_captions",
-			);
-			expect(content).toContain("Do not use `black-bar` as a subtitle mask");
+		);
+		expect(content).toContain("Do not use `black-bar` as a subtitle mask");
 		}
 
 		expect(videoContext).toContain("burnedCaptionRegion");
@@ -528,16 +597,16 @@ describe("Codecut plugin startup guidance", () => {
 		);
 
 		for (const content of [skill, subtitlePass, workflow]) {
-			expect(content).toContain("post-cut caption source");
-			expect(content).toContain("source transcript remap");
-			expect(content).toContain("edited audio transcription");
-			expect(content).toContain("build-post-cut-captions");
+		expect(content).toContain("post-cut caption source");
+		expect(content).toContain("source transcript remap");
+		expect(content).toContain("edited audio transcription");
+		expect(content).toContain("build-post-cut-captions");
 		}
 
 		for (const content of [platformPresets, editPlanSchema, workflow]) {
-			expect(content).toContain("talking-head-pop");
-			expect(content).toContain("tutorial-clean");
-			expect(content).toContain("documentary-soft");
+		expect(content).toContain("talking-head-pop");
+		expect(content).toContain("tutorial-clean");
+		expect(content).toContain("documentary-soft");
 		}
 	});
 

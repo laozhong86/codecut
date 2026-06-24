@@ -33,6 +33,11 @@ expose atomic primitives only.
 
 Choose one path before running commands:
 
+Source-only acquisition is not a creative editing job. If the user explicitly
+asks only to download, save, extract, or make source media available locally,
+route to the source acquisition stage and stop before editing intake, executor
+project creation, timeline mutation, or export.
+
 For new creative jobs with missing setup fields, call
 `open_codecut_workspace` directly from the MCP tool surface before reading
 local files, loading stage skills, running shell commands, or sending text-only
@@ -42,9 +47,10 @@ before executor mutation.
 
 | Request shape | Required stage |
 | --- | --- |
-| New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", "提取到本地" | Call `open_codecut_workspace` directly before loading child skills or shell. After widget submission, use `codecut-requirement-intake` to pass or block the execution gate. |
+| Source-only acquisition: "download", "save locally", "提取到本地", "下载到本地", or similar with no editing, timeline, template, or export request | Use `codecut-tiktok-downloader` for TikTok sources, otherwise use `codecut-material-ingest`. Do not open the creative editing widget or run executor mutation commands. |
+| New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", or any request that will create, edit, verify, or export a timeline | Call `open_codecut_workspace` directly before loading child skills or shell. After widget submission, use `codecut-requirement-intake` to pass or block the execution gate. |
 | New creative job with explicit setup fields already provided | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` before executor mutation. |
-| TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition after intake passes, or before intake only when source facts are needed to ask useful questions. |
+| TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally for an editing job | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition after intake passes, or before intake only when source facts are needed to ask useful questions. |
 | Source needs download, file copy, workspace init, or ffprobe audit | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest`. |
 | Finished/reference videos, "learn this editing style", "复刻模板", reference-derived template draft/import/application | **REQUIRED SUB-SKILL:** Use `codecut-reference-template` before EditPlan authoring or executor mutation. |
 | Transcript, VideoContext, candidate clips, decision ledger, or EditPlan authoring | Read `references/editing-intent-router.md` and exactly one workflow recipe. |

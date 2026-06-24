@@ -941,7 +941,7 @@ Do not start the render if either freshness gate fails.
 
 ## Failure Handling
 
-- If `import_media_file` fails, Codex must verify the file path, file type, and active browser project before retrying.
+- If `import_media` fails, Codex must verify the source path, file type, URL or payload shape, and explicit executor project before retrying.
 - If `transcribe_media` cannot find the media asset, Codex must call `list_media_assets` again and select a valid asset.
 - If `apply_edit_plan` fails validation, Codex must correct the EditPlan. Codecut must not auto-fix it.
 - If `validate_edit_plan` or `preview_edit_plan` fails, Codex must correct the plan before applying. Do not skip directly to `apply_edit_plan`.

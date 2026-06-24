@@ -1,0 +1,49 @@
+name: codecut-executor-apply
+version: 1
+type: functional
+primary_dimension: functional
+
+intent:
+  one_line: Run CodeCut executor readiness, import, validation, apply, caption, readback, and export steps only after execution is allowed.
+  target_user: Codex applying confirmed CodeCut plans through the local executor and MCP/bridge surface.
+  success_looks_like:
+    - Bridge env is loaded from apps/web/.env.local without printing token values.
+    - Doctor gates pass before business commands and before long renders.
+    - EditPlan execution runs validate, preview, apply, verify, then get_timeline_state.
+    - MP4 export is claimed only when export_project or an equivalent verified executor path produced the file.
+
+known_failure_modes:
+  - mode: Executor commands run before requirement intake passes.
+    severity: high
+    example: The agent imports media or applies a plan for a new creative job with missing output form.
+  - mode: A failed gate is bypassed.
+    severity: high
+    example: doctor-install fails but the agent continues to apply-plan.
+  - mode: Browser visibility is treated as executor readiness.
+    severity: medium
+    example: The agent asks the user to refresh a browser tab instead of fixing a command-consumer gap.
+
+style_constraints:
+  must_have:
+    - Runtime, environment, cache, and export blockers are separated from editing correctness.
+    - Reports include project ID, editor URL, revision, counts, duration, source media IDs, and export status.
+  must_not_have:
+    - Token values in output.
+    - Browser download as an export fallback.
+
+arena_config:
+  noise_band: 0.15
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-executor-apply/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-executor-apply/retrospective.jsonl
+  log_entry_note: Record project ID, gate results, command sequence, readback proof, export proof, and any failed gate. Do not fabricate usage data.
+
+cold_start_mode: false
