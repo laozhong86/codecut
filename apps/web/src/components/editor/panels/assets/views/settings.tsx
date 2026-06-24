@@ -3,6 +3,7 @@
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import Image from "next/image";
 import { memo, useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { PanelBaseView as BaseView } from "@/components/editor/panels/panel-base-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,13 +24,20 @@ import {
 import { patternCraftGradients } from "@/data/colors/pattern-craft";
 import { colors } from "@/data/colors/solid";
 import { syntaxUIGradients } from "@/data/colors/syntax-ui";
+import { useFileUpload } from "@/hooks/use-file-upload";
 import { useEditor } from "@/hooks/use-editor";
 import {
 	DIGITAL_HUMAN_PROVIDERS,
 	IMAGE_PROVIDERS,
 	VIDEO_PROVIDERS,
 } from "@/lib/ai/providers";
+import {
+	processMediaAssets,
+	type ProcessedMediaAsset,
+} from "@/lib/media/processing";
 import { buildProjectCoverFromImageAsset } from "@/lib/project/cover";
+import { getLastFrameTime } from "@/lib/time";
+import { CanvasRenderer } from "@/services/renderer/canvas-renderer";
 import { useAISettingsStore } from "@/stores/ai-settings-store";
 import { cn } from "@/utils/ui";
 import {
@@ -97,6 +105,24 @@ function ProjectSettingsTabs() {
 	);
 }
 
+function canvasToImageFile({
+	canvas,
+	fileName,
+}: {
+	canvas: HTMLCanvasElement;
+	fileName: string;
+}): Promise<File> {
+	return new Promise((resolve, reject) => {
+		canvas.toBlob((blob) => {
+			if (!blob) {
+				reject(new Error("Could not render cover image."));
+				return;
+			}
+			resolve(new File([blob], fileName, { type: blob.type || "image/png" }));
+		}, "image/png");
+	});
+}
+
 function CoverSettingsView() {
 	const { t } = useTranslation();
 	const editor = useEditor();
@@ -112,42 +138,187 @@ function CoverSettingsView() {
 		);
 	const coverAsset = imageAssets.find((asset) => asset.id === cover?.mediaId);
 	const [title, setTitle] = useState(cover?.title ?? "");
+	const [isSettingCover, setIsSettingCover] = useState(false);
+
+	const setProcessedImageAsCover = async ({
+		asset,
+		source,
+		nextTitle,
+	}: {
+		asset: ProcessedMediaAsset;
+		source: "media_asset" | "timeline_frame";
+		nextTitle: string;
+	}) => {
+		if (
+			asset.type !== "image" ||
+			asset.width === undefined ||
+			asset.height === undefined
+		) {
+			throw new Error(t("Project cover requires an image asset with dimensions"));
+		}
+
+		const mediaId = await editor.media.addMediaAsset({
+			projectId: activeProject.metadata.id,
+			asset,
+		});
+		editor.project.setCover({
+			cover: buildProjectCoverFromImageAsset({
+				asset: {
+					id: mediaId,
+					type: asset.type,
+					width: asset.width,
+					height: asset.height,
+				},
+				existingCover: cover,
+				source,
+				title: nextTitle,
+			}),
+		});
+		setTitle(nextTitle);
+		toast.success(t("Cover updated"));
+	};
 
 	const handleSetCover = ({ assetId }: { assetId: string }) => {
 		const asset = imageAssets.find((entry) => entry.id === assetId);
 		if (!asset) {
-			throw new Error("Project cover requires an image asset with dimensions.");
+			throw new Error(t("Project cover requires an image asset with dimensions"));
 		}
 		editor.project.setCover({
 			cover: buildProjectCoverFromImageAsset({
 				asset,
 				existingCover: cover,
-				title,
+				source: "media_asset",
+				title: title || asset.name,
 			}),
 		});
+		toast.success(t("Cover updated"));
 	};
+
+	const handleUseCurrentFrame = async () => {
+		setIsSettingCover(true);
+		try {
+			const renderTree = editor.renderer.getRenderTree();
+			if (!renderTree) {
+				throw new Error(t("Preview is not ready"));
+			}
+
+			const { width, height } = activeProject.settings.canvasSize;
+			const fps = activeProject.settings.fps;
+			const currentTime = editor.playback.getCurrentTime();
+			const renderTime = Math.min(
+				currentTime,
+				getLastFrameTime({ duration: renderTree.duration, fps }),
+			);
+			const renderer = new CanvasRenderer({ width, height, fps });
+			const canvas = document.createElement("canvas");
+			canvas.width = width;
+			canvas.height = height;
+
+			await renderer.renderToCanvas({
+				node: renderTree,
+				time: renderTime,
+				targetCanvas: canvas,
+			});
+			const file = await canvasToImageFile({
+				canvas,
+				fileName: `${activeProject.metadata.name}-cover.png`,
+			});
+			const [asset] = await processMediaAssets({ files: [file] });
+			if (!asset) {
+				throw new Error(t("Cover image could not be processed"));
+			}
+			await setProcessedImageAsCover({
+				asset,
+				source: "timeline_frame",
+				nextTitle: title || t("Current frame"),
+			});
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : t("Failed to set cover"),
+			);
+		} finally {
+			setIsSettingCover(false);
+		}
+	};
+
+	const handleLocalFiles = async (files: FileList) => {
+		const [file] = Array.from(files);
+		if (!file) return;
+		if (!file.type.startsWith("image/")) {
+			toast.error(t("Cover upload requires an image file"));
+			return;
+		}
+
+		setIsSettingCover(true);
+		try {
+			const [asset] = await processMediaAssets({ files: [file] });
+			if (!asset) {
+				throw new Error(t("Cover image could not be processed"));
+			}
+			await setProcessedImageAsCover({
+				asset,
+				source: "media_asset",
+				nextTitle: title || file.name,
+			});
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : t("Failed to set cover"),
+			);
+		} finally {
+			setIsSettingCover(false);
+		}
+	};
+
+	const { openFilePicker, fileInputProps } = useFileUpload({
+		accept: "image/*",
+		multiple: false,
+		onFilesSelected: handleLocalFiles,
+	});
 
 	return (
 		<div className="flex flex-col gap-4">
 			<PropertyItem direction="column">
 				<PropertyItemLabel>{t("Current cover")}</PropertyItemLabel>
 				<PropertyItemValue>
-					<div className="border-foreground/15 bg-muted/25 relative aspect-[9/16] w-28 overflow-hidden rounded-sm border">
-						{coverAsset?.url ? (
-							<Image
-								src={coverAsset.url}
-								alt={coverAsset.name}
-								fill
-								sizes="112px"
-								className="object-cover"
-								loading="lazy"
-								unoptimized
-							/>
-						) : (
-							<div className="text-muted-foreground flex size-full items-center justify-center text-xs">
-								{t("No cover")}
-							</div>
-						)}
+					<div className="flex flex-col gap-2">
+						<div className="border-foreground/15 bg-muted/25 relative aspect-[9/16] w-28 overflow-hidden rounded-sm border">
+							{coverAsset?.url ? (
+								<Image
+									src={coverAsset.url}
+									alt={coverAsset.name}
+									fill
+									sizes="112px"
+									className="object-cover"
+									loading="lazy"
+									unoptimized
+								/>
+							) : (
+								<div className="text-muted-foreground flex size-full items-center justify-center text-xs">
+									{t("No cover")}
+								</div>
+							)}
+						</div>
+						<input {...fileInputProps} />
+						<div className="flex flex-wrap gap-2">
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								disabled={isSettingCover}
+								onClick={handleUseCurrentFrame}
+							>
+								{t("Use current frame")}
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								disabled={isSettingCover}
+								onClick={openFilePicker}
+							>
+								{t("Upload image")}
+							</Button>
+						</div>
 					</div>
 				</PropertyItemValue>
 			</PropertyItem>
@@ -166,7 +337,7 @@ function CoverSettingsView() {
 							type="button"
 							variant="outline"
 							size="sm"
-							disabled={!coverAsset}
+							disabled={!coverAsset || isSettingCover}
 							onClick={() =>
 								coverAsset
 									? handleSetCover({ assetId: coverAsset.id })
@@ -195,6 +366,7 @@ function CoverSettingsView() {
 									isSelected && "border-primary border-2",
 								)}
 								onClick={() => handleSetCover({ assetId: asset.id })}
+								disabled={isSettingCover}
 								aria-label={t("Set {{name}} as cover", { name: asset.name })}
 							>
 								<div className="relative aspect-[9/16] w-full">
@@ -226,7 +398,7 @@ function CoverSettingsView() {
 				type="button"
 				variant="outline"
 				size="sm"
-				disabled={!cover}
+				disabled={!cover || isSettingCover}
 				onClick={() => editor.project.clearCover()}
 			>
 				{t("Clear cover")}

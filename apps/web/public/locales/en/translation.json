@@ -512,5 +512,22 @@
   "kfda8cd24": "Auto Mode",
   "kfe11d138": "Name",
   "kff14c2cb": "Delete {{num}} projects?",
-  "kff396558": "Character name"
+  "kff396558": "Character name",
+  "k4cc9a9c1": "Cover",
+  "k601c0520": "Current cover",
+  "k684d4754": "No cover",
+  "k8e3cce3d": "Cover title",
+  "kd9c3d7bc": "Use current frame",
+  "ke252dac": "Upload image",
+  "kd232fbde": "Clear cover",
+  "k878df96": "Cover updated",
+  "k7a423800": "Project cover requires an image asset with dimensions",
+  "k4e4fc7d2": "Preview is not ready",
+  "kec4009e0": "Cover image could not be processed",
+  "k58ecbf28": "Current frame",
+  "k777a676a": "Failed to set cover",
+  "kf894cbb": "Cover upload requires an image file",
+  "keaf7576f": "Title",
+  "k9f89304e": "Update",
+  "k67f25879": "No images"
 }

@@ -1,9 +1,10 @@
 import type { MediaType } from "@/types/assets";
-import type { ProjectCover } from "@/types/project";
+import type { ProjectCover, ProjectCoverSource } from "@/types/project";
 
 export function buildProjectCoverFromImageAsset({
 	asset,
 	existingCover,
+	source = "media_asset",
 	title,
 	updatedAt = new Date().toISOString(),
 }: {
@@ -14,6 +15,7 @@ export function buildProjectCoverFromImageAsset({
 		height?: number;
 	};
 	existingCover?: ProjectCover;
+	source?: Extract<ProjectCoverSource, "media_asset" | "timeline_frame">;
 	title?: string;
 	updatedAt?: string;
 }): ProjectCover {
@@ -31,7 +33,7 @@ export function buildProjectCoverFromImageAsset({
 					? { stylePreset: existingCover.stylePreset }
 					: {}),
 			}
-		: { source: "media_asset" as const };
+		: { source };
 
 	return {
 		mediaId: asset.id,

@@ -34,8 +34,6 @@ export function ProjectAspectRatioMenu() {
 		canvasSize,
 		originalCanvasSize,
 	});
-	const selectedLabel =
-		selectedValue === "custom" ? t("Custom") : selectedValue;
 
 	const applyPreset = ({ value }: { value: ProjectAspectRatioMenuValue }) => {
 		const nextCanvasSize = getCanvasSizeForAspectRatioPreset({
@@ -50,14 +48,14 @@ export function ProjectAspectRatioMenu() {
 			<DropdownMenuTrigger asChild>
 				<Button
 					variant="text"
-					size="sm"
+					size="icon"
 					type="button"
-					className="h-7 rounded-sm px-2 text-xs"
+					className="size-7 rounded-sm"
 					onMouseDown={(event) => event.preventDefault()}
+					aria-label={t("Aspect ratio")}
 					title={t("Aspect ratio")}
 				>
 					<Square className="size-3.5" />
-					<span>{selectedLabel}</span>
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" side="top" className="w-60">
