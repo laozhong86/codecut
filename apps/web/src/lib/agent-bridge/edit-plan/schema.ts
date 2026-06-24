@@ -11,6 +11,9 @@ export const EditPlanCaptionStylePresetSchema = z.enum([
 	"product-punch",
 	"lifestyle-warm",
 	"cinematic-serif",
+	"social-highlight",
+	"comment-bubble",
+	"minimal-reel",
 ]);
 
 export const EditPlanCaptionPositionSchema = z.enum(["lower-safe", "center"]);
@@ -18,6 +21,9 @@ export const EditPlanCaptionPositionSchema = z.enum(["lower-safe", "center"]);
 export const EditPlanTextStylePresetSchema = z.enum([
 	"hook_title",
 	"lower_title",
+	"social_hook",
+	"product_badge",
+	"chapter_bumper",
 ]);
 
 export const EditPlanAudioModeSchema = z.enum(["loop_to_timeline"]);

@@ -293,6 +293,9 @@ const captionStyleSchema = z
 				"product-punch",
 				"lifestyle-warm",
 				"cinematic-serif",
+				"social-highlight",
+				"comment-bubble",
+				"minimal-reel",
 			])
 			.optional(),
 		position: z.enum(["lower-safe", "center"]).optional(),

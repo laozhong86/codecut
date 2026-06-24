@@ -270,7 +270,12 @@ Codex sends exactly one editing plan format to Codecut:
     text: string,
     startTime: number,
     duration: number,
-    stylePreset?: "hook_title" | "lower_title",
+    stylePreset?:
+      | "hook_title"
+      | "lower_title"
+      | "social_hook"
+      | "product_badge"
+      | "chapter_bumper",
     richSpans?: Array<{
       start: number,
       end: number,
@@ -304,7 +309,10 @@ Codex sends exactly one editing plan format to Codecut:
       | "documentary-soft"
       | "product-punch"
       | "lifestyle-warm"
-      | "cinematic-serif",
+      | "cinematic-serif"
+      | "social-highlight"
+      | "comment-bubble"
+      | "minimal-reel",
     position: "lower-safe" | "center"
   },
   audio?: {
@@ -365,7 +373,8 @@ When `captions` contains one or more items, Codex must include
 omitted. Caption styling is intentionally limited to top-level local presets:
 `short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`,
 `documentary-soft`, `product-punch`, `lifestyle-warm`, and
-`cinematic-serif`. Codecut does not accept arbitrary CSS, per-caption style
+`cinematic-serif`, `social-highlight`, `comment-bubble`, and `minimal-reel`.
+Codecut does not accept arbitrary CSS, per-caption style
 objects, `bold_caption`, `keyword_caption`, or `keyword-highlight` in this
 contract.
 
@@ -395,11 +404,15 @@ Caption preset routing:
 - `product-punch`: product proof, UGC ad, deal hook, or comparison demo.
 - `lifestyle-warm`: vlog, Xiaohongshu-style lifestyle, travel, food, or daily routine.
 - `cinematic-serif`: brand story, fashion, emotional montage, or premium product film.
+- `social-highlight`: TikTok/Reels keyword-highlight style for fast social hooks.
+- `comment-bubble`: comment, testimonial, reaction, or social proof clips.
+- `minimal-reel`: visual-heavy reels where captions should support the footage.
 - `short-form-bold`: generic short-form fallback.
 - `black-bar`: explicit boxed subtitle look only; not a mask for old burned-in captions.
 
 `title.stylePreset` is optional. If omitted, Codecut keeps the existing default
-text behavior. If present, it must be `hook_title` or `lower_title`.
+text behavior. If present, it must be `hook_title`, `lower_title`,
+`social_hook`, `product_badge`, or `chapter_bumper`.
 
 `title.richSpans` and `captions[].richSpans` are optional keyword styling
 ranges. Ranges use `[start, end)` code point indexes over `Array.from(text)`.

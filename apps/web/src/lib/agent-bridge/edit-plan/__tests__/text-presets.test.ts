@@ -28,6 +28,9 @@ const implementedCaptionPresets: EditPlanCaptionStyle["preset"][] = [
 	"product-punch",
 	"lifestyle-warm",
 	"cinematic-serif",
+	"social-highlight" as EditPlanCaptionStyle["preset"],
+	"comment-bubble" as EditPlanCaptionStyle["preset"],
+	"minimal-reel" as EditPlanCaptionStyle["preset"],
 ];
 
 function layoutPresetCaption({
@@ -147,7 +150,7 @@ describe("caption style presets", () => {
 	});
 
 	test("all caption presets keep Chinese subtitles in a conventional lower-third layout", () => {
-		expect(implementedCaptionPresets).toHaveLength(8);
+		expect(implementedCaptionPresets).toHaveLength(11);
 
 		for (const preset of implementedCaptionPresets) {
 			const { raw, scaledFontSize, layout } = layoutPresetCaption({
@@ -203,5 +206,55 @@ describe("caption style presets", () => {
 		expect(bounds.lines.length).toBeGreaterThan(1);
 		expect(bounds.minY).toBeGreaterThanOrEqual(0);
 		expect(bounds.maxY).toBeLessThanOrEqual(horizontalCanvas.height);
+	});
+
+	test("social media caption presets provide distinct readable treatments", () => {
+		const socialHighlight = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "social-highlight" as EditPlanCaptionStyle["preset"],
+				position: "lower-safe",
+			},
+			aspectRatio: "9:16",
+		});
+		const commentBubble = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "comment-bubble" as EditPlanCaptionStyle["preset"],
+				position: "lower-safe",
+			},
+			aspectRatio: "9:16",
+		});
+		const minimalReel = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "minimal-reel" as EditPlanCaptionStyle["preset"],
+				position: "lower-safe",
+			},
+			aspectRatio: "9:16",
+		});
+
+		expect(socialHighlight).toMatchObject({
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 5.6,
+			fontWeight: "bold",
+			color: "#ffffff",
+			backgroundColor: "#2563eb",
+			backgroundOpacity: 0.86,
+			backgroundBorderRadius: 10,
+		});
+		expect(commentBubble).toMatchObject({
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 5.2,
+			fontWeight: "bold",
+			color: "#111827",
+			backgroundColor: "#ffffff",
+			backgroundOpacity: 0.92,
+			backgroundBorderRadius: 12,
+		});
+		expect(minimalReel).toMatchObject({
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 4.6,
+			fontWeight: "normal",
+			color: "#f8fafc",
+			backgroundColor: "transparent",
+		});
 	});
 });
