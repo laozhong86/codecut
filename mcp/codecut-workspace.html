@@ -250,22 +250,6 @@
         gap: 3px;
       }
 
-      .duration-range-editor {
-        display: grid;
-        gap: var(--cc-space-sm);
-        grid-column: 1 / -1;
-        padding: 10px;
-        border: 1px solid var(--cc-subtle-border);
-        border-radius: var(--cc-radius-sm);
-        background: var(--cc-surface-muted);
-      }
-
-      .duration-range-inputs {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--cc-space-md);
-      }
-
       .file-picker-input {
         position: absolute;
         width: 1px;
@@ -425,27 +409,15 @@
                 <option value="1:1" data-i18n="aspectSquare">1:1</option>
               </select>
             </label>
-            <label class="switch-row" for="duration-goal-auto">
-              <input id="duration-goal-auto" name="durationGoalAuto" type="checkbox">
-              <span class="switch-copy">
-                <span data-i18n="durationGoalAuto">Let Codex decide duration</span>
-                <span class="muted" data-i18n="durationGoalAutoHelp">Codex chooses the range from the user request and source evidence.</span>
-              </span>
+            <label>
+              <span data-i18n="durationGoalRange">Duration</span>
+              <select id="duration-goal-range" name="durationGoalRange">
+                <option value="auto" data-i18n="durationGoalAuto">Auto</option>
+                <option value="15-30" data-i18n="durationRange15To30">15-30 seconds</option>
+                <option value="30-60" data-i18n="durationRange30To60">30-60 seconds</option>
+                <option value="60-180" data-i18n="durationRange1To3Minutes">1-3 minutes</option>
+              </select>
             </label>
-            <div id="duration-goal-custom" class="duration-range-editor hidden">
-              <span data-i18n="durationRange">Duration range</span>
-              <div id="duration-range-options" class="choice-options"></div>
-              <div class="duration-range-inputs">
-                <label>
-                  <span data-i18n="durationRangeMinSeconds">Minimum seconds</span>
-                  <input id="duration-range-min-seconds" name="durationRangeMinSeconds" type="number" min="1" step="1" inputmode="numeric">
-                </label>
-                <label>
-                  <span data-i18n="durationRangeMaxSeconds">Maximum seconds</span>
-                  <input id="duration-range-max-seconds" name="durationRangeMaxSeconds" type="number" min="1" step="1" inputmode="numeric">
-                </label>
-              </div>
-            </div>
             <label>
               <span data-i18n="captionLanguage">Caption language</span>
               <select id="caption-language" name="captionLanguage">
@@ -517,8 +489,7 @@
           <label class="switch-row" for="generate-intro-cover">
             <input id="generate-intro-cover" name="generateIntroCover" type="checkbox">
             <span class="switch-copy">
-              <span data-i18n="introCoverRecommended">Generate timeline opening image (not project cover)</span>
-              <span class="muted" data-i18n="introCoverHelp">Codex uses the first selected frame as visual evidence, generates a separate image, imports it, and places it at the video start. Project covers use set_project_cover.</span>
+              <span data-i18n="introCoverRecommended">Generate a new cover with AI</span>
             </span>
           </label>
         </fieldset>
@@ -571,11 +542,11 @@
             aspectVertical: "9:16 vertical",
             aspectHorizontal: "16:9 horizontal",
             aspectSquare: "1:1 square",
-            durationGoalAuto: "Let Codex decide duration",
-            durationGoalAutoHelp: "Codex chooses the range from the user request and source evidence.",
-            durationRange: "Duration range",
-            durationRangeMinSeconds: "Minimum seconds",
-            durationRangeMaxSeconds: "Maximum seconds",
+            durationGoalRange: "Duration",
+            durationGoalAuto: "Auto",
+            durationRange15To30: "15-30 seconds",
+            durationRange30To60: "30-60 seconds",
+            durationRange1To3Minutes: "1-3 minutes",
             captionLanguage: "Caption language",
             captionAuto: "auto",
             captionChinese: "Chinese",
@@ -611,8 +582,7 @@
             qualityHigh: "high",
             qualityVeryHigh: "very_high",
             includeAudio: "Include audio",
-            introCoverRecommended: "Generate timeline opening image (not project cover)",
-            introCoverHelp: "Codex uses the first selected frame as visual evidence, generates a separate image, imports it, and places it at the video start. Project covers use set_project_cover.",
+            introCoverRecommended: "Generate a new cover with AI",
             yes: "true",
             no: "false",
             intent: "Intent",
@@ -660,11 +630,11 @@
             aspectVertical: "9:16 竖屏",
             aspectHorizontal: "16:9 横屏",
             aspectSquare: "1:1 方形",
-            durationGoalAuto: "让 Codex 自主决定时长",
-            durationGoalAutoHelp: "Codex 会根据用户需求和素材证据选择时长范围。",
-            durationRange: "时长范围",
-            durationRangeMinSeconds: "最短秒数",
-            durationRangeMaxSeconds: "最长秒数",
+            durationGoalRange: "目标时长",
+            durationGoalAuto: "自动",
+            durationRange15To30: "15～30秒",
+            durationRange30To60: "30～60 秒",
+            durationRange1To3Minutes: "1～3 分钟",
             captionLanguage: "字幕语言",
             captionAuto: "自动识别",
             captionChinese: "中文",
@@ -700,8 +670,7 @@
             qualityHigh: "高",
             qualityVeryHigh: "很高",
             includeAudio: "包含音频",
-            introCoverRecommended: "生成时间线开头图（不是项目封面）",
-            introCoverHelp: "Codex 会基于首个入选片段的首帧证据单独生成图片，导入后放在视频开头。项目封面使用 set_project_cover。",
+            introCoverRecommended: "用AI 生成新的封面",
             yes: "是",
             no: "否",
             intent: "剪辑需求",
@@ -741,11 +710,7 @@
           addMediaSourceButton: document.getElementById("add-media-source-button"),
           addMediaFolderButton: document.getElementById("add-media-folder-button"),
           targetAspectRatio: document.getElementById("target-aspect-ratio"),
-          durationGoalAuto: document.getElementById("duration-goal-auto"),
-          durationGoalCustom: document.getElementById("duration-goal-custom"),
-          durationRangeOptions: document.getElementById("duration-range-options"),
-          durationRangeMinSeconds: document.getElementById("duration-range-min-seconds"),
-          durationRangeMaxSeconds: document.getElementById("duration-range-max-seconds"),
+          durationGoalRange: document.getElementById("duration-goal-range"),
           captionLanguage: document.getElementById("caption-language"),
           captionFont: document.getElementById("caption-font"),
           captionSize: document.getElementById("caption-size"),
@@ -833,10 +798,7 @@
           currentProjectId = defaults.projectId || slugify(fields.projectName.value);
           renderMediaSources(defaults.mediaSources || defaults.mediaSource || []);
           setSelectValue(fields.targetAspectRatio, defaults.targetAspectRatio || "9:16");
-          fields.durationGoalAuto.checked = defaults.durationGoalMode !== "custom";
-          renderDurationRangeOptions(defaults.durationGoalRangeOptions || []);
-          setDurationRange(defaults.durationGoalRangeSeconds);
-          toggleDurationRangeEditor();
+          setDurationGoalSelection(defaults);
           setSelectValue(fields.captionLanguage, defaults.captionLanguage || "auto");
           setSelectValue(fields.captionFont, defaults.output?.captionFont || "auto");
           setSelectValue(fields.captionSize, defaults.output?.captionSize || "medium");
@@ -1318,73 +1280,32 @@
           resetReadyState();
         }
 
-        function normalizeDurationRangeOptions(options) {
-          return (Array.isArray(options) ? options : [])
-            .map((option) => {
-              const minSeconds = Number(option?.minSeconds);
-              const maxSeconds = Number(option?.maxSeconds);
-              if (!Number.isFinite(minSeconds) || !Number.isFinite(maxSeconds) || minSeconds <= 0 || maxSeconds < minSeconds) {
-                return null;
-              }
-              return {
-                label: String(option.label || "").trim(),
-                minSeconds,
-                maxSeconds,
-              };
-            })
-            .filter(Boolean);
-        }
-
-        function durationRangeLabel(range) {
-          return range.label || `${range.minSeconds}-${range.maxSeconds}s`;
-        }
-
-        function renderDurationRangeOptions(options) {
-          fields.durationRangeOptions.innerHTML = "";
-          for (const range of normalizeDurationRangeOptions(options)) {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "choice-option";
-            button.dataset.minSeconds = String(range.minSeconds);
-            button.dataset.maxSeconds = String(range.maxSeconds);
-            button.textContent = durationRangeLabel(range);
-            button.addEventListener("click", () => {
-              setDurationRange(range);
-              fields.durationRangeOptions.querySelectorAll(".choice-option").forEach((option) => {
-                option.classList.toggle("is-active", option === button);
-                option.setAttribute("aria-pressed", option === button ? "true" : "false");
-              });
-              resetReadyState();
-            });
-            fields.durationRangeOptions.appendChild(button);
-          }
-        }
-
-        function setDurationRange(range) {
-          fields.durationRangeMinSeconds.value =
-            range?.minSeconds === undefined ? "" : String(range.minSeconds);
-          fields.durationRangeMaxSeconds.value =
-            range?.maxSeconds === undefined ? "" : String(range.maxSeconds);
-        }
-
-        function toggleDurationRangeEditor() {
-          fields.durationGoalCustom.classList.toggle("hidden", fields.durationGoalAuto.checked);
-          resetReadyState();
+        function setDurationGoalSelection(defaults) {
+          const range = defaults.durationGoalRangeSeconds || {};
+          const value = durationGoalSelectionForRange(
+            defaults.durationGoalMode,
+            range.minSeconds,
+            range.maxSeconds,
+          );
+          setSelectValue(fields.durationGoalRange, value);
         }
 
         function collectIntroCoverChoice() {
           return fields.generateIntroCover.checked;
         }
 
+        function durationGoalSelectionForRange(mode, minSeconds, maxSeconds) {
+          if (mode !== "custom") return "auto";
+          const rangeKey = `${Number(minSeconds)}-${Number(maxSeconds)}`;
+          return ["15-30", "30-60", "60-180"].includes(rangeKey) ? rangeKey : "auto";
+        }
+
         function collectDurationGoal() {
-          if (fields.durationGoalAuto.checked) {
+          const value = fields.durationGoalRange.value;
+          if (value === "auto") {
             return { durationGoalMode: "auto" };
           }
-          const minSeconds = Number(fields.durationRangeMinSeconds.value);
-          const maxSeconds = Number(fields.durationRangeMaxSeconds.value);
-          if (!Number.isFinite(minSeconds) || !Number.isFinite(maxSeconds) || minSeconds <= 0 || maxSeconds < minSeconds) {
-            throw new Error("Duration goal must be automatic or a valid positive seconds range.");
-          }
+          const [minSeconds, maxSeconds] = value.split("-").map(Number);
           return {
             durationGoalMode: "custom",
             durationGoalRangeSeconds: { minSeconds, maxSeconds },
@@ -1602,7 +1523,6 @@
         });
         fields.mediaFilePicker.addEventListener("change", handlePickedFiles);
         fields.mediaFolderPicker.addEventListener("change", handlePickedFolder);
-        fields.durationGoalAuto.addEventListener("change", toggleDurationRangeEditor);
         fields.form.addEventListener("input", () => {
           resetReadyState();
         });
