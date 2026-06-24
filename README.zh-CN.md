@@ -3,8 +3,8 @@
 [English](README.md)
 
 <p>
-  Codex 插件版 CapCut / 剪映平替。<br />
-  把 Agent 的理解、生成和剪辑计划，落到一个本地可视化视频时间线里。
+  面向自媒体工作者的本地 Agent 视频编辑器。<br />
+  Codex 负责剪辑方案，Codecut 落到本地网页时间线。
 </p>
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -14,17 +14,7 @@
 
 ## 一句话定位
 
-Codecut 是面向 AI 原生自媒体工作者的本地 Agent 视频编辑器。它以前期 Codex
-插件为入口，让 Codex / Claude 理解内容、生成或选择素材、写出明确的剪辑计划，
-再由 Codecut 把计划应用到本地时间线，供创作者预览、修改和导出。
-
-更短的定位：
-
-> Codecut = Codex 插件 + CapCut / 剪映平替，自媒体 AI 剪辑工具。
-
-这里的“平替”不是完整复制 CapCut 的模板库、移动端生态和云素材库，而是优先替代
-CapCut Pro 中最容易让高频创作者付费的 AI 工作流：脚本、字幕、封面、配图、B-roll
-建议、口播清理、竖屏短视频初剪和可视化时间线。
+Codecut 是面向自媒体工作者的本地 Agent 视频编辑器。它依托于 Codex 插件，让 Codex 负责理解内容、生成或选择素材、写出明确的剪辑方案，再由 Codecut 把计划应用到本地网页时间线，供创作者预览、修改和导出。
 
 ## 为什么需要 Codecut
 
@@ -83,24 +73,113 @@ Codecut 暂时不是为这些人优先设计：
 - `PostgreSQL + Redis`，前端开发时可按需启用。
 - 全项目使用 `TypeScript`。
 
-## Codex 插件安装、发布与验证
+## 安装
+
+### 让 Codex 自动安装
+
+把下面这段发给 Codex：
+
+```text
+Please install the Codecut Codex plugin from https://github.com/laozhong86/codecut.git.
+Clone the repository into ~/plugins/codecut, verify that .codex-plugin/plugin.json exists, run bun install, create apps/web/.env.local from apps/web/.env.example if it is missing, add the plugin to the personal marketplace, run codex plugin marketplace add ~, then run codex plugin add codecut@personal. After installing, validate the plugin and tell me whether I should start a fresh Codex conversation to load the new skills and MCP tools.
+```
+
+### 手动安装 / Manual Install
+
+推荐把插件 clone 到 Codex personal marketplace 默认会引用的位置：
+
+```bash
+mkdir -p ~/plugins
+git clone https://github.com/laozhong86/codecut.git ~/plugins/codecut
+cd ~/plugins/codecut
+bun install
+test -f apps/web/.env.local || cp apps/web/.env.example apps/web/.env.local
+bun run build:web
+```
+
+确保 `~/.agents/plugins/marketplace.json` 中有 Codecut 条目：
+
+```json
+{
+  "name": "personal",
+  "interface": {
+    "displayName": "Personal"
+  },
+  "plugins": [
+    {
+      "name": "codecut",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codecut"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
+```
+
+然后先注册 personal marketplace，再安装插件：
+
+```bash
+codex plugin marketplace add ~
+codex plugin add codecut@personal
+```
+
+安装后建议开启一个 fresh Codex 对话，让新的 skill 和 MCP 工具完整加载。
+
+## 使用
+
+### 打开 Codecut
+
+在 Codex 中说：
+
+```text
+Open Codecut and set up a local video editing workspace.
+```
+
+Codecut 会启动本地网页编辑器，默认地址是：
+
+```text
+http://127.0.0.1:4100/en/projects
+```
+
+计划和执行产物会保存在当前项目 workspace 中，而不是保存到插件仓库里：
+
+```text
+.codecut-workspace/projects/<project-id>/
+```
+
+### 导入本地素材
+
+在 Codex 中说：
+
+```text
+Import my local video into Codecut and prepare a short-form edit.
+```
+
+Codex 会通过 Codecut 插件检查文件、收集必要剪辑设置，并准备一个可视化本地时间线，
+而不是只返回一个黑盒视频文件。
+
+### 生成竖屏短视频
+
+在 Codex 中说：
+
+```text
+Turn this source clip into a 30-90 second vertical short with captions.
+```
+
+Codex 负责编写剪辑方案。Codecut 把方案应用到本地网页时间线，返回 `editorUrl`，
+让创作者继续预览、修改和导出。
+
+## 发布本地更新与验证
 
 Codecut 可以作为普通本地应用启动，但 Codex 插件发布要分四层验证：marketplace
 发现、插件启用、installed cache、当前 Codex 会话。源码测试通过，不等于一个
 fresh Codex 会话已经看到了最新插件。
-
-从本地 marketplace 安装：
-
-1. 把 Codecut clone 到你的 marketplace root 会引用的插件目录。
-2. 确认 `.codex-plugin/plugin.json` 存在，并保持稳定插件名 `codecut`。
-3. 在 `~/.agents/plugins/marketplace.json` 里添加或更新条目，让 `source.path`
-   以 marketplace root 为基准指向这个插件目录。
-4. 注册这个 marketplace root，再用你的 marketplace 名安装：
-
-```bash
-codex plugin marketplace add <marketplace-root>
-codex plugin add codecut@<marketplace-name>
-```
 
 修改 `.codex-plugin/plugin.json`、`skills/`、`.mcp.json`、MCP resource、widget、
 bridge 代码或插件展示资源后，发布本地更新：

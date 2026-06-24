@@ -1,7 +1,7 @@
 {
   "name": "codecut",
   "version": "0.1.1+codex.p0-verifiable-loop-20260622",
-  "description": "Local video editing workspace for Codex-controlled media import, transcript-aware planning, verified timeline updates, preview, and export checks.",
+  "description": "Codecut is a local Agent video editor for self-media creators. It is built on the Codex plugin: Codex understands the content, generates or selects assets, and writes a clear editing plan; Codecut then applies that plan to a local web timeline for creators to preview, adjust, and export.",
   "author": {
     "name": "Local OPC"
   },
@@ -11,8 +11,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Codecut",
-    "shortDescription": "Create, inspect, and verify local video edits with Codex.",
-    "longDescription": "Codecut gives Codex a local video editing workspace for importing media, reading transcript and timeline state, applying validated EditPlans, previewing the visible editor state, and checking export readiness. Codex stays the planning layer; Codecut keeps timeline mutation, readback, and export local and verifiable.",
+    "shortDescription": "Local Agent video editor for self-media creators.",
+    "longDescription": "Codecut is a local Agent video editor for self-media creators. It is built on the Codex plugin: Codex understands the content, generates or selects assets, and writes a clear editing plan; Codecut then applies that plan to a local web timeline for creators to preview, adjust, and export.",
     "developerName": "Local OPC",
     "category": "Developer Tools",
     "capabilities": [

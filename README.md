@@ -3,8 +3,8 @@
 [中文](README.zh-CN.md)
 
 <p>
-  Codex plugin version of a CapCut-style local AI editor.<br />
-  Turn Agent reasoning into a visible, editable video timeline.
+  Local Agent video editor for self-media creators.<br />
+  Codex plans the edit; Codecut applies it to a local web timeline.
 </p>
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -14,23 +14,7 @@
 
 ## At a Glance
 
-Codecut is a local Agent-driven video editor for AI-native creators. It starts
-as a Codex plugin and gives Codex / Claude a visual editing surface: the Agent
-understands the creator's intent, generates or selects assets, writes an
-explicit edit plan, and Codecut applies that plan to a local timeline for
-preview, manual adjustment, and export.
-
-The first positioning is narrow:
-
-> Codecut is a Codex plugin + CapCut Pro AI workflow alternative for self-media creators.
->
-> 中文定位：Codecut = Codex 插件 + CapCut / 剪映平替，自媒体 AI 剪辑工具。
-
-It is not trying to replace every CapCut template, mobile workflow, or stock
-asset library. The wedge is the paid AI workflow: scripts, captions, covers,
-image assets, B-roll suggestions, timeline edits, and short-video drafts that
-can be produced with the user's existing Agent subscription instead of a stack
-of extra AI editing subscriptions or third-party API keys.
+Codecut is a local Agent video editor for self-media creators. It is built on the Codex plugin: Codex understands the content, generates or selects assets, and writes a clear editing plan; Codecut then applies that plan to a local web timeline for creators to preview, adjust, and export.
 
 ## Why Codecut Exists
 
@@ -110,26 +94,119 @@ The early flagship workflow is:
 - `PostgreSQL + Redis` (optional for frontend-only work)
 - `TypeScript` across the project
 
-## Codex Plugin Install, Publish, And Verify
+## Installation
+
+### Ask Codex To Install Codecut
+
+Send this message to Codex:
+
+```text
+Please install the Codecut Codex plugin from https://github.com/laozhong86/codecut.git.
+Clone the repository into ~/plugins/codecut, verify that .codex-plugin/plugin.json exists, run bun install, create apps/web/.env.local from apps/web/.env.example if it is missing, add the plugin to the personal marketplace, run codex plugin marketplace add ~, then run codex plugin add codecut@personal. After installing, validate the plugin and tell me whether I should start a fresh Codex conversation to load the new skills and MCP tools.
+```
+
+### Manual Install
+
+Clone the plugin into the default location referenced by the Codex personal
+marketplace:
+
+```bash
+mkdir -p ~/plugins
+git clone https://github.com/laozhong86/codecut.git ~/plugins/codecut
+cd ~/plugins/codecut
+bun install
+test -f apps/web/.env.local || cp apps/web/.env.example apps/web/.env.local
+bun run build:web
+```
+
+Make sure `~/.agents/plugins/marketplace.json` contains a Codecut entry:
+
+```json
+{
+  "name": "personal",
+  "interface": {
+    "displayName": "Personal"
+  },
+  "plugins": [
+    {
+      "name": "codecut",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codecut"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
+```
+
+Then register the personal marketplace and install the plugin:
+
+```bash
+codex plugin marketplace add ~
+codex plugin add codecut@personal
+```
+
+After installing, start a fresh Codex conversation so the new skills and MCP
+tools load cleanly.
+
+## Usage
+
+### Open Codecut
+
+Ask Codex:
+
+```text
+Open Codecut and set up a local video editing workspace.
+```
+
+Codecut starts a local web editor at:
+
+```text
+http://127.0.0.1:4100/en/projects
+```
+
+Planning and execution artifacts are saved under the active project workspace,
+not inside the plugin repository:
+
+```text
+.codecut-workspace/projects/<project-id>/
+```
+
+### Import Local Media
+
+Ask Codex:
+
+```text
+Import my local video into Codecut and prepare a short-form edit.
+```
+
+Codex will use the Codecut plugin to inspect the file, collect the required
+editing setup, and prepare a visible local timeline instead of returning a
+black-box video file.
+
+### Create A Vertical Short
+
+Ask Codex:
+
+```text
+Turn this source clip into a 30-90 second vertical short with captions.
+```
+
+Codex writes the editing plan. Codecut applies the plan to the local web
+timeline, returns an `editorUrl`, and keeps the result available for creator
+preview, adjustment, and export.
+
+## Publish And Verify Local Updates
 
 Codecut can run as a normal local app, but the Codex plugin release has four
 separate layers: marketplace discovery, plugin enablement, installed cache, and
 the active Codex session. Do not treat a passing source test as proof that a
 fresh Codex thread can see the current plugin.
-
-Install from a local marketplace:
-
-1. Clone Codecut into the plugin folder used by your marketplace root.
-2. Confirm `.codex-plugin/plugin.json` exists and keeps the stable plugin name
-   `codecut`.
-3. Add or update `~/.agents/plugins/marketplace.json` so its `source.path`
-   points to this plugin folder relative to the marketplace root.
-4. Register that marketplace root, then install using your marketplace name:
-
-```bash
-codex plugin marketplace add <marketplace-root>
-codex plugin add codecut@<marketplace-name>
-```
 
 Publish a local update after changing `.codex-plugin/plugin.json`, `skills/`,
 `.mcp.json`, MCP resources, widgets, bridge code, or plugin-facing assets:

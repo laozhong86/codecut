@@ -14,6 +14,30 @@ function sectionBetween(content, startHeading, nextHeadingLevel = "##") {
 }
 
 describe("Codecut plugin startup guidance", () => {
+	test("states the self-media local Agent editor positioning in plugin and README copy", async () => {
+		const pluginManifest = JSON.parse(
+			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
+		);
+		const readme = await readFile(join(pluginRoot, "README.md"), "utf8");
+		const zhReadme = await readFile(join(pluginRoot, "README.zh-CN.md"), "utf8");
+		const englishPositioning =
+			"Codecut is a local Agent video editor for self-media creators. It is built on the Codex plugin: Codex understands the content, generates or selects assets, and writes a clear editing plan; Codecut then applies that plan to a local web timeline for creators to preview, adjust, and export.";
+		const chinesePositioning =
+			"Codecut 是面向自媒体工作者的本地 Agent 视频编辑器。它依托于 Codex 插件，让 Codex 负责理解内容、生成或选择素材、写出明确的剪辑方案，再由 Codecut 把计划应用到本地网页时间线，供创作者预览、修改和导出。";
+
+		expect(readme).toContain(englishPositioning);
+		expect(zhReadme).toContain(chinesePositioning);
+		expect(pluginManifest.description).toBe(englishPositioning);
+		expect(pluginManifest.interface.shortDescription).toBe(
+			"Local Agent video editor for self-media creators.",
+		);
+		expect(pluginManifest.interface.longDescription).toBe(englishPositioning);
+		expect(readme).not.toContain("The first positioning is narrow:");
+		expect(readme).not.toContain("Codecut is a Codex plugin + CapCut Pro AI workflow alternative");
+		expect(zhReadme).not.toContain("更短的定位：");
+		expect(zhReadme).not.toContain("Codecut = Codex 插件 + CapCut / 剪映平替");
+	});
+
 	test("exposes user-clickable starter prompts and plugin icons", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
@@ -68,7 +92,7 @@ describe("Codecut plugin startup guidance", () => {
 		await access(join(pluginRoot, pluginInterface.logo));
 	});
 
-	test("documents plugin installation, publication, and verification as separate layers", async () => {
+	test("documents Cowart-style installation, manual install, usage, and release verification", async () => {
 		const readme = await readFile(join(pluginRoot, "README.md"), "utf8");
 		const zhReadme = await readFile(join(pluginRoot, "README.zh-CN.md"), "utf8");
 		const releaseMatrix = await readFile(
@@ -77,21 +101,53 @@ describe("Codecut plugin startup guidance", () => {
 		);
 		const installSection = sectionBetween(
 			readme,
-			"## Codex Plugin Install, Publish, And Verify",
+			"## Installation",
 		);
 		const zhInstallSection = sectionBetween(
 			zhReadme,
-			"## Codex 插件安装、发布与验证",
+			"## 安装",
+		);
+		const usageSection = sectionBetween(readme, "## Usage");
+		const zhUsageSection = sectionBetween(zhReadme, "## 使用");
+		const releaseSection = sectionBetween(
+			readme,
+			"## Publish And Verify Local Updates",
+		);
+		const zhReleaseSection = sectionBetween(
+			zhReadme,
+			"## 发布本地更新与验证",
 		);
 
 		for (const content of [installSection, zhInstallSection]) {
+			expect(content).toContain("Codex");
+			expect(content).toContain("Manual");
+			expect(content).toContain("https://github.com/laozhong86/codecut.git");
+			expect(content).toContain("~/plugins/codecut");
 			expect(content).toContain(".codex-plugin/plugin.json");
 			expect(content).toContain("~/.agents/plugins/marketplace.json");
+			expect(content).toContain('"path": "./plugins/codecut"');
 			expect(content).toContain("codex plugin marketplace add");
-			expect(content).toContain("codex plugin add codecut@");
+			expect(content).toContain("codex plugin add codecut@personal");
+			expect(content).toContain("bun install");
+			expect(content).toContain("cp apps/web/.env.example apps/web/.env.local");
+			expect(content).toContain("bun run build:web");
+			expect(content).toContain("fresh Codex");
+			expect(content).not.toContain("local-opc");
+		}
+
+		for (const content of [usageSection, zhUsageSection]) {
+			expect(content).toContain("Open Codecut and set up a local video editing workspace.");
+			expect(content).toContain("http://127.0.0.1:4100/en/projects");
+			expect(content).toContain(".codecut-workspace/projects/<project-id>/");
+			expect(content).toContain("Import my local video into Codecut and prepare a short-form edit.");
+			expect(content).toContain(
+				"Turn this source clip into a 30-90 second vertical short with captions.",
+			);
+		}
+
+		for (const content of [releaseSection, zhReleaseSection]) {
 			expect(content).toContain("node scripts/sync-codex-local-plugin.mjs");
 			expect(content).toContain("bun run plugin:freshness");
-			expect(content).toContain("fresh Codex");
 			expect(content).toContain("tool_search");
 			expect(content).toContain("open_codecut_workspace");
 			expect(content).toContain("docs/codecut-version-release-matrix.md");
