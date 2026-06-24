@@ -75,6 +75,10 @@ describe("Codecut plugin startup guidance", () => {
 			),
 			"utf8",
 		);
+		const executorSkill = await readFile(
+			join(pluginRoot, "skills", "codecut-executor-apply", "SKILL.md"),
+			"utf8",
+		);
 		const agentCard = await readFile(
 			join(
 				pluginRoot,
@@ -86,15 +90,32 @@ describe("Codecut plugin startup guidance", () => {
 			"utf8",
 		);
 		const startupPrompt = pluginManifest.interface.defaultPrompt.join("\n");
+		const normalizedSkill = skill.replace(/\s+/g, " ");
+		const normalizedExecutorSkill = executorSkill.replace(/\s+/g, " ");
 
 		expect(startupPrompt).toContain("Codex in-app browser");
+		expect(startupPrompt).toContain(
+			"Whenever Codecut creates a project and receives an editorUrl",
+		);
 		expect(agentCard).toContain("Codex in-app browser");
+		expect(agentCard).toContain(
+			"Whenever Codecut creates a project and receives an editorUrl",
+		);
 		expect(skill).toContain("setupBrowserRuntime");
 		expect(skill).toContain('agent.browsers.get("iab")');
 		expect(skill).toContain('browser.capabilities.get("visibility")');
 		expect(skill).toContain("browser.tabs.selected()");
 		expect(skill).toContain("http://127.0.0.1:4100/en/projects");
 		expect(skill).toContain("the `editorUrl` returned by `create-project`");
+		expect(normalizedSkill).toContain(
+			"Whenever a Codecut project is created and an `editorUrl` is returned",
+		);
+		expect(normalizedSkill).toContain(
+			"open that exact `editorUrl` in the Codex in-app browser before reporting the project ready",
+		);
+		expect(normalizedExecutorSkill).toContain(
+			"After `create-project` returns an `editorUrl`, open that exact URL in the Codex in-app browser before the next executor step",
+		);
 		expect(skill).toContain(
 			"Do not reconstruct a bare `/editor/<projectId>` URL for executor projects",
 		);

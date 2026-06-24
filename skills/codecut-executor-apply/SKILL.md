@@ -60,6 +60,11 @@ minimum execution order is:
 6. `get_project_info`
 7. `list_media_assets`
 
+After `create-project` returns an `editorUrl`, open that exact URL in the Codex
+in-app browser before the next executor step. If the selected tab is already on
+that URL, do not reload it. If browser control is unavailable, stop and report
+the browser-control blocker plus the returned URL.
+
 Import only when needed:
 
 Use `import-media` from the docs after the source material path is known.

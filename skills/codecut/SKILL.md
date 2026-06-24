@@ -77,8 +77,14 @@ before executor mutation.
 Browser is not the Agent runtime. The local executor draft and readback are the
 agent proof; the Codex in-app browser is only for human preview.
 
-Use `setupBrowserRuntime` through the current Codex browser API when the user
-needs preview:
+Whenever a Codecut project is created and an `editorUrl` is returned, open that
+exact `editorUrl` in the Codex in-app browser before reporting the project
+ready. This is mandatory for setup-widget project creation and direct executor
+`create-project` runs. If browser control is unavailable, report the `editorUrl`
+and the browser-control blocker explicitly; do not claim browser-visible
+preview.
+
+Use `setupBrowserRuntime` through the current Codex browser API:
 
 ```ts
 const browser = await agent.browsers.get("iab");
