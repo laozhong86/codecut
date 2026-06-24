@@ -263,6 +263,7 @@ describe("Codecut MCP server contract", () => {
 		expect(openTool.readOnly).toBe(true);
 		expect(openTool.modelVisible).toBe(true);
 		expect(openTool.description).toContain("uiLanguage");
+		expect(openTool.description).toContain("mediaPaths");
 		expect(openTool.description).toContain("web service");
 		expect(openTool.inputSchema.projectId).toBeUndefined();
 		expect(openTool.meta).toMatchObject({
@@ -282,6 +283,18 @@ describe("Codecut MCP server contract", () => {
 			'aria-labelledby="project-section-title"',
 			'id="project-name"',
 			'id="media-sources"',
+			"class=\"media-sources media-sources-list\"",
+			"role=\"list\"",
+			"--cc-media-list-max-height",
+			"max-height: var(--cc-media-list-max-height)",
+			"overflow-y: auto",
+			"media-source-thumbnail",
+			"renderMediaSourceThumbnail",
+			"createPickedFilePreview",
+			"URL.createObjectURL(file)",
+			"revokeMediaPreviewUrl",
+			"refreshMediaSourcesEmptyState",
+			"noMediaSources",
 			'id="media-file-picker"',
 			'type="file"',
 			"multiple",
@@ -302,6 +315,7 @@ describe("Codecut MCP server contract", () => {
 			'id="success-criteria"',
 			"renderMediaSources",
 			"renderChoiceOptions",
+			"appendCustomChoiceOption",
 			"choice-option",
 			"toggleCustomField",
 			"collectChoiceText",
@@ -323,12 +337,21 @@ describe("Codecut MCP server contract", () => {
 		]) {
 			expect(html).toContain(marker);
 		}
+		expect(html).toContain('row.setAttribute("role", "listitem")');
+		expect(html).toContain('data-role="thumbnail"');
+		expect(html).toContain('class="media-source-fields"');
+		expect(html).toContain('data-action="remove-source"');
+		expect(html).toContain("row.remove();");
+		expect(html).not.toContain("fields.mediaSources.children.length > 1");
 		for (const marker of [
 			'data-i18n-placeholder="projectNamePlaceholder"',
 			'data-i18n-placeholder="filePathPlaceholder"',
 			'data-i18n-placeholder="urlPlaceholder"',
 			'data-i18n-placeholder="briefCustomPlaceholder"',
 			'data-i18n-placeholder="successCriteriaCustomPlaceholder"',
+			"customOption",
+			"自定义",
+			"customButton.dataset.action = \"toggle-custom\"",
 			'<select id="duration-goal-seconds"',
 			'<select id="caption-language"',
 			'data-field="mimeType"',
@@ -354,6 +377,9 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain('<input id="duration-goal-seconds"');
 		expect(html).not.toContain('<input id="caption-language"');
 		expect(html).not.toContain('id="inspect-button"');
+		expect(html).not.toContain('id="brief-custom-toggle"');
+		expect(html).not.toContain('id="success-criteria-custom-toggle"');
+		expect(html).not.toContain("custom-toggle");
 		expect(html).not.toContain('callTool("inspect_codecut_setup"');
 		expect(html).not.toContain("lastInspectionReady");
 		expect(html).not.toContain("Run inspection before submitting.");
@@ -489,10 +515,10 @@ describe("Codecut MCP server contract", () => {
 		const compactHtml = html.replace(/\s+/g, " ");
 
 		expect(compactHtml).toContain(
-			"renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t(\"briefPlaceholder\")], defaults.brief)",
+			"renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t(\"briefPlaceholder\")], defaults.brief, fields.brief)",
 		);
 		expect(compactHtml).toContain(
-			"renderChoiceOptions( fields.successCriteriaOptions, defaults.successCriteriaOptions || [defaults.successCriteria || t(\"successCriteriaPlaceholder\")], defaults.successCriteria",
+			"renderChoiceOptions( fields.successCriteriaOptions, defaults.successCriteriaOptions || [defaults.successCriteria || t(\"successCriteriaPlaceholder\")], defaults.successCriteria, fields.successCriteria",
 		);
 		expect(html).toContain(
 			"button.className = isRecommendedChoice ? \"choice-option is-active\" : \"choice-option\"",
@@ -500,8 +526,20 @@ describe("Codecut MCP server contract", () => {
 		expect(html).toContain(
 			"button.setAttribute(\"aria-pressed\", isRecommendedChoice ? \"true\" : \"false\")",
 		);
+		expect(html).toContain(
+			"appendCustomChoiceOption(container, customField)",
+		);
+		expect(html).toContain(
+			"container.querySelectorAll(\".choice-option[aria-pressed='true']\")",
+		);
 		expect(html).not.toContain('button.className = "choice-option is-active";');
 		expect(html).not.toContain('button.setAttribute("aria-pressed", "true");');
+		expect(html).not.toContain('customButton.setAttribute("aria-pressed"');
+		expect(html).not.toContain("customButton.dataset.choiceOption");
+		expect(html).not.toContain("fields.briefCustomToggle.addEventListener");
+		expect(html).not.toContain(
+			"fields.successCriteriaCustomToggle.addEventListener",
+		);
 	});
 
 	test("opens the workspace with structured defaults and widget metadata", () => {
@@ -654,6 +692,26 @@ describe("Codecut MCP server contract", () => {
 		});
 		expect(result._meta.widgetData.intentDefaults.mediaSources).toEqual([
 			{ kind: "filePath", filePath: "/tmp/creator-launch.mp4" },
+		]);
+	});
+
+	test("accepts mediaPaths as workspace open aliases for multiple local files", () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "Creator Launch",
+			mediaPaths: ["/tmp/creator-launch-a.mp4", "/tmp/creator-launch-b.mp4"],
+		});
+
+		expect(result.structuredContent.intentDefaults.mediaSource).toEqual({
+			kind: "filePath",
+			filePath: "/tmp/creator-launch-a.mp4",
+		});
+		expect(result.structuredContent.intentDefaults.mediaSources).toEqual([
+			{ kind: "filePath", filePath: "/tmp/creator-launch-a.mp4" },
+			{ kind: "filePath", filePath: "/tmp/creator-launch-b.mp4" },
+		]);
+		expect(result._meta.widgetData.intentDefaults.mediaSources).toEqual([
+			{ kind: "filePath", filePath: "/tmp/creator-launch-a.mp4" },
+			{ kind: "filePath", filePath: "/tmp/creator-launch-b.mp4" },
 		]);
 	});
 
