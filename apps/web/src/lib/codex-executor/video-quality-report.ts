@@ -34,7 +34,10 @@ type Category =
 	| "layout"
 	| "caption_quality"
 	| "voice_consistency"
-	| "visual_evidence";
+	| "visual_evidence"
+	| "title_quality"
+	| "export_probe"
+	| "audio_spotcheck";
 type Severity = "info" | "warning" | "critical";
 
 interface Check {
@@ -65,10 +68,50 @@ interface Bounds {
 	maxY: number;
 }
 
+type TitleQualityPlatform =
+	| "youtube"
+	| "tiktok"
+	| "instagram"
+	| "linkedin"
+	| "generic";
+
+interface TitleQualityRubric {
+	platform: TitleQualityPlatform;
+	primaryKeyword?: string;
+}
+
+interface ExportProbeResult {
+	format: string;
+	duration: number;
+	width: number;
+	height: number;
+	videoTrackCount: number;
+	audioTrackCount: number;
+}
+
+interface ExportedFileReview {
+	outputFile: string;
+	format: string;
+	includeAudio: boolean;
+	outputProbe?: ExportProbeResult;
+	probeError?: string;
+}
+
 const TIME_TOLERANCE_SECONDS = 0.001;
 const BOUNDS_TOLERANCE_PX = 0.5;
 const CAPTION_MAX_LINES = 2;
 const CAPTION_MIN_LAST_LINE_CHARACTERS = 3;
+const TITLE_RUBRIC_MAX_CHARACTERS: Record<TitleQualityPlatform, number> = {
+	youtube: 60,
+	tiktok: 80,
+	instagram: 80,
+	linkedin: 120,
+	generic: 80,
+};
+const GENERIC_TITLE_PATTERN =
+	/^(ok|test|draft|untitled|title|video|about|about this|new video|标题|视频)$/i;
+const HOOK_SIGNAL_PATTERN =
+	/(\b(how|why|what|stop|avoid|before|after|mistake|secret|proof|truth|save|never)\b|[0-9?!:：]|为什么|如何|怎么|别|不要|真相|方法|避坑|关键|对比|省)/i;
 const QUALITY_REPORT_LIMITATIONS = [
 	{
 		id: "ocr",
@@ -733,6 +776,105 @@ function normalizeSpokenText(value: string): string {
 	return value.replace(/\s+/g, " ").trim();
 }
 
+function normalizeTitleText(value: string): string {
+	return value.replace(/\s+/g, " ").trim();
+}
+
+function includesText({ text, value }: { text: string; value: string }) {
+	return text.toLocaleLowerCase().includes(value.toLocaleLowerCase());
+}
+
+function checkTitleQuality({
+	plan,
+	rubric,
+}: {
+	plan: EditPlan;
+	rubric?: TitleQualityRubric;
+}): Check {
+	if (!plan.title) {
+		return {
+			id: "titleQuality.planningRubric",
+			category: "title_quality",
+			status: "unknown",
+			severity: "info",
+			message: "EditPlan has no title to evaluate.",
+			evidence: { titlePresent: false },
+		};
+	}
+
+	const title = normalizeTitleText(plan.title.text);
+	const characterCount = Array.from(title).length;
+	if (!rubric) {
+		return {
+			id: "titleQuality.planningRubric",
+			category: "title_quality",
+			status: "unknown",
+			severity: "info",
+			message:
+				"Title quality rubric was not provided; business title quality was not evaluated.",
+			evidence: { titlePresent: true, characterCount },
+		};
+	}
+
+	const maxCharacters = TITLE_RUBRIC_MAX_CHARACTERS[rubric.platform];
+	const issues: Array<{
+		code: string;
+		message: string;
+		evidence?: Record<string, unknown>;
+	}> = [];
+	if (characterCount > maxCharacters) {
+		issues.push({
+			code: "title_too_long",
+			message: `Title exceeds the ${rubric.platform} rubric length.`,
+			evidence: { characterCount, maxCharacters },
+		});
+	}
+	const keyword = rubric.primaryKeyword?.trim();
+	if (keyword && !includesText({ text: title, value: keyword })) {
+		issues.push({
+			code: "title_missing_keyword",
+			message: "Title does not include the provided primary keyword.",
+			evidence: { primaryKeyword: keyword },
+		});
+	}
+	const hasHookSignal = HOOK_SIGNAL_PATTERN.test(title);
+	if (!hasHookSignal) {
+		issues.push({
+			code: "title_weak_hook",
+			message:
+				"Title has no clear hook signal such as a question, number, contrast, warning, or action verb.",
+		});
+	}
+	const genericTitle = characterCount < 6 || GENERIC_TITLE_PATTERN.test(title);
+	if (genericTitle) {
+		issues.push({
+			code: "title_generic",
+			message: "Title is too generic to act as a planning or publish hook.",
+			evidence: { characterCount },
+		});
+	}
+
+	return {
+		id: "titleQuality.planningRubric",
+		category: "title_quality",
+		status: issues.length > 0 ? "warning" : "pass",
+		severity: issues.length > 0 ? "warning" : "info",
+		message:
+			issues.length > 0
+				? `${issues.length} title quality issue(s) were found.`
+				: "Title satisfies the provided planning rubric.",
+		evidence: {
+			platform: rubric.platform,
+			characterCount,
+			maxCharacters,
+			primaryKeyword: keyword,
+			hasHookSignal,
+			genericTitle,
+			issues,
+		},
+	};
+}
+
 function checkVoiceConsistency({
 	plan,
 	state,
@@ -811,18 +953,144 @@ function checkVoiceConsistency({
 	};
 }
 
+function checkExportProbe({
+	exportedFile,
+}: {
+	exportedFile?: ExportedFileReview;
+}): Check {
+	if (!exportedFile) {
+		return {
+			id: "finalReview.outputProbe",
+			category: "export_probe",
+			status: "unknown",
+			severity: "info",
+			message: "No exported file was provided; export file probe was skipped.",
+		};
+	}
+	if (exportedFile.probeError) {
+		return {
+			id: "finalReview.outputProbe",
+			category: "export_probe",
+			status: "fail",
+			severity: "critical",
+			message: "Exported file probe failed.",
+			evidence: {
+				outputFile: exportedFile.outputFile,
+				format: exportedFile.format,
+				error: exportedFile.probeError,
+			},
+		};
+	}
+	if (
+		!exportedFile.outputProbe ||
+		exportedFile.outputProbe.videoTrackCount <= 0
+	) {
+		return {
+			id: "finalReview.outputProbe",
+			category: "export_probe",
+			status: "fail",
+			severity: "critical",
+			message: "Exported file probe did not return a video track.",
+			evidence: {
+				outputFile: exportedFile.outputFile,
+				format: exportedFile.format,
+				outputProbe: exportedFile.outputProbe,
+			},
+		};
+	}
+	return {
+		id: "finalReview.outputProbe",
+		category: "export_probe",
+		status: "pass",
+		severity: "info",
+		message: "Exported file probe passed.",
+		evidence: {
+			outputFile: exportedFile.outputFile,
+			...exportedFile.outputProbe,
+		},
+	};
+}
+
+function checkExportAudioPresence({
+	exportedFile,
+}: {
+	exportedFile?: ExportedFileReview;
+}): Check {
+	if (!exportedFile) {
+		return {
+			id: "finalReview.audioPresence",
+			category: "audio_spotcheck",
+			status: "unknown",
+			severity: "info",
+			message:
+				"No exported file was provided; audio presence check was skipped.",
+		};
+	}
+	if (exportedFile.probeError || !exportedFile.outputProbe) {
+		return {
+			id: "finalReview.audioPresence",
+			category: "audio_spotcheck",
+			status: "unknown",
+			severity: "info",
+			message:
+				"Export audio presence could not be checked without a valid probe.",
+			evidence: {
+				includeAudio: exportedFile.includeAudio,
+				error: exportedFile.probeError,
+			},
+		};
+	}
+	const audioTrackCount = exportedFile.outputProbe.audioTrackCount;
+	if (exportedFile.includeAudio && audioTrackCount <= 0) {
+		return {
+			id: "finalReview.audioPresence",
+			category: "audio_spotcheck",
+			status: "fail",
+			severity: "critical",
+			message:
+				"Exported file was expected to include audio but no audio track was found.",
+			evidence: { includeAudio: exportedFile.includeAudio, audioTrackCount },
+		};
+	}
+	if (!exportedFile.includeAudio && audioTrackCount > 0) {
+		return {
+			id: "finalReview.audioPresence",
+			category: "audio_spotcheck",
+			status: "warning",
+			severity: "warning",
+			message:
+				"Exported file includes audio even though includeAudio was false.",
+			evidence: { includeAudio: exportedFile.includeAudio, audioTrackCount },
+		};
+	}
+	return {
+		id: "finalReview.audioPresence",
+		category: "audio_spotcheck",
+		status: "pass",
+		severity: "info",
+		message: exportedFile.includeAudio
+			? "Exported file includes an audio track."
+			: "Exported file has no audio track as requested.",
+		evidence: { includeAudio: exportedFile.includeAudio, audioTrackCount },
+	};
+}
+
 export async function buildVideoQualityReport({
 	state,
 	mediaAssets,
 	plan,
 	inspection,
 	outputDirectory,
+	titleRubric,
+	exportedFile,
 }: {
 	state: ExecutorProjectState;
 	mediaAssets: MediaAsset[];
 	plan: unknown;
 	inspection: Required<InspectTimelineArgs>;
 	outputDirectory: string;
+	titleRubric?: TitleQualityRubric;
+	exportedFile?: ExportedFileReview;
 }) {
 	const validation = validateEditPlan({
 		plan,
@@ -889,6 +1157,9 @@ export async function buildVideoQualityReport({
 		}),
 		checkCaptionQuality({ plan: normalizedPlan, state }),
 		checkVoiceConsistency({ plan: normalizedPlan, state }),
+		checkTitleQuality({ plan: normalizedPlan, rubric: titleRubric }),
+		checkExportProbe({ exportedFile }),
+		checkExportAudioPresence({ exportedFile }),
 		contactSheet.check,
 	];
 	const status = statusFrom(checks);
@@ -910,6 +1181,7 @@ export async function buildVideoQualityReport({
 			transitionCount: normalizedPlan.transitions?.length ?? 0,
 			conservativeRisk:
 				"OCR, face detection, subject safety, and burned-in caption detection are not available in P0.",
+			exportedFileReviewed: Boolean(exportedFile),
 		},
 		checks,
 		artifacts: contactSheet.artifacts,

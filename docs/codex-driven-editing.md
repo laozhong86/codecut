@@ -931,13 +931,22 @@ node scripts/codex-bridge.mjs build-video-quality-report \
   --plan-json-file /absolute/path/edit-plan.json \
   --start-time 0 \
   --end-time 6 \
-  --frame-count 4
+  --frame-count 4 \
+  --title-rubric-json-file /absolute/path/title-rubric.json \
+  --output-file /absolute/path/final.mp4 \
+  --format mp4 \
+  --include-audio true
 ```
 
 `build_video_quality_report` returns `schemaVersion: 2`. It includes
-`caption_quality` and `voice_consistency` checks alongside the existing
+`caption_quality`, `voice_consistency`, optional `title_quality`, optional
+export probe, and optional audio-presence checks alongside the existing
 readback, layout, transition, and contact-sheet evidence. It remains read-only
-and does not claim OCR, face detection, or burned-in subtitle detection.
+and does not export files, infer a platform, or claim OCR, face detection, or
+burned-in subtitle detection. Title quality runs only when Codex provides a
+rubric file such as `{"platform":"youtube","primaryKeyword":"retention"}`.
+Export probe runs only when Codex provides `--output-file`, `--format`, and
+`--include-audio` for an already exported local file.
 
 Create a text-background masked effect from an existing person-mask derived asset:
 

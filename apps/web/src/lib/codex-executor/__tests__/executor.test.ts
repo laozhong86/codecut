@@ -4822,6 +4822,158 @@ describe("codex executor", () => {
 		expect(after).toEqual(before);
 	});
 
+	test("build_video_quality_report includes explicit title quality and exported file checks", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const state = await getExecutorProjectState({ projectId });
+		const title = "Churn?";
+		for (const track of state.tracks) {
+			if (track.type === "text") {
+				for (const element of track.elements) {
+					if (element.type === "text" && element.content === plan.title.text) {
+						element.content = title;
+					}
+				}
+			}
+		}
+		await writeDraftState(state);
+		const outputFile = join(stateDir, "quality-export.mp4");
+		await writeFile(outputFile, "mp4-bytes");
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan: {
+						...plan,
+						title: {
+							...plan.title,
+							text: title,
+						},
+					},
+					inspection: { startTime: 0, endTime: 2, frameCount: 1 },
+					titleRubric: {
+						platform: "youtube",
+						primaryKeyword: "churn",
+					},
+					exportedFile: {
+						outputFile,
+						format: "mp4",
+						includeAudio: true,
+					},
+				},
+			}),
+			probeExportedFile: async ({
+				outputFile: probedFile,
+				format,
+				expectedWidth,
+				expectedHeight,
+			}) => {
+				expect(probedFile).toBe(outputFile);
+				expect(format).toBe("mp4");
+				expect(expectedWidth).toBe(1080);
+				expect(expectedHeight).toBe(1920);
+				return {
+					format: "mp4",
+					duration: 2,
+					width: 1080,
+					height: 1920,
+					videoTrackCount: 1,
+					audioTrackCount: 1,
+				};
+			},
+		});
+		const data = resultData<{
+			status: string;
+			checks: Array<{
+				id: string;
+				category: string;
+				status: string;
+				evidence?: Record<string, unknown>;
+			}>;
+		}>(result.results[0]);
+		const checks = new Map(data.checks.map((check) => [check.id, check]));
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: pass",
+		});
+		expect(data.status).toBe("pass");
+		expect(checks.get("titleQuality.planningRubric")).toMatchObject({
+			category: "title_quality",
+			status: "pass",
+		});
+		expect(checks.get("finalReview.outputProbe")).toMatchObject({
+			category: "export_probe",
+			status: "pass",
+			evidence: {
+				outputFile,
+				format: "mp4",
+				duration: 2,
+				width: 1080,
+				height: 1920,
+				videoTrackCount: 1,
+				audioTrackCount: 1,
+			},
+		});
+		expect(checks.get("finalReview.audioPresence")).toMatchObject({
+			category: "audio_spotcheck",
+			status: "pass",
+			evidence: {
+				includeAudio: true,
+				audioTrackCount: 1,
+			},
+		});
+	});
+
+	test("build_video_quality_report warns for weak explicit title rubric", async () => {
+		const { plan } = await createAppliedQualityFixture();
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan,
+					inspection: { startTime: 0, endTime: 1, frameCount: 1 },
+					titleRubric: {
+						platform: "youtube",
+						primaryKeyword: "customer retention",
+					},
+				},
+			}),
+		});
+		const data = resultData<{
+			status: string;
+			checks: Array<{
+				id: string;
+				category: string;
+				status: string;
+				evidence?: {
+					issues?: Array<{ code: string }>;
+				};
+			}>;
+		}>(result.results[0]);
+		const titleCheck = data.checks.find(
+			(check) => check.id === "titleQuality.planningRubric",
+		);
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: warning",
+		});
+		expect(data.status).toBe("warning");
+		expect(titleCheck).toMatchObject({
+			category: "title_quality",
+			status: "warning",
+		});
+		expect(titleCheck?.evidence?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "title_missing_keyword" }),
+				expect.objectContaining({ code: "title_weak_hook" }),
+				expect.objectContaining({ code: "title_generic" }),
+			]),
+		);
+	});
+
 	test("build_video_quality_report fails when scripted TTS captions are not represented", async () => {
 		const { plan } = await createAppliedQualityFixture();
 		const state = await getExecutorProjectState({ projectId });

@@ -54,7 +54,7 @@ Current callable MCP tools relevant to Codex-driven editing:
 | `preview_edit_plan` | Return EditPlan summary, clip list, caption/audio/transition counts, and replacement warning without mutating timeline state. |
 | `apply_edit_plan` | Validate and apply the implemented EditPlan v1 to the timeline. |
 | `apply_narrated_remix_plan` | Validate and apply the implemented NarratedRemixPlan v1 for existing narration audio plus muted video B-roll and captions. |
-| `build_video_quality_report` | Return read-only `schemaVersion: 2` checks for validation, readback, caption quality, voice consistency, text layout, transitions, and contact-sheet rendering. It does not perform OCR, face detection, or burned-caption detection. |
+| `build_video_quality_report` | Return read-only `schemaVersion: 2` checks for validation, readback, caption quality, optional title quality rubric, optional export probe, optional audio presence, voice consistency, text layout, transitions, and contact-sheet rendering. It does not export files, infer platforms, perform OCR, face detection, or burned-caption detection. |
 | `create_text_background_effect` | Replace the timeline with source video, text, and masked foreground layers using an existing person-mask derived asset. |
 | `create_human_pip_effect` | Replace the timeline with muted background video and masked talking-head foreground using an existing person-mask derived asset. |
 | `verify_timeline` | Compare current timeline metrics against explicit verification JSON and return field-level mismatches. |

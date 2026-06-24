@@ -743,6 +743,8 @@ describe("codex bridge CLI helpers", () => {
 	test("buildVideoQualityReportEnvelope creates a read-only quality report command", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-quality-report-"));
 		const planJsonFile = join(directory, "edit-plan.json");
+		const titleRubricJsonFile = join(directory, "title-rubric.json");
+		const outputFile = join(directory, "final.mp4");
 		const plan = {
 			version: 1,
 			projectId: "project-1",
@@ -759,7 +761,12 @@ describe("codex bridge CLI helpers", () => {
 			],
 			rationale: "Quality report fixture",
 		};
+		const titleRubric = {
+			platform: "youtube",
+			primaryKeyword: "customer retention",
+		};
 		await writeFile(planJsonFile, JSON.stringify(plan), "utf8");
+		await writeFile(titleRubricJsonFile, JSON.stringify(titleRubric), "utf8");
 
 		try {
 			expect(
@@ -769,6 +776,10 @@ describe("codex bridge CLI helpers", () => {
 					startTime: 0,
 					endTime: 2,
 					frameCount: 3,
+					titleRubricJsonFile,
+					outputFile,
+					outputFormat: "mp4",
+					includeAudio: true,
 				}),
 			).toEqual({
 				version: 1,
@@ -784,6 +795,12 @@ describe("codex bridge CLI helpers", () => {
 								startTime: 0,
 								endTime: 2,
 								frameCount: 3,
+							},
+							titleRubric,
+							exportedFile: {
+								outputFile,
+								format: "mp4",
+								includeAudio: true,
 							},
 						},
 					},
