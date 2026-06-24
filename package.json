@@ -1,5 +1,6 @@
 {
   "name": "codecut",
+  "license": "GPL-3.0-only",
   "packageManager": "bun@1.2.18",
   "workspaces": [
     "apps/*",

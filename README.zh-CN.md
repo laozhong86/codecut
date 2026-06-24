@@ -7,7 +7,7 @@
   Codex 负责剪辑方案，Codecut 落到本地网页时间线。
 </p>
 
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![GPLv3 License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](.github/CONTRIBUTING.md)
 
 ---
@@ -301,7 +301,7 @@ PostgreSQL 服务和对应环境变量。
 
 ## 许可证
 
-基于 [MIT License](LICENSE) 发布。
+基于 [GNU General Public License v3.0](LICENSE) 发布。
 
 <p align="right">
   <sub><sup>NOTE: fork from opencut (#fca99d6126c31fbb18ed9f1034cee6f940b040e8)</sup></sub>
