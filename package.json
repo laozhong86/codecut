@@ -21,6 +21,7 @@
     "worktree:list": "node scripts/worktree-manager.mjs list",
     "worktree:cleanup": "node scripts/worktree-manager.mjs cleanup",
     "worktree:teardown": "node scripts/worktree-manager.mjs teardown",
+    "plugin:freshness": "node scripts/codex-bridge.mjs plugin:freshness",
     "test": "bun test"
   },
   "dependencies": {

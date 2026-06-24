@@ -3,7 +3,7 @@
 import { access, readFile, stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
-import { basename, extname, isAbsolute, join, resolve } from "node:path";
+import { basename, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -24,6 +24,7 @@ function usage() {
 	return [
 		"Usage:",
 		"  node scripts/codex-bridge.mjs create-project --project-id <id> --name <name>",
+		"  node scripts/codex-bridge.mjs plugin:freshness",
 		"  node scripts/codex-bridge.mjs doctor-install --project-id <id>",
 		"  node scripts/codex-bridge.mjs doctor --project-id <id>",
 		'  node scripts/codex-bridge.mjs fresh-session-smoke --project-id <id> --scripted-media-name <name> --expected-caption-line-count <n> --expected-protected-term-count <n> --expected-caption-texts-json \'["$2.34","Venmo that ASAP"]\'',
@@ -544,6 +545,297 @@ async function checkPluginSync({
 			data: { sourceRoot: cwd, cacheRoot },
 		});
 	}
+}
+
+function parseTomlScalar(value) {
+	const trimmed = value.trim();
+	if (trimmed === "true") return true;
+	if (trimmed === "false") return false;
+	if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+		return JSON.parse(trimmed);
+	}
+	if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+		return trimmed.slice(1, -1);
+	}
+	return trimmed;
+}
+
+function parseTomlSections(configText) {
+	const sections = new Map();
+	let current = null;
+	for (const rawLine of configText.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith("#")) continue;
+		const header = line.match(/^\[([^\]]+)\]$/);
+		if (header) {
+			current = header[1];
+			if (!sections.has(current)) {
+				sections.set(current, {});
+			}
+			continue;
+		}
+		if (!current) continue;
+		const assignment = line.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/);
+		if (!assignment) continue;
+		sections.get(current)[assignment[1]] = parseTomlScalar(assignment[2]);
+	}
+	return sections;
+}
+
+function expectedMarketplaceSourcePath({ marketplaceRoot, cwd }) {
+	const relativePath = relative(marketplaceRoot, cwd).replaceAll("\\", "/");
+	return relativePath.startsWith(".") ? relativePath : `./${relativePath}`;
+}
+
+async function checkPluginConfig({ cwd, homeDir, sourceManifest }) {
+	const pluginName = sourceManifest?.name ?? "codecut";
+	const configPath = join(homeDir, ".codex/config.toml");
+	let sections;
+	try {
+		sections = parseTomlSections(await readFile(configPath, "utf8"));
+	} catch (error) {
+		return {
+			checks: [
+				doctorCheck({
+					id: "enabled_config",
+					ok: false,
+					message: `Cannot read Codex config: ${error instanceof Error ? error.message : String(error)}`,
+					data: { configPath, pluginName },
+				}),
+			],
+			data: { configPath, pluginName },
+		};
+	}
+
+	const pluginEntries = [];
+	for (const [sectionName, section] of sections.entries()) {
+		const pluginMatch = sectionName.match(/^plugins\."([^"@]+)@([^"]+)"$/);
+		if (pluginMatch?.[1] === pluginName) {
+			pluginEntries.push({
+				pluginName: pluginMatch[1],
+				marketplaceName: pluginMatch[2],
+				enabled: section.enabled === true,
+			});
+		}
+	}
+	const enabledEntries = pluginEntries.filter((entry) => entry.enabled);
+	const checks = [];
+	if (enabledEntries.length !== 1) {
+		checks.push(
+			doctorCheck({
+				id: "enabled_config",
+				ok: false,
+				message:
+					enabledEntries.length === 0
+						? `Codex plugin ${pluginName} is not enabled in config.`
+						: `Multiple enabled Codex plugin entries found for ${pluginName}.`,
+				data: { configPath, pluginEntries },
+			}),
+		);
+		return { checks, data: { configPath, pluginName, pluginEntries } };
+	}
+
+	const enabledEntry = enabledEntries[0];
+	checks.push(
+		doctorCheck({
+			id: "enabled_config",
+			ok: true,
+			message: `Codex plugin ${pluginName}@${enabledEntry.marketplaceName} is enabled.`,
+			data: { configPath, ...enabledEntry },
+		}),
+	);
+
+	const marketplaceSection = sections.get(
+		`marketplaces.${enabledEntry.marketplaceName}`,
+	);
+	if (!marketplaceSection) {
+		checks.push(
+			doctorCheck({
+				id: "marketplace_config",
+				ok: false,
+				message: `Marketplace ${enabledEntry.marketplaceName} is not configured.`,
+				data: { configPath, marketplaceName: enabledEntry.marketplaceName },
+			}),
+		);
+		return {
+			checks,
+			data: { configPath, pluginName, ...enabledEntry },
+		};
+	}
+
+	const marketplaceRoot = String(marketplaceSection.source ?? "");
+	const marketplaceJsonPath = join(
+		marketplaceRoot,
+		".agents/plugins/marketplace.json",
+	);
+	checks.push(
+		doctorCheck({
+			id: "marketplace_config",
+			ok: Boolean(marketplaceRoot),
+			message: marketplaceRoot
+				? `Marketplace ${enabledEntry.marketplaceName} points to ${marketplaceRoot}.`
+				: `Marketplace ${enabledEntry.marketplaceName} is missing a source path.`,
+			data: {
+				configPath,
+				marketplaceName: enabledEntry.marketplaceName,
+				sourceType: marketplaceSection.source_type ?? null,
+				marketplaceRoot,
+				marketplaceJsonPath,
+			},
+		}),
+	);
+	if (!marketplaceRoot) {
+		return {
+			checks,
+			data: { configPath, pluginName, ...enabledEntry, marketplaceRoot },
+		};
+	}
+
+	let marketplace;
+	try {
+		marketplace = JSON.parse(await readFile(marketplaceJsonPath, "utf8"));
+	} catch (error) {
+		checks.push(
+			doctorCheck({
+				id: "marketplace_entry",
+				ok: false,
+				message: `Cannot read marketplace JSON: ${error instanceof Error ? error.message : String(error)}`,
+				data: { marketplaceJsonPath, pluginName },
+			}),
+		);
+		return {
+			checks,
+			data: {
+				configPath,
+				pluginName,
+				...enabledEntry,
+				marketplaceRoot,
+				marketplaceJsonPath,
+			},
+		};
+	}
+
+	const entry = Array.isArray(marketplace.plugins)
+		? marketplace.plugins.find((plugin) => plugin?.name === pluginName)
+		: null;
+	const sourcePath = entry?.source?.path;
+	const expectedSourcePath = expectedMarketplaceSourcePath({
+		marketplaceRoot,
+		cwd,
+	});
+	checks.push(
+		doctorCheck({
+			id: "marketplace_entry",
+			ok: Boolean(entry) && sourcePath === expectedSourcePath,
+			message: !entry
+				? `Marketplace entry for ${pluginName} is missing.`
+				: sourcePath === expectedSourcePath
+					? `Marketplace entry for ${pluginName} points to the active source checkout.`
+					: `Marketplace entry for ${pluginName} points to ${String(sourcePath)}, expected ${expectedSourcePath}.`,
+			data: {
+				marketplaceJsonPath,
+				pluginName,
+				sourcePath: sourcePath ?? null,
+				expectedSourcePath,
+			},
+		}),
+	);
+
+	return {
+		checks,
+		data: {
+			configPath,
+			pluginName,
+			marketplaceName: enabledEntry.marketplaceName,
+			enabled: true,
+			sourceType: marketplaceSection.source_type ?? null,
+			marketplaceRoot,
+			marketplaceJsonPath,
+			sourcePath: sourcePath ?? null,
+			expectedSourcePath,
+		},
+	};
+}
+
+function buildFreshnessLayer({ id, checks, data }) {
+	const hasFailure = checks.some((check) => check.ok === false);
+	const hasManual = checks.some((check) => check.ok === null);
+	return {
+		id,
+		status: hasFailure ? "blocked" : hasManual ? "manual_check_required" : "ok",
+		checks,
+		...(data ? { data } : {}),
+	};
+}
+
+export async function runPluginFreshness({
+	cwd = process.cwd(),
+	homeDir = homedir(),
+	execFileImpl = execFileAsync,
+}) {
+	const source = await checkSourcePlugin({ cwd });
+	const cache = await checkCachePlugin({
+		homeDir,
+		sourceManifest: source.manifest,
+	});
+	const config = await checkPluginConfig({
+		cwd,
+		homeDir,
+		sourceManifest: source.manifest,
+	});
+	const cacheChecks = [
+		cache.check,
+		await checkPluginSync({
+			cwd,
+			cacheRoot: cache.cacheRoot,
+			sourceOk: source.check.ok,
+			cacheOk: cache.check.ok,
+			execFileImpl,
+		}),
+	];
+	const sessionCheck = doctorCheck({
+		id: "current_session_tool_surface",
+		ok: null,
+		message:
+			"Current Codex session tool surface cannot be proven from this shell command. Validate in a fresh Codex session with tool_search.",
+		data: {
+			requiresFreshSession: true,
+			toolSearchQuery: "open_codecut_workspace Codecut MCP",
+			expectedTool: "codecut_mcp.open_codecut_workspace",
+			reason:
+				"Codex sessions and MCP server processes may keep old plugin schemas after source/cache updates.",
+		},
+	});
+	const layers = [
+		buildFreshnessLayer({
+			id: "source",
+			checks: [source.check],
+			data: source.check.data,
+		}),
+		buildFreshnessLayer({
+			id: "cache",
+			checks: cacheChecks,
+			data: { cacheRoot: cache.cacheRoot },
+		}),
+		buildFreshnessLayer({
+			id: "config",
+			checks: config.checks,
+			data: config.data,
+		}),
+		buildFreshnessLayer({
+			id: "session",
+			checks: [sessionCheck],
+			data: sessionCheck.data,
+		}),
+	];
+	const checks = layers.flatMap((layer) => layer.checks);
+	const ok = checks.every((check) => check.ok !== false);
+	return {
+		ok,
+		status: ok ? "fresh_with_manual_session_check" : "attention_required",
+		layers,
+		checks,
+	};
 }
 
 function checkEnvironment({ env }) {
@@ -2319,6 +2611,7 @@ export async function runCli({
 	cwd = process.cwd(),
 	homeDir = homedir(),
 	installDoctorImpl = runInstallDoctor,
+	pluginFreshnessImpl = runPluginFreshness,
 }) {
 	const [command, ...rest] = argv;
 	if (!command || command === "help" || command === "--help") {
@@ -2336,6 +2629,14 @@ export async function runCli({
 			homeDir,
 			env,
 			fetchImpl,
+		});
+		stdout(JSON.stringify(result, null, 2));
+		return result.ok ? 0 : 1;
+	}
+	if (command === "plugin:freshness") {
+		const result = await pluginFreshnessImpl({
+			cwd,
+			homeDir,
 		});
 		stdout(JSON.stringify(result, null, 2));
 		return result.ok ? 0 : 1;

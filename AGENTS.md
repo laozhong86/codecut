@@ -56,7 +56,17 @@ CodeCut is a Codex-first editing plugin. Design it so Codex can autonomously use
 ### Plugin, Skill, And Widget Verification
 
 - Changes to the plugin manifest, skills, MCP tool schemas, MCP resources, widgets, or Codex-host tool routing are not done with source tests alone.
-- Before reporting success, prove the active plugin source with `codex plugin list --json`, sync from that exact source with `node scripts/sync-codex-local-plugin.mjs`, and confirm the installed cache contains the changed guidance or tool contract.
+- Before reporting success, prove the active plugin source from the marketplace entry, enabled config, installed cache, and current-session tool surface. Source truth alone is not enough.
+- Codex plugin update state has four layers:
+  - Marketplace discovery: `.agents/plugins/marketplace.json` exposes plugins and maps `codecut` to `./plugins/cutia`.
+  - Enabled config: `~/.codex/config.toml` must contain `[plugins."codecut@local-opc"]` with `enabled = true`.
+  - Installed cache: Codex runs the installed bundle under `~/.codex/plugins/cache/local-opc/codecut/<version>/`, not directly from the source checkout.
+  - Runtime session: already-open Codex sessions and MCP server processes may keep old tool schemas or server code until a new session starts.
+- For local CodeCut updates, run `node scripts/sync-codex-local-plugin.mjs` from the source checkout after manifest, skill, MCP, widget, or bridge changes. This syncs source into the installed cache, excludes runtime artifacts and local secrets, removes stale cache metadata, and verifies key source/cache checksums.
+- Use `bun run plugin:freshness` for a read-only source/cache/config/session status report. It must not sync cache, edit config, start services, enqueue executor commands, or silently repair stale state.
+- `codex plugin marketplace upgrade [name]` refreshes configured marketplaces, especially Git-backed marketplaces. It does not replace the CodeCut local source-to-cache sync or prove that the current session sees the new tool schema.
+- If `.codex-plugin/plugin.json` changes `name` or `version`, confirm the matching cache path exists before syncing. The sync script intentionally fails when the installed cache for that plugin identity is missing.
+- After cache sync, prefer a fresh Codex session for plugin manifest, skill, MCP schema, widget, or default prompt validation. Restart the Codex app only when a fresh session still shows stale plugin state.
 - Confirm the Codex host tool surface can discover the target MCP tool with `tool_search`; source and cache truth are not enough when host tool schemas may be stale.
 - For widget-intake behavior, create a fresh `@codecut` validation thread with a prompt that forbids downloads, shell commands, file writes, and editing execution. The proof must show a real `codecut_mcp.open_codecut_workspace` MCP call, not text fallback questions.
 - Validate that fresh-thread proof with `node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId>` or `--session-file <path>` when using an exported `read_thread` JSON/session JSONL file. Shell calls, file changes, or text fallback prompts fail this verification.

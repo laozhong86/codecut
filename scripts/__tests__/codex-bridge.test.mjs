@@ -39,6 +39,7 @@ import {
 	parseBoolean,
 	requireRuntimeConfig,
 	runInstallDoctor,
+	runPluginFreshness,
 	runCli,
 	waitForExecutor,
 } from "../codex-bridge.mjs";
@@ -2512,6 +2513,148 @@ describe("codex bridge CLI helpers", () => {
 				rm(homeRoot, { recursive: true, force: true }),
 			]);
 		}
+	});
+
+	test("plugin freshness reports source cache config and session layers without runtime checks", async () => {
+		const marketplaceRoot = await mkdtemp(
+			join(tmpdir(), "codecut-marketplace-"),
+		);
+		const sourceRoot = join(marketplaceRoot, "plugins/cutia");
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(marketplaceRoot, ".agents/plugins"), { recursive: true });
+		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(sourceRoot, "skills/codecut"), {
+			recursive: true,
+		});
+		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(cacheRoot, "skills/codecut"), {
+			recursive: true,
+		});
+		await mkdir(join(homeRoot, ".codex"), { recursive: true });
+		await writeFile(
+			join(marketplaceRoot, ".agents/plugins/marketplace.json"),
+			JSON.stringify({
+				name: "local-opc",
+				plugins: [
+					{
+						name: "codecut",
+						source: { source: "local", path: "./plugins/cutia" },
+						policy: {
+							installation: "AVAILABLE",
+							authentication: "ON_INSTALL",
+						},
+						category: "Developer Tools",
+					},
+				],
+			}),
+			"utf8",
+		);
+		await writeFile(
+			join(homeRoot, ".codex/config.toml"),
+			[
+				'[plugins."codecut@local-opc"]',
+				"enabled = true",
+				"",
+				"[marketplaces.local-opc]",
+				'source_type = "local"',
+				`source = ${JSON.stringify(marketplaceRoot)}`,
+			].join("\n"),
+			"utf8",
+		);
+		await writeFile(
+			join(sourceRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(sourceRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
+			"utf8",
+		);
+
+		try {
+			const result = await runPluginFreshness({
+				cwd: sourceRoot,
+				homeDir: homeRoot,
+				execFileImpl: async (command, args) => {
+					expect(command).toBe("rsync");
+					expect(args).toContain("--dry-run");
+					expect(args).toContain("--itemize-changes");
+					return { stdout: "", stderr: "" };
+				},
+			});
+
+			expect(result.ok).toBe(true);
+			expect(result.layers.map((layer) => [layer.id, layer.status])).toEqual([
+				["source", "ok"],
+				["cache", "ok"],
+				["config", "ok"],
+				["session", "manual_check_required"],
+			]);
+			expect(
+				result.layers.find((layer) => layer.id === "config"),
+			).toMatchObject({
+				data: {
+					marketplaceName: "local-opc",
+					enabled: true,
+					sourcePath: "./plugins/cutia",
+				},
+			});
+			expect(
+				result.layers.find((layer) => layer.id === "session"),
+			).toMatchObject({
+				data: {
+					requiresFreshSession: true,
+					toolSearchQuery: "open_codecut_workspace Codecut MCP",
+				},
+			});
+			expect(JSON.stringify(result)).not.toContain(
+				"CODECUT_AGENT_BRIDGE_TOKEN",
+			);
+		} finally {
+			await Promise.all([
+				rm(marketplaceRoot, { recursive: true, force: true }),
+				rm(homeRoot, { recursive: true, force: true }),
+			]);
+		}
+	});
+
+	test("plugin freshness CLI does not require bridge env or call the web service", async () => {
+		const output = [];
+		const exitCode = await runCli({
+			argv: ["plugin:freshness"],
+			env: {},
+			stdout: (value) => output.push(value),
+			fetchImpl: async () => {
+				throw new Error("plugin:freshness must not fetch runtime services");
+			},
+			pluginFreshnessImpl: async () => ({
+				ok: true,
+				status: "fresh",
+				layers: [],
+				checks: [],
+			}),
+		});
+
+		expect(exitCode).toBe(0);
+		expect(JSON.parse(output[0])).toMatchObject({
+			ok: true,
+			status: "fresh",
+		});
 	});
 
 	test("executor readiness fails before commands are enqueued", async () => {
