@@ -936,6 +936,7 @@ const codecutWorkspaceResourceMeta = {
 	"openai/widgetCSP": {
 		connect_domains: [],
 		resource_domains: [],
+		redirect_domains: ["http://127.0.0.1:4100"],
 	},
 };
 
@@ -1314,7 +1315,7 @@ export async function submitCodecutSetup(
 		content: [
 			{
 				type: "text",
-				text: `CodeCut project ${structuredContent.projectId} created at revision ${structuredContent.revision}.`,
+				text: `CodeCut project ${structuredContent.projectId} created at revision ${structuredContent.revision}.\n\n[Open CodeCut editor](${editorUrl})`,
 			},
 		],
 		structuredContent,
@@ -1681,7 +1682,7 @@ function buildContinuePrompt({
 	return [
 		`Use $codecut to continue the real CodeCut editing chain for project "${projectName}" (${projectId}).`,
 		`Use --confirmation-token ${confirmationToken} for any CodeCut side-effect command that creates projects, imports media, initializes workspaces, adds assets, generates media, mutates timelines, or exports files.`,
-		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. If the selected tab is already on that URL, do not reload it.`,
+		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. Click this host-rendered link if manual preview is needed: [Open CodeCut editor](${editorUrl}). If the selected tab is already on that URL, do not reload it.`,
 		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state_v2 with projectId "${projectId}".`,
 		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
 		`Confirmed intent: ${JSON.stringify(intent)}.`,

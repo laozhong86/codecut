@@ -487,6 +487,7 @@
             setupFailed: "CodeCut setup failed.",
             projectCreated: "Project created",
             openEditor: "Open editor",
+            openEditorFailed: "Could not open the editor from this widget.",
             continuing: "Continuing in Codex...",
             followUpSent: "Follow-up sent to Codex.",
             followUpUnavailable: "window.openai.sendFollowUpMessage is unavailable.",
@@ -559,6 +560,7 @@
             setupFailed: "CodeCut 设置失败。",
             projectCreated: "项目已创建",
             openEditor: "打开编辑器",
+            openEditorFailed: "无法从当前 widget 打开编辑器。",
             continuing: "正在继续交给 Codex...",
             followUpSent: "已发送后续任务给 Codex。",
             followUpUnavailable: "window.openai.sendFollowUpMessage 不可用。",
@@ -1084,7 +1086,11 @@
               return;
             }
             renderSuccess(payload);
-            await openEditor(payload.editorUrl);
+            try {
+              await openEditor(payload.editorUrl);
+            } catch (error) {
+              renderEditorOpenError(error);
+            }
             await sendFollowUp(payload.continuePrompt);
           } catch (error) {
             renderBlocked({
@@ -1116,9 +1122,13 @@
               <a class="button" id="open-editor-link" href="${escapeAttribute(payload.editorUrl || "#")}" target="_blank" rel="noreferrer">${escapeHtml(t("openEditor"))}</a>
             </div>
           `;
-          document.getElementById("open-editor-link").addEventListener("click", (event) => {
+          document.getElementById("open-editor-link").addEventListener("click", async (event) => {
             event.preventDefault();
-            openEditor(payload.editorUrl);
+            try {
+              await openEditor(payload.editorUrl);
+            } catch (error) {
+              renderEditorOpenError(error);
+            }
           });
         }
 
@@ -1126,14 +1136,27 @@
           if (!editorUrl) return;
           const api = window.openai || {};
           if (typeof api.openExternal === "function") {
-            await api.openExternal({ href: editorUrl });
+            await api.openExternal({ href: editorUrl, redirectUrl: false });
             return;
           }
-          if (typeof api.openLink === "function") {
-            await api.openLink({ href: editorUrl });
+          throw new Error(t("openEditorFailed"));
+        }
+
+        function renderEditorOpenError(error) {
+          const existing = document.getElementById("open-editor-error");
+          if (existing) existing.remove();
+          const message = error instanceof Error ? error.message : String(error);
+          const errorText = document.createElement("p");
+          errorText.id = "open-editor-error";
+          errorText.className = "error";
+          errorText.textContent = message || t("openEditorFailed");
+          const actions = document.getElementById("open-editor-link")?.closest(".result-actions");
+          if (actions) {
+            actions.insertAdjacentElement("afterend", errorText);
             return;
           }
-          window.open(editorUrl, "_blank", "noopener,noreferrer");
+          fields.statusMessage.textContent = errorText.textContent;
+          fields.statusMessage.className = "error";
         }
 
         async function sendFollowUp(prompt) {
