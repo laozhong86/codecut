@@ -5,6 +5,15 @@ description: Use when a Codecut source is a TikTok video, photo post, share link
 
 # Codecut TikTok Downloader
 
+## Core Boundary
+
+TikTok downloader is a source-acquisition stage only. It turns TikTok URLs,
+share links, author pages, or handles into local source files and a manifest.
+
+It must not choose editing strategy, open creative intake for source-only
+requests, import into the executor, mutate timelines, or claim edit/export
+completion.
+
 ## Core Rule
 
 TikTok download is source acquisition only. It may create local media files and
@@ -25,6 +34,47 @@ This skill owns TikTok-specific source acquisition:
 
 It does not own workspace setup, requirement approval, ffprobe audit, executor
 import, transcription, EditPlan authoring, timeline mutation, or export.
+
+## Inputs
+
+- TikTok video URL, photo URL, share URL, author page, or `@handle`.
+- Mode intent: single post, author page, latest N, or explicit all.
+- Confirmed project ID and setup token when the download is part of a creative
+  editing job.
+- Source-only request context when the user only wants local acquisition.
+
+## Outputs
+
+- Download manifest path, backend, item count, local media paths, metadata
+  sidecars, thumbnails when requested, and warnings.
+- A clear source-only completion or handoff to material ingest for probe/audit.
+
+## Artifacts
+
+For creative jobs, write outputs under:
+
+- `.codecut-workspace/projects/<projectId>/01-assets/tiktok/`
+- `.codecut-workspace/projects/<projectId>/01-assets/tiktok/download_manifest.json`
+- `.codecut-workspace/projects/<projectId>/02-inventory/material-audit.md`
+  after material ingest resumes.
+
+For source-only acquisition, record the manifest beside the local download
+directory chosen for that source-only request. Do not use a skill-local
+`.artifacts` directory as Codecut truth.
+
+## Stop Conditions
+
+- Author download count is missing and the user did not explicitly request all.
+- The user cannot confirm source rights or usable access.
+- TikTok blocks access because of login, region, private account, or stale
+  downloader runtime.
+- A creative job needs a confirmed setup token but does not have one.
+
+## Handoff
+
+Report `Stage`, `Status`, `Proof`, `Next`, and `Risk`. Hand off to
+`codecut-material-ingest` after successful acquisition; hand back to
+`codecut-requirement-intake` if editing intent remains under-specified.
 
 ## Required Routing
 

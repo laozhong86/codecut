@@ -48,6 +48,8 @@ const documentPaths = new Map([
 	["intent-analysis", "00-brief/intent-analysis.md"],
 	["clarification-questions", "00-brief/clarification-questions.md"],
 	["clarification-answers", "00-brief/clarification-answers.md"],
+	["assumptions", "00-brief/assumptions.md"],
+	["requirement-intake", "00-brief/requirement-intake.md"],
 	["content-breakdown", "03-content/content-breakdown.md"],
 	["hook-selection", "03-content/hook-selection.md"],
 	["voiceover-script", "03-content/voiceover-script.md"],

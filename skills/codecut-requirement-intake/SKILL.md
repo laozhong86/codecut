@@ -5,6 +5,15 @@ description: Use when a Codecut editing request starts a new creative job, uses 
 
 # Codecut Requirement Intake
 
+## Core Boundary
+
+Requirement intake is the permission gate for new Codecut creative editing
+jobs. It confirms whether the user intent is specific enough to enter side
+effects.
+
+It must not become a material ingest, planning, executor, template, or export
+stage.
+
 ## Core Rule
 
 Requirement intake is a blocking gate for new Codecut editing jobs.
@@ -24,6 +33,47 @@ It does not download source media, create executor projects, import media,
 write EditPlans, choose clip ranges, apply templates, mutate the timeline, or
 verify finished edits. Use `codecut-material-ingest` for material facts and
 `codecut-executor-apply` for executor commands after this gate passes.
+
+## Inputs
+
+- User brief and any widget-submitted setup fields.
+- Known source path, remote URL, existing project ID, output form, platform,
+  aspect ratio, caption policy, business goal, and source ownership details.
+- Pending or confirmed setup token from `open_codecut_workspace` /
+  `submit_codecut_setup` when available.
+
+## Outputs
+
+- Gate decision: passed or blocked.
+- Confirmed fields, assumptions, missing fields, and next stage.
+- For passed creative jobs, a confirmed setup token must be carried to later
+  side-effect stages.
+
+## Artifacts
+
+Write explicit answers and gate proof into the Codecut workspace when a
+confirmed project ID exists:
+
+- `.codecut-workspace/projects/<projectId>/00-brief/clarification-answers.md`
+- `.codecut-workspace/projects/<projectId>/00-brief/assumptions.md`
+- `.codecut-workspace/projects/<projectId>/00-brief/requirement-intake.md`
+
+Do not create a skill-local `.artifacts` directory as the primary Codecut
+artifact path.
+
+## Stop Conditions
+
+- Two or more key blocking fields are missing.
+- The workspace widget path is unavailable and no explicit text answers can
+  safely pass the gate.
+- A side-effect token is required but missing.
+
+## Handoff
+
+Report `Stage`, `Status`, `Proof`, `Next`, and `Risk`. Hand off to
+`codecut-material-ingest` when source facts are still needed, or to
+`codecut-executor-apply` only when the source is already in an executor project
+and execution is allowed.
 
 ## Hard Stop
 
@@ -200,7 +250,7 @@ When the gate passes, report:
 Requirement intake: passed
 Confirmed fields: <list>
 Assumptions: <list, if any>
-Next stage: <material-ingest|edit-planning|executor-apply|timeline-inspection>
+Next stage: <codecut-material-ingest|codecut-reference-template|codecut-executor-apply>
 ```
 
 When blocked and the workspace widget tool is unavailable, report only the

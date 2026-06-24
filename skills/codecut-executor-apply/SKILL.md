@@ -5,6 +5,14 @@ description: Use when a confirmed Codecut editing plan is ready for local execut
 
 # Codecut Executor Apply
 
+## Core Boundary
+
+Executor apply is the only normal stage that mutates Codecut executor state,
+verifies timeline readback, or produces verified exports.
+
+It must not collect missing requirements, invent material facts, select clips,
+derive reference strategy, or bypass strict plan validation.
+
 ## Core Rule
 
 Executor apply mutates Codecut state. Use it only after requirement intake passes for new creative jobs.
@@ -20,6 +28,53 @@ It does not confirm missing user requirements, collect source material facts,
 derive reference-template strategy, select clips, or decide creative workflow.
 The full command contract lives in `../../docs/codex-driven-editing.md`; this
 skill keeps the minimum command surface needed to operate the current executor.
+
+## Inputs
+
+- Confirmed project ID, business project name, setup token, and editor URL when
+  available.
+- Bridge env from `apps/web/.env.local`.
+- Imported media IDs and readback from material/evidence stages.
+- Strict EditPlan, NarratedRemixPlan, verification JSON, template draft path, or
+  explicit export request.
+
+## Outputs
+
+- Runtime/doctor gate result.
+- Import, validation, preview, apply, caption-build, verification, readback, and
+  export proof as applicable.
+- Completion report with project ID, editor URL, revision, track count, clip
+  count, caption count, total duration, source media IDs, and export status.
+
+## Artifacts
+
+Execution proof should live under the active Codecut workspace:
+
+- `.codecut-workspace/projects/<projectId>/05-execution/` for plan JSON,
+  validation, preview, apply, caption-build, and command summaries.
+- `.codecut-workspace/projects/<projectId>/06-verification/` for
+  `verify_timeline`, `get_timeline_state`, quality reports, and readback notes.
+- `.codecut-workspace/projects/<projectId>/07-exports/` for verified exported
+  files and export metadata.
+
+Do not create a skill-local `.artifacts` directory as the primary Codecut
+artifact path.
+
+## Stop Conditions
+
+- Requirement intake has not passed for a new creative job.
+- Confirmed setup token is missing for side-effect tools.
+- Service gate, bridge env, `doctor-install`, `doctor`, import, validation,
+  preview, apply, caption build, verification, readback, or export fails.
+- Export is requested but `export_project` or an equivalent verified executor
+  path does not produce a file.
+
+## Handoff
+
+Report `Stage`, `Status`, `Proof`, `Next`, and `Risk`. On failed gates, return
+to the narrow failed stage instead of continuing. Use advanced repair tools only
+after readback identifies a specific object/range or the user explicitly asks
+for a direct low-level edit.
 
 ## Runtime Gate
 

@@ -43,6 +43,54 @@ subtitles, or visible marketing copy drove the reference. When speech or copy is
 present, the reusable template must come from a granular evidence breakdown, not
 from visual mood alone.
 
+## Inputs
+
+- Finished reference videos or reference-derived evidence.
+- Template purpose, future material type, business goal, platform/aspect ratio,
+  and default-trigger intent.
+- Transcript, visible copy, visual evidence, and user-provided product facts
+  when those drive the reference.
+- Explicit user confirmation before importing a draft into system templates.
+
+## Outputs
+
+- Reference evidence summary and unsupported runtime gaps.
+- `reference-analysis.md`, `local-template-script.json`, and
+  `template-fields.md` for a draft package.
+- Import result only after the user confirms the exact draft.
+- Planning constraints when applying a saved system template to new material.
+
+## Artifacts
+
+Template derivation artifacts live in the relevant Codecut workspace:
+
+- `.codecut-workspace/projects/<projectId>/02-inventory/` for reference media
+  facts and contact sheets.
+- `.codecut-workspace/projects/<projectId>/04-planning/reference-analysis.md`
+- `.codecut-workspace/projects/<projectId>/04-planning/local-template-script.json`
+- `.codecut-workspace/projects/<projectId>/04-planning/template-fields.md`
+
+The Codecut system template library becomes the source of truth only after an
+explicit confirmed import. Do not treat a skill-local `.artifacts` directory or
+an old draft file as reusable template truth.
+
+## Stop Conditions
+
+- Speech, subtitles, or visible copy matter but transcript/copy evidence is
+  missing for an import-ready draft.
+- The requested reference effect cannot be represented by current Codecut
+  contracts.
+- The user has not confirmed import of the exact draft.
+- New source material would require executor mutation before requirement intake
+  passes.
+
+## Handoff
+
+Report `Stage`, `Status`, `Proof`, `Next`, and `Risk`. Hand off to
+`codecut-executor-apply` only for confirmed template import or strict plan
+execution; otherwise hand off to requirement intake and material ingest when a
+saved template will be applied to new source material.
+
 ## Required Routing
 
 | User request | Required route |
