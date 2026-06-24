@@ -316,6 +316,9 @@ describe("Codecut MCP server contract", () => {
 			'fields.mediaFilePicker.addEventListener("change", handlePickedFiles)',
 			'callTool("submit_codecut_setup"',
 			"openExternal",
+			"renderEditorOpenError",
+			"await openEditor(payload.editorUrl)",
+			"catch (error)",
 			"sendFollowUpMessage",
 		]) {
 			expect(html).toContain(marker);
@@ -865,6 +868,9 @@ describe("Codecut MCP server contract", () => {
 					{ id: "media-2", name: "second.mp4" },
 				],
 			});
+			expect(result.content[0].text).toContain(
+				"[Open CodeCut editor](http://127.0.0.1:4100/en/editor/launch-cut-canonical)",
+			);
 			const confirmationToken = result.structuredContent.confirmationToken;
 			expect(confirmationToken).toMatch(/^ccconfirmed_[a-f0-9]{32}$/);
 			expect(result.structuredContent.continuePrompt).toContain(
@@ -881,6 +887,9 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				"http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"[Open CodeCut editor](http://127.0.0.1:4100/en/editor/launch-cut-canonical)",
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				"get_project_info",
