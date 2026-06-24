@@ -37,8 +37,8 @@
         --cc-space-sm: 8px;
         --cc-space-md: 12px;
         --cc-space-lg: 14px;
-        --cc-media-list-max-height: 280px;
-        --cc-media-thumbnail-size: 56px;
+        --cc-media-list-max-height: 192px;
+        --cc-media-thumbnail-size: 44px;
         color-scheme: light dark;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: var(--cc-foreground);
@@ -156,8 +156,8 @@
         display: grid;
         grid-template-columns: var(--cc-media-thumbnail-size) minmax(0, 1fr) auto;
         align-items: center;
-        gap: 10px;
-        padding: 10px;
+        gap: var(--cc-space-sm);
+        padding: var(--cc-space-sm);
         border: 1px solid var(--cc-subtle-border);
         border-radius: var(--cc-radius-sm);
         background: var(--cc-surface-muted);
@@ -198,6 +198,36 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .media-source-remove-button {
+        display: grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
+        min-height: 26px;
+        border-color: rgba(157, 43, 34, 0.35);
+        padding: 0;
+        color: var(--cc-danger);
+        background: transparent;
+        font-size: 14px;
+        line-height: 1;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 120ms ease, border-color 120ms ease, background 120ms ease;
+      }
+
+      .media-source-row:hover .media-source-remove-button,
+      .media-source-row:focus-within .media-source-remove-button {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .media-source-remove-button:hover,
+      .media-source-remove-button:focus-visible {
+        border-color: var(--cc-danger);
+        background: rgba(157, 43, 34, 0.08);
       }
 
       .switch-row {
@@ -283,7 +313,6 @@
         cursor: not-allowed;
       }
 
-      .status,
       .result,
       .follow-up {
         border: 1px solid var(--cc-border);
@@ -339,14 +368,6 @@
 
         .grid {
           grid-template-columns: 1fr;
-        }
-
-        .media-source-row {
-          grid-template-columns: var(--cc-media-thumbnail-size) minmax(0, 1fr);
-        }
-
-        .media-source-row > .row-actions {
-          grid-column: 2;
         }
       }
     </style>
@@ -455,12 +476,6 @@
           </div>
         </fieldset>
 
-        <section class="status" aria-live="polite">
-          <strong id="status-title" data-i18n="readyToCreate">Ready to create</strong>
-          <p id="status-message" class="muted" data-i18n="defaultsReady">Required fields are prefilled. Change only what you need.</p>
-          <ul id="checks" class="checks"></ul>
-        </section>
-
         <div class="actions">
           <button id="submit-button" class="create-project-cta" type="submit" data-i18n="createProject">Create project</button>
         </div>
@@ -519,8 +534,6 @@
             successCriteria: "Success criteria",
             successCriteriaPlaceholder: "Clear hook, tight pacing, readable captions, export-ready ending.",
             successCriteriaCustomPlaceholder: "Add custom success criteria.",
-            readyToCreate: "Ready to create",
-            defaultsReady: "Required fields are prefilled. Change only what you need.",
             createProject: "Create project",
             blocked: "Blocked",
             ok: "OK",
@@ -582,8 +595,6 @@
             successCriteria: "成功标准",
             successCriteriaPlaceholder: "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
             successCriteriaCustomPlaceholder: "补充自定义成功标准。",
-            readyToCreate: "可创建",
-            defaultsReady: "必填项已预填，大部分情况下可直接创建项目。",
             createProject: "创建项目",
             blocked: "已阻塞",
             ok: "通过",
@@ -621,9 +632,6 @@
           briefOptions: document.getElementById("brief-options"),
           successCriteria: document.getElementById("success-criteria"),
           successCriteriaOptions: document.getElementById("success-criteria-options"),
-          statusTitle: document.getElementById("status-title"),
-          statusMessage: document.getElementById("status-message"),
-          checks: document.getElementById("checks"),
           submitButton: document.getElementById("submit-button"),
           result: document.getElementById("result"),
           followUp: document.getElementById("follow-up"),
@@ -732,10 +740,7 @@
 
         function resetReadyState() {
           fields.submitButton.disabled = false;
-          fields.statusTitle.textContent = t("readyToCreate");
-          fields.statusTitle.className = "";
-          fields.statusMessage.textContent = t("defaultsReady");
-          fields.checks.innerHTML = "";
+          fields.submitButton.textContent = t("createProject");
         }
 
         function renderMediaSources(mediaSources) {
@@ -786,7 +791,7 @@
               <code>${escapeHtml(row.dataset.filePath)}</code>
             </div>
             <div class="row-actions">
-              <button class="secondary" type="button" data-action="remove-source">${escapeHtml(t("removeMediaSource"))}</button>
+              <button class="media-source-remove-button" type="button" data-action="remove-source" aria-label="${escapeAttribute(t("removeMediaSource"))}" title="${escapeAttribute(t("removeMediaSource"))}">X</button>
             </div>
           `;
           row.querySelector('[data-action="remove-source"]').addEventListener("click", () => {
@@ -1128,7 +1133,8 @@
         }
 
         function renderChecks(payload) {
-          fields.checks.innerHTML = "";
+          const checks = document.createElement("ul");
+          checks.className = "checks";
           for (const check of payload.checks || []) {
             const item = document.createElement("li");
             const title = document.createElement("strong");
@@ -1141,23 +1147,30 @@
               detail.textContent = check.detail;
               item.appendChild(detail);
             }
-            fields.checks.appendChild(item);
+            checks.appendChild(item);
           }
+          return checks.childElementCount ? checks : null;
         }
 
         function renderBlocked(payload) {
-          fields.statusTitle.textContent = t("blocked");
-          fields.statusTitle.className = "blocked";
-          fields.statusMessage.textContent = payload?.error || payload?.message || t("setupBlocked");
-          renderChecks(payload || {});
+          const blockedPayload = payload || {};
+          fields.result.classList.remove("hidden");
+          fields.result.innerHTML = "";
+          const title = document.createElement("strong");
+          title.className = "blocked";
+          title.textContent = t("blocked");
+          const message = document.createElement("p");
+          message.className = "muted";
+          message.textContent = blockedPayload.error || blockedPayload.message || t("setupBlocked");
+          fields.result.append(title, message);
+          const checks = renderChecks(blockedPayload);
+          if (checks) fields.result.appendChild(checks);
         }
 
         async function submit(event) {
           event.preventDefault();
           fields.submitButton.disabled = true;
-          fields.statusTitle.textContent = t("creating");
-          fields.statusTitle.className = "";
-          fields.statusMessage.textContent = t("creatingDetail");
+          fields.submitButton.textContent = t("creating");
           try {
             const result = await callTool("submit_codecut_setup", collectIntent());
             const payload = structuredContent(result);
@@ -1178,6 +1191,7 @@
             });
           } finally {
             fields.submitButton.disabled = false;
+            fields.submitButton.textContent = t("createProject");
           }
         }
 
@@ -1235,8 +1249,8 @@
             actions.insertAdjacentElement("afterend", errorText);
             return;
           }
-          fields.statusMessage.textContent = errorText.textContent;
-          fields.statusMessage.className = "error";
+          fields.result.classList.remove("hidden");
+          fields.result.appendChild(errorText);
         }
 
         async function sendFollowUp(prompt) {
