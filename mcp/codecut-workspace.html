@@ -673,10 +673,11 @@
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
           fields.generateIntroCover.checked = defaults.generateIntroCover !== false;
-          renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t("briefPlaceholder")]);
+          renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t("briefPlaceholder")], defaults.brief);
           renderChoiceOptions(
             fields.successCriteriaOptions,
             defaults.successCriteriaOptions || [defaults.successCriteria || t("successCriteriaPlaceholder")],
+            defaults.successCriteria,
           );
           fields.brief.value = "";
           fields.successCriteria.value = "";
@@ -919,14 +920,17 @@
           resetReadyState();
         }
 
-        function renderChoiceOptions(container, options) {
+        function renderChoiceOptions(container, options, recommendedText = "") {
           container.innerHTML = "";
-          for (const optionText of normalizeChoiceOptions(options)) {
+          const normalizedOptions = normalizeChoiceOptions(options);
+          const recommendedChoices = recommendedChoiceSet(normalizedOptions, recommendedText);
+          for (const optionText of normalizedOptions) {
+            const isRecommendedChoice = recommendedChoices.has(optionText);
             const button = document.createElement("button");
             button.type = "button";
-            button.className = "choice-option is-active";
+            button.className = isRecommendedChoice ? "choice-option is-active" : "choice-option";
             button.dataset.choiceOption = optionText;
-            button.setAttribute("aria-pressed", "true");
+            button.setAttribute("aria-pressed", isRecommendedChoice ? "true" : "false");
             button.textContent = optionText;
             button.addEventListener("click", () => {
               const isActive = button.getAttribute("aria-pressed") === "true";
@@ -936,6 +940,27 @@
             });
             container.appendChild(button);
           }
+        }
+
+        function recommendedChoiceSet(options, recommendedText) {
+          if (!options.length) return new Set();
+          const recommendedKeys = atomizeChoiceOption(recommendedText).map(choiceKey);
+          const selected = options.filter((optionText) => {
+            const optionKey = choiceKey(optionText);
+            return recommendedKeys.some((recommendedKey) =>
+              recommendedKey === optionKey ||
+              recommendedKey.includes(optionKey) ||
+              optionKey.includes(recommendedKey),
+            );
+          });
+          return new Set(selected.length ? selected : [options[0]]);
+        }
+
+        function choiceKey(value) {
+          return String(value || "")
+            .trim()
+            .toLowerCase()
+            .replace(/[。.!?？\s]/g, "");
         }
 
         function normalizeChoiceOptions(options) {
