@@ -114,6 +114,11 @@ async function assertOkJson({
 	return payload as Record<string, unknown>;
 }
 
+function authorizationHeaders({ apiKey }: { apiKey?: string }): HeadersInit {
+	const trimmedApiKey = apiKey?.trim();
+	return trimmedApiKey ? { Authorization: `Bearer ${trimmedApiKey}` } : {};
+}
+
 export const runningHubVoiceCloneProvider: AIVoiceCloneProvider = {
 	id: RUNNINGHUB_VOICE_CLONE_PROVIDER_ID,
 	name: "RunningHub Voice Clone",
@@ -125,22 +130,16 @@ export const runningHubVoiceCloneProvider: AIVoiceCloneProvider = {
 		referenceAudioFile,
 	}: {
 		request: VoiceCloneRequest;
-		apiKey: string;
+		apiKey?: string;
 		referenceAudioFile: File;
 	}): Promise<VoiceCloneTaskResult> {
-		if (!apiKey) {
-			throw new Error("RUNNINGHUB_API_KEY is not configured");
-		}
-
 		const formData = new FormData();
 		formData.set("audio", referenceAudioFile);
 		formData.set("text", request.text);
 
 		const response = await fetch(VOICE_CLONE_GENERATE_ROUTE, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-			},
+			headers: authorizationHeaders({ apiKey }),
 			body: formData,
 		});
 
@@ -162,15 +161,11 @@ export const runningHubVoiceCloneProvider: AIVoiceCloneProvider = {
 		apiKey,
 	}: {
 		taskId: string;
-		apiKey: string;
+		apiKey?: string;
 	}): Promise<VoiceCloneTaskResult> {
-		if (!apiKey) {
-			throw new Error("RUNNINGHUB_API_KEY is not configured");
-		}
-
 		const params = new URLSearchParams({ taskId });
 		const response = await fetch(`${VOICE_CLONE_TASK_ROUTE}?${params}`, {
-			headers: { Authorization: `Bearer ${apiKey}` },
+			headers: authorizationHeaders({ apiKey }),
 		});
 
 		const payload = await assertOkJson({ response });

@@ -5,6 +5,7 @@ import type {
 } from "@/lib/ai/providers";
 import { uploadRunningHubMediaFile } from "@/lib/ai/providers/runninghub-digital-human-server";
 import { submitRunningHubVoiceCloneTask } from "@/lib/ai/providers/runninghub-voice-clone-server";
+import { runningHubApiKeyFromRequest } from "@/lib/ai/runninghub-route-auth";
 
 const voiceDesignGenerateSchema = z.object({
 	text: z.string().trim().min(1),
@@ -54,6 +55,7 @@ interface VoiceCloneGenerateRequestInput {
 }
 
 interface VoiceCloneGenerateHandlers {
+	runtimeApiKey?: string;
 	uploadAudioFile?: (params: {
 		apiKey: string;
 		file: File;
@@ -63,19 +65,6 @@ interface VoiceCloneGenerateHandlers {
 		request: VoiceCloneRequest;
 		audioFileName: string;
 	}) => Promise<VoiceCloneTaskResult>;
-}
-
-function apiKeyFromRequest({
-	request,
-}: {
-	request: VoiceCloneGenerateRequestInput;
-}): string {
-	const authorization = request.headers.get("authorization");
-	const match = authorization?.match(/^Bearer\s+(.+)$/i);
-	if (!match?.[1]) {
-		throw new Error("Missing Authorization header");
-	}
-	return match[1];
 }
 
 function requireFile({
@@ -167,12 +156,13 @@ export function parseVoiceCloneGenerateFormData({
 
 export async function handleVoiceCloneGenerateRequest({
 	request,
+	runtimeApiKey,
 	uploadAudioFile = uploadRunningHubMediaFile,
 	submitVoiceCloneTask = submitRunningHubVoiceCloneTask,
 }: {
 	request: VoiceCloneGenerateRequestInput;
 } & VoiceCloneGenerateHandlers): Promise<VoiceCloneTaskResult> {
-	const apiKey = apiKeyFromRequest({ request });
+	const apiKey = runningHubApiKeyFromRequest({ request, runtimeApiKey });
 	const formData = await request.formData();
 	const { audioFile, request: generateRequest } =
 		parseVoiceCloneGenerateFormData({ formData });

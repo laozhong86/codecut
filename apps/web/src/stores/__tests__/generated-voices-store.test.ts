@@ -63,6 +63,12 @@ const saveGeneratedVoice = mock(async () => undefined);
 const removeGeneratedVoice = mock(async () => undefined);
 const toastSuccess = mock(() => undefined);
 const toastError = mock(() => undefined);
+const toastWarning = mock(() => undefined);
+
+function hasAuthorizationHeader(headers: RequestInit["headers"]): boolean {
+	if (!headers) return false;
+	return new Headers(headers).has("authorization");
+}
 
 mock.module("@/services/storage/service", () => ({
 	storageService: {
@@ -76,6 +82,7 @@ mock.module("sonner", () => ({
 	toast: {
 		success: toastSuccess,
 		error: toastError,
+		warning: toastWarning,
 	},
 }));
 
@@ -105,6 +112,7 @@ describe("generated voices store", () => {
 		removeGeneratedVoice.mockClear();
 		toastSuccess.mockClear();
 		toastError.mockClear();
+		toastWarning.mockClear();
 	});
 
 	test("generates a new RunningHub voice without uploading reference audio", async () => {
@@ -160,11 +168,12 @@ describe("generated voices store", () => {
 			error: null,
 		});
 
-		await useGeneratedVoicesStore.getState().cloneVoiceFromReference({
+		const result = await useGeneratedVoicesStore.getState().cloneVoiceFromReference({
 			text: "把肩膀沉下来，深呼吸。",
 			referenceAudioFile: new File(["audio"], "reference.wav", {
 				type: "audio/wav",
 			}),
+			name: "播客女",
 		});
 
 		expect(fetchMock).toHaveBeenCalledWith(
@@ -182,6 +191,7 @@ describe("generated voices store", () => {
 		);
 		expect(saveGeneratedVoice).toHaveBeenCalledWith({
 			voice: expect.objectContaining({
+				name: "播客女",
 				text: "把肩膀沉下来，深呼吸。",
 				provider: "runninghub-voice-clone",
 				taskId: "voice-clone-task-1",
@@ -190,17 +200,97 @@ describe("generated voices store", () => {
 			audioBlob: expect.any(Blob),
 		});
 		expect(useGeneratedVoicesStore.getState().voices[0]).toMatchObject({
+			name: "播客女",
 			taskId: "voice-clone-task-1",
 			text: "把肩膀沉下来，深呼吸。",
 		});
+		expect(result.voice).toMatchObject({
+			name: "播客女",
+			taskId: "voice-clone-task-1",
+			text: "把肩膀沉下来，深呼吸。",
+		});
+		expect(result.audioBlob).toBeInstanceOf(Blob);
 		expect(useGeneratedVoicesStore.getState().voices[0]?.emotionPrompt).toBe(
 			undefined,
+		);
+	});
+
+	test("clones a built-in RunningHub voice with the runtime key source", async () => {
+		const { useAISettingsStore } = await import("../ai-settings-store");
+		const { useGeneratedVoicesStore } = await import("../generated-voices-store");
+
+		useAISettingsStore.getState().setRunningHubApiKey("");
+		useGeneratedVoicesStore.setState({
+			voices: [],
+			isGenerating: false,
+			currentTaskStatus: null,
+			error: null,
+		});
+
+		await useGeneratedVoicesStore.getState().cloneVoiceFromReference({
+			text: "把肩膀沉下来，深呼吸。",
+			referenceAudioFile: new File(["audio"], "reference.wav", {
+				type: "audio/wav",
+			}),
+			name: "播客女",
+			apiKeySource: "runtime",
+		});
+
+		const generateCall = fetchMock.mock.calls.find(
+			([url]) => url === "/api/ai/voice-clone/generate",
+		);
+		const taskCall = fetchMock.mock.calls.find(
+			([url]) => typeof url === "string" && url.startsWith("/api/ai/voice-clone/task?"),
+		);
+		expect(hasAuthorizationHeader(generateCall?.[1]?.headers)).toBe(false);
+		expect(hasAuthorizationHeader(taskCall?.[1]?.headers)).toBe(false);
+		expect(saveGeneratedVoice).toHaveBeenCalledWith({
+			voice: expect.objectContaining({
+				name: "播客女",
+				provider: "runninghub-voice-clone",
+				taskId: "voice-clone-task-1",
+			}),
+			audioBlob: expect.any(Blob),
+		});
+	});
+
+	test("uses the configured UI RunningHub key before runtime fallback", async () => {
+		const { useAISettingsStore } = await import("../ai-settings-store");
+		const { useGeneratedVoicesStore } = await import("../generated-voices-store");
+
+		useAISettingsStore.getState().setRunningHubApiKey("rh-ui-key");
+		useGeneratedVoicesStore.setState({
+			voices: [],
+			isGenerating: false,
+			currentTaskStatus: null,
+			error: null,
+		});
+
+		await useGeneratedVoicesStore.getState().cloneVoiceFromReference({
+			text: "把肩膀沉下来，深呼吸。",
+			referenceAudioFile: new File(["audio"], "reference.wav", {
+				type: "audio/wav",
+			}),
+			name: "播客女",
+			apiKeySource: "runtime",
+		});
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"/api/ai/voice-clone/generate",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer rh-ui-key",
+				}),
+			}),
 		);
 	});
 
 	test("requires the shared RunningHub key", async () => {
 		const { useAISettingsStore } = await import("../ai-settings-store");
 		const { useGeneratedVoicesStore } = await import("../generated-voices-store");
+		const { RUNNINGHUB_API_KEY_MISSING_MESSAGE } = await import(
+			"@/lib/ai/runninghub-user-messages"
+		);
 
 		useAISettingsStore.getState().setRunningHubApiKey("");
 
@@ -209,7 +299,63 @@ describe("generated voices store", () => {
 				text: "hello",
 				emotionPrompt: "warm",
 			}),
-		).rejects.toThrow("RUNNINGHUB_API_KEY is required");
+		).rejects.toThrow(RUNNINGHUB_API_KEY_MISSING_MESSAGE);
 		expect(fetchMock).not.toHaveBeenCalled();
+		expect(toastWarning).toHaveBeenCalledWith(
+			RUNNINGHUB_API_KEY_MISSING_MESSAGE,
+		);
+		expect(toastError).not.toHaveBeenCalled();
+	});
+
+	test("shows a configuration reminder when runtime RunningHub key is missing", async () => {
+		const runtimeMissingFetch = mock(
+			async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				if (url === "/api/ai/voice-clone/generate") {
+					expect(init?.body).toBeInstanceOf(FormData);
+					return new Response(
+						JSON.stringify({ error: "Missing Authorization header" }),
+						{
+							status: 401,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				throw new Error(`Unexpected fetch: ${url}`);
+			},
+		);
+		Object.defineProperty(globalThis, "fetch", {
+			configurable: true,
+			value: runtimeMissingFetch,
+		});
+		const { useAISettingsStore } = await import("../ai-settings-store");
+		const { useGeneratedVoicesStore } = await import("../generated-voices-store");
+		const { RUNNINGHUB_API_KEY_MISSING_MESSAGE } = await import(
+			"@/lib/ai/runninghub-user-messages"
+		);
+
+		useAISettingsStore.getState().setRunningHubApiKey("");
+		useGeneratedVoicesStore.setState({
+			voices: [],
+			isGenerating: false,
+			currentTaskStatus: null,
+			error: null,
+		});
+
+		await expect(
+			useGeneratedVoicesStore.getState().cloneVoiceFromReference({
+				text: "把肩膀沉下来，深呼吸。",
+				referenceAudioFile: new File(["audio"], "reference.wav", {
+					type: "audio/wav",
+				}),
+				name: "播客女",
+				apiKeySource: "runtime",
+			}),
+		).rejects.toThrow(RUNNINGHUB_API_KEY_MISSING_MESSAGE);
+
+		expect(toastWarning).toHaveBeenCalledWith(
+			RUNNINGHUB_API_KEY_MISSING_MESSAGE,
+		);
+		expect(toastError).not.toHaveBeenCalled();
 	});
 });

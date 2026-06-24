@@ -186,7 +186,7 @@ function ReferenceImagePicker({
 function AIImageView() {
 	const { t } = useTranslation();
 	const { imageProviderId, imageApiKey } = useAISettingsStore();
-	const { setActiveTab } = useAssetsPanelStore();
+	const { openAISettings } = useAssetsPanelStore();
 
 	const {
 		prompt,
@@ -229,9 +229,9 @@ function AIImageView() {
 					type="button"
 					variant="outline"
 					size="sm"
-					onClick={() => setActiveTab("settings")}
+					onClick={openAISettings}
 					onKeyDown={(event) => {
-						if (event.key === "Enter") setActiveTab("settings");
+						if (event.key === "Enter") openAISettings();
 					}}
 				>
 					{t("Go to Settings")}
@@ -487,7 +487,7 @@ function GeneratedImageCard({ image }: { image: GeneratedImage }) {
 function AIVideoView() {
 	const { t } = useTranslation();
 	const { videoProviderId, videoApiKey } = useAISettingsStore();
-	const { setActiveTab } = useAssetsPanelStore();
+	const { openAISettings } = useAssetsPanelStore();
 
 	const {
 		prompt,
@@ -534,9 +534,9 @@ function AIVideoView() {
 					type="button"
 					variant="outline"
 					size="sm"
-					onClick={() => setActiveTab("settings")}
+					onClick={openAISettings}
 					onKeyDown={(event) => {
-						if (event.key === "Enter") setActiveTab("settings");
+						if (event.key === "Enter") openAISettings();
 					}}
 				>
 					{t("Go to Settings")}
@@ -716,7 +716,7 @@ function AIDigitalHumanView() {
 	const { t } = useTranslation();
 	const editor = useEditor();
 	const { digitalHumanProviderId, runningHubApiKey } = useAISettingsStore();
-	const { setActiveTab } = useAssetsPanelStore();
+	const { openAISettings } = useAssetsPanelStore();
 	const {
 		imageMediaId,
 		audioMediaId,
@@ -763,9 +763,9 @@ function AIDigitalHumanView() {
 					type="button"
 					variant="outline"
 					size="sm"
-					onClick={() => setActiveTab("settings")}
+					onClick={openAISettings}
 					onKeyDown={(event) => {
-						if (event.key === "Enter") setActiveTab("settings");
+						if (event.key === "Enter") openAISettings();
 					}}
 				>
 					{t("Go to Settings")}

@@ -96,6 +96,36 @@ describe("voice clone generate route", () => {
 		expect(submitVoiceCloneTask).not.toHaveBeenCalled();
 	});
 
+	test("uses the runtime RunningHub key when Authorization is missing", async () => {
+		const uploadAudioFile = mock(async () => "openapi/ref.wav");
+		const submitVoiceCloneTask = mock(async () => ({
+			taskId: "voice-clone-task-1",
+			status: "running" as const,
+		}));
+
+		await handleVoiceCloneGenerateRequest({
+			request: formDataRequest({
+				formData: validFormData(),
+				authorization: "",
+			}),
+			runtimeApiKey: "rh-runtime-key",
+			uploadAudioFile,
+			submitVoiceCloneTask,
+		});
+
+		expect(uploadAudioFile).toHaveBeenCalledWith({
+			apiKey: "rh-runtime-key",
+			file: expect.any(File),
+		});
+		expect(submitVoiceCloneTask).toHaveBeenCalledWith({
+			apiKey: "rh-runtime-key",
+			audioFileName: "openapi/ref.wav",
+			request: {
+				text: "把肩膀沉下来，深呼吸。",
+			},
+		});
+	});
+
 	test("uploads the reference audio before submitting the clone task", async () => {
 		const uploadAudioFile = mock(async () => "openapi/ref.wav");
 		const submitVoiceCloneTask = mock(async () => ({
