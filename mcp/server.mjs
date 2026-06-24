@@ -133,13 +133,14 @@ const captionStylePresetSchema = z.enum(captionStylePresetValues);
 
 const workspaceMediaSourceSchema = z
 	.object({
-		kind: z.enum(["filePath", "url"]),
+		kind: z.enum(["filePath", "url", "directoryPath"]),
 		filePath: z.string().trim().optional(),
+		directoryPath: z.string().trim().optional(),
 		url: z.string().trim().optional(),
 		mimeType: z.string().trim().optional(),
 	})
 	.strict();
-const workspaceMediaSourcesSchema = z.array(workspaceMediaSourceSchema).min(1);
+const workspaceMediaSourcesSchema = z.array(workspaceMediaSourceSchema);
 
 const workspaceOutputSchema = z
 	.object({
@@ -174,6 +175,8 @@ const workspaceOpenInputSchema = {
 	filePath: z.string().trim().optional(),
 	mediaPath: z.string().trim().optional(),
 	mediaPaths: z.array(z.string().trim().min(1)).optional(),
+	directoryPath: z.string().trim().optional(),
+	directoryPaths: z.array(z.string().trim().min(1)).optional(),
 	url: z.string().trim().optional(),
 	mimeType: z.string().trim().optional(),
 	mediaSources: workspaceMediaSourcesSchema.optional(),
@@ -1028,7 +1031,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Pass mediaPaths for multiple resolved local media files; do not pass directories as media files. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Pass mediaPaths for multiple resolved local media files and directoryPaths for local source folders that Codex should decide how to inspect later. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1140,12 +1143,12 @@ async function assertCodecutServiceReady({
 
 export async function inspectCodecutSetup(
 	intent,
-	{ statImpl = stat } = {},
+	_options = {},
 ) {
-	return validateCodecutSetupIntent(intent, { statImpl });
+	return validateCodecutSetupIntent(intent);
 }
 
-async function validateCodecutSetupIntent(intent, { statImpl = stat } = {}) {
+async function validateCodecutSetupIntent(intent) {
 	const checks = [];
 	const normalized = normalizeWorkspaceIntent(intent || {});
 
@@ -1179,19 +1182,6 @@ async function validateCodecutSetupIntent(intent, { statImpl = stat } = {}) {
 		mediaSourceCheck.ok,
 		mediaSourceCheck.message,
 	);
-
-	if (mediaSourceCheck.ok) {
-		for (const [index, mediaSource] of normalized.mediaSources.entries()) {
-			if (mediaSource.kind === "filePath") {
-				await pushFilePathCheck(
-					checks,
-					mediaSource.filePath,
-					statImpl,
-					index + 1,
-				);
-			}
-		}
-	}
 
 	pushCheck(
 		checks,
@@ -1252,7 +1242,7 @@ export async function submitCodecutSetup(
 		confirmationRoot,
 	} = {},
 ) {
-	const inspection = await validateCodecutSetupIntent(intent, { statImpl });
+	const inspection = await validateCodecutSetupIntent(intent);
 	if (inspection.status !== "ready") {
 		return {
 			content: [
@@ -1307,7 +1297,9 @@ export async function submitCodecutSetup(
 	};
 
 	const importedMedia = [];
-	for (const [index, mediaSource] of normalized.mediaSources.entries()) {
+	const { importableMediaSources, deferredMediaSources } =
+		await collectSetupMediaSourcesForImport(normalized.mediaSources, statImpl);
+	for (const { index, mediaSource } of importableMediaSources) {
 		const importResult = await bridgeToolImpl(
 			"import_media",
 			buildImportMediaArgs({
@@ -1351,6 +1343,7 @@ export async function submitCodecutSetup(
 			status: "readback_failed",
 			...projectContext,
 			importedMedia,
+			deferredMediaSources,
 			intent: normalized,
 			error: extractErrorMessage(projectInfoResult),
 		});
@@ -1364,6 +1357,7 @@ export async function submitCodecutSetup(
 			status: "readback_failed",
 			...projectContext,
 			importedMedia,
+			deferredMediaSources,
 			intent: normalized,
 			error: "get_project_info did not return the latest project revision.",
 		});
@@ -1385,6 +1379,7 @@ export async function submitCodecutSetup(
 		editorUrl,
 		confirmationToken,
 		importedMedia,
+		deferredMediaSources,
 		intent: resultIntent,
 		continuePrompt: buildContinuePrompt({
 			intent: resultIntent,
@@ -1394,6 +1389,7 @@ export async function submitCodecutSetup(
 			editorUrl,
 			confirmationToken,
 			importedMedia,
+			deferredMediaSources,
 		}),
 	};
 
@@ -1464,24 +1460,42 @@ function buildWorkspaceIntentDefaults(input = {}) {
 
 function buildWorkspaceOpenMediaSources(input = {}) {
 	if (Array.isArray(input.mediaSources) && input.mediaSources.length) {
-		if (Array.isArray(input.mediaPaths) && input.mediaPaths.length) {
-			throw new Error("mediaSources and mediaPaths cannot both be provided.");
+		if (
+			(Array.isArray(input.mediaPaths) && input.mediaPaths.length) ||
+			(Array.isArray(input.directoryPaths) && input.directoryPaths.length)
+		) {
+			throw new Error(
+				"mediaSources cannot be combined with mediaPaths or directoryPaths.",
+			);
 		}
 		return input.mediaSources.map(normalizeWorkspaceMediaSource);
 	}
 	const mediaPaths = normalizeWorkspaceMediaPaths(input.mediaPaths);
-	if (mediaPaths.length) {
-		if (resolveWorkspaceOpenFilePath(input) || String(input.url || "").trim()) {
+	const directoryPaths = normalizeWorkspaceDirectoryPaths(input.directoryPaths);
+	if (mediaPaths.length || directoryPaths.length) {
+		if (
+			resolveWorkspaceOpenFilePath(input) ||
+			resolveWorkspaceOpenDirectoryPath(input) ||
+			String(input.url || "").trim()
+		) {
 			throw new Error(
-				"mediaPaths cannot be combined with filePath, mediaPath, or url.",
+				"mediaPaths and directoryPaths cannot be combined with filePath, mediaPath, directoryPath, or url.",
 			);
 		}
-		return mediaPaths.map((filePath) => ({ kind: "filePath", filePath }));
+		return [
+			...mediaPaths.map((filePath) => ({ kind: "filePath", filePath })),
+			...directoryPaths.map((directoryPath) => ({
+				kind: "directoryPath",
+				directoryPath,
+			})),
+		];
 	}
 	const filePath = resolveWorkspaceOpenFilePath(input);
+	const directoryPath = resolveWorkspaceOpenDirectoryPath(input);
 	const url = String(input.url || "").trim();
 	const mediaSources = [];
 	if (filePath) mediaSources.push({ kind: "filePath", filePath });
+	if (directoryPath) mediaSources.push({ kind: "directoryPath", directoryPath });
 	if (url) {
 		mediaSources.push({
 			kind: "url",
@@ -1496,6 +1510,13 @@ function buildWorkspaceOpenMediaSources(input = {}) {
 function normalizeWorkspaceMediaPaths(mediaPaths) {
 	if (!Array.isArray(mediaPaths)) return [];
 	return mediaPaths.map((mediaPath) => String(mediaPath || "").trim()).filter(Boolean);
+}
+
+function normalizeWorkspaceDirectoryPaths(directoryPaths) {
+	if (!Array.isArray(directoryPaths)) return [];
+	return directoryPaths
+		.map((directoryPath) => String(directoryPath || "").trim())
+		.filter(Boolean);
 }
 
 function normalizeWorkspaceOptionList(options, fallback) {
@@ -1560,6 +1581,10 @@ function resolveWorkspaceOpenFilePath(input = {}) {
 	return filePath || mediaPath;
 }
 
+function resolveWorkspaceOpenDirectoryPath(input = {}) {
+	return String(input.directoryPath || "").trim();
+}
+
 function normalizeWorkspaceUiLanguage(value) {
 	const normalized = String(value || "").trim().toLowerCase();
 	if (!normalized) return "";
@@ -1620,6 +1645,10 @@ function normalizeWorkspaceMediaSource(mediaSource = {}) {
 			mediaSource.filePath === undefined
 				? undefined
 				: String(mediaSource.filePath).trim(),
+		directoryPath:
+			mediaSource.directoryPath === undefined
+				? undefined
+				: String(mediaSource.directoryPath).trim(),
 		url:
 			mediaSource.url === undefined ? undefined : String(mediaSource.url).trim(),
 		mimeType:
@@ -1631,7 +1660,7 @@ function normalizeWorkspaceMediaSource(mediaSource = {}) {
 
 function validateWorkspaceMediaSources(mediaSources) {
 	if (!Array.isArray(mediaSources) || mediaSources.length < 1) {
-		return { ok: false, message: "At least one media source is required." };
+		return { ok: true };
 	}
 	for (const [index, mediaSource] of mediaSources.entries()) {
 		const check = validateWorkspaceMediaSource(mediaSource);
@@ -1650,16 +1679,26 @@ function validateWorkspaceMediaSource(mediaSource) {
 		return { ok: false, message: "A media source row is required." };
 	}
 	const hasFilePath = Boolean(String(mediaSource.filePath || "").trim());
+	const hasDirectoryPath = Boolean(String(mediaSource.directoryPath || "").trim());
 	const hasUrl = Boolean(String(mediaSource.url || "").trim());
-	if (Number(hasFilePath) + Number(hasUrl) !== 1) {
-		return { ok: false, message: "Exactly one media source is required." };
+	if (!hasFilePath && !hasDirectoryPath && !hasUrl) {
+		return { ok: true };
+	}
+	if (Number(hasFilePath) + Number(hasDirectoryPath) + Number(hasUrl) > 1) {
+		return { ok: false, message: "Use only one source path or URL." };
 	}
 	if (hasFilePath) {
 		if (mediaSource.kind !== "filePath") {
 			return { ok: false, message: "File path source must use kind filePath." };
 		}
-		if (!isAbsolute(mediaSource.filePath)) {
-			return { ok: false, message: "Local media file path must be absolute." };
+		return { ok: true };
+	}
+	if (hasDirectoryPath) {
+		if (mediaSource.kind !== "directoryPath") {
+			return {
+				ok: false,
+				message: "Directory path source must use kind directoryPath.",
+			};
 		}
 		return { ok: true };
 	}
@@ -1677,24 +1716,70 @@ function validateWorkspaceMediaSource(mediaSource) {
 	}
 }
 
-async function pushFilePathCheck(checks, filePath, statImpl, sourceNumber = 1) {
+async function collectSetupMediaSourcesForImport(mediaSources, statImpl) {
+	const importableMediaSources = [];
+	const deferredMediaSources = [];
+	for (const [index, mediaSource] of mediaSources.entries()) {
+		const deferredMediaSource = await getDeferredSetupMediaSource(
+			mediaSource,
+			index,
+			statImpl,
+		);
+		if (deferredMediaSource) {
+			deferredMediaSources.push(deferredMediaSource);
+		} else {
+			importableMediaSources.push({ index, mediaSource });
+		}
+	}
+	return { importableMediaSources, deferredMediaSources };
+}
+
+async function getDeferredSetupMediaSource(mediaSource, index, statImpl) {
+	const filePath = String(mediaSource.filePath || "").trim();
+	const directoryPath = String(mediaSource.directoryPath || "").trim();
+	const url = String(mediaSource.url || "").trim();
+	if (mediaSource.kind === "directoryPath") {
+		return {
+			index,
+			kind: "directoryPath",
+			...(directoryPath ? { directoryPath } : {}),
+			reason: directoryPath ? "directory_input" : "missing_directory_path",
+		};
+	}
+	if (!filePath && !directoryPath && !url) {
+		return {
+			index,
+			kind: "filePath",
+			reason: "missing_file_path",
+		};
+	}
+	if (url) return null;
+	if (mediaSource.kind !== "filePath") return null;
+	if (!isAbsolute(filePath)) {
+		return {
+			index,
+			kind: "filePath",
+			filePath,
+			reason: "file_path_not_absolute",
+		};
+	}
 	try {
 		const fileStat = await statImpl(filePath);
-		pushCheck(
-			checks,
-			`media-file-${sourceNumber}`,
-			`Local media file ${sourceNumber}`,
-			fileStat.isFile(),
-			"Local media path must point to a file.",
-		);
+		if (fileStat.isFile()) return null;
+		return {
+			index,
+			kind: "filePath",
+			filePath,
+			reason: "not_a_file",
+		};
 	} catch (error) {
-		pushCheck(
-			checks,
-			`media-file-${sourceNumber}`,
-			`Local media file ${sourceNumber}`,
-			false,
-			error instanceof Error ? error.message : String(error),
-		);
+		return {
+			index,
+			kind: "filePath",
+			filePath,
+			reason: error?.code === "ENOENT" ? "file_not_found" : "file_stat_failed",
+			message: error instanceof Error ? error.message : String(error),
+		};
 	}
 }
 
@@ -1787,6 +1872,7 @@ function buildContinuePrompt({
 	editorUrl,
 	confirmationToken,
 	importedMedia,
+	deferredMediaSources,
 }) {
 	return [
 		`Use $codecut to continue the real CodeCut editing chain for project "${projectName}" (${projectId}).`,
@@ -1794,6 +1880,7 @@ function buildContinuePrompt({
 		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. Click this host-rendered link if manual preview is needed: [Open CodeCut editor](${editorUrl}). If the selected tab is already on that URL, do not reload it.`,
 		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state_v2 with projectId "${projectId}".`,
 		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
+		`Deferred media sources: ${JSON.stringify(deferredMediaSources)}.`,
 		`Confirmed intent: ${JSON.stringify(intent)}.`,
 	].join("\n");
 }
