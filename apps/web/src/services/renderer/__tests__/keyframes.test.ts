@@ -82,6 +82,59 @@ describe("applyVisualKeyframes", () => {
 				},
 				localTime: 3,
 			}).opacity,
-		).toBe(0.8);
+			).toBe(0.8);
+	});
+
+	test("applies ease-out scalar interpolation", () => {
+		const result = applyVisualKeyframes({
+			transform: baseTransform,
+			opacity: 1,
+			keyframes: {
+				opacity: [
+					{ time: 0, value: 0, interpolation: "ease-out" },
+					{ time: 1, value: 1 },
+				],
+			},
+			localTime: 0.5,
+		});
+
+		expect(result.opacity).toBeCloseTo(0.875, 6);
+	});
+
+	test("applies ease-in position interpolation", () => {
+		const result = applyVisualKeyframes({
+			transform: baseTransform,
+			opacity: 1,
+			keyframes: {
+				"transform.position": [
+					{
+						time: 0,
+						value: { x: 0, y: 0 },
+						interpolation: "ease-in",
+					},
+					{ time: 1, value: { x: 100, y: 100 } },
+				],
+			},
+			localTime: 0.5,
+		});
+
+		expect(result.transform.position.x).toBeCloseTo(12.5, 6);
+		expect(result.transform.position.y).toBeCloseTo(12.5, 6);
+	});
+
+	test("applies ease-in-out scalar interpolation", () => {
+		const result = applyVisualKeyframes({
+			transform: baseTransform,
+			opacity: 1,
+			keyframes: {
+				"transform.scale": [
+					{ time: 0, value: 1, interpolation: "ease-in-out" },
+					{ time: 1, value: 2 },
+				],
+			},
+			localTime: 0.25,
+		});
+
+		expect(result.transform.scale).toBeCloseTo(1.0625, 6);
 	});
 });

@@ -30,4 +30,32 @@ describe("buildTextElement", () => {
 			backgroundBorderRadius: 8,
 		});
 	});
+
+	test("builds text elements with motion preset and visual keyframes", () => {
+		const element = buildTextElement({
+			raw: {
+				content: "Motion title",
+				motionPreset: "slam-in",
+				keyframes: {
+					opacity: [
+						{ time: 0, value: 0, interpolation: "ease-out" },
+						{ time: 0.2, value: 1 },
+					],
+				},
+			},
+			startTime: 0,
+		});
+
+		expect(element).toMatchObject({
+			type: "text",
+			content: "Motion title",
+			motionPreset: "slam-in",
+			keyframes: {
+				opacity: [
+					{ time: 0, value: 0, interpolation: "ease-out" },
+					{ time: 0.2, value: 1 },
+				],
+			},
+		});
+	});
 });

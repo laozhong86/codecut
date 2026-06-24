@@ -63,7 +63,14 @@ export interface SourceCrop {
 	fit?: "cover-to-canvas";
 }
 
-export type KeyframeInterpolation = "linear" | "hold";
+export type KeyframeInterpolation =
+	| "linear"
+	| "hold"
+	| "ease-in"
+	| "ease-out"
+	| "ease-in-out";
+
+export type TextMotionPreset = "slam-in" | "soft-reveal" | "pop-bounce";
 
 export interface ScalarKeyframe {
 	time: number;
@@ -200,6 +207,7 @@ export interface TextElement extends BaseTimelineElement {
 	fontStyle: "normal" | "italic";
 	textDecoration: "none" | "underline" | "line-through";
 	hidden?: boolean;
+	motionPreset?: TextMotionPreset;
 	transform: Transform;
 	opacity: number;
 	stroke?: TextStroke;

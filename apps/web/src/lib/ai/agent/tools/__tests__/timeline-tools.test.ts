@@ -47,6 +47,13 @@ function textElementFixture(): TextElement {
 		backgroundOpacity: 0.6,
 		backgroundPaddingX: 2,
 		backgroundPaddingY: 1,
+		motionPreset: "slam-in",
+		keyframes: {
+			opacity: [
+				{ time: 0, value: 0, interpolation: "ease-out" },
+				{ time: 0.2, value: 1 },
+			],
+		},
 		richSpans: [{ start: 0, end: 7, color: "#ffd84d" }],
 	};
 }
@@ -227,7 +234,16 @@ describe("getTimelineStateTool", () => {
 								backgroundOpacity: 0.6,
 								backgroundPaddingX: 2,
 								backgroundPaddingY: 1,
+								motionPreset: "slam-in",
 								richSpans: [{ start: 0, end: 7, color: "#ffd84d" }],
+							},
+							motion: {
+								keyframes: {
+									opacity: [
+										{ time: 0, value: 0, interpolation: "ease-out" },
+										{ time: 0.2, value: 1 },
+									],
+								},
 							},
 						},
 					],

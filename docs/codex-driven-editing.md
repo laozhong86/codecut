@@ -283,6 +283,7 @@ Codex sends exactly one editing plan format to Codecut:
       | "social_hook"
       | "product_badge"
       | "chapter_bumper",
+    motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce",
     richSpans?: Array<{
       start: number,
       end: number,
@@ -320,7 +321,8 @@ Codex sends exactly one editing plan format to Codecut:
       | "social-highlight"
       | "comment-bubble"
       | "minimal-reel",
-    position: "lower-safe" | "center"
+    position: "lower-safe" | "center",
+    motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce"
   },
   audio?: {
     bgm?: {
@@ -423,10 +425,43 @@ Caption preset routing:
 text behavior. If present, it must be `hook_title`, `lower_title`,
 `social_hook`, `product_badge`, or `chapter_bumper`.
 
+`title.motionPreset` and `captionStyle.motionPreset` are optional. If present,
+they must be `slam-in`, `soft-reveal`, or `pop-bounce`. Codecut resolves these
+names to deterministic local renderer keyframes on editable `TextElement`s.
+Do not send HTML, Remotion code, arbitrary CSS, JavaScript animation, custom
+cubic curves, or per-caption custom keyframes in EditPlan.
+
+Text motion preset routing:
+
+- `slam-in`: high-energy hooks, hard cuts, offer reveals, or short-form moments
+  where the text should land with visible impact.
+- `soft-reveal`: product walkthroughs, tutorials, explainers, or premium clips
+  where the text should feel calm and avoid stealing attention from footage.
+- `pop-bounce`: creator reactions, testimonials, comments, stickers, or social
+  proof moments where the text should feel responsive and lightweight.
+
+Every motion preset must be verified through `get_timeline_state` readback.
+The readback must expose `style.motionPreset` and `motion.keyframes`, proving
+that the preset became editable timeline state rather than a baked video effect.
+
 `title.richSpans` and `captions[].richSpans` are optional keyword styling
 ranges. Ranges use `[start, end)` code point indexes over `Array.from(text)`.
 Spans must be integer, ordered, non-overlapping, and inside the text length.
 Invalid rich spans fail validation; Codecut does not repair or clamp them.
+
+### Text Motion Visual Acceptance
+
+Text motion preset acceptance is based on sampled composed frames plus timeline
+readback. Tests passing alone is not a visual acceptance substitute.
+
+- `slam-in`: inspect frames near text start, midpoint, and the end of the first
+  `0.6s`. The text should begin off-position and transparent, overshoot scale
+  once, then settle at the configured position without changing timeline state.
+- `soft-reveal`: inspect frames near text start, `0.35s`, and `0.7s`. The text
+  should fade and move gently into place, with no scale pop and no sudden jump.
+- `pop-bounce`: inspect frames near text start, `0.22s`, and `0.5s`. The text
+  should fade in, bounce scale once, and settle cleanly without leaving its
+  readable safe area.
 
 `audio.bgm.assetId` and every `audio.sfx[].assetId` must refer to an already
 imported audio media asset in the same project. Codecut does not search,
@@ -687,8 +722,9 @@ After application, Codex must verify `get_timeline_state` proof fields:
 26. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the final
     strict plan.
 27. Codex calls `verify-timeline`, `get_timeline_state`, and
-    `build-video-quality-report` to verify clips, text style, audio source and
-    volume, video transitions, and sampled composited frames.
+    `build-video-quality-report` to verify clips, text style, text motion
+    preset/keyframes, audio source and volume, video transitions, and sampled
+    composited frames.
     This readback must include the expected video track clip count, text track
     caption count, timeline duration, and clip trim ranges before the edit can
     be reported as complete.

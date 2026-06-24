@@ -1313,4 +1313,100 @@ describe("validateEditPlan", () => {
 			path: "transitions[0].duration",
 		});
 	});
+
+	test("accepts title and caption text motion presets", () => {
+		const plan = structuredClone(validPlan());
+		plan.title = {
+			text: "Stop scrolling",
+			startTime: 0,
+			duration: 1.2,
+			stylePreset: "social_hook",
+			motionPreset: "slam-in",
+		};
+		plan.captionStyle = {
+			preset: "product-punch",
+			position: "lower-safe",
+			motionPreset: "pop-bounce",
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			normalizedPlan: {
+				title: {
+					motionPreset: "slam-in",
+				},
+				captionStyle: {
+					motionPreset: "pop-bounce",
+				},
+			},
+		});
+	});
+
+	test("rejects unsupported text motion presets", () => {
+		const plan = {
+			...validPlan(),
+			title: {
+				text: "Stop scrolling",
+				startTime: 0,
+				duration: 1.2,
+				motionPreset: "random-css-slide",
+			},
+		};
+
+		const result = expectValidationFailure(
+			validateEditPlan({
+				plan,
+				projectId: "project-1",
+				mediaAssets: [mediaAsset()],
+			}),
+		);
+
+		expect(result.path).toBe("title.motionPreset");
+	});
+
+	test("rejects captionStyle motionPreset when captions are omitted", () => {
+		const plan = validPlan();
+		plan.captions = undefined;
+		plan.captionStyle = {
+			preset: "product-punch",
+			position: "lower-safe",
+			motionPreset: "pop-bounce",
+		};
+
+		expect(validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		})).toEqual({
+			success: false,
+			message: "EditPlan captionStyle requires captions.",
+			path: "captionStyle",
+		});
+	});
+
+	test("rejects title motion when title duration is below the motion minimum", () => {
+		const plan = validPlan();
+		plan.title = {
+			text: "Too fast",
+			startTime: 0,
+			duration: 0.49,
+			motionPreset: "slam-in",
+		};
+
+		expect(validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		})).toEqual({
+			success: false,
+			message: "EditPlan text motion requires at least 0.5s duration.",
+			path: "title.motionPreset",
+		});
+	});
 });

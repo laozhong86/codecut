@@ -5,6 +5,7 @@ import {
 	canonicalCaptionCanvasSizeForAspectRatio,
 } from "@/lib/agent-bridge/caption-quality";
 import { EditPlanSchema, type EditPlan } from "./schema";
+import { TEXT_MOTION_MIN_DURATION_SECONDS } from "./motion-presets";
 
 const TIMED_TEXT_TOLERANCE_SECONDS = 0.001;
 const ASPECT_RATIO_TOLERANCE = 0.001;
@@ -434,6 +435,15 @@ export function validateEditPlan({
 				path: "title.richSpans",
 			});
 		}
+	}
+	if (
+		normalizedPlan.title?.motionPreset &&
+		normalizedPlan.title.duration < TEXT_MOTION_MIN_DURATION_SECONDS
+	) {
+		return fail({
+			message: "EditPlan text motion requires at least 0.5s duration.",
+			path: "title.motionPreset",
+		});
 	}
 
 	for (

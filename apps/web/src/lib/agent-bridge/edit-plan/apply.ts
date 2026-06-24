@@ -12,7 +12,12 @@ import {
 	buildVideoElement,
 	buildUploadAudioElement,
 } from "@/lib/timeline/element-utils";
-import type { EditPlan, EditPlanTextRichSpan } from "./schema";
+import type {
+	EditPlan,
+	EditPlanTextMotionPreset,
+	EditPlanTextRichSpan,
+} from "./schema";
+import { resolveTextMotionPreset } from "./motion-presets";
 import {
 	resolveCaptionStylePreset,
 	resolveTitleStylePreset,
@@ -295,6 +300,7 @@ function createTextElement({
 	duration,
 	name,
 	richSpans,
+	motionPreset,
 	raw,
 }: {
 	text: string;
@@ -302,15 +308,36 @@ function createTextElement({
 	duration: number;
 	name: string;
 	richSpans?: EditPlanTextRichSpan[];
+	motionPreset?: EditPlanTextMotionPreset;
 	raw?: Parameters<typeof buildTextElement>[0]["raw"];
 }): CreateTimelineElement {
+	const baseRaw = raw ?? {};
+	const baseTransform = baseRaw.transform ?? {
+		scale: 1,
+		position: { x: 0, y: 0 },
+		rotate: 0,
+	};
+	const resolvedMotion = motionPreset
+		? resolveTextMotionPreset({
+				preset: motionPreset,
+				duration,
+				baseTransform,
+			})
+		: undefined;
+
 	return buildTextElement({
 		raw: {
-			...raw,
+			...baseRaw,
 			name,
 			content: text,
 			richSpans,
 			duration,
+			...(resolvedMotion
+				? {
+						motionPreset: resolvedMotion.motionPreset,
+						keyframes: resolvedMotion.keyframes,
+					}
+				: {}),
 		},
 		startTime,
 	});
@@ -482,12 +509,14 @@ export function applyEditPlanToEditor({
 		duration: number;
 		name: string;
 		richSpans?: EditPlanTextRichSpan[];
+		motionPreset?: EditPlanTextMotionPreset;
 		raw?: Parameters<typeof buildTextElement>[0]["raw"];
 	}> = [];
 	if (normalizedPlan.title) {
 		textItems.push({
 			...normalizedPlan.title,
 			name: "EditPlan Title",
+			motionPreset: normalizedPlan.title.motionPreset,
 			raw: normalizedPlan.title.stylePreset
 				? resolveTitleStylePreset({
 						preset: normalizedPlan.title.stylePreset,
@@ -512,6 +541,7 @@ export function applyEditPlanToEditor({
 		textItems.push({
 			...caption,
 			name: `Caption ${index + 1}`,
+			motionPreset: normalizedPlan.captionStyle?.motionPreset,
 			raw: captionRaw,
 		});
 	}
