@@ -74,7 +74,10 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
       | "documentary-soft"
       | "product-punch"
       | "lifestyle-warm"
-      | "cinematic-serif",
+      | "cinematic-serif"
+      | "social-highlight"
+      | "comment-bubble"
+      | "minimal-reel",
     position: "lower-safe" | "center"
   },
   audio?: {
@@ -135,13 +138,17 @@ Current validation fail-fast checks include:
 - title and captions must fit inside the generated timeline.
 - captions must use top-level `captionStyle`; per-caption style objects are not
   accepted.
+- captionStyle accepts only `preset` and `position`. Do not add `fontFamily`,
+  `fontSize`, `color`, CSS, or external renderer fields to captions or
+  captionStyle. Presets resolve to controlled local renderer styles; the
+  current implementation uses the deterministic CJK renderer font.
 - captions must not overlap, each caption duration must be `0.5s..4s`, and the
   resolved preset/layout must render at most two lines with no 1-2 character
   orphan final line.
 - captionStyle preset must be one of the implemented local presets:
   `short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`,
   `documentary-soft`, `product-punch`, `lifestyle-warm`, or
-  `cinematic-serif`.
+  `cinematic-serif`, `social-highlight`, `comment-bubble`, or `minimal-reel`.
 - `richSpans` must use integer `[start, end)` code point indexes, must be
   ordered and non-overlapping, and must stay inside the corresponding title or
   caption text.
@@ -162,6 +169,8 @@ the final plan. The returned `captionQuality` must pass before mutation.
 Otherwise use source transcript remap: convert source transcript segment
 timestamps into output timeline timestamps through the selected `clips[]`. Do
 not copy source transcript timestamps directly into `captions[].startTime`.
+After applying captions, `get_timeline_state` readback must expose text
+elements with `content`, `startTime`, `duration`, and `style`.
 
 `clips[].fit: "cover"` creates a centered cover crop by converting source and
 target aspect ratios into `visual.transform.scale`. It is readable through

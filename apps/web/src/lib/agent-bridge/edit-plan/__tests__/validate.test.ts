@@ -861,6 +861,30 @@ describe("validateEditPlan", () => {
 		expect(failure.message).toContain("css");
 	});
 
+	test("rejects arbitrary caption font fields", () => {
+		const plan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "short-form-bold",
+				position: "lower-safe",
+				fontFamily: "Inter",
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		const failure = expectValidationFailure(result);
+		expect(failure).toMatchObject({
+			success: false,
+			path: "captionStyle",
+		});
+		expect(failure.message).toContain("fontFamily");
+	});
+
 	test("rejects overlapping title richSpans", () => {
 		const plan = {
 			...validPlan(),

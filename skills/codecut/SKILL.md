@@ -158,7 +158,19 @@ Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview
 - If the needed crop cannot be represented natively, present the runtime-gap
   versus one-time fallback MP4 choice instead of silently baking a fallback.
 - Do not use `black-bar` as a subtitle mask. It is a caption style only.
+- Subtitle styling has one generated-edit path: `EditPlan.captions[]` plus
+  top-level `captionStyle`. Do not put `fontFamily`, `fontSize`, `color`, CSS,
+  per-caption style objects, or external subtitle renderer settings in an
+  EditPlan. Codecut caption presets resolve to controlled local renderer
+  styles and currently use the deterministic CJK renderer font.
 - Caption timing must declare a post-cut caption source. Prefer edited audio transcription through `build-post-cut-captions`; use source transcript remap only when every source segment maps cleanly into selected clips.
+- After applying captions, use `get_timeline_state` readback and verify text
+  elements include `content`, `startTime`, `duration`, and `style`.
+- Local video import through `import-media --file-path` must produce
+  `duration`, `width`, and `height`; local audio import must produce
+  `duration`. Verify with `list_media_assets` or
+  `get_timeline_state` v2 `includeReferencedMedia` before authoring cover,
+  sourceCrop, or export-sensitive plans.
 
 ## Planning References
 

@@ -1556,6 +1556,12 @@ async function runImportMedia({
 	if ((type === "video" || type === "audio") && !parsed.duration) {
 		throw new Error("Imported video/audio duration is required.");
 	}
+	if (
+		type === "video" &&
+		(parsed.width === undefined || parsed.height === undefined)
+	) {
+		throw new Error("Imported video width and height are required.");
+	}
 
 	const mediaId = generateUUID();
 	const mediaPath = join(

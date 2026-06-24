@@ -836,6 +836,102 @@ describe("codex bridge CLI helpers", () => {
 		}
 	});
 
+	test("import-media probes local video dimensions when explicit duration is already provided", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
+		const confirmationRoot = await mkdtemp(
+			join(tmpdir(), "codecut-confirmation-"),
+		);
+		const filePath = join(directory, "source.mp4");
+		await writeFile(filePath, "video-bytes");
+		const confirmationToken = await createTestConfirmationToken(
+			confirmationRoot,
+			"project-123",
+		);
+		const requests = [];
+		const output = [];
+		let probeCallCount = 0;
+
+		const fetchImpl = async (url, init) => {
+			requests.push({ url: String(url), init });
+			if (
+				String(url).endsWith("/api/codex-executor/status?projectId=project-123")
+			) {
+				return new Response(
+					JSON.stringify({
+						projectId: "project-123",
+						status: "idle",
+						message: "Executor project is ready.",
+					}),
+				);
+			}
+			if (String(url).endsWith("/api/codex-executor/commands")) {
+				return new Response(
+					JSON.stringify({
+						status: "completed",
+						projectId: "project-123",
+						results: [{ id: "cmd-1", success: true, message: "Imported" }],
+					}),
+				);
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		};
+
+		try {
+			const exitCode = await runCli({
+				argv: [
+					"import-media",
+					"--project-id",
+					"project-123",
+					"--file-path",
+					filePath,
+					"--duration",
+					"9",
+					"--confirmation-token",
+					confirmationToken,
+				],
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+					CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+					CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+					CODECUT_CONFIRMATION_ROOT: confirmationRoot,
+				},
+				fetchImpl,
+				execFileImpl: async (command, args) => {
+					probeCallCount += 1;
+					expect(command).toBe("ffprobe");
+					expect(args.at(-1)).toBe(filePath);
+					return {
+						stdout: JSON.stringify({
+							format: { duration: "12.5" },
+							streams: [{ width: 1920, height: 1080 }],
+						}),
+						stderr: "",
+					};
+				},
+				stdout: (value) => output.push(value),
+			});
+
+			const postedEnvelope = JSON.parse(requests[1].init.body).envelope;
+			expect(exitCode).toBe(0);
+			expect(probeCallCount).toBe(1);
+			expect(postedEnvelope.commands[0]).toMatchObject({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					duration: 9,
+					width: 1920,
+					height: 1080,
+				},
+			});
+			expect(JSON.parse(output[0]).status).toBe("completed");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+			await rm(confirmationRoot, { recursive: true, force: true });
+		}
+	});
+
 	test("builds import-media envelopes from bytes", async () => {
 		const base64 = Buffer.from("image-bytes").toString("base64");
 		expect(
