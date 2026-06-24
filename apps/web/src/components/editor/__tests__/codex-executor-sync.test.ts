@@ -287,7 +287,7 @@ describe("getExecutorStatusDotState", () => {
 		expect(EXECUTOR_STATUS_DOT_CLASS).not.toContain("bg-background");
 		expect(state.ariaLabel).toBe("Codex executor succeeded");
 		expect(state.title).toBe(
-			"Codex executor succeeded. Revision 4 is synced.",
+			"Codex executor succeeded. get_timeline_state: Timeline has 1 track(s), total duration: 60.48s. Revision 4 is synced.",
 		);
 	});
 });

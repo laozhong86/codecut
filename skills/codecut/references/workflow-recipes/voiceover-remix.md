@@ -11,12 +11,17 @@ This recipe is executable only through the implemented `NarratedRemixPlan v1` pa
 - Visual sequence, existing narration audio asset, and captions all refer to the same target duration.
 - Voiceover audio lands on an audio track.
 - Captions align with the generated narration.
+- Captions include explicit top-level `captionStyle` and pass the same
+  no-overlap, `0.5s..4s`, two-line, and orphan-line quality contract as
+  EditPlan captions.
 - Timeline verification proves video/text/audio track separation.
 
 ## Required Context
 
 - Visual media assets with known duration.
-- Existing narration audio asset with known duration.
+- Existing narration audio asset with known duration. A RunningHub-generated
+  voice asset is valid only after it has already been saved as a media asset
+  with sanitized `spokenScript` metadata.
 - Caption text and timing authored by Codex from the available transcript or user-provided script.
 - Current bridge support for `apply_narrated_remix_plan`.
 
@@ -26,7 +31,7 @@ This recipe is executable only through the implemented `NarratedRemixPlan v1` pa
 2. Confirm one existing audio asset will be used as narration.
 3. Draft a continuous muted video beat list with no gaps or overlaps.
 4. Keep visual beat total duration equal to `target.durationSec`.
-5. Write captions that fit inside the target duration.
+5. Write captions and choose an explicit implemented `captionStyle` preset.
 
 ## Execution Path When Supported
 
@@ -34,14 +39,18 @@ This recipe is executable only through the implemented `NarratedRemixPlan v1` pa
 2. Import or reference video B-roll assets.
 3. Generate strict NarratedRemixPlan v1.
 4. Call `apply_narrated_remix_plan` with `replaceExisting=true` only when replacement is intentional.
-5. Verify video, audio, and text tracks separately through `get_timeline_state`.
+5. Verify video, audio, and text tracks separately through `get_timeline_state`
+   v2, then run `build_video_quality_report` before export.
 
 ## Stop Conditions
 
 - No approved path can provide a narration audio asset.
 - The requested B-roll includes images instead of videos.
-- The requested edit requires TTS, BGM, SFX, effects, or append mode.
+- The requested edit requires TTS fields inside `NarratedRemixPlan`, BGM, SFX,
+  effects, or append mode.
 - Captions cannot be aligned to narration timing.
+- Captions are missing explicit `captionStyle` or fail the caption quality
+  contract.
 
 ## Report Back
 

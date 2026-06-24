@@ -68,6 +68,8 @@ export function getExecutorStatusDotState({
 	error: string | null;
 	isSyncing: boolean;
 }) {
+	const operationSuffix =
+		status?.tool && status.message ? ` ${status.tool}: ${status.message}.` : "";
 	const revisionSuffix =
 		typeof status?.revision === "number"
 			? ` Revision ${status.revision}${isSyncing ? " is syncing." : " is synced."}`
@@ -75,27 +77,27 @@ export function getExecutorStatusDotState({
 	if (error || status?.status === "failed") {
 		return {
 			ariaLabel: "Codex executor failed",
-			title: `Codex executor failed.${revisionSuffix}`,
+			title: `Codex executor failed.${operationSuffix}${revisionSuffix}`,
 			dotClassName: "bg-destructive",
 		};
 	}
 	if (isSyncing || status?.status === "running") {
 		return {
 			ariaLabel: "Codex executor running",
-			title: `Codex executor running.${revisionSuffix}`,
+			title: `Codex executor running.${operationSuffix}${revisionSuffix}`,
 			dotClassName: "animate-pulse bg-sky-400",
 		};
 	}
 	if (status?.status === "succeeded") {
 		return {
 			ariaLabel: "Codex executor succeeded",
-			title: `Codex executor succeeded.${revisionSuffix}`,
+			title: `Codex executor succeeded.${operationSuffix}${revisionSuffix}`,
 			dotClassName: "bg-emerald-500",
 		};
 	}
 	return {
 		ariaLabel: "Codex executor idle",
-		title: `Codex executor idle.${revisionSuffix}`,
+		title: `Codex executor idle.${operationSuffix}${revisionSuffix}`,
 		dotClassName: "bg-muted-foreground",
 	};
 }

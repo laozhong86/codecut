@@ -1,5 +1,9 @@
 import type { MediaAsset } from "@/types/assets";
 import {
+	auditCaptions,
+	canonicalCaptionCanvasSizeForAspectRatio,
+} from "@/lib/agent-bridge/caption-quality";
+import {
 	type NarratedRemixPlan,
 	NarratedRemixPlanSchema,
 } from "./schema";
@@ -70,6 +74,21 @@ export function validateNarratedRemixPlan({
 	}
 
 	const normalizedPlan = parsed.data;
+	const hasCaptions = normalizedPlan.captions.length > 0;
+	if (hasCaptions && !normalizedPlan.captionStyle) {
+		return {
+			success: false,
+			message: "NarratedRemixPlan captions require captionStyle.",
+			path: "captionStyle",
+		};
+	}
+	if (!hasCaptions && normalizedPlan.captionStyle) {
+		return {
+			success: false,
+			message: "NarratedRemixPlan captionStyle requires captions.",
+			path: "captionStyle",
+		};
+	}
 	if (normalizedPlan.projectId !== projectId) {
 		return {
 			success: false,
@@ -198,6 +217,25 @@ export function validateNarratedRemixPlan({
 				success: false,
 				message: "NarratedRemixPlan caption exceeds target duration.",
 				path: `captions[${index}]`,
+			};
+		}
+	}
+	if (hasCaptions && normalizedPlan.captionStyle) {
+		const captionQuality = auditCaptions({
+			captions: normalizedPlan.captions,
+			captionStyle: normalizedPlan.captionStyle,
+			aspectRatio: normalizedPlan.target.aspectRatio,
+			canvasSize: canonicalCaptionCanvasSizeForAspectRatio({
+				aspectRatio: normalizedPlan.target.aspectRatio,
+			}),
+			timelineDuration: normalizedPlan.target.durationSec,
+		});
+		const firstIssue = captionQuality.issues[0];
+		if (firstIssue) {
+			return {
+				success: false,
+				message: firstIssue.message.replace("EditPlan", "NarratedRemixPlan"),
+				path: firstIssue.path,
 			};
 		}
 	}

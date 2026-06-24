@@ -56,6 +56,10 @@ function validPlan() {
 			{ text: "The key idea", startTime: 0, duration: 3 },
 			{ text: "The proof", startTime: 10, duration: 4 },
 		],
+		captionStyle: {
+			preset: "talking-head-pop",
+			position: "lower-safe",
+		},
 		rationale: "Uses existing narration over muted B-roll.",
 	};
 }
@@ -81,6 +85,22 @@ describe("validateNarratedRemixPlan", () => {
 				target: { durationSec: 30 },
 				narration: { mediaId: "narration-1" },
 			},
+		});
+	});
+
+	test("rejects captions without an explicit captionStyle", () => {
+		const { captionStyle: _captionStyle, ...plan } = validPlan();
+
+		const result = validateNarratedRemixPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "NarratedRemixPlan captions require captionStyle.",
+			path: "captionStyle",
 		});
 	});
 

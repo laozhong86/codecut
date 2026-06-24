@@ -35,6 +35,8 @@ export interface SpokenScriptData {
 	text: string;
 	captions: string[];
 	protectedTerms?: string[];
+	provider?: "imported-tts" | "runninghub-voice-design" | "runninghub-voice-clone";
+	providerTaskId?: string;
 }
 
 export type SerializedScene = Omit<TScene, "createdAt" | "updatedAt"> & {

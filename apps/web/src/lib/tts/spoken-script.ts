@@ -115,10 +115,14 @@ export function buildTtsSpokenScript({
 	text,
 	captionLines,
 	protectedTerms,
+	provider,
+	providerTaskId,
 }: {
 	text: string;
 	captionLines?: string[];
 	protectedTerms?: string[];
+	provider?: SpokenScriptData["provider"];
+	providerTaskId?: string;
 }): SpokenScriptData {
 	const normalizedText = text.replace(/\s+/g, " ").trim();
 	if (!normalizedText) {
@@ -141,6 +145,8 @@ export function buildTtsSpokenScript({
 		...(normalizedProtectedTerms
 			? { protectedTerms: normalizedProtectedTerms }
 			: {}),
+		...(provider ? { provider } : {}),
+		...(providerTaskId ? { providerTaskId } : {}),
 	};
 }
 
@@ -183,6 +189,28 @@ export function parseSpokenScriptPayload({
 			message: "spokenScript.protectedTerms must be an array of strings.",
 		};
 	}
+	if (
+		candidate.provider !== undefined &&
+		candidate.provider !== "imported-tts" &&
+		candidate.provider !== "runninghub-voice-design" &&
+		candidate.provider !== "runninghub-voice-clone"
+	) {
+		return {
+			success: false,
+			message: "spokenScript.provider is invalid.",
+		};
+	}
+	if (
+		candidate.providerTaskId !== undefined &&
+		typeof candidate.providerTaskId !== "string"
+	) {
+		return {
+			success: false,
+			message: "spokenScript.providerTaskId must be a string.",
+		};
+	}
+	const provider = candidate.provider as SpokenScriptData["provider"] | undefined;
+	const providerTaskId = candidate.providerTaskId as string | undefined;
 
 	try {
 		return {
@@ -191,6 +219,8 @@ export function parseSpokenScriptPayload({
 				text: candidate.text,
 				captionLines: candidate.captions,
 				protectedTerms: candidate.protectedTerms,
+				provider,
+				providerTaskId,
 			}),
 		};
 	} catch (error) {

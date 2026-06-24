@@ -9,7 +9,7 @@ import { resolveCaptionStylePreset } from "./text-presets";
 const POST_CUT_CAPTION_MAX_DURATION_SECONDS = 4;
 const POST_CUT_CAPTION_MAX_LATIN_CHARS = 52;
 const POST_CUT_CAPTION_MAX_CJK_CHARS = 8;
-const POST_CUT_CAPTION_MAX_LINES = 2;
+export const POST_CUT_CAPTION_MAX_LINES = 2;
 const LATIN_AVERAGE_GLYPH_WIDTH_FACTOR = 0.38;
 
 type CaptionChunkingLayout = {
@@ -38,7 +38,7 @@ function defaultCaptionCharacterLimit(text: string): number {
 		: POST_CUT_CAPTION_MAX_LATIN_CHARS;
 }
 
-function captionCharacterLimit({
+export function computeCaptionCharacterLimit({
 	text,
 	captionStyle,
 	aspectRatio,
@@ -76,7 +76,7 @@ export function buildPostCutCaptionEntries({
 	const duration = roundCaptionSeconds(roundedEnd - roundedStart);
 	if (!normalizedText || duration <= 0) return [];
 
-	const maxCharacters = captionCharacterLimit({
+	const maxCharacters = computeCaptionCharacterLimit({
 		text: normalizedText,
 		captionStyle,
 		aspectRatio,

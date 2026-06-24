@@ -14,6 +14,7 @@ const ALLOWED_RUNTIME_ENV_KEYS = new Set(["RUNNINGHUB_API_KEY"]);
 const EXCLUDES = [
 	".git",
 	".git/",
+	".codecut-worktree.json",
 	"node_modules/",
 	".next/",
 	".turbo/",

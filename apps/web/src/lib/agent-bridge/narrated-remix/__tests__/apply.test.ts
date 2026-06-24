@@ -57,6 +57,10 @@ function validPlan() {
 			{ text: "The key idea", startTime: 0, duration: 3 },
 			{ text: "The proof", startTime: 10, duration: 4 },
 		],
+		captionStyle: {
+			preset: "talking-head-pop",
+			position: "lower-safe",
+		},
 		rationale: "Uses existing narration over muted B-roll.",
 	};
 }
@@ -155,7 +159,17 @@ describe("applyNarratedRemixPlanToEditor", () => {
 			{
 				type: "text",
 				elements: [
-					{ type: "text", content: "The key idea", startTime: 0, duration: 3 },
+					{
+						type: "text",
+						content: "The key idea",
+						startTime: 0,
+						duration: 3,
+						fontFamily: "CodecutCJK",
+						fontSize: 4.8,
+						fontWeight: "bold",
+						color: "#fff3b0",
+						transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
+					},
 					{ type: "text", content: "The proof", startTime: 10, duration: 4 },
 				],
 			},

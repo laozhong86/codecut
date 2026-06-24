@@ -37,7 +37,7 @@ of treating a text message as success.
 | Asset side effect | `import_media`, `import_system_template_script`, `delete_system_template_script` | Mutates media or template library only; timeline stays unchanged. | Imported media asset or confirmed template mutation. | `isError: true` with validation, path, URL, confirmation, or bridge error. | Repair the asset input or ask for explicit confirmation before retry. |
 | Plan execution | `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `apply_narrated_remix_plan`, `build_post_cut_captions`, `build_video_quality_report`, `verify_timeline` | Validation, preview, caption building, and verification are read-only; `apply_*` is the strict timeline mutation path. | Field-level validation/preview/readback, caption items, applied revision, or verification mismatch report. | `isError: true` or explicit mismatch fields; failed validation or verification is not completion. | Repair the plan or verification JSON, then rerun validate/preview before mutation. |
 | Advanced repair | `add_texts`, `add_captions`, `insert_clips`, `move_clips`, `remove_clips`, `split_clip`, `set_clip_properties`, `set_keyframes`, `ripple_delete_ranges`, `create_text_background_effect`, `create_human_pip_effect` | Mutates specific timeline objects or deterministic effects after explicit user intent or readback diagnosis. | Created/updated element IDs, affected tracks, revision, or timeline summary. | `isError: true` with unknown IDs, invalid ranges, unsupported effect assets, or bridge command failure. | Read timeline state first, repair only the named object/range, then verify with readback. |
-| External side effect | `export_project`, `generate_digital_human`, `generate_runninghub_voice_design`, `generate_runninghub_voice_clone` | Writes output files or calls provider-backed generation. | Output path, provider artifact, or export/generation metadata. | `isError: true` with renderer/provider/runtime/output-path error. | Report the external gate separately from editing correctness. |
+| External side effect | `export_project`, `generate_digital_human`, `generate_runninghub_voice_design`, `generate_runninghub_voice_clone` | Writes output files or calls provider-backed generation. RunningHub voice tools accept optional `protectedTerms`. | Output path, provider artifact, voice consistency summary, or export/generation metadata. | `isError: true` with renderer/provider/runtime/output-path error. | Report the external gate separately from editing correctness. |
 
 Current callable MCP tools relevant to Codex-driven editing:
 
@@ -49,11 +49,12 @@ Current callable MCP tools relevant to Codex-driven editing:
 | `transcribe_media` | Transcribe one existing audio/video media asset through the local executor transcription runtime. |
 | `build_video_context` | Build local L2 transcript context for one imported audio/video asset; media longer than 300 seconds is analyzed in fixed 5-minute chunks and returned with source-video timestamps. |
 | `inspect_video_range` | Build local L3-on-demand visual/audio evidence for one video source range as a PNG contact sheet plus frame, waveform, and silence metadata. This is not OCR or scene detection. |
-| `build_post_cut_captions` | Transcribe the current edited video clip ranges and return caption items offset into output timeline time. |
+| `build_post_cut_captions` | Transcribe the current edited video clip ranges and return caption items, `captionQuality`, optional `voiceConsistency`, and trace data offset into output timeline time. |
 | `validate_edit_plan` | Validate an implemented EditPlan v1 without mutating timeline state. |
 | `preview_edit_plan` | Return EditPlan summary, clip list, caption/audio/transition counts, and replacement warning without mutating timeline state. |
 | `apply_edit_plan` | Validate and apply the implemented EditPlan v1 to the timeline. |
 | `apply_narrated_remix_plan` | Validate and apply the implemented NarratedRemixPlan v1 for existing narration audio plus muted video B-roll and captions. |
+| `build_video_quality_report` | Return read-only `schemaVersion: 2` checks for validation, readback, caption quality, voice consistency, text layout, transitions, and contact-sheet rendering. It does not perform OCR, face detection, or burned-caption detection. |
 | `create_text_background_effect` | Replace the timeline with source video, text, and masked foreground layers using an existing person-mask derived asset. |
 | `create_human_pip_effect` | Replace the timeline with muted background video and masked talking-head foreground using an existing person-mask derived asset. |
 | `verify_timeline` | Compare current timeline metrics against explicit verification JSON and return field-level mismatches. |
@@ -77,8 +78,10 @@ Codecut validates and executes. Codex does all LLM reasoning and plan repair.
 `build_post_cut_captions` is a non-mutating Agent/executor tool. It reads
 unmuted edited video or uploaded-audio clips, transcribes each `trimStart` to
 `trimEnd` source range, and returns captions in output timeline time plus
-`captionStyle` and a clip trace. Codex must copy those captions into the final
-EditPlan and apply that plan.
+`captionStyle`, `captionQuality`, optional `voiceConsistency`, and a clip
+trace. For scripted TTS audio, it preserves `spokenScript.captions` text and
+uses ASR only as timing evidence. Codex must copy those captions into the final
+EditPlan and apply that plan only when `captionQuality.ok` is true.
 
 Existing narration plus B-roll uses the separate deterministic path:
 
@@ -88,7 +91,8 @@ get_project_info -> list_media_assets -> optional import_media -> Codex writes N
 
 `NarratedRemixPlan v1` only accepts existing narration audio, imported video
 B-roll, and captions. It rejects TTS fields, BGM, SFX, image B-roll, gaps,
-overlaps, and caption overflow before mutating timeline state.
+overlaps, missing `captionStyle`, and caption quality failures before mutating
+timeline state.
 
 Masked visual effects use explicit deterministic actions outside EditPlan v1:
 
@@ -118,6 +122,7 @@ Current `apply_narrated_remix_plan` behavior:
 - rejects non-empty timelines unless `replaceExisting=true`
 - replaces the timeline with one muted video B-roll track, one narration audio track, and one caption text track
 - requires continuous visual beats whose total duration equals `target.durationSec`
+- requires top-level `captionStyle` when captions are present
 - requires `narration.mediaId` to be an existing audio asset
 - requires every `visualBeats[].mediaId` to be an existing video asset
 

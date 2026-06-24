@@ -1,5 +1,6 @@
 import { createCanvas } from "@napi-rs/canvas";
 import { FONT_SIZE_SCALE_REFERENCE } from "@/constants/text-constants";
+import { auditCaptions } from "@/lib/agent-bridge/caption-quality";
 import type { EditPlan } from "@/lib/agent-bridge/edit-plan/schema";
 import { validateEditPlan } from "@/lib/agent-bridge/edit-plan/validate";
 import { calculateTotalDuration } from "@/lib/timeline";
@@ -27,7 +28,13 @@ import {
 
 type ReportStatus = "pass" | "warning" | "fail";
 type CheckStatus = ReportStatus | "unknown";
-type Category = "edit_plan" | "timeline_readback" | "layout" | "visual_evidence";
+type Category =
+	| "edit_plan"
+	| "timeline_readback"
+	| "layout"
+	| "caption_quality"
+	| "voice_consistency"
+	| "visual_evidence";
 type Severity = "info" | "warning" | "critical";
 
 interface Check {
@@ -649,7 +656,7 @@ function validationFailureReport({
 		},
 	];
 	return {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		status: statusFrom(checks),
 		revision: state.revision,
 		project: reportProject(state),
@@ -662,6 +669,145 @@ function validationFailureReport({
 		artifacts: [],
 		frames: [],
 		limitations: QUALITY_REPORT_LIMITATIONS,
+	};
+}
+
+function checkCaptionQuality({
+	plan,
+	state,
+}: {
+	plan: EditPlan;
+	state: ExecutorProjectState;
+}): Check {
+	const captions = plan.captions ?? [];
+	if (captions.length === 0 || !plan.captionStyle) {
+		return {
+			id: "captionQuality.contract",
+			category: "caption_quality",
+			status: "pass",
+			severity: "info",
+			message: "EditPlan has no captions requiring caption quality checks.",
+			evidence: { captionCount: captions.length },
+		};
+	}
+	const report = auditCaptions({
+		captions,
+		captionStyle: plan.captionStyle,
+		aspectRatio: plan.target.aspectRatio,
+		canvasSize: state.project.settings.canvasSize,
+		timelineDuration: plan.target.durationSec,
+	});
+	if (!report.ok) {
+		return {
+			id: "captionQuality.contract",
+			category: "caption_quality",
+			status: "fail",
+			severity: "critical",
+			message: `${report.issueCount} caption quality issue(s) were found.`,
+			evidence: { captionQuality: report },
+		};
+	}
+	return {
+		id: "captionQuality.contract",
+		category: "caption_quality",
+		status: "pass",
+		severity: "info",
+		message: `All ${captions.length} EditPlan caption(s) satisfy caption quality constraints.`,
+		evidence: report.metrics,
+	};
+}
+
+function referencedMediaIds(tracks: TimelineTrack[]): Set<string> {
+	const ids = new Set<string>();
+	for (const track of tracks) {
+		for (const element of track.elements) {
+			if ("mediaId" in element && typeof element.mediaId === "string") {
+				ids.add(element.mediaId);
+			}
+		}
+	}
+	return ids;
+}
+
+function normalizeSpokenText(value: string): string {
+	return value.replace(/\s+/g, " ").trim();
+}
+
+function checkVoiceConsistency({
+	plan,
+	state,
+}: {
+	plan: EditPlan;
+	state: ExecutorProjectState;
+}): Check {
+	const mediaIds = referencedMediaIds(state.tracks);
+	const scriptedAssets = state.mediaAssets.filter(
+		(asset) => mediaIds.has(asset.id) && asset.spokenScript?.source === "tts",
+	);
+	if (scriptedAssets.length === 0) {
+		return {
+			id: "voiceConsistency.scriptedTts",
+			category: "voice_consistency",
+			status: "pass",
+			severity: "info",
+			message: "No scripted TTS media is referenced by the current timeline.",
+			evidence: { scriptedMediaCount: 0 },
+		};
+	}
+
+	const captionText = normalizeSpokenText(
+		(plan.captions ?? [])
+			.map((caption) => caption.text)
+			.join(" "),
+	);
+	const mismatches = scriptedAssets.flatMap((asset) => {
+		const scriptCaptions = asset.spokenScript?.captions ?? [];
+		const missingScriptCaptionLineCount = scriptCaptions.filter(
+			(caption) => !captionText.includes(normalizeSpokenText(caption)),
+		).length;
+		const protectedTerms = asset.spokenScript?.protectedTerms ?? [];
+		const missingProtectedTermCount = protectedTerms.filter(
+			(term) => !captionText.includes(normalizeSpokenText(term)),
+		).length;
+		return missingScriptCaptionLineCount > 0 || missingProtectedTermCount > 0
+			? [
+					{
+						mediaId: asset.id,
+						provider: asset.spokenScript?.provider ?? "imported-tts",
+						scriptCaptionLineCount: scriptCaptions.length,
+						protectedTermCount: protectedTerms.length,
+						missingScriptCaptionLineCount,
+						missingProtectedTermCount,
+					},
+				]
+			: [];
+	});
+	if (mismatches.length > 0) {
+		return {
+			id: "voiceConsistency.scriptedTts",
+			category: "voice_consistency",
+			status: "fail",
+			severity: "critical",
+			message:
+				"Scripted TTS captions or protected terms are missing from EditPlan captions.",
+			evidence: { mismatches },
+		};
+	}
+	return {
+		id: "voiceConsistency.scriptedTts",
+		category: "voice_consistency",
+		status: "pass",
+		severity: "info",
+		message: `All ${scriptedAssets.length} scripted TTS media asset(s) match EditPlan captions within protected-term coverage.`,
+		evidence: {
+			scriptedMediaCount: scriptedAssets.length,
+			assets: scriptedAssets.map((asset) => ({
+				mediaId: asset.id,
+				provider: asset.spokenScript?.provider ?? "imported-tts",
+				scriptCaptionLineCount: asset.spokenScript?.captions.length ?? 0,
+				protectedTermCount: asset.spokenScript?.protectedTerms?.length ?? 0,
+			})),
+		},
 	};
 }
 
@@ -741,12 +887,14 @@ export async function buildVideoQualityReport({
 			matches: matchedText,
 			canvasSize: state.project.settings.canvasSize,
 		}),
+		checkCaptionQuality({ plan: normalizedPlan, state }),
+		checkVoiceConsistency({ plan: normalizedPlan, state }),
 		contactSheet.check,
 	];
 	const status = statusFrom(checks);
 
 	return {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		status,
 		revision: state.revision,
 		project: reportProject(state),
