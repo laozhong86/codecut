@@ -26,6 +26,9 @@ const processMediaAssets = mock(async ({ files }: { files: File[] }) => [
 		fps: 25,
 	},
 ]);
+const generateThumbnail = mock(
+	async () => "data:image/jpeg;base64,digital-human-thumb",
+);
 const saveMediaAsset = mock(async () => undefined);
 const toastSuccess = mock(() => undefined);
 const toastError = mock(() => undefined);
@@ -47,6 +50,7 @@ mock.module("@/lib/ai/providers", () => ({
 }));
 
 mock.module("@/lib/media/processing", () => ({
+	generateThumbnail,
 	processMediaAssets,
 }));
 

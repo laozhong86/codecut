@@ -6,6 +6,7 @@ import {
 	executorBrowserBridgeHeaders,
 	readExecutorBrowserBridgeTokenFromLocation,
 } from "@/lib/codex-executor/browser-bridge-token";
+import { generateThumbnail } from "@/lib/media/processing";
 import { CURRENT_PROJECT_VERSION } from "@/services/storage/migrations";
 import type { MediaAsset } from "@/types/assets";
 import type { TProject } from "@/types/project";
@@ -141,12 +142,20 @@ async function loadExecutorMediaFile({
 	if (blob.size !== asset.size) {
 		throw new Error(`Executor media asset size mismatch for ${asset.id}.`);
 	}
+	const file = new File([blob], asset.name, {
+		type: asset.mimeType,
+		lastModified: asset.lastModified,
+	});
 	return {
-		file: new File([blob], asset.name, {
-			type: asset.mimeType,
-			lastModified: asset.lastModified,
-		}),
+		file,
 		url: URL.createObjectURL(blob),
+		thumbnailUrl:
+			asset.type === "video"
+				? await generateThumbnail({
+						videoFile: file,
+						timeInSeconds: 1,
+					})
+				: undefined,
 	};
 }
 
@@ -259,6 +268,7 @@ async function applyCodexExecutorSnapshotAsync({
 				height: asset.height,
 				file: mediaFile.file,
 				url: mediaFile.url,
+				thumbnailUrl: mediaFile.thumbnailUrl,
 			};
 		}),
 	);
