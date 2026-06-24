@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/select";
 import { PanelBaseView } from "@/components/editor/panels/panel-base-view";
 import {
+	RUNNINGHUB_API_KEY_MISSING_MESSAGE,
+	isRunningHubApiKeyMissingError,
+} from "@/lib/ai/runninghub-user-messages";
+import {
 	PropertyGroup,
 	PropertyItem,
 	PropertyItemLabel,
@@ -27,6 +31,7 @@ import {
 	DEFAULT_VOICE_PACK,
 } from "@/constants/tts-constants";
 import type { TextElement } from "@/types/timeline";
+import { useAssetsPanelStore } from "@/stores/assets-panel-store";
 
 interface TextElementRef {
 	element: TextElement;
@@ -40,6 +45,7 @@ export function TextSpeechPanel({
 }) {
 	const { t } = useTranslation();
 	const editor = useEditor();
+	const openAISettings = useAssetsPanelStore((state) => state.openAISettings);
 	const [selectedVoice, setSelectedVoice] = useState(DEFAULT_VOICE_PACK);
 	const [alignDuration, setAlignDuration] = useState(false);
 	const [isGenerating, setIsGenerating] = useState(false);
@@ -57,6 +63,7 @@ export function TextSpeechPanel({
 
 		let successCount = 0;
 		let failCount = 0;
+		let configurationReminder: string | null = null;
 
 		for (const { element, trackId: textTrackId } of elementRefs) {
 			try {
@@ -77,7 +84,11 @@ export function TextSpeechPanel({
 
 				successCount++;
 			} catch (error) {
-				console.error("TTS generation failed:", error);
+				if (!isRunningHubApiKeyMissingError(error)) {
+					console.error("TTS generation failed:", error);
+				} else {
+					configurationReminder = RUNNINGHUB_API_KEY_MISSING_MESSAGE;
+				}
 				failCount++;
 			}
 		}
@@ -87,6 +98,14 @@ export function TextSpeechPanel({
 				i18next.t("Speech generated successfully"),
 				{ id: toastId },
 			);
+		} else if (configurationReminder) {
+			toast.warning(i18next.t(configurationReminder), {
+				id: toastId,
+				action: {
+					label: i18next.t("Go to Settings"),
+					onClick: openAISettings,
+				},
+			});
 		} else {
 			toast.warning(
 				i18next.t("{{success}} generated, {{fail}} failed", {

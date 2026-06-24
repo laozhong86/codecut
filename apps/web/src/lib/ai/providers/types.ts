@@ -142,12 +142,12 @@ export interface AIVoiceCloneProvider {
 	description: string;
 	submitVoiceCloneTask(params: {
 		request: VoiceCloneRequest;
-		apiKey: string;
+		apiKey?: string;
 		referenceAudioFile: File;
 	}): Promise<VoiceCloneTaskResult>;
 	getVoiceCloneTask(params: {
 		taskId: string;
-		apiKey: string;
+		apiKey?: string;
 	}): Promise<VoiceCloneTaskResult>;
 	downloadVoiceCloneResult(params: { audioUrl: string }): Promise<Blob>;
 }

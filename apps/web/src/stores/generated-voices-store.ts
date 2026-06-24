@@ -4,6 +4,11 @@ import type {
 	VoiceCloneTaskResult,
 	VoiceDesignTaskResult,
 } from "@/lib/ai/providers";
+import {
+	RUNNINGHUB_API_KEY_MISSING_MESSAGE,
+	isRunningHubApiKeyMissingError,
+	runningHubVoiceErrorMessage,
+} from "@/lib/ai/runninghub-user-messages";
 import { storageService } from "@/services/storage/service";
 import type { GeneratedVoice } from "@/types/voice";
 import { generateUUID } from "@/utils/id";
@@ -19,9 +24,15 @@ interface GenerateVoiceParams {
 interface CloneVoiceFromReferenceParams {
 	text: string;
 	referenceAudioFile: File;
+	name?: string;
+	apiKeySource?: "settings" | "runtime";
 }
 
 type GeneratedVoiceTaskResult = VoiceDesignTaskResult | VoiceCloneTaskResult;
+interface GeneratedVoiceResult {
+	voice: GeneratedVoice;
+	audioBlob: Blob;
+}
 
 interface GeneratedVoicesState {
 	voices: GeneratedVoice[];
@@ -32,10 +43,12 @@ interface GeneratedVoicesState {
 	error: string | null;
 
 	loadVoices: () => Promise<void>;
-	generateNewVoice: (params: GenerateVoiceParams) => Promise<void>;
+	generateNewVoice: (
+		params: GenerateVoiceParams,
+	) => Promise<GeneratedVoiceResult>;
 	cloneVoiceFromReference: (
 		params: CloneVoiceFromReferenceParams,
-	) => Promise<void>;
+	) => Promise<GeneratedVoiceResult>;
 	removeVoice: ({ voiceId }: { voiceId: string }) => Promise<void>;
 	loadVoiceAudio: ({
 		audioBlobId,
@@ -52,19 +65,14 @@ function sleep({ ms }: { ms: number }): Promise<void> {
 }
 
 async function waitForGeneratedVoiceTask({
-	apiKey,
 	taskId,
 	getTask,
 }: {
-	apiKey: string;
 	taskId: string;
-	getTask: (params: {
-		apiKey: string;
-		taskId: string;
-	}) => Promise<GeneratedVoiceTaskResult>;
+	getTask: () => Promise<GeneratedVoiceTaskResult>;
 }): Promise<GeneratedVoiceTaskResult> {
 	for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
-		const result = await getTask({ apiKey, taskId });
+		const result = await getTask();
 		useGeneratedVoicesStore.setState({
 			currentTaskStatus: result.status,
 			error: result.error ?? null,
@@ -128,7 +136,12 @@ export const useGeneratedVoicesStore = create<GeneratedVoicesState>()(
 
 			const { runningHubApiKey } = useAISettingsStore.getState();
 			if (!runningHubApiKey) {
-				throw new Error("RUNNINGHUB_API_KEY is required");
+				set({
+					error: RUNNINGHUB_API_KEY_MISSING_MESSAGE,
+					currentTaskStatus: "failed",
+				});
+				toast.warning(RUNNINGHUB_API_KEY_MISSING_MESSAGE);
+				throw new Error(RUNNINGHUB_API_KEY_MISSING_MESSAGE);
 			}
 
 			set({
@@ -154,9 +167,12 @@ export const useGeneratedVoicesStore = create<GeneratedVoicesState>()(
 					submitted.status === "succeeded"
 						? submitted
 						: await waitForGeneratedVoiceTask({
-								apiKey: runningHubApiKey,
 								taskId: submitted.taskId,
-								getTask: runningHubVoiceDesignProvider.getVoiceDesignTask,
+								getTask: () =>
+									runningHubVoiceDesignProvider.getVoiceDesignTask({
+										apiKey: runningHubApiKey,
+										taskId: submitted.taskId,
+									}),
 							});
 				if (finished.status === "failed") {
 					throw new Error(
@@ -194,12 +210,17 @@ export const useGeneratedVoicesStore = create<GeneratedVoicesState>()(
 					currentTaskStatus: "succeeded",
 				}));
 				toast.success("Voice created");
+				return { voice, audioBlob };
 			} catch (error) {
-				const message =
-					error instanceof Error
-						? error.message
-						: "Voice design generation failed";
+				const message = runningHubVoiceErrorMessage({
+					error,
+					fallbackMessage: "Voice design generation failed",
+				});
 				set({ error: message, currentTaskStatus: "failed" });
+				if (isRunningHubApiKeyMissingError(error)) {
+					toast.warning(message);
+					throw new Error(message);
+				}
 				toast.error(message);
 				throw error;
 			} finally {
@@ -210,6 +231,8 @@ export const useGeneratedVoicesStore = create<GeneratedVoicesState>()(
 		cloneVoiceFromReference: async ({
 			text,
 			referenceAudioFile,
+			name,
+			apiKeySource = "settings",
 		}) => {
 			if (get().isGenerating) {
 				throw new Error("Voice clone generation is already running");
@@ -224,8 +247,17 @@ export const useGeneratedVoicesStore = create<GeneratedVoicesState>()(
 			}
 
 			const { runningHubApiKey } = useAISettingsStore.getState();
-			if (!runningHubApiKey) {
-				throw new Error("RUNNINGHUB_API_KEY is required");
+			const cloneApiKey =
+				apiKeySource === "runtime"
+					? runningHubApiKey.trim() || undefined
+					: runningHubApiKey;
+			if (apiKeySource === "settings" && !cloneApiKey) {
+				set({
+					error: RUNNINGHUB_API_KEY_MISSING_MESSAGE,
+					currentTaskStatus: "failed",
+				});
+				toast.warning(RUNNINGHUB_API_KEY_MISSING_MESSAGE);
+				throw new Error(RUNNINGHUB_API_KEY_MISSING_MESSAGE);
 			}
 
 			set({
@@ -234,13 +266,14 @@ export const useGeneratedVoicesStore = create<GeneratedVoicesState>()(
 				error: null,
 			});
 			try {
-				const submitted = await runningHubVoiceCloneProvider.submitVoiceCloneTask({
-					apiKey: runningHubApiKey,
-					referenceAudioFile,
-					request: {
-						text: trimmedText,
-					},
-				});
+				const submitted =
+					await runningHubVoiceCloneProvider.submitVoiceCloneTask({
+						apiKey: cloneApiKey,
+						referenceAudioFile,
+						request: {
+							text: trimmedText,
+						},
+					});
 				set({
 					currentTaskStatus: submitted.status,
 					error: submitted.error ?? null,
@@ -250,9 +283,12 @@ export const useGeneratedVoicesStore = create<GeneratedVoicesState>()(
 					submitted.status === "succeeded"
 						? submitted
 						: await waitForGeneratedVoiceTask({
-								apiKey: runningHubApiKey,
 								taskId: submitted.taskId,
-								getTask: runningHubVoiceCloneProvider.getVoiceCloneTask,
+								getTask: () =>
+									runningHubVoiceCloneProvider.getVoiceCloneTask({
+										apiKey: cloneApiKey,
+										taskId: submitted.taskId,
+									}),
 							});
 				if (finished.status === "failed") {
 					throw new Error(
@@ -272,9 +308,10 @@ export const useGeneratedVoicesStore = create<GeneratedVoicesState>()(
 				}
 
 				const voiceId = generateUUID();
+				const voiceName = name?.trim() || buildVoiceName({ text: trimmedText });
 				const voice: GeneratedVoice = {
 					id: voiceId,
-					name: buildVoiceName({ text: trimmedText }),
+					name: voiceName,
 					text: trimmedText,
 					provider: runningHubVoiceCloneProvider.id,
 					taskId: finished.taskId,
@@ -289,12 +326,17 @@ export const useGeneratedVoicesStore = create<GeneratedVoicesState>()(
 					currentTaskStatus: "succeeded",
 				}));
 				toast.success("Voice created");
+				return { voice, audioBlob };
 			} catch (error) {
-				const message =
-					error instanceof Error
-						? error.message
-						: "Voice clone generation failed";
+				const message = runningHubVoiceErrorMessage({
+					error,
+					fallbackMessage: "Voice clone generation failed",
+				});
 				set({ error: message, currentTaskStatus: "failed" });
+				if (isRunningHubApiKeyMissingError(error)) {
+					toast.warning(message);
+					throw new Error(message);
+				}
 				toast.error(message);
 				throw error;
 			} finally {

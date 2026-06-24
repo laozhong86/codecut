@@ -49,6 +49,11 @@ import {
 import { isDevPlaceholderAvailable } from "@/lib/ai/placeholder";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+	SETTINGS_TAB_KEYS,
+	useAssetsPanelStore,
+	type SettingsTab,
+} from "@/stores/assets-panel-store";
 
 export function SettingsView() {
 	return <ProjectSettingsTabs />;
@@ -56,10 +61,18 @@ export function SettingsView() {
 
 function ProjectSettingsTabs() {
 	const { t } = useTranslation();
+	const { settingsTab, setSettingsTab } = useAssetsPanelStore();
+
+	const handleSettingsTabChange = (value: string) => {
+		if (!SETTINGS_TAB_KEYS.includes(value as SettingsTab)) return;
+		setSettingsTab(value as SettingsTab);
+	};
 
 	return (
 		<BaseView
 			defaultTab="project-info"
+			value={settingsTab}
+			onValueChange={handleSettingsTabChange}
 			tabs={[
 				{
 					value: "project-info",

@@ -14,6 +14,22 @@ describe("digital human UI surfaces", () => {
 		expect(source).toContain("setRunningHubApiKey");
 	});
 
+	test("settings AI tab can be opened from configuration reminders", async () => {
+		const settingsSource = await readFile(
+			"apps/web/src/components/editor/panels/assets/views/settings.tsx",
+			"utf8",
+		);
+		const aiSource = await readFile(
+			"apps/web/src/components/editor/panels/assets/views/ai.tsx",
+			"utf8",
+		);
+
+		expect(settingsSource).toContain("settingsTab");
+		expect(settingsSource).toContain("setSettingsTab");
+		expect(settingsSource).toContain("value={settingsTab}");
+		expect(aiSource).toContain("openAISettings");
+	});
+
 	test("AI panel exposes the Digital Human tab and media-library selectors", async () => {
 		const source = await readFile(
 			"apps/web/src/components/editor/panels/assets/views/ai.tsx",

@@ -31,6 +31,15 @@ export const TAB_KEYS = [
 
 export type Tab = (typeof TAB_KEYS)[number];
 
+export const SETTINGS_TAB_KEYS = [
+	"project-info",
+	"cover",
+	"background",
+	"ai",
+] as const;
+
+export type SettingsTab = (typeof SETTINGS_TAB_KEYS)[number];
+
 const createHugeiconsIcon =
 	({ icon }: { icon: IconSvgElement }) =>
 	({ className }: { className?: string }) => (
@@ -106,6 +115,9 @@ type MediaViewMode = "grid" | "list";
 interface AssetsPanelStore {
 	activeTab: Tab;
 	setActiveTab: (tab: Tab) => void;
+	settingsTab: SettingsTab;
+	setSettingsTab: (tab: SettingsTab) => void;
+	openAISettings: () => void;
 	highlightMediaId: string | null;
 	requestRevealMedia: (mediaId: string) => void;
 	clearHighlight: () => void;
@@ -118,6 +130,9 @@ interface AssetsPanelStore {
 export const useAssetsPanelStore = create<AssetsPanelStore>((set) => ({
 	activeTab: "media",
 	setActiveTab: (tab) => set({ activeTab: tab }),
+	settingsTab: "project-info",
+	setSettingsTab: (tab) => set({ settingsTab: tab }),
+	openAISettings: () => set({ activeTab: "settings", settingsTab: "ai" }),
 	highlightMediaId: null,
 	requestRevealMedia: (mediaId) =>
 		set({ activeTab: "media", highlightMediaId: mediaId }),

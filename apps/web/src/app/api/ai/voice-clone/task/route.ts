@@ -1,23 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { queryRunningHubVoiceCloneTask } from "@/lib/ai/providers/runninghub-voice-clone-server";
+import { runningHubApiKeyFromRequest } from "@/lib/ai/runninghub-route-auth";
 
 const querySchema = z.object({
 	taskId: z.string().min(1),
 });
 
-function apiKeyFromRequest({ request }: { request: NextRequest }): string {
-	const authorization = request.headers.get("authorization");
-	const match = authorization?.match(/^Bearer\s+(.+)$/i);
-	if (!match?.[1]) {
-		throw new Error("Missing Authorization header");
-	}
-	return match[1];
-}
-
 export async function GET(request: NextRequest) {
 	try {
-		const apiKey = apiKeyFromRequest({ request });
+		const apiKey = runningHubApiKeyFromRequest({ request });
 		const validation = querySchema.safeParse({
 			taskId: request.nextUrl.searchParams.get("taskId"),
 		});

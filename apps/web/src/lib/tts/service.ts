@@ -1,11 +1,16 @@
 import type { EditorCore } from "@/core";
+import { resolveVoicePack, type VoicePack } from "@/constants/tts-constants";
 import { buildUploadAudioElement, wouldElementOverlap } from "@/lib/timeline";
+import type { SpokenScriptData } from "@/services/storage/types";
+import { useGeneratedVoicesStore } from "@/stores/generated-voices-store";
 import { buildTtsSpokenScript } from "./spoken-script";
 
 export interface TtsResult {
 	duration: number;
 	buffer: AudioBuffer;
 	blob: Blob;
+	provider?: SpokenScriptData["provider"];
+	providerTaskId?: string;
 }
 
 function base64ToArrayBuffer({ base64 }: { base64: string }): ArrayBuffer {
@@ -17,17 +22,21 @@ function base64ToArrayBuffer({ base64 }: { base64: string }): ArrayBuffer {
 	return bytes.buffer;
 }
 
-export async function generateSpeechFromText({
+async function decodeAudioBlob({ blob }: { blob: Blob }): Promise<AudioBuffer> {
+	const arrayBuffer = await blob.arrayBuffer();
+	const audioContext = new AudioContext();
+	return audioContext.decodeAudioData(arrayBuffer.slice(0));
+}
+
+async function generateLegacySpeechFromText({
 	text,
-	voice,
 }: {
 	text: string;
-	voice?: string;
 }): Promise<TtsResult> {
 	const response = await fetch("/api/tts/generate", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ text, voice }),
+		body: JSON.stringify({ text, voice: "default" }),
 	});
 
 	if (!response.ok) {
@@ -38,15 +47,85 @@ export async function generateSpeechFromText({
 	const { audio } = (await response.json()) as { audio: string };
 	const arrayBuffer = base64ToArrayBuffer({ base64: audio });
 	const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
-
-	const audioContext = new AudioContext();
-	const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+	const buffer = await decodeAudioBlob({ blob });
 
 	return {
 		duration: buffer.duration,
 		buffer,
 		blob,
 	};
+}
+
+async function fetchVoiceReferenceAudio({
+	voicePack,
+}: {
+	voicePack: VoicePack;
+}): Promise<File> {
+	if (
+		!voicePack.referenceAudioUrl ||
+		!voicePack.referenceAudioFileName ||
+		!voicePack.referenceAudioMimeType
+	) {
+		throw new Error(`TTS voice ${voicePack.id} is missing reference audio.`);
+	}
+
+	const response = await fetch(voicePack.referenceAudioUrl);
+	if (!response.ok) {
+		throw new Error(
+			`Failed to load reference audio for ${voicePack.name}: ${response.status}`,
+		);
+	}
+	const referenceAudioBlob = await response.blob();
+	if (referenceAudioBlob.size <= 0) {
+		throw new Error(`Reference audio for ${voicePack.name} is empty.`);
+	}
+	return new File([referenceAudioBlob], voicePack.referenceAudioFileName, {
+		type: voicePack.referenceAudioMimeType,
+	});
+}
+
+async function generateRunningHubClonedSpeechFromText({
+	text,
+	voicePack,
+}: {
+	text: string;
+	voicePack: VoicePack;
+}): Promise<TtsResult> {
+	const referenceAudioFile = await fetchVoiceReferenceAudio({ voicePack });
+	const generatedVoice = await useGeneratedVoicesStore
+		.getState()
+		.cloneVoiceFromReference({
+			text,
+			referenceAudioFile,
+			name: voicePack.name,
+			apiKeySource: "runtime",
+		});
+	const buffer = await decodeAudioBlob({ blob: generatedVoice.audioBlob });
+
+	return {
+		duration: buffer.duration,
+		buffer,
+		blob: generatedVoice.audioBlob,
+		provider: "runninghub-voice-clone",
+		providerTaskId: generatedVoice.voice.taskId,
+	};
+}
+
+export async function generateSpeechFromText({
+	text,
+	voice,
+}: {
+	text: string;
+	voice?: string;
+}): Promise<TtsResult> {
+	const voicePack = resolveVoicePack({ voice });
+	if (voicePack.provider === "legacy-tts") {
+		return generateLegacySpeechFromText({ text });
+	}
+	if (voicePack.provider === "runninghub-voice-clone") {
+		return generateRunningHubClonedSpeechFromText({ text, voicePack });
+	}
+	throw new Error(`Unsupported TTS voice provider: ${voicePack.provider}`);
 }
 
 function findAvailableAudioTrack({
@@ -98,7 +177,17 @@ export async function generateAndInsertSpeech({
 		captionLines,
 		protectedTerms,
 	});
-	const result = await generateSpeechFromText({ text: spokenScript.text, voice });
+	const result = await generateSpeechFromText({
+		text: spokenScript.text,
+		voice,
+	});
+	const assetSpokenScript = buildTtsSpokenScript({
+		text: spokenScript.text,
+		captionLines: spokenScript.captions,
+		protectedTerms: spokenScript.protectedTerms,
+		provider: result.provider,
+		providerTaskId: result.providerTaskId,
+	});
 
 	const name = `TTS: ${spokenScript.text.slice(0, 30)}`;
 	const file = new File([result.blob], `${name}.mp3`, {
@@ -116,7 +205,7 @@ export async function generateAndInsertSpeech({
 			url,
 			duration: result.duration,
 			ephemeral: true,
-			spokenScript,
+			spokenScript: assetSpokenScript,
 		},
 	});
 
