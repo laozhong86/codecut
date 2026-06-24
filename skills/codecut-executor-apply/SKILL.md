@@ -68,6 +68,10 @@ the browser-control blocker plus the returned URL.
 Import only when needed:
 
 Use `import-media` from the docs after the source material path is known.
+For `--file-path` imports, the bridge preflights local media with ffprobe when
+metadata is incomplete. Imported video must read back `duration`, `width`, and
+`height`; imported audio must read back `duration`. Run `list_media_assets`
+after import and stop if those required fields are missing.
 
 For reference-derived template draft imports, rely on
 `codecut-reference-template` for the confirmation gate and run
@@ -76,6 +80,8 @@ For reference-derived template draft imports, rely on
 Apply a strict implemented EditPlan:
 
 Use `validate-edit-plan`, `preview-edit-plan`, and `apply-plan` from the docs.
+Captioned EditPlans must use `captions[]` plus top-level `captionStyle` only.
+Do not add arbitrary caption font or CSS fields to the plan.
 
 Verify:
 

@@ -382,8 +382,10 @@ omitted. Caption styling is intentionally limited to top-level local presets:
 `documentary-soft`, `product-punch`, `lifestyle-warm`, and
 `cinematic-serif`, `social-highlight`, `comment-bubble`, and `minimal-reel`.
 Codecut does not accept arbitrary CSS, per-caption style
-objects, `bold_caption`, `keyword_caption`, or `keyword-highlight` in this
-contract.
+objects, arbitrary `fontFamily`, `fontSize`, or `color` fields,
+`bold_caption`, `keyword_caption`, or `keyword-highlight` in this contract.
+Caption presets resolve to controlled local renderer styles; the current
+implementation uses the deterministic CJK renderer font.
 
 Caption quality is part of validation, post-cut caption generation,
 `add_captions`, and the read-only video quality report. Captions must not
@@ -821,6 +823,13 @@ node scripts/codex-bridge.mjs import-media \
 ```
 
 The local file path stays on the Codex side. The CLI reads the file bytes and sends a base64 payload through the local bridge; very large source videos can hit local request size or timeout limits.
+For local `--file-path` imports, the bridge runs ffprobe when video metadata is
+incomplete and sends required metadata with the import payload. Local video
+imports must read back `duration`, `width`, and `height`; local audio imports
+must read back `duration`. Explicit CLI metadata flags override probe results.
+Bytes/base64 imports do not have a reliable source path to probe, so callers
+must provide required video or audio metadata explicitly. Verify imports with
+`list_media_assets` before sourceCrop, cover-fit, or export-sensitive planning.
 
 Import a user-confirmed reference-derived template draft into Codecut system
 templates only after explicit confirmation:

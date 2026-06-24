@@ -2312,6 +2312,21 @@ function normalizeMediaMetadata({ duration, width, height }) {
 	};
 }
 
+function shouldProbeLocalImportMetadata({ filePath, metadata }) {
+	const mimeType = mimeTypeForFilePath({ filePath });
+	if (mimeType.startsWith("video/")) {
+		return (
+			metadata.duration === undefined ||
+			metadata.width === undefined ||
+			metadata.height === undefined
+		);
+	}
+	if (mimeType.startsWith("audio/")) {
+		return metadata.duration === undefined;
+	}
+	return false;
+}
+
 async function readBase64Input({ bytes, bytesBase64File }) {
 	if (bytes && bytesBase64File) {
 		throw new Error("--bytes and --bytes-base64-file cannot be used together");
@@ -2737,6 +2752,7 @@ export async function runCli({
 	homeDir = homedir(),
 	installDoctorImpl = runInstallDoctor,
 	pluginFreshnessImpl = runPluginFreshness,
+	execFileImpl = execFileAsync,
 }) {
 	const [command, ...rest] = argv;
 	if (!command || command === "help" || command === "--help") {
@@ -2939,8 +2955,12 @@ export async function runCli({
 			height: flags.height,
 		});
 		const mediaMetadata =
-			flags.filePath && flagMetadata.duration === undefined
-				? await probeMediaFile({ filePath: flags.filePath })
+			flags.filePath &&
+			shouldProbeLocalImportMetadata({
+				filePath: flags.filePath,
+				metadata: flagMetadata,
+			})
+				? await probeMediaFile({ filePath: flags.filePath, execFileImpl })
 				: flagMetadata;
 		envelope = await buildImportMediaEnvelope({
 			projectId: flags.projectId,

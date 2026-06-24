@@ -421,6 +421,33 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("rejects imported video without dimensions before saving media", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 120,
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(importResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "import_media_file",
+			success: false,
+			message: "Imported video width and height are required.",
+		});
+		expect(state.mediaAssets).toEqual([]);
+	});
+
 	test("summarizes spokenScript metadata in media asset readback", async () => {
 		await createExecutorProject({ projectId, name: "Scripted TTS readback" });
 		await executeCodexExecutorEnvelope({
@@ -1441,6 +1468,26 @@ describe("codex executor", () => {
 				}),
 			]),
 		);
+		const v1TextTrack = (
+			v1Data.tracks as Array<{
+				type?: string;
+				elements?: Array<Record<string, unknown>>;
+			}>
+		).find((track) => track.type === "text");
+		expect(v1TextTrack?.elements?.[0]).toMatchObject({
+			content: "Opening claim",
+			startTime: 1,
+			duration: 2,
+			style: {
+				fontFamily: "CodecutCJK",
+				fontSize: 4.8,
+				color: "#fff3b0",
+				stroke: { color: "#101010", width: 3 },
+				backgroundColor: "transparent",
+				boxWidth: 44,
+				transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
+			},
+		});
 
 		const v2Result = await executeCodexExecutorEnvelope({
 			envelope: envelope({
@@ -1567,8 +1614,27 @@ describe("codex executor", () => {
 			},
 		});
 		const v2Data = resultData<{
+			tracks: Array<{
+				type: string;
+				elements: Array<Record<string, unknown>>;
+			}>;
 			referencedMedia?: Record<string, { name: string }>;
 		}>(v2Result.results[0]);
+		const v2TextTrack = v2Data.tracks.find((track) => track.type === "text");
+		expect(v2TextTrack?.elements[0]).toMatchObject({
+			content: "Proof point",
+			startTime: 5,
+			duration: 2,
+			style: {
+				fontFamily: "CodecutCJK",
+				fontSize: 4.8,
+				color: "#fff3b0",
+				stroke: { color: "#101010", width: 3 },
+				backgroundColor: "transparent",
+				boxWidth: 44,
+				transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
+			},
+		});
 		expect(
 			Object.values(v2Data.referencedMedia ?? {}).map((asset) => asset.name),
 		).toEqual(["source.mp4"]);

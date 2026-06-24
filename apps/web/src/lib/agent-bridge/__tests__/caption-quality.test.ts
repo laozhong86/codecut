@@ -104,6 +104,29 @@ describe("auditCaptions", () => {
 		});
 	});
 
+	test("fails captions beyond the timeline duration", () => {
+		const report = auditCaptions({
+			...layout,
+			captions: [
+				{
+					text: "Out of range",
+					startTime: 11,
+					duration: 2,
+				},
+			],
+		});
+
+		expect(report).toMatchObject({
+			ok: false,
+			issues: [
+				{
+					code: "caption_outside_timeline",
+					path: "captions[0]",
+				},
+			],
+		});
+	});
+
 	test("fails captions that cannot fit the preset line limits", () => {
 		const report = auditCaptions({
 			...layout,
