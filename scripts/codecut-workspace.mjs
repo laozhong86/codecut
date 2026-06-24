@@ -20,6 +20,7 @@ import {
 } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { assertCodecutConfirmationToken } from "./codecut-confirmation-gate.mjs";
 
 const execFileAsync = promisify(execFile);
 const WORKSPACE_ROOT = ".codecut-workspace";
@@ -104,10 +105,10 @@ function nowIso() {
 function usage() {
 	return [
 		"Usage:",
-		"  node scripts/codecut-workspace.mjs init --project-id <id> --name <name> --user-message <text>",
-		"  node scripts/codecut-workspace.mjs add-assets --project-id <id> --file /absolute/path/source.mp4 [--file /absolute/path/brief.pdf]",
-		"  node scripts/codecut-workspace.mjs probe-assets --project-id <id>",
-		"  node scripts/codecut-workspace.mjs write-doc --project-id <id> --kind <kind> --content-file /absolute/path/doc.md",
+		"  node scripts/codecut-workspace.mjs init --project-id <id> --name <name> --user-message <text> --confirmation-token <token>",
+		"  node scripts/codecut-workspace.mjs add-assets --project-id <id> --file /absolute/path/source.mp4 [--file /absolute/path/brief.pdf] --confirmation-token <token>",
+		"  node scripts/codecut-workspace.mjs probe-assets --project-id <id> --confirmation-token <token>",
+		"  node scripts/codecut-workspace.mjs write-doc --project-id <id> --kind <kind> --content-file /absolute/path/doc.md --confirmation-token <token>",
 		"",
 		"Optional:",
 		"  --source-root <path>  Defaults to the current plugin root.",
@@ -265,6 +266,8 @@ export async function initWorkspace({
 	projectId,
 	name,
 	userMessage,
+	confirmationToken,
+	confirmationRoot,
 }) {
 	if (!name) {
 		throw new Error("--name is required");
@@ -273,6 +276,11 @@ export async function initWorkspace({
 		throw new Error("--user-message is required");
 	}
 	const paths = buildWorkspacePaths({ sourceRoot, projectId });
+	await assertCodecutConfirmationToken({
+		root: confirmationRoot,
+		projectId,
+		confirmationToken,
+	});
 	if (await pathExists(paths.workspaceFile)) {
 		throw new Error(`Workspace already exists for project ${projectId}`);
 	}
@@ -348,11 +356,18 @@ export async function addWorkspaceAssets({
 	sourceRoot = process.cwd(),
 	projectId,
 	files,
+	confirmationToken,
+	confirmationRoot,
 }) {
 	if (!Array.isArray(files) || files.length === 0) {
 		throw new Error("--file is required at least once");
 	}
 	const paths = buildWorkspacePaths({ sourceRoot, projectId });
+	await assertCodecutConfirmationToken({
+		root: confirmationRoot,
+		projectId,
+		confirmationToken,
+	});
 	await readWorkspace(paths);
 	const manifest = await readJson(paths.manifestFile);
 	const addedAssets = [];
@@ -523,9 +538,16 @@ function buildMaterialAuditMarkdown({ projectId, assets }) {
 export async function probeWorkspaceAssets({
 	sourceRoot = process.cwd(),
 	projectId,
+	confirmationToken,
+	confirmationRoot,
 	execFileImpl = execFileAsync,
 }) {
 	const paths = buildWorkspacePaths({ sourceRoot, projectId });
+	await assertCodecutConfirmationToken({
+		root: confirmationRoot,
+		projectId,
+		confirmationToken,
+	});
 	await readWorkspace(paths);
 	const manifest = await readJson(paths.manifestFile);
 	const probedAssets = [];
@@ -600,6 +622,8 @@ export async function writeWorkspaceDocument({
 	projectId,
 	kind,
 	content,
+	confirmationToken,
+	confirmationRoot,
 }) {
 	if (!documentPaths.has(kind)) {
 		throw new Error(
@@ -610,6 +634,11 @@ export async function writeWorkspaceDocument({
 		throw new Error("--content-file must contain text");
 	}
 	const paths = buildWorkspacePaths({ sourceRoot, projectId });
+	await assertCodecutConfirmationToken({
+		root: confirmationRoot,
+		projectId,
+		confirmationToken,
+	});
 	await readWorkspace(paths);
 	const path = join(paths.projectDirectory, documentPaths.get(kind));
 	await writeFile(path, content, "utf8");
@@ -639,6 +668,7 @@ export async function runCli({
 			projectId: flags.projectId,
 			name: flags.name,
 			userMessage: flags.userMessage,
+			confirmationToken: flags.confirmationToken,
 		});
 		stdout(JSON.stringify(result, null, 2));
 		return 0;
@@ -648,6 +678,7 @@ export async function runCli({
 			sourceRoot: resolvedSourceRoot,
 			projectId: flags.projectId,
 			files: flags.files,
+			confirmationToken: flags.confirmationToken,
 		});
 		stdout(JSON.stringify(result, null, 2));
 		return 0;
@@ -656,6 +687,7 @@ export async function runCli({
 		const result = await probeWorkspaceAssets({
 			sourceRoot: resolvedSourceRoot,
 			projectId: flags.projectId,
+			confirmationToken: flags.confirmationToken,
 			execFileImpl,
 		});
 		stdout(JSON.stringify(result, null, 2));
@@ -670,10 +702,11 @@ export async function runCli({
 		}
 		const result = await writeWorkspaceDocument({
 			sourceRoot: resolvedSourceRoot,
-			projectId: flags.projectId,
-			kind: flags.kind,
-			content: await readFile(flags.contentFile, "utf8"),
-		});
+				projectId: flags.projectId,
+				kind: flags.kind,
+				content: await readFile(flags.contentFile, "utf8"),
+				confirmationToken: flags.confirmationToken,
+			});
 		stdout(JSON.stringify(result, null, 2));
 		return 0;
 	}

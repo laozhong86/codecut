@@ -16,9 +16,21 @@ import {
 	runCli,
 	writeWorkspaceDocument,
 } from "../codecut-workspace.mjs";
+import {
+	createPendingCodecutConfirmation,
+	mintCodecutConfirmationToken,
+} from "../codecut-confirmation-gate.mjs";
 
 async function makeTempRoot() {
 	return mkdtemp(join(tmpdir(), "codecut-workspace-"));
+}
+
+async function createWorkspaceConfirmationToken(sourceRoot, projectId) {
+	return mintCodecutConfirmationToken({
+		root: sourceRoot,
+		projectId,
+		pendingConfirmationId: createPendingCodecutConfirmation(),
+	});
 }
 
 async function readJson(path) {
@@ -52,6 +64,11 @@ describe("Codecut workspace CLI helpers", () => {
 
 	test("initializes the pre-edit workspace folders and planning documents", async () => {
 		const sourceRoot = await makeTempRoot();
+		const confirmationRoot = await makeTempRoot();
+		const confirmationToken = await createWorkspaceConfirmationToken(
+			confirmationRoot,
+			"ugc-launch",
+		);
 
 		try {
 			const result = await initWorkspace({
@@ -59,6 +76,8 @@ describe("Codecut workspace CLI helpers", () => {
 				projectId: "ugc-launch",
 				name: "UGC launch short",
 				userMessage: "请剪一个竖屏带货短视频",
+				confirmationToken,
+				confirmationRoot,
 			});
 
 			const expectedDirectories = [
@@ -113,12 +132,37 @@ describe("Codecut workspace CLI helpers", () => {
 			});
 		} finally {
 			await rm(sourceRoot, { recursive: true, force: true });
+			await rm(confirmationRoot, { recursive: true, force: true });
+		}
+	});
+
+	test("blocks workspace initialization before widget confirmation", async () => {
+		const sourceRoot = await makeTempRoot();
+
+		try {
+			await expect(
+				initWorkspace({
+					sourceRoot,
+					projectId: "blocked-cut",
+					name: "Blocked cut",
+					userMessage: "剪一条视频",
+				}),
+			).rejects.toThrow("confirmationToken is required");
+			await expect(
+				access(join(sourceRoot, ".codecut-workspace/projects/blocked-cut")),
+			).rejects.toThrow();
+		} finally {
+			await rm(sourceRoot, { recursive: true, force: true });
 		}
 	});
 
 	test("copies provided assets into category folders and updates the manifest", async () => {
 		const sourceRoot = await makeTempRoot();
 		const inputRoot = await makeTempRoot();
+		const confirmationToken = await createWorkspaceConfirmationToken(
+			sourceRoot,
+			"asset-cut",
+		);
 		const videoPath = join(inputRoot, "source.mp4");
 		const audioPath = join(inputRoot, "voice.wav");
 		const imagePath = join(inputRoot, "cover.png");
@@ -134,12 +178,16 @@ describe("Codecut workspace CLI helpers", () => {
 				projectId: "asset-cut",
 				name: "Asset cut",
 				userMessage: "剪一条产品短视频",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
 			});
 
 			const result = await addWorkspaceAssets({
 				sourceRoot,
 				projectId: "asset-cut",
 				files: [videoPath, audioPath, imagePath, documentPath],
+				confirmationToken,
+				confirmationRoot: sourceRoot,
 			});
 
 			expect(result.assets.map((asset) => asset.category)).toEqual([
@@ -172,9 +220,45 @@ describe("Codecut workspace CLI helpers", () => {
 		}
 	});
 
+	test("blocks asset ingest before widget confirmation", async () => {
+		const sourceRoot = await makeTempRoot();
+		const inputRoot = await makeTempRoot();
+		const confirmationToken = await createWorkspaceConfirmationToken(
+			sourceRoot,
+			"asset-cut",
+		);
+		const videoPath = join(inputRoot, "source.mp4");
+		await writeFile(videoPath, "video");
+
+		try {
+			await initWorkspace({
+				sourceRoot,
+				projectId: "asset-cut",
+				name: "Asset cut",
+				userMessage: "剪一条产品短视频",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
+			});
+			await expect(
+				addWorkspaceAssets({
+					sourceRoot,
+					projectId: "asset-cut",
+					files: [videoPath],
+				}),
+			).rejects.toThrow("confirmationToken is required");
+		} finally {
+			await rm(sourceRoot, { recursive: true, force: true });
+			await rm(inputRoot, { recursive: true, force: true });
+		}
+	});
+
 	test("probes video and audio assets with ffprobe and writes inventory reports", async () => {
 		const sourceRoot = await makeTempRoot();
 		const inputRoot = await makeTempRoot();
+		const confirmationToken = await createWorkspaceConfirmationToken(
+			sourceRoot,
+			"probe-cut",
+		);
 		const videoPath = join(inputRoot, "source.mp4");
 		const audioPath = join(inputRoot, "voice.wav");
 		await writeFile(videoPath, "video");
@@ -187,16 +271,22 @@ describe("Codecut workspace CLI helpers", () => {
 				projectId: "probe-cut",
 				name: "Probe cut",
 				userMessage: "素材先盘点",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
 			});
 			await addWorkspaceAssets({
 				sourceRoot,
 				projectId: "probe-cut",
 				files: [videoPath, audioPath],
+				confirmationToken,
+				confirmationRoot: sourceRoot,
 			});
 
 			const result = await probeWorkspaceAssets({
 				sourceRoot,
 				projectId: "probe-cut",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
 				execFileImpl: async (command, args) => {
 					calls.push({ command, args });
 					const target = args.at(-1);
@@ -262,6 +352,10 @@ describe("Codecut workspace CLI helpers", () => {
 
 	test("writes named planning documents into the workspace", async () => {
 		const sourceRoot = await makeTempRoot();
+		const confirmationToken = await createWorkspaceConfirmationToken(
+			sourceRoot,
+			"script-cut",
+		);
 
 		try {
 			await initWorkspace({
@@ -269,12 +363,16 @@ describe("Codecut workspace CLI helpers", () => {
 				projectId: "script-cut",
 				name: "Script cut",
 				userMessage: "需要口播脚本",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
 			});
 			const result = await writeWorkspaceDocument({
 				sourceRoot,
 				projectId: "script-cut",
 				kind: "talking-script",
 				content: "第一句先说结果。",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
 			});
 
 			expect(result.path.endsWith(join("03-content", "talking-script.md"))).toBe(

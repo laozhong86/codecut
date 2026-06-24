@@ -11,6 +11,10 @@ import { promisify } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import {
+	createPendingCodecutConfirmation,
+	mintCodecutConfirmationToken,
+} from "../scripts/codecut-confirmation-gate.mjs";
 
 const execFileAsync = promisify(execFile);
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,6 +28,16 @@ const projectIdSchema = z
 	.trim()
 	.min(1)
 	.describe("Codecut executor project ID.");
+const confirmationTokenSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.describe(
+		"Confirmed CodeCut setup token returned by submit_codecut_setup. Required for side-effect tools.",
+	);
+const confirmationTokenInputSchema = {
+	confirmationToken: confirmationTokenSchema,
+};
 
 const planJsonFileSchema = z
 	.string()
@@ -96,6 +110,7 @@ const workspaceOutputSchema = z
 	.strict();
 
 const workspaceIntentInputSchema = {
+	pendingConfirmationId: z.string().trim().optional(),
 	projectId: z.string().trim(),
 	projectName: z.string().trim(),
 	mediaSource: workspaceMediaSourceSchema.optional(),
@@ -394,6 +409,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Import one local media file, HTTPS URL, or base64 payload into one explicit Codecut executor project.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			filePath: filePathSchema.optional(),
 			url: urlSchema.optional(),
 			bytes: bytesSchema.optional(),
@@ -580,6 +596,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Apply one existing EditPlan JSON file to one explicit Codecut executor project.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			planJsonFile: planJsonFileSchema,
 			replaceExisting: z
 				.boolean()
@@ -594,6 +611,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Apply one existing NarratedRemixPlan JSON file to one explicit Codecut executor project.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			planJsonFile: planJsonFileSchema,
 			replaceExisting: z
 				.boolean()
@@ -608,6 +626,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Add one or more text elements to an existing or newly created text track.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			trackId: z.string().min(1).optional(),
 			entries: z.array(textEntrySchema).min(1),
 		},
@@ -620,6 +639,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Transcribe the edited timeline audio and add segment-level captions as text elements.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			language: languageSchema,
 			modelId: modelIdSchema,
 			captionStyle: captionStyleSchema.optional(),
@@ -633,6 +653,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Insert one or more media clips into an existing track and ripple later elements on that track.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			trackId: z.string().min(1),
 			atTime: secondsSchema,
 			clips: z
@@ -659,6 +680,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Move clips by stable element ID to another track and/or start time.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			moves: z
 				.array(
 					z
@@ -679,6 +701,7 @@ export const CODECUT_MCP_TOOLS = [
 		description: "Remove clips by stable element ID without ripple.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			elementIds: z.array(z.string().min(1)).min(1),
 		},
 		readOnly: false,
@@ -689,6 +712,7 @@ export const CODECUT_MCP_TOOLS = [
 		description: "Split one clip by element ID at a timeline time.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			elementId: z.string().min(1),
 			atTime: secondsSchema,
 		},
@@ -700,6 +724,7 @@ export const CODECUT_MCP_TOOLS = [
 		description: "Set whitelisted clip properties by stable element ID.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			elementId: z.string().min(1),
 			properties: clipPropertiesSchema,
 		},
@@ -712,6 +737,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Replace or clear keyframes for one whitelisted element property.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			elementId: z.string().min(1),
 			property: keyframePropertySchema,
 			keyframes: z.array(z.union([scalarKeyframeSchema, positionKeyframeSchema])),
@@ -725,6 +751,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Delete timeline second ranges with an explicit scope and ripple only the scoped target. Bare ranges without explicit scope are invalid.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			scope: rippleDeleteScopeSchema,
 			ranges: z.array(rippleDeleteRangeSchema).min(1),
 		},
@@ -737,6 +764,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Create a text-background masked effect through the Codecut local executor.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			sourceMediaId: mediaIdSchema,
 			derivedAssetId: z.string().trim().min(1),
 			content: z.string().trim().min(1),
@@ -753,6 +781,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Create a human picture-in-picture masked effect through the Codecut local executor.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			foregroundMediaId: mediaIdSchema,
 			backgroundMediaId: mediaIdSchema,
 			derivedAssetId: z.string().trim().min(1),
@@ -771,6 +800,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Generate a digital human media asset through the Codecut local executor.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			imageMediaId: mediaIdSchema,
 			audioMediaId: mediaIdSchema,
 			scriptText: z.string().trim().min(1),
@@ -788,6 +818,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Generate a prompt-only RunningHub voice audio asset through the Codecut local executor.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			text: z.string().trim().min(1),
 			emotionPrompt: z.string().trim().min(1),
 			protectedTerms: protectedTermsSchema,
@@ -801,6 +832,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Generate a RunningHub cloned voice audio asset from one absolute local reference audio path through the Codecut local executor.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			audioPath: filePathSchema,
 			text: z.string().trim().min(1),
 			protectedTerms: protectedTermsSchema,
@@ -825,6 +857,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Export the current timeline to one explicit local file through the Codecut executor.",
 		inputSchema: {
 			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 			format: z.enum(["mp4", "webm"]),
 			quality: z.enum(["low", "medium", "high", "very_high"]),
 			includeAudio: z.boolean(),
@@ -942,6 +975,7 @@ export async function readCodecutWorkspaceHtml() {
 
 export function openCodecutWorkspace(input = {}) {
 	const intentDefaults = buildWorkspaceIntentDefaults(input);
+	const pendingConfirmationId = createPendingCodecutConfirmation();
 	return {
 		content: [
 			{
@@ -952,11 +986,12 @@ export function openCodecutWorkspace(input = {}) {
 		structuredContent: {
 			status: "awaiting_user_confirmation",
 			nextAction: "wait_for_widget_submission",
+			pendingConfirmationId,
 			intentDefaults,
 		},
 		_meta: {
 			...codecutWorkspaceToolMeta,
-			widgetData: { intentDefaults },
+			widgetData: { pendingConfirmationId, intentDefaults },
 		},
 	};
 }
@@ -1041,7 +1076,11 @@ async function validateCodecutSetupIntent(intent, { statImpl = stat } = {}) {
 
 export async function submitCodecutSetup(
 	intent,
-	{ bridgeToolImpl = callBridgeCliTool, statImpl = stat } = {},
+	{
+		bridgeToolImpl = callBridgeCliTool,
+		statImpl = stat,
+		confirmationRoot,
+	} = {},
 ) {
 	const inspection = await validateCodecutSetupIntent(intent, { statImpl });
 	if (inspection.status !== "ready") {
@@ -1058,9 +1097,24 @@ export async function submitCodecutSetup(
 	}
 
 	const normalized = inspection.intent;
+	if (!normalized.pendingConfirmationId) {
+		return buildSetupErrorResult({
+			status: "confirmation_required",
+			nextAction: "open_codecut_workspace",
+			intent: normalized,
+			error:
+				"pendingConfirmationId from open_codecut_workspace is required before setup submission.",
+		});
+	}
+	const confirmationToken = await mintCodecutConfirmationToken({
+		root: confirmationRoot,
+		projectId: normalized.projectId,
+		pendingConfirmationId: normalized.pendingConfirmationId,
+	});
 	const createdResult = await bridgeToolImpl("create_project", {
 		projectId: normalized.projectId,
 		name: normalized.projectName,
+		confirmationToken,
 	});
 	if (createdResult?.isError) {
 		return buildSetupErrorResult({
@@ -1089,6 +1143,7 @@ export async function submitCodecutSetup(
 			buildImportMediaArgs({
 				projectId: projectContext.projectId,
 				mediaSource,
+				confirmationToken,
 			}),
 		);
 		if (importResult?.isError) {
@@ -1158,6 +1213,7 @@ export async function submitCodecutSetup(
 		projectName: resultProjectName,
 		revision: latestProject.revision,
 		editorUrl,
+		confirmationToken,
 		importedMedia,
 		intent: resultIntent,
 		continuePrompt: buildContinuePrompt({
@@ -1166,6 +1222,7 @@ export async function submitCodecutSetup(
 			projectName: resultProjectName,
 			revision: latestProject.revision,
 			editorUrl,
+			confirmationToken,
 			importedMedia,
 		}),
 	};
@@ -1337,6 +1394,10 @@ function normalizeWorkspaceIntent(intent) {
 			),
 		];
 	return {
+		pendingConfirmationId:
+			intent.pendingConfirmationId === undefined
+				? undefined
+				: String(intent.pendingConfirmationId).trim(),
 		projectId: String(intent.projectId || "").trim(),
 		projectName: String(intent.projectName || "").trim(),
 		mediaSource: mediaSources[0],
@@ -1492,12 +1553,14 @@ function buildImportMediaArgs(intent) {
 		return {
 			projectId: intent.projectId,
 			filePath: intent.mediaSource.filePath,
+			confirmationToken: intent.confirmationToken,
 		};
 	}
 	const fileName = basename(new URL(intent.mediaSource.url).pathname);
 	return {
 		projectId: intent.projectId,
 		url: intent.mediaSource.url,
+		confirmationToken: intent.confirmationToken,
 		...(intent.mediaSource.mimeType
 			? { mimeType: intent.mediaSource.mimeType }
 			: {}),
@@ -1524,10 +1587,12 @@ function buildContinuePrompt({
 	projectName,
 	revision,
 	editorUrl,
+	confirmationToken,
 	importedMedia,
 }) {
 	return [
 		`Use $codecut to continue the real CodeCut editing chain for project "${projectName}" (${projectId}).`,
+		`Use --confirmation-token ${confirmationToken} for any CodeCut side-effect command that creates projects, imports media, initializes workspaces, adds assets, generates media, mutates timelines, or exports files.`,
 		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. If the selected tab is already on that URL, do not reload it.`,
 		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state_v2 with projectId "${projectId}".`,
 		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
@@ -1547,6 +1612,10 @@ function requireStringArg(args, key) {
 		throw new Error(`${key} is required`);
 	}
 	return String(args[key]);
+}
+
+function requireConfirmationTokenArg(args) {
+	return requireStringArg(args, "confirmationToken");
 }
 
 function requireNumberArg(args, key) {
@@ -1606,7 +1675,7 @@ function optionalNumberArg(args, key) {
 	return args[key];
 }
 
-function buildSendArgs({ projectId, toolName, args }) {
+function buildSendArgs({ projectId, toolName, args, confirmationToken }) {
 	return [
 		"scripts/codex-bridge.mjs",
 		"send",
@@ -1616,6 +1685,9 @@ function buildSendArgs({ projectId, toolName, args }) {
 		toolName,
 		"--args-json",
 		JSON.stringify(args),
+		...(confirmationToken
+			? ["--confirmation-token", confirmationToken]
+			: []),
 	];
 }
 
@@ -1651,6 +1723,8 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			requireProjectId(args),
 			"--name",
 			requireStringArg(args, "name"),
+			"--confirmation-token",
+			requireConfirmationTokenArg(args),
 		];
 	}
 	const projectId = requireProjectId(args);
@@ -1898,6 +1972,8 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 					projectId,
 					"--file-path",
 					String(args.filePath),
+					"--confirmation-token",
+					requireConfirmationTokenArg(args),
 				];
 				return appendOptionalCliArgs(command, args, [
 					["duration", "--duration"],
@@ -1913,6 +1989,8 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 					projectId,
 					"--url",
 					String(args.url),
+					"--confirmation-token",
+					requireConfirmationTokenArg(args),
 				];
 				return appendOptionalCliArgs(command, args, [
 					["fileName", "--file-name"],
@@ -1940,6 +2018,8 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				String(args.fileName),
 				"--mime-type",
 				String(args.mimeType),
+				"--confirmation-token",
+				requireConfirmationTokenArg(args),
 			], args, [
 				["lastModified", "--last-modified"],
 				["duration", "--duration"],
@@ -1962,6 +2042,8 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				String(args.planJsonFile),
 				"--replace-existing",
 				String(args.replaceExisting),
+				"--confirmation-token",
+				requireConfirmationTokenArg(args),
 			];
 		case "apply_narrated_remix_plan":
 			if (!args.planJsonFile) {
@@ -1979,11 +2061,14 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				String(args.planJsonFile),
 				"--replace-existing",
 				String(args.replaceExisting),
+				"--confirmation-token",
+				requireConfirmationTokenArg(args),
 			];
 		case "add_texts":
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: {
 					...(args.trackId === undefined
 						? {}
@@ -1995,6 +2080,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: {
 					language: requireStringArg(args, "language"),
 					modelId: requireStringArg(args, "modelId"),
@@ -2007,6 +2093,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: {
 					trackId: requireStringArg(args, "trackId"),
 					atTime: Number(requireNumberArg(args, "atTime")),
@@ -2017,18 +2104,21 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: { moves: args.moves },
 			});
 		case "remove_clips":
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: { elementIds: args.elementIds },
 			});
 		case "split_clip":
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: {
 					elementId: requireStringArg(args, "elementId"),
 					atTime: Number(requireNumberArg(args, "atTime")),
@@ -2038,6 +2128,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: {
 					elementId: requireStringArg(args, "elementId"),
 					properties: args.properties,
@@ -2047,6 +2138,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: {
 					elementId: requireStringArg(args, "elementId"),
 					property: requireStringArg(args, "property"),
@@ -2057,6 +2149,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: {
 					scope: args.scope,
 					ranges: args.ranges.map((range) => [
@@ -2069,6 +2162,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: {
 					sourceMediaId: requireStringArg(args, "sourceMediaId"),
 					derivedAssetId: requireStringArg(args, "derivedAssetId"),
@@ -2082,6 +2176,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			return buildSendArgs({
 				projectId,
 				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
 				args: {
 					foregroundMediaId: requireStringArg(args, "foregroundMediaId"),
 					backgroundMediaId: requireStringArg(args, "backgroundMediaId"),
@@ -2113,6 +2208,8 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				requireNumberArg(args, "height"),
 				"--fps",
 				requireNumberArg(args, "fps"),
+				"--confirmation-token",
+				requireConfirmationTokenArg(args),
 			];
 		case "generate_runninghub_voice_design":
 			return [
@@ -2125,6 +2222,8 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--emotion-prompt",
 				requireStringArg(args, "emotionPrompt"),
 				...protectedTermCliArgs(args),
+				"--confirmation-token",
+				requireConfirmationTokenArg(args),
 			];
 		case "generate_runninghub_voice_clone":
 			return [
@@ -2137,6 +2236,8 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--text",
 				requireStringArg(args, "text"),
 				...protectedTermCliArgs(args),
+				"--confirmation-token",
+				requireConfirmationTokenArg(args),
 			];
 		case "verify_timeline":
 			return [
@@ -2163,6 +2264,8 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				requireStringArg(args, "outputFile"),
 				"--overwrite",
 				requireBooleanArg(args, "overwrite"),
+				"--confirmation-token",
+				requireConfirmationTokenArg(args),
 			];
 		default:
 			throw new Error(`Unsupported Codecut MCP tool: ${toolName}`);

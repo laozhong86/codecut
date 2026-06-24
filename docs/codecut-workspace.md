@@ -73,13 +73,16 @@ documents for variants that share the same source pack.
 ## Required Order
 
 1. Understand the user message and write intent analysis.
-2. Reserve a concrete `projectId` and business project name.
-3. Initialize the workspace.
-4. Save and classify all provided local materials.
-5. Run ffprobe inventory for video/audio assets.
-6. Ask clarification questions with choices and one recommended option.
-7. Write route and planning documents.
-8. Create the Codecut executor project only when editing execution begins.
+2. Call `open_codecut_workspace` and wait for `submit_codecut_setup`.
+3. Carry the returned confirmation token into all workspace side-effect
+   commands.
+4. Initialize the workspace with the confirmed `projectId`.
+5. Save and classify all provided local materials.
+6. Run ffprobe inventory for video/audio assets.
+7. Ask clarification questions with choices and one recommended option when
+   requirement intake still needs them.
+8. Write route and planning documents.
+9. Create the Codecut executor project only when editing execution begins.
 
 ## CLI
 
@@ -89,7 +92,8 @@ Initialize:
 node scripts/codecut-workspace.mjs init \
   --project-id <id> \
   --name "<business project name>" \
-  --user-message "<original user request>"
+  --user-message "<original user request>" \
+  --confirmation-token <token>
 ```
 
 Add local assets:
@@ -98,13 +102,16 @@ Add local assets:
 node scripts/codecut-workspace.mjs add-assets \
   --project-id <id> \
   --file /absolute/path/source.mp4 \
-  --file /absolute/path/brief.pdf
+  --file /absolute/path/brief.pdf \
+  --confirmation-token <token>
 ```
 
 Probe video/audio assets:
 
 ```bash
-node scripts/codecut-workspace.mjs probe-assets --project-id <id>
+node scripts/codecut-workspace.mjs probe-assets \
+  --project-id <id> \
+  --confirmation-token <token>
 ```
 
 Write a planning document:
@@ -113,7 +120,8 @@ Write a planning document:
 node scripts/codecut-workspace.mjs write-doc \
   --project-id <id> \
   --kind workflow-route \
-  --content-file /absolute/path/workflow-route.md
+  --content-file /absolute/path/workflow-route.md \
+  --confirmation-token <token>
 ```
 
 Supported `write-doc` kinds:

@@ -44,7 +44,19 @@ import {
 	runCli,
 	waitForExecutor,
 } from "../codex-bridge.mjs";
+import {
+	createPendingCodecutConfirmation,
+	mintCodecutConfirmationToken,
+} from "../codecut-confirmation-gate.mjs";
 import { buildBridgeCliArgs } from "../../mcp/server.mjs";
+
+async function createTestConfirmationToken(root, projectId = "project-123") {
+	return mintCodecutConfirmationToken({
+		root,
+		projectId,
+		pendingConfirmationId: createPendingCodecutConfirmation(),
+	});
+}
 
 describe("codex bridge CLI helpers", () => {
 	test("prints usage when invoked through the executable entrypoint", async () => {
@@ -1721,6 +1733,11 @@ describe("codex bridge CLI helpers", () => {
 	});
 
 	test("project management commands call executor project endpoints directly", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-confirmation-"));
+		const confirmationToken = await createTestConfirmationToken(
+			directory,
+			"project-123",
+		);
 		const requests = [];
 		const fetchImpl = async (url, init = {}) => {
 			requests.push({ url, init });
@@ -1731,52 +1748,75 @@ describe("codex bridge CLI helpers", () => {
 			CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
 			CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
 			CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+			CODECUT_CONFIRMATION_ROOT: directory,
 		};
 
-		await runCli({
-			argv: ["list-projects"],
-			env,
-			fetchImpl,
-			stdout: () => {},
-		});
-		await runCli({
-			argv: [
-				"rename-project",
-				"--project-id",
-				"project-123",
-				"--name",
-				"Renamed",
-			],
-			env,
-			fetchImpl,
-			stdout: () => {},
-		});
-		await runCli({
-			argv: ["delete-project", "--project-id", "project-123"],
-			env,
-			fetchImpl,
-			stdout: () => {},
-		});
+		try {
+			await runCli({
+				argv: ["list-projects"],
+				cwd: directory,
+				env,
+				fetchImpl,
+				stdout: () => {},
+			});
+			await runCli({
+				argv: [
+					"rename-project",
+					"--project-id",
+					"project-123",
+					"--name",
+					"Renamed",
+					"--confirmation-token",
+					confirmationToken,
+				],
+				cwd: directory,
+				env,
+				fetchImpl,
+				stdout: () => {},
+			});
+			await runCli({
+				argv: [
+					"delete-project",
+					"--project-id",
+					"project-123",
+					"--confirmation-token",
+					confirmationToken,
+				],
+				cwd: directory,
+				env,
+				fetchImpl,
+				stdout: () => {},
+			});
 
-		expect(requests.map((request) => [request.init.method, request.url])).toEqual([
-			["GET", "http://localhost:4100/api/codex-executor/projects"],
-			["PATCH", "http://localhost:4100/api/codex-executor/project"],
-			["DELETE", "http://localhost:4100/api/codex-executor/project"],
-		]);
-		expect(JSON.parse(requests[1].init.body)).toEqual({
-			projectId: "project-123",
-			name: "Renamed",
-		});
-		expect(JSON.parse(requests[2].init.body)).toEqual({
-			projectId: "project-123",
-		});
+			expect(requests.map((request) => [request.init.method, request.url])).toEqual([
+				["GET", "http://localhost:4100/api/codex-executor/projects"],
+				["PATCH", "http://localhost:4100/api/codex-executor/project"],
+				["DELETE", "http://localhost:4100/api/codex-executor/project"],
+			]);
+			expect(JSON.parse(requests[1].init.body)).toEqual({
+				projectId: "project-123",
+				name: "Renamed",
+			});
+			expect(JSON.parse(requests[2].init.body)).toEqual({
+				projectId: "project-123",
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	test("MCP internal project setup mappings call explicit project commands", () => {
+		expect(() =>
+			buildBridgeCliArgs("create_project", {
+				projectId: "launch-cut-001",
+				name: "Launch Cut",
+			}),
+		).toThrow("confirmationToken is required");
 		expect(
 			buildBridgeCliArgs("create_project", {
 				projectId: "launch-cut-001",
 				name: "Launch Cut",
+				confirmationToken: "ccconfirmed_test",
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
@@ -1785,6 +1825,8 @@ describe("codex bridge CLI helpers", () => {
 			"launch-cut-001",
 			"--name",
 			"Launch Cut",
+			"--confirmation-token",
+			"ccconfirmed_test",
 		]);
 		expect(buildBridgeCliArgs("list_projects", {})).toEqual([
 			"scripts/codex-bridge.mjs",
@@ -2887,8 +2929,14 @@ describe("codex bridge CLI helpers", () => {
 	});
 
 	test("creates a local executor project and prints its editor URL", async () => {
+		const cwdRoot = await mkdtemp(join(tmpdir(), "codecut-cwd-"));
+		const confirmationRoot = await mkdtemp(join(tmpdir(), "codecut-confirmation-"));
 		const requests = [];
 		const output = [];
+		const confirmationToken = await createTestConfirmationToken(
+			confirmationRoot,
+			"project-123",
+		);
 		const exitCode = await runCli({
 			argv: [
 				"create-project",
@@ -2896,12 +2944,16 @@ describe("codex bridge CLI helpers", () => {
 				"project-123",
 				"--name",
 				"Codex cut",
+				"--confirmation-token",
+				confirmationToken,
 			],
+			cwd: cwdRoot,
 			env: {
 				CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
 				CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
 				CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
 				CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+				CODECUT_CONFIRMATION_ROOT: confirmationRoot,
 			},
 			fetchImpl: async (url, init) => {
 				requests.push({ url, init });
@@ -2916,18 +2968,101 @@ describe("codex bridge CLI helpers", () => {
 			stdout: (value) => output.push(value),
 		});
 
-		expect(exitCode).toBe(0);
-		expect(requests[0].url).toBe(
-			"http://localhost:4100/api/codex-executor/projects",
-		);
-		expect(JSON.parse(requests[0].init.body)).toEqual({
-			projectId: "project-123",
-			name: "Codex cut",
-		});
-		expect(JSON.parse(output[0])).toMatchObject({
-			projectId: "project-123",
-			editorUrl: "http://127.0.0.1:4100/en/editor/project-123",
-		});
+		try {
+			expect(exitCode).toBe(0);
+			expect(requests[0].url).toBe(
+				"http://localhost:4100/api/codex-executor/projects",
+			);
+			expect(JSON.parse(requests[0].init.body)).toEqual({
+				projectId: "project-123",
+				name: "Codex cut",
+			});
+			expect(JSON.parse(output[0])).toMatchObject({
+				projectId: "project-123",
+				editorUrl: "http://127.0.0.1:4100/en/editor/project-123",
+			});
+		} finally {
+			await rm(cwdRoot, { recursive: true, force: true });
+			await rm(confirmationRoot, { recursive: true, force: true });
+		}
+	});
+
+	test("blocks project creation before widget confirmation", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-confirmation-"));
+		const requests = [];
+
+		try {
+			await expect(
+				runCli({
+					argv: [
+						"create-project",
+						"--project-id",
+						"project-123",
+						"--name",
+						"Codex cut",
+					],
+					cwd: directory,
+					env: {
+						CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+						CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+						CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+						CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+					},
+					fetchImpl: async (url, init) => {
+						requests.push({ url, init });
+						return new Response("{}");
+					},
+					stdout: () => {},
+				}),
+			).rejects.toThrow("confirmationToken is required");
+			expect(requests).toEqual([]);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("blocks direct send side effects before widget confirmation", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-confirmation-"));
+		const requests = [];
+
+		try {
+			await expect(
+				runCli({
+					argv: [
+						"send",
+						"--project-id",
+						"project-123",
+						"--tool",
+						"add_texts",
+						"--args-json",
+						JSON.stringify({
+							entries: [
+								{
+									startTime: 0,
+									duration: 2,
+									content: "Hook",
+								},
+							],
+						}),
+					],
+					cwd: directory,
+					env: {
+						CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+						CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+						CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+						CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+					},
+					fetchImpl: async (url, init) => {
+						requests.push({ url, init });
+						return new Response("{}");
+					},
+					stdout: () => {},
+				}),
+			).rejects.toThrow("confirmationToken is required");
+			expect(requests).toEqual([]);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	test("rejects token passed through CLI flags", async () => {
@@ -2960,40 +3095,54 @@ describe("codex bridge CLI helpers", () => {
 	});
 
 	test("generate-digital-human requires RUNNINGHUB_API_KEY before contacting executor", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-confirmation-"));
 		const requests = [];
-		await expect(
-			runCli({
-				argv: [
-					"generate-digital-human",
-					"--project-id",
-					"project-123",
-					"--image-media-id",
-					"image-1",
-					"--audio-media-id",
-					"audio-1",
-					"--script-text",
-					"欢迎来到今天的口播",
-					"--motion-prompt",
-					"女人自然点头微笑",
-					"--width",
-					"1280",
-					"--height",
-					"720",
-					"--fps",
-					"25",
-				],
-				env: {
-					CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
-					CODECUT_AGENT_BRIDGE_TOKEN: "env-token",
-					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
-					CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
-				},
-				fetchImpl: async (url, init) => {
-					requests.push({ url, init });
-					throw new Error("fetch should not be called");
-				},
-			}),
-		).rejects.toThrow("RUNNINGHUB_API_KEY is required");
-		expect(requests).toHaveLength(0);
+		const confirmationToken = await createTestConfirmationToken(
+			directory,
+			"project-123",
+		);
+
+		try {
+			await expect(
+				runCli({
+					argv: [
+						"generate-digital-human",
+						"--project-id",
+						"project-123",
+						"--image-media-id",
+						"image-1",
+						"--audio-media-id",
+						"audio-1",
+						"--script-text",
+						"欢迎来到今天的口播",
+						"--motion-prompt",
+						"女人自然点头微笑",
+						"--width",
+						"1280",
+						"--height",
+						"720",
+						"--fps",
+						"25",
+						"--confirmation-token",
+						confirmationToken,
+					],
+					cwd: directory,
+					env: {
+						CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+						CODECUT_AGENT_BRIDGE_TOKEN: "env-token",
+						CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+						CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+						CODECUT_CONFIRMATION_ROOT: directory,
+					},
+					fetchImpl: async (url, init) => {
+						requests.push({ url, init });
+						throw new Error("fetch should not be called");
+					},
+				}),
+			).rejects.toThrow("RUNNINGHUB_API_KEY is required");
+			expect(requests).toHaveLength(0);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 });

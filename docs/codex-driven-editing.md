@@ -211,7 +211,7 @@ The editing target must be explicit before Codex sends bridge commands:
 
 - Use the project ID from the user's request, a local project listing, or the CLI response that created the project.
 - Before creating a new executor project, define a business project name from the user's brief or ask for one when the brief does not contain enough context.
-- Create projects with `node scripts/codex-bridge.mjs create-project --project-id <id> --name "<business project name>"`.
+- Create projects with `node scripts/codex-bridge.mjs create-project --project-id <id> --name "<business project name>" --confirmation-token <token>`.
 - Immediately open the returned `editorUrl` in the Codex in-app browser.
 - Treat a missing `editorUrl` in the create-project response as a product
   contract failure. Stop and fix the local executor or API response instead of
@@ -659,45 +659,50 @@ node scripts/codex-bridge.mjs build-visual-context \
 When the request includes one absolute local media file and a concrete target such as "1 minute vertical short", Codex should execute directly:
 
 1. Reserve a readable `projectId` and business project name.
-2. Initialize `.codecut-workspace/projects/<projectId>`.
-3. Add the local file with `codecut-workspace add-assets`.
-4. Run `codecut-workspace probe-assets`.
-5. Ask any missing clarification questions with choices and one recommended option.
-6. Write workflow route, content breakdown, hook selection, and timeline restructure notes.
-7. Confirm the local Codecut service is ready.
-8. Create the executor project with the same `projectId`, immediately open the
+2. Call `open_codecut_workspace` with the known setup fields and wait for
+   `submit_codecut_setup` to return the confirmed setup token.
+3. Initialize `.codecut-workspace/projects/<projectId>` with
+   `--confirmation-token <token>`.
+4. Add the local file with `codecut-workspace add-assets
+   --confirmation-token <token>`.
+5. Run `codecut-workspace probe-assets --confirmation-token <token>`.
+6. Ask any missing clarification questions with choices and one recommended option.
+7. Write workflow route, content breakdown, hook selection, and timeline restructure notes with the confirmed setup token.
+8. Confirm the local Codecut service is ready.
+9. Create the executor project with the same `projectId`, immediately open the
    returned `editorUrl` in the Codex in-app browser, then run `doctor-install`
    and `doctor`.
-9. Apply explicit project settings for vertical/square output.
-10. Import the local file.
-11. List media and select the imported audio/video asset.
-12. Transcribe through the local executor when the selected outcome needs transcript evidence.
-13. Audit material facts and resolve one P0 video template.
-14. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
-15. Inspect ambiguous or reframe-sensitive source ranges with
+10. Apply explicit project settings for vertical/square output.
+11. Import the local file with the confirmed setup token.
+12. List media and select the imported audio/video asset.
+13. Transcribe through the local executor when the selected outcome needs transcript evidence.
+14. Audit material facts and resolve one P0 video template.
+15. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
+16. Inspect ambiguous or reframe-sensitive source ranges with
    `inspect-video-range` before writing the EditPlan.
-16. Write an EditingDecisionLedger for EditPlan templates, or a strict NarratedRemixPlan for `narrated-broll`.
-17. For EditPlan templates, generate, validate, preview, and apply a clip-first
+17. Write an EditingDecisionLedger for EditPlan templates, or a strict NarratedRemixPlan for `narrated-broll`.
+18. For EditPlan templates, generate, validate, preview, and apply a clip-first
     EditPlan v1 when edited audio captions are required.
-18. For EditPlan templates with captions, run `build-post-cut-captions`, then
+19. For EditPlan templates with captions, run `build-post-cut-captions`, then
     validate, preview, and apply the final EditPlan v1 with captions.
-19. For `narrated-broll`, apply the final strict NarratedRemixPlan v1.
-20. Verify with `verify-timeline`, `get_timeline_state`, and
+20. For `narrated-broll`, apply the final strict NarratedRemixPlan v1.
+21. Verify with `verify-timeline`, `get_timeline_state`, and
     `build-video-quality-report`.
-21. Keep the opened editor URL available for human preview.
+22. Keep the opened editor URL available for human preview.
 
 Do not spend the first turn auditing all skill references. Read only the workflow document and the matching recipe unless an implementation or validation failure requires deeper reference lookup.
 
 ## CLI Commands
 
-Initialize the local pre-edit workspace before creating a Codecut executor
-project:
+After `open_codecut_workspace` and `submit_codecut_setup` return a confirmed
+setup token, initialize the local pre-edit workspace before editing execution:
 
 ```bash
 node scripts/codecut-workspace.mjs init \
   --project-id <id> \
   --name "<business project name>" \
-  --user-message "<original user request>"
+  --user-message "<original user request>" \
+  --confirmation-token <token>
 ```
 
 Copy and classify local materials:
@@ -706,13 +711,16 @@ Copy and classify local materials:
 node scripts/codecut-workspace.mjs add-assets \
   --project-id <id> \
   --file /absolute/path/source.mp4 \
-  --file /absolute/path/brief.pdf
+  --file /absolute/path/brief.pdf \
+  --confirmation-token <token>
 ```
 
 Run ffprobe material inventory for video/audio assets:
 
 ```bash
-node scripts/codecut-workspace.mjs probe-assets --project-id <id>
+node scripts/codecut-workspace.mjs probe-assets \
+  --project-id <id> \
+  --confirmation-token <token>
 ```
 
 Write a planning document after intent analysis or clarification:
@@ -721,7 +729,8 @@ Write a planning document after intent analysis or clarification:
 node scripts/codecut-workspace.mjs write-doc \
   --project-id <id> \
   --kind workflow-route \
-  --content-file /absolute/path/workflow-route.md
+  --content-file /absolute/path/workflow-route.md \
+  --confirmation-token <token>
 ```
 
 Check that the local executor is ready before sending business commands:
@@ -729,7 +738,10 @@ Check that the local executor is ready before sending business commands:
 Create the executor project with a concrete business project name:
 
 ```bash
-node scripts/codex-bridge.mjs create-project --project-id <id> --name "<business project name>"
+node scripts/codex-bridge.mjs create-project \
+  --project-id <id> \
+  --name "<business project name>" \
+  --confirmation-token <token>
 ```
 
 Do not create projects with generic names such as `New project`, `Untitled Project`, or `Codex cut`.
@@ -747,7 +759,8 @@ Import a local media file into the active executor project's media library:
 ```bash
 node scripts/codex-bridge.mjs import-media \
   --project-id <id> \
-  --file-path /absolute/path/source.mp4
+  --file-path /absolute/path/source.mp4 \
+  --confirmation-token <token>
 ```
 
 The local file path stays on the Codex side. The CLI reads the file bytes and sends a base64 payload through the local bridge; very large source videos can hit local request size or timeout limits.

@@ -9,7 +9,10 @@ description: Use when a Codecut editing request starts a new creative job, uses 
 
 Requirement intake is a blocking gate for new Codecut editing jobs.
 
-Before `create-project`, `import-media`, `transcribe`, `build-video-context`, `apply-plan`, or `apply_edit_plan`, classify the request and decide whether the user's intent is confirmed enough to execute.
+Before material ingest, workspace init/add-assets, doctor checks,
+`create-project`, `import-media`, generated media, timeline mutation, or export,
+classify the request and decide whether the user's intent is confirmed enough
+to execute.
 
 ## Stage Ownership
 
@@ -34,15 +37,19 @@ Blocked commands before this gate passes:
 - `node scripts/codex-bridge.mjs build-video-context`
 - `node scripts/codex-bridge.mjs build-post-cut-captions`
 - `node scripts/codex-bridge.mjs apply-plan`
+- `node scripts/codecut-workspace.mjs init`
+- `node scripts/codecut-workspace.mjs add-assets`
+- `node scripts/codecut-workspace.mjs probe-assets`
+- `node scripts/codecut-workspace.mjs write-doc`
 - bridge tools that mutate timeline state
 
 Allowed before this gate passes:
 
 - read the user request
 - inspect an existing project when the user asks for read-only inspection
-- verify whether a source file path exists
-- download or probe remote material only when the user explicitly asked to extract it locally or the material facts are needed to ask useful questions
-- write `intent-analysis.md`, `clarification-questions.md`, `assumptions.md`, and material audit files
+- call `open_codecut_workspace` and wait for widget submission
+- ask text-only setup questions only when the workspace widget tool is
+  unavailable after tool discovery
 
 ## Workspace Widget First
 
@@ -60,13 +67,18 @@ workspace setup widget`, then call the returned
 `mcp__codecut_mcp.open_codecut_workspace` tool.
 
 The workspace widget is the primary collection surface. It lets the user review
-and submit the setup, then `submit_codecut_setup` sends the follow-up prompt
-that opens the Codex in-app browser and continues execution.
+and submit the setup, then `submit_codecut_setup` returns the confirmed setup
+token, sends the follow-up prompt that opens the Codex in-app browser, and
+unlocks material ingest, doctor checks, project creation, import, generated
+media, timeline mutation, and export.
 
 If the workspace widget tool is unavailable after tool discovery, report that
 widget intake is unavailable, then ask the required text-only questions with
-choices. Do not create, import, transcribe, or mutate the timeline before
-either widget submission or explicit text answers pass this gate.
+choices. Do not run shell commands, write planning/audit files, initialize a
+workspace, create, import, transcribe, generate media, mutate the timeline, or
+export before widget submission. If the widget is unavailable, explicit text
+answers can pass requirement intake, but they do not mint a side-effect token;
+report that CodeCut execution is blocked until the widget path is available.
 
 ## Key Fields
 
@@ -89,14 +101,16 @@ Check these fields for every new creative job:
 
 A remote URL is not the same as the local-file fast path.
 
-For YouTube or other remote URLs, confirm output form, platform, aspect ratio, and caption policy before timeline mutation. Download/probe can happen first only when it improves material audit or the user explicitly requested local extraction.
+For YouTube or other remote URLs in a new creative job, confirm output form,
+platform, aspect ratio, and caption policy through the widget before download,
+probe, workspace init, or timeline mutation.
 
 For TikTok video URLs, photo URLs, share links, author pages, or `@handle`
 inputs, use `codecut-tiktok-downloader` for source acquisition only after the
-required intent gate passes, unless the user explicitly requested source-only
-download or TikTok material facts are needed to ask useful questions. TikTok
-download success does not pass requirement intake and does not permit executor
-mutation commands.
+required widget and intent gates pass, unless the user explicitly requested
+source-only download with no editing, timeline, template, or export intent.
+TikTok download success does not pass requirement intake and does not permit
+executor mutation commands.
 
 ## Required Question Format
 

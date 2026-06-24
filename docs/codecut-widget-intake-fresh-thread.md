@@ -15,6 +15,10 @@ The validation thread must not run shell commands, write files, download media,
 create projects, import media, transcribe, mutate timelines, or send text-only
 fallback questions.
 
+`open_codecut_workspace` returns a pending confirmation ID for the setup widget.
+Only `submit_codecut_setup` can exchange that pending ID for a confirmed setup
+token. Side-effect tools must not run until that confirmed token exists.
+
 For missing setup fields, the expected first Codecut action is the widget MCP
 call itself. Reading local skill files first is a failure because it means
 startup routing has not given Codex enough instruction to enter widget intake
@@ -64,8 +68,8 @@ Codex CLI/App versions, and fresh-session proof in
 3. Confirm source and cache contain the new widget-intake contract:
 
 ```bash
-rg -n "open_codecut_workspace|verify-codecut-widget-intake-thread.mjs" AGENTS.md docs .codex-plugin skills
-rg -n "open_codecut_workspace" /Users/x/.codex/plugins/cache/local-opc/codecut
+rg -n "open_codecut_workspace|pendingConfirmationId|confirmationToken|verify-codecut-widget-intake-thread.mjs" AGENTS.md docs .codex-plugin mcp scripts skills
+rg -n "open_codecut_workspace|pendingConfirmationId|confirmationToken" /Users/x/.codex/plugins/cache/local-opc/codecut
 ```
 
 4. Confirm Codex host tool discovery can find the widget tool:

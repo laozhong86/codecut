@@ -344,6 +344,8 @@ describe("Codecut MCP server contract", () => {
 
 		expect(html).toContain("api.toolResponseMetadata?.widgetData");
 		expect(html).toContain("api.toolOutput?.intentDefaults");
+		expect(html).toContain("api.toolResponseMetadata?.widgetData?.pendingConfirmationId");
+		expect(html).toContain("pendingConfirmationId: currentPendingConfirmationId");
 	});
 
 	test("opens the workspace with structured defaults and widget metadata", () => {
@@ -392,6 +394,12 @@ describe("Codecut MCP server contract", () => {
 			status: "awaiting_user_confirmation",
 			nextAction: "wait_for_widget_submission",
 		});
+		expect(result.structuredContent.pendingConfirmationId).toMatch(
+			/^ccpending_[a-f0-9]{24}$/,
+		);
+		expect(result._meta.widgetData.pendingConfirmationId).toBe(
+			result.structuredContent.pendingConfirmationId,
+		);
 		expect(result.content[0].text).toContain("Wait for the user to submit");
 		expect(result._meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
@@ -556,6 +564,15 @@ describe("Codecut MCP server contract", () => {
 		const secondFilePath = join(directory, "second.mp4");
 		await writeFile(filePath, "video");
 		await writeFile(secondFilePath, "video");
+		const pendingConfirmationId =
+			serverModule.openCodecutWorkspace(
+				setupIntent({
+					mediaSources: [
+						{ kind: "filePath", filePath },
+						{ kind: "filePath", filePath: secondFilePath },
+					],
+				}),
+			).structuredContent.pendingConfirmationId;
 		const calls = [];
 		const bridgeToolImpl = async (toolName, args) => {
 			calls.push({ toolName, args });
@@ -608,12 +625,13 @@ describe("Codecut MCP server contract", () => {
 		try {
 			const result = await serverModule.submitCodecutSetup(
 				setupIntent({
+					pendingConfirmationId,
 					mediaSources: [
 						{ kind: "filePath", filePath },
 						{ kind: "filePath", filePath: secondFilePath },
 					],
 				}),
-				{ bridgeToolImpl },
+				{ bridgeToolImpl, confirmationRoot: directory },
 			);
 
 			expect(calls.map((call) => call.toolName)).toEqual([
@@ -627,9 +645,24 @@ describe("Codecut MCP server contract", () => {
 					.filter((call) => call.toolName === "import_media")
 					.map((call) => call.args),
 			).toEqual([
-				{ projectId: "launch-cut-canonical", filePath },
-				{ projectId: "launch-cut-canonical", filePath: secondFilePath },
+				{
+					projectId: "launch-cut-canonical",
+					filePath,
+					confirmationToken: result.structuredContent.confirmationToken,
+				},
+				{
+					projectId: "launch-cut-canonical",
+					filePath: secondFilePath,
+					confirmationToken: result.structuredContent.confirmationToken,
+				},
 			]);
+			expect(
+				calls.find((call) => call.toolName === "create_project")?.args,
+			).toEqual({
+				projectId: "launch-cut-001",
+				name: "Launch Cut",
+				confirmationToken: result.structuredContent.confirmationToken,
+			});
 			expect(
 				calls.find((call) => call.toolName === "get_project_info")?.args,
 			).toEqual({
@@ -649,6 +682,8 @@ describe("Codecut MCP server contract", () => {
 					{ id: "media-2", name: "second.mp4" },
 				],
 			});
+			const confirmationToken = result.structuredContent.confirmationToken;
+			expect(confirmationToken).toMatch(/^ccconfirmed_[a-f0-9]{32}$/);
 			expect(result.structuredContent.continuePrompt).toContain(
 				"$codecut",
 			);
@@ -676,6 +711,12 @@ describe("Codecut MCP server contract", () => {
 			expect(result.structuredContent.continuePrompt).toContain(
 				"launch-cut-canonical",
 			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"--confirmation-token",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				confirmationToken,
+			);
 			expect(result.structuredContent.continuePrompt).not.toContain(
 				"launch-cut-001",
 			);
@@ -687,12 +728,46 @@ describe("Codecut MCP server contract", () => {
 		}
 	});
 
-	test("keeps created project context visible when import fails", async () => {
-		const filePath = join(
-			await mkdtemp(join(tmpdir(), "codecut-widget-")),
-			"source.mp4",
-		);
+	test("blocks setup submission without the pending confirmation id from the widget", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const filePath = join(directory, "source.mp4");
 		await writeFile(filePath, "video");
+		const calls = [];
+
+		try {
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({ mediaSources: [{ kind: "filePath", filePath }] }),
+				{
+					confirmationRoot: directory,
+					bridgeToolImpl: async (toolName, args) => {
+						calls.push({ toolName, args });
+						throw new Error("bridge must not run before widget confirmation");
+					},
+				},
+			);
+
+			expect(result.isError).toBe(true);
+			expect(result.structuredContent).toMatchObject({
+				status: "confirmation_required",
+				nextAction: "open_codecut_workspace",
+			});
+			expect(calls).toEqual([]);
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("keeps created project context visible when import fails", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const filePath = join(directory, "source.mp4");
+		await writeFile(filePath, "video");
+		const pendingConfirmationId =
+			serverModule.openCodecutWorkspace(
+				setupIntent({ mediaSources: [{ kind: "filePath", filePath }] }),
+			).structuredContent.pendingConfirmationId;
 		const bridgeToolImpl = async (toolName) => {
 			if (toolName === "list_projects")
 				return { structuredContent: { projects: [] } };
@@ -717,8 +792,14 @@ describe("Codecut MCP server contract", () => {
 
 		try {
 			const result = await serverModule.submitCodecutSetup(
-				setupIntent({ mediaSources: [{ kind: "filePath", filePath }] }),
-				{ bridgeToolImpl },
+				setupIntent({
+					pendingConfirmationId,
+					mediaSources: [{ kind: "filePath", filePath }],
+				}),
+				{
+					bridgeToolImpl,
+					confirmationRoot: directory,
+				},
 			);
 
 			expect(result.isError).toBe(true);
@@ -731,7 +812,7 @@ describe("Codecut MCP server contract", () => {
 				error: "media import failed",
 			});
 		} finally {
-			await rm(filePath.replace(/\/source\.mp4$/, ""), {
+			await rm(directory, {
 				recursive: true,
 				force: true,
 			});
@@ -805,10 +886,12 @@ describe("Codecut MCP server contract", () => {
 	});
 
 	test("maps write primitives to narrow codex-bridge commands", async () => {
+		const confirmationToken = "ccconfirmed_test";
 		expect(
 			buildBridgeCliArgs("import_media", {
 				projectId: "project-1",
 				filePath: "/tmp/source.mp4",
+				confirmationToken,
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
@@ -817,6 +900,8 @@ describe("Codecut MCP server contract", () => {
 			"project-1",
 			"--file-path",
 			"/tmp/source.mp4",
+			"--confirmation-token",
+			confirmationToken,
 		]);
 
 		const bytesArgs = buildBridgeCliArgs("import_media", {
@@ -824,6 +909,7 @@ describe("Codecut MCP server contract", () => {
 			bytes: Buffer.from("png").toString("base64"),
 			fileName: "source.png",
 			mimeType: "image/png",
+			confirmationToken,
 		});
 		expect(bytesArgs.slice(0, 5)).toEqual([
 			"scripts/codex-bridge.mjs",
@@ -836,6 +922,8 @@ describe("Codecut MCP server contract", () => {
 		expect(bytesArgs).toContain("source.png");
 		expect(bytesArgs).toContain("--mime-type");
 		expect(bytesArgs).toContain("image/png");
+		expect(bytesArgs).toContain("--confirmation-token");
+		expect(bytesArgs).toContain(confirmationToken);
 		expect(await readFile(bytesArgs[5], "utf8")).toBe(
 			Buffer.from("png").toString("base64"),
 		);
@@ -845,6 +933,7 @@ describe("Codecut MCP server contract", () => {
 				projectId: "project-1",
 				url: "https://cdn.example.com/source.png",
 				mimeType: "image/png",
+				confirmationToken,
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
@@ -853,6 +942,8 @@ describe("Codecut MCP server contract", () => {
 			"project-1",
 			"--url",
 			"https://cdn.example.com/source.png",
+			"--confirmation-token",
+			confirmationToken,
 			"--mime-type",
 			"image/png",
 		]);
@@ -862,6 +953,7 @@ describe("Codecut MCP server contract", () => {
 				projectId: "project-1",
 				planJsonFile: "/tmp/edit-plan.json",
 				replaceExisting: true,
+				confirmationToken,
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
@@ -872,6 +964,8 @@ describe("Codecut MCP server contract", () => {
 			"/tmp/edit-plan.json",
 			"--replace-existing",
 			"true",
+			"--confirmation-token",
+			confirmationToken,
 		]);
 
 		expect(
@@ -879,6 +973,7 @@ describe("Codecut MCP server contract", () => {
 				projectId: "project-1",
 				planJsonFile: "/tmp/remix-plan.json",
 				replaceExisting: false,
+				confirmationToken,
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
@@ -889,6 +984,8 @@ describe("Codecut MCP server contract", () => {
 			"/tmp/remix-plan.json",
 			"--replace-existing",
 			"false",
+			"--confirmation-token",
+			confirmationToken,
 		]);
 
 		expect(
@@ -944,9 +1041,11 @@ describe("Codecut MCP server contract", () => {
 	});
 
 	test("maps rich editing tools through strict send payloads", () => {
+		const confirmationToken = "ccconfirmed_test";
 		expect(
 			buildBridgeCliArgs("add_texts", {
 				projectId: "project-1",
+				confirmationToken,
 				entries: [
 					{
 						startTime: 0,
@@ -974,11 +1073,14 @@ describe("Codecut MCP server contract", () => {
 					},
 				],
 			}),
+			"--confirmation-token",
+			confirmationToken,
 		]);
 
 		expect(
 			buildBridgeCliArgs("add_captions", {
 				projectId: "project-1",
+				confirmationToken,
 				language: "auto",
 				modelId: "whisper-base",
 				captionStyle: {
@@ -1002,11 +1104,14 @@ describe("Codecut MCP server contract", () => {
 					position: "lower-safe",
 				},
 			}),
+			"--confirmation-token",
+			confirmationToken,
 		]);
 
 		expect(
 			buildBridgeCliArgs("generate_runninghub_voice_design", {
 				projectId: "project-1",
+				confirmationToken,
 				text: "欢迎来到今天的测试",
 				emotionPrompt: "温柔、稳定的中文播客女声",
 				protectedTerms: ["今天的测试", "Codex"],
@@ -1024,11 +1129,14 @@ describe("Codecut MCP server contract", () => {
 			"今天的测试",
 			"--protected-term",
 			"Codex",
+			"--confirmation-token",
+			confirmationToken,
 		]);
 
 		expect(
 			buildBridgeCliArgs("set_keyframes", {
 				projectId: "project-1",
+				confirmationToken,
 				elementId: "text-1",
 				property: "opacity",
 				keyframes: [
@@ -1052,6 +1160,8 @@ describe("Codecut MCP server contract", () => {
 					{ time: 1, value: 0.25, interpolation: "linear" },
 				],
 			}),
+			"--confirmation-token",
+			confirmationToken,
 		]);
 
 		expect(
@@ -1074,9 +1184,11 @@ describe("Codecut MCP server contract", () => {
 	});
 
 	test("maps verifiable micro edit tools through strict send payloads", () => {
+		const confirmationToken = "ccconfirmed_test";
 		expect(
 			buildBridgeCliArgs("insert_clips", {
 				projectId: "project-1",
+				confirmationToken,
 				trackId: "track-1",
 				atTime: 1,
 				clips: [{ mediaId: "media-1", duration: 2 }],
@@ -1094,10 +1206,13 @@ describe("Codecut MCP server contract", () => {
 				atTime: 1,
 				clips: [{ mediaId: "media-1", duration: 2 }],
 			}),
+			"--confirmation-token",
+			confirmationToken,
 		]);
 		expect(
 			buildBridgeCliArgs("move_clips", {
 				projectId: "project-1",
+				confirmationToken,
 				moves: [{ elementId: "clip-1", toTrackId: "track-2" }],
 			}),
 		).toEqual([
@@ -1111,10 +1226,13 @@ describe("Codecut MCP server contract", () => {
 			JSON.stringify({
 				moves: [{ elementId: "clip-1", toTrackId: "track-2" }],
 			}),
+			"--confirmation-token",
+			confirmationToken,
 		]);
 		expect(
 			buildBridgeCliArgs("remove_clips", {
 				projectId: "project-1",
+				confirmationToken,
 				elementIds: ["clip-1"],
 			}),
 		).toEqual([
@@ -1126,10 +1244,13 @@ describe("Codecut MCP server contract", () => {
 			"remove_clips",
 			"--args-json",
 			JSON.stringify({ elementIds: ["clip-1"] }),
+			"--confirmation-token",
+			confirmationToken,
 		]);
 		expect(
 			buildBridgeCliArgs("split_clip", {
 				projectId: "project-1",
+				confirmationToken,
 				elementId: "clip-1",
 				atTime: 4,
 			}),
@@ -1142,10 +1263,13 @@ describe("Codecut MCP server contract", () => {
 			"split_clip",
 			"--args-json",
 			JSON.stringify({ elementId: "clip-1", atTime: 4 }),
+			"--confirmation-token",
+			confirmationToken,
 		]);
 		expect(
 			buildBridgeCliArgs("set_clip_properties", {
 				projectId: "project-1",
+				confirmationToken,
 				elementId: "clip-1",
 				properties: { duration: 3, opacity: 0.4 },
 			}),
@@ -1161,10 +1285,13 @@ describe("Codecut MCP server contract", () => {
 				elementId: "clip-1",
 				properties: { duration: 3, opacity: 0.4 },
 			}),
+			"--confirmation-token",
+			confirmationToken,
 		]);
 		expect(
 			buildBridgeCliArgs("ripple_delete_ranges", {
 				projectId: "project-1",
+				confirmationToken,
 				scope: { type: "track", trackId: "track-1" },
 				ranges: [{ startTime: 1, endTime: 3 }],
 			}),
@@ -1180,10 +1307,13 @@ describe("Codecut MCP server contract", () => {
 				scope: { type: "track", trackId: "track-1" },
 				ranges: [[1, 3]],
 			}),
+			"--confirmation-token",
+			confirmationToken,
 		]);
 	});
 
 	test("maps executor analysis and generation tools to codex-bridge commands", () => {
+		const confirmationToken = "ccconfirmed_test";
 		expect(
 			buildBridgeCliArgs("transcribe_media", {
 				projectId: "project-1",
@@ -1345,6 +1475,7 @@ describe("Codecut MCP server contract", () => {
 		expect(
 			buildBridgeCliArgs("generate_digital_human", {
 				projectId: "project-1",
+				confirmationToken,
 				imageMediaId: "image-1",
 				audioMediaId: "audio-1",
 				scriptText: "hello",
@@ -1372,10 +1503,13 @@ describe("Codecut MCP server contract", () => {
 			"720",
 			"--fps",
 			"25",
+			"--confirmation-token",
+			confirmationToken,
 		]);
 		expect(
 			buildBridgeCliArgs("generate_runninghub_voice_design", {
 				projectId: "project-1",
+				confirmationToken,
 				text: "hello",
 				emotionPrompt: "warm narrator",
 			}),
@@ -1388,10 +1522,13 @@ describe("Codecut MCP server contract", () => {
 			"hello",
 			"--emotion-prompt",
 			"warm narrator",
+			"--confirmation-token",
+			confirmationToken,
 		]);
 		expect(
 			buildBridgeCliArgs("generate_runninghub_voice_clone", {
 				projectId: "project-1",
+				confirmationToken,
 				audioPath: "/tmp/reference.wav",
 				text: "hello",
 			}),
@@ -1404,10 +1541,13 @@ describe("Codecut MCP server contract", () => {
 			"/tmp/reference.wav",
 			"--text",
 			"hello",
+			"--confirmation-token",
+			confirmationToken,
 		]);
 	});
 
 	test("maps validation verification effect and export tools without business logic", () => {
+		const confirmationToken = "ccconfirmed_test";
 		expect(
 			buildBridgeCliArgs("validate_edit_plan", {
 				projectId: "project-1",
@@ -1450,6 +1590,7 @@ describe("Codecut MCP server contract", () => {
 		expect(
 			buildBridgeCliArgs("create_text_background_effect", {
 				projectId: "project-1",
+				confirmationToken,
 				sourceMediaId: "media-1",
 				derivedAssetId: "mask-1",
 				content: "Hook",
@@ -1473,10 +1614,13 @@ describe("Codecut MCP server contract", () => {
 				duration: 5,
 				replaceExisting: true,
 			}),
+			"--confirmation-token",
+			confirmationToken,
 		]);
 		expect(
 			buildBridgeCliArgs("export_project", {
 				projectId: "project-1",
+				confirmationToken,
 				format: "mp4",
 				quality: "high",
 				includeAudio: true,
@@ -1498,6 +1642,8 @@ describe("Codecut MCP server contract", () => {
 			"/tmp/out.mp4",
 			"--overwrite",
 			"false",
+			"--confirmation-token",
+			confirmationToken,
 		]);
 	});
 
