@@ -20,6 +20,26 @@ function sortedPositionKeyframes(keyframes: PositionKeyframe[]) {
 	return keyframes.slice().sort((a, b) => a.time - b.time);
 }
 
+function easeRatio({
+	ratio,
+	interpolation,
+}: {
+	ratio: number;
+	interpolation?: ScalarKeyframe["interpolation"];
+}): number {
+	if (interpolation === "ease-in") return ratio * ratio * ratio;
+	if (interpolation === "ease-out") {
+		const inverse = 1 - ratio;
+		return 1 - inverse * inverse * inverse;
+	}
+	if (interpolation === "ease-in-out") {
+		return ratio < 0.5
+			? 4 * ratio * ratio * ratio
+			: 1 - Math.pow(-2 * ratio + 2, 3) / 2;
+	}
+	return ratio;
+}
+
 function scalarAt({
 	keyframes,
 	localTime,
@@ -39,7 +59,12 @@ function scalarAt({
 			if (current.interpolation === "hold" || next.time === current.time) {
 				return current.value;
 			}
-			const ratio = (localTime - current.time) / (next.time - current.time);
+			const linearRatio =
+				(localTime - current.time) / (next.time - current.time);
+			const ratio = easeRatio({
+				ratio: linearRatio,
+				interpolation: current.interpolation,
+			});
 			return current.value + (next.value - current.value) * ratio;
 		}
 	}
@@ -65,7 +90,12 @@ function positionAt({
 			if (current.interpolation === "hold" || next.time === current.time) {
 				return current.value;
 			}
-			const ratio = (localTime - current.time) / (next.time - current.time);
+			const linearRatio =
+				(localTime - current.time) / (next.time - current.time);
+			const ratio = easeRatio({
+				ratio: linearRatio,
+				interpolation: current.interpolation,
+			});
 			return {
 				x: current.value.x + (next.value.x - current.value.x) * ratio,
 				y: current.value.y + (next.value.y - current.value.y) * ratio,
