@@ -35,7 +35,7 @@ function easeRatio({
 	if (interpolation === "ease-in-out") {
 		return ratio < 0.5
 			? 4 * ratio * ratio * ratio
-			: 1 - Math.pow(-2 * ratio + 2, 3) / 2;
+			: 1 - (-2 * ratio + 2) ** 3 / 2;
 	}
 	return ratio;
 }
