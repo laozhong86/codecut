@@ -995,6 +995,87 @@ describe("applyEditPlanToEditor", () => {
 		]);
 	});
 
+	test("applies title motion preset as editable text keyframes", () => {
+		const editor = fakeEditor();
+		const plan = {
+			...validPlan(),
+			title: {
+				text: "Stop scrolling",
+				startTime: 0,
+				duration: 1.2,
+				stylePreset: "social_hook",
+				motionPreset: "slam-in",
+			},
+		} as unknown as EditPlan;
+
+		const result = applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		expect(result).toMatchObject({ success: true });
+
+		const titleElement = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "text" ? track.elements : []))[0];
+
+		expect(titleElement).toMatchObject({
+			type: "text",
+			content: "Stop scrolling",
+			motionPreset: "slam-in",
+			keyframes: {
+				opacity: [
+					{ time: 0, value: 0, interpolation: "ease-out" },
+					{ time: 0.12, value: 1, interpolation: "linear" },
+					{ time: 1.2, value: 1 },
+				],
+			},
+		});
+	});
+
+	test("applies captionStyle motion preset to every caption text element", () => {
+		const editor = fakeEditor();
+		const plan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "product-punch",
+				position: "lower-safe",
+				motionPreset: "pop-bounce",
+			},
+		} as unknown as EditPlan;
+
+		const result = applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		expect(result).toMatchObject({ success: true });
+
+		const textElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "text" ? track.elements : []));
+		const captionElement = textElements[1];
+
+		expect(captionElement).toMatchObject({
+			type: "text",
+			content: "This is the key insight.",
+			motionPreset: "pop-bounce",
+			keyframes: {
+				"transform.scale": [
+					{ time: 0, value: 0.92, interpolation: "ease-out" },
+					{ time: 0.14, value: 1.12, interpolation: "ease-in-out" },
+					{ time: 0.26, value: 0.98, interpolation: "ease-in-out" },
+					{ time: 0.38, value: 1, interpolation: "linear" },
+					{ time: 2, value: 1 },
+				],
+			},
+		});
+	});
+
 	test("rejects keyword_caption without mutating the timeline", () => {
 		const editor = fakeEditor();
 		const plan = {

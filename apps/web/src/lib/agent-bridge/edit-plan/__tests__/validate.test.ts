@@ -1389,4 +1389,24 @@ describe("validateEditPlan", () => {
 			path: "captionStyle",
 		});
 	});
+
+	test("rejects title motion when title duration is below the motion minimum", () => {
+		const plan = validPlan();
+		plan.title = {
+			text: "Too fast",
+			startTime: 0,
+			duration: 0.49,
+			motionPreset: "slam-in",
+		};
+
+		expect(validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		})).toEqual({
+			success: false,
+			message: "EditPlan text motion requires at least 0.5s duration.",
+			path: "title.motionPreset",
+		});
+	});
 });
