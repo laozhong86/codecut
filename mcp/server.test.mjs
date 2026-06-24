@@ -481,6 +481,26 @@ describe("Codecut MCP server contract", () => {
 		expect(html).toContain("pendingConfirmationId: currentPendingConfirmationId");
 	});
 
+	test("workspace widget selects recommended choice options only by default", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+		const compactHtml = html.replace(/\s+/g, " ");
+
+		expect(compactHtml).toContain(
+			"renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t(\"briefPlaceholder\")], defaults.brief)",
+		);
+		expect(compactHtml).toContain(
+			"renderChoiceOptions( fields.successCriteriaOptions, defaults.successCriteriaOptions || [defaults.successCriteria || t(\"successCriteriaPlaceholder\")], defaults.successCriteria",
+		);
+		expect(html).toContain(
+			"button.className = isRecommendedChoice ? \"choice-option is-active\" : \"choice-option\"",
+		);
+		expect(html).toContain(
+			"button.setAttribute(\"aria-pressed\", isRecommendedChoice ? \"true\" : \"false\")",
+		);
+		expect(html).not.toContain('button.className = "choice-option is-active";');
+		expect(html).not.toContain('button.setAttribute("aria-pressed", "true");');
+	});
+
 	test("opens the workspace with structured defaults and widget metadata", () => {
 		const result = serverModule.openCodecutWorkspace({
 			projectName: "Creator Launch",
