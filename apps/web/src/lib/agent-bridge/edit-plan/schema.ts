@@ -26,6 +26,12 @@ export const EditPlanTextStylePresetSchema = z.enum([
 	"chapter_bumper",
 ]);
 
+export const EditPlanTextMotionPresetSchema = z.enum([
+	"slam-in",
+	"soft-reveal",
+	"pop-bounce",
+]);
+
 export const EditPlanAudioModeSchema = z.enum(["loop_to_timeline"]);
 
 export const EditPlanTransitionTypeSchema = z.enum([
@@ -90,6 +96,7 @@ export const EditPlanCaptionStyleSchema = z
 	.object({
 		preset: EditPlanCaptionStylePresetSchema,
 		position: EditPlanCaptionPositionSchema,
+		motionPreset: EditPlanTextMotionPresetSchema.optional(),
 	})
 	.strict();
 
@@ -113,6 +120,7 @@ const EditPlanBaseTimedTextSchema = z.object({
 
 export const EditPlanTitleSchema = EditPlanBaseTimedTextSchema.extend({
 	stylePreset: EditPlanTextStylePresetSchema.optional(),
+	motionPreset: EditPlanTextMotionPresetSchema.optional(),
 	richSpans: z.array(EditPlanTextRichSpanSchema).optional(),
 }).strict();
 
@@ -183,6 +191,9 @@ export type EditPlanCaption = z.infer<typeof EditPlanCaptionSchema>;
 export type EditPlanCaptionStyle = z.infer<typeof EditPlanCaptionStyleSchema>;
 export type EditPlanTextStylePreset = z.infer<
 	typeof EditPlanTextStylePresetSchema
+>;
+export type EditPlanTextMotionPreset = z.infer<
+	typeof EditPlanTextMotionPresetSchema
 >;
 export type EditPlanAudio = z.infer<typeof EditPlanAudioSchema>;
 export type EditPlanTransition = z.infer<typeof EditPlanTransitionSchema>;
