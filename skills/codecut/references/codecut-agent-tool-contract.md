@@ -39,14 +39,13 @@ of treating a text message as success.
 | Advanced repair | `add_texts`, `add_captions`, `insert_clips`, `move_clips`, `remove_clips`, `split_clip`, `set_clip_properties`, `set_keyframes`, `ripple_delete_ranges`, `create_text_background_effect`, `create_human_pip_effect` | Mutates specific timeline objects or deterministic effects after explicit user intent or readback diagnosis. | Created/updated element IDs, affected tracks, revision, or timeline summary. | `isError: true` with unknown IDs, invalid ranges, unsupported effect assets, or bridge command failure. | Read timeline state first, repair only the named object/range, then verify with readback. |
 | External side effect | `export_project`, `generate_digital_human`, `generate_runninghub_voice_design`, `generate_runninghub_voice_clone` | Writes output files or calls provider-backed generation. | Output path, provider artifact, or export/generation metadata. | `isError: true` with renderer/provider/runtime/output-path error. | Report the external gate separately from editing correctness. |
 
-Implemented bridge tools relevant to Codex-driven editing:
+Current callable MCP tools relevant to Codex-driven editing:
 
 | Tool | Current purpose |
 | --- | --- |
 | `get_project_info` | Confirm the active project, canvas, tracks, duration, and media summary. |
-| `update_project_settings` | Update explicit project settings such as canvas size, FPS, and background color. |
 | `list_media_assets` | Inspect imported media assets. |
-| `import_media_file` | Import one Codex-provided local media file payload into the browser media library. |
+| `import_media` | Import one local media file, HTTPS URL, or base64 payload into the explicit executor project. |
 | `transcribe_media` | Transcribe one existing audio/video media asset through the local executor transcription runtime. |
 | `build_video_context` | Build local L2 transcript context for one imported audio/video asset; media longer than 300 seconds is analyzed in fixed 5-minute chunks and returned with source-video timestamps. |
 | `inspect_video_range` | Build local L3-on-demand visual/audio evidence for one video source range as a PNG contact sheet plus frame, waveform, and silence metadata. This is not OCR or scene detection. |
@@ -70,7 +69,7 @@ Do not claim the current MVP has camelCase bridge tools such as
 Codex should use one path for generated edits:
 
 ```text
-get_project_info -> optional update_project_settings -> list_media_assets -> optional import_media_file -> transcribe_media -> build_video_context -> optional inspect_video_range for ambiguous or reframe-sensitive ranges -> Codex writes clip-first EditPlan -> validate_edit_plan -> preview_edit_plan -> apply_edit_plan -> optional build_post_cut_captions -> Codex writes final EditPlan -> validate_edit_plan -> preview_edit_plan -> apply_edit_plan -> verify_timeline -> get_timeline_state -> optional export_project
+get_project_info -> list_media_assets -> optional import_media -> transcribe_media -> build_video_context -> optional inspect_video_range for ambiguous or reframe-sensitive ranges -> Codex writes clip-first EditPlan -> validate_edit_plan -> preview_edit_plan -> apply_edit_plan -> optional build_post_cut_captions -> Codex writes final EditPlan -> validate_edit_plan -> preview_edit_plan -> apply_edit_plan -> verify_timeline -> get_timeline_state -> optional export_project
 ```
 
 Codecut validates and executes. Codex does all LLM reasoning and plan repair.
@@ -84,7 +83,7 @@ EditPlan and apply that plan.
 Existing narration plus B-roll uses the separate deterministic path:
 
 ```text
-get_project_info -> list_media_assets -> optional import_media_file -> Codex writes NarratedRemixPlan -> apply_narrated_remix_plan -> get_timeline_state
+get_project_info -> list_media_assets -> optional import_media -> Codex writes NarratedRemixPlan -> apply_narrated_remix_plan -> get_timeline_state
 ```
 
 `NarratedRemixPlan v1` only accepts existing narration audio, imported video

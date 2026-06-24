@@ -12,7 +12,7 @@ Use this recipe when the user wants one imported source video compressed into a 
 - Speech-led cleanup requests use SpeechCleanupPlan before the final EditPlan projection.
 - `apply_edit_plan` succeeds.
 - `get_timeline_state` proves final duration, clip count, media source, and caption bounds.
-- If vertical or square output is requested, `get_project_info` proves project settings after `update_project_settings`; `EditPlan.target.aspectRatio` alone does not mutate canvas settings.
+- If vertical or square output requires project canvas mutation and no current callable project-settings tool is visible, stop and report that runtime gap; `EditPlan.target.aspectRatio` alone does not mutate canvas settings.
 - If landscape source is converted to vertical or square output, visual preflight proves the reframe and caption policy before the EditPlan is applied.
 
 ## Required Context
@@ -97,7 +97,7 @@ If transcript is unavailable for speech-led content, stop and report the missing
 ## Defaults
 
 - Duration: 30-60 seconds.
-- Aspect ratio: 9:16 when the user asks for TikTok, Reels, Shorts, or short video. Apply it through `update_project_settings`; do not treat the EditPlan target field as execution proof.
+- Aspect ratio: 9:16 when the user asks for TikTok, Reels, Shorts, or short video. Use only a current callable project-settings tool for canvas mutation; otherwise keep the requested aspect ratio in the EditPlan and report the project-settings runtime gap instead of naming an unavailable tool.
 - Captions: concise transcript-derived captions only after the cut is stable.
 - Speech cleanup: `dropReason` and `risk: "low" | "high"` are required for `drop` decisions and forbidden for `keep` decisions. High-risk drops require `retainedMeaningEvidence`. Filler counts come only from `dropReason: "filler"`, not marker words inside kept text.
 - Landscape-to-vertical reframe: prefer centered `cover` only when visual preflight proves the subject and burned-in captions are safe. Use `sourceCrop` for talking-head sources where a fixed source rectangle can crop out the old bottom caption band while preserving the subject.

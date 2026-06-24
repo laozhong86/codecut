@@ -1,0 +1,49 @@
+name: codecut-requirement-intake
+version: 1
+type: functional
+primary_dimension: functional
+
+intent:
+  one_line: Decide whether a new CodeCut editing request has enough confirmed intent to enter execution.
+  target_user: Codex handling new CodeCut creative editing jobs after widget submission or when setup fields are already explicit.
+  success_looks_like:
+    - Two or more missing blocking fields stop execution with focused questions.
+    - Explicit user answers are kept separate from assumptions.
+    - Source-only acquisition is not treated as permission to mutate a timeline.
+    - Passed intake returns confirmed fields, assumptions, and the next stage.
+
+known_failure_modes:
+  - mode: Intake lets executor mutation proceed with missing blocking fields.
+    severity: high
+    example: Output form, aspect ratio, and caption policy are missing but the agent creates or mutates a project.
+  - mode: Assumptions are recorded as explicit user answers.
+    severity: medium
+    example: The agent writes a recommended platform into clarification-answers.md without user confirmation.
+  - mode: Widget-first behavior degrades into text-only questions while the widget tool is callable.
+    severity: high
+    example: The agent asks setup questions instead of calling open_codecut_workspace.
+
+style_constraints:
+  must_have:
+    - Questions use concrete choices with exactly one recommended option.
+    - Blockers are stated as user outcome risks, not implementation trivia.
+  must_not_have:
+    - Silent defaults for platform, aspect ratio, output form, or caption policy.
+    - Executor commands before the gate passes.
+
+arena_config:
+  noise_band: 0.15
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-requirement-intake/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-requirement-intake/retrospective.jsonl
+  log_entry_note: Record the original brief, missing fields, whether widget or text intake was used, and any later user correction. Do not fabricate usage data.
+
+cold_start_mode: false

@@ -1,0 +1,49 @@
+name: codecut-material-ingest
+version: 1
+type: functional
+primary_dimension: functional
+
+intent:
+  one_line: Collect local source-material facts for CodeCut without deciding creative editing strategy.
+  target_user: Codex preparing files, remote downloads, workspace assets, and ffprobe inventory before CodeCut planning or execution.
+  success_looks_like:
+    - Source files are copied or downloaded only into the CodeCut project workspace.
+    - ffprobe material facts are recorded before planning or executor import.
+    - Source-only acquisition stops after material audit instead of entering editing intake.
+    - Missing or unreadable media fails fast with a concrete source blocker.
+
+known_failure_modes:
+  - mode: Material ingest is treated as editing approval.
+    severity: high
+    example: A successful download leads directly to import-media or apply-plan without requirement intake.
+  - mode: Source facts are guessed instead of probed.
+    severity: medium
+    example: The agent infers duration or dimensions from a filename.
+  - mode: Remote-source failure is reported as a CodeCut executor failure.
+    severity: medium
+    example: A blocked YouTube or TikTok download is blamed on timeline execution.
+
+style_constraints:
+  must_have:
+    - Material facts are concrete paths, durations, dimensions, audio flags, and warnings.
+    - Handoff clearly says whether requirement intake still has missing decisions.
+  must_not_have:
+    - Platform, aspect-ratio, caption, or output-form defaults.
+    - Timeline mutation or export claims.
+
+arena_config:
+  noise_band: 0.15
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-material-ingest/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-material-ingest/retrospective.jsonl
+  log_entry_note: Record source kind, commands run, probe result, blockers, and downstream handoff. Do not fabricate usage data.
+
+cold_start_mode: false

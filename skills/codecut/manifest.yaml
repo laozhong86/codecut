@@ -1,0 +1,49 @@
+name: codecut
+version: 1
+type: functional
+primary_dimension: functional
+
+intent:
+  one_line: Route CodeCut requests to the correct intake, material, planning, executor, template, or inspection stage without doing the stage work itself.
+  target_user: Codex operating the local-first CodeCut plugin for video editing, source acquisition, timeline verification, and human preview.
+  success_looks_like:
+    - Source-only acquisition requests do not trigger creative editing intake.
+    - New creative editing jobs with missing setup fields open the workspace widget before shell, file reads, or text fallback.
+    - Timeline mutation routes through strict EditPlan or NarratedRemixPlan paths instead of low-level repair tools.
+    - Completion reports include readback proof and explicitly state when MP4 export was not produced.
+
+known_failure_modes:
+  - mode: Source-only download requests are misrouted into creative editing intake.
+    severity: high
+    example: A user asks to save a TikTok locally and the agent opens the setup widget for a timeline edit.
+  - mode: Callable tool names drift from the current MCP surface.
+    severity: high
+    example: Agent-facing docs name an old import or project-settings tool that is not visible in the current session.
+  - mode: Browser preview is treated as executor proof.
+    severity: medium
+    example: The agent reports completion from a visible editor URL without get_timeline_state readback.
+
+style_constraints:
+  must_have:
+    - Stage ownership language stays concise and operational.
+    - Runtime gaps are reported instead of silently downgraded.
+  must_not_have:
+    - Generic workflow optimism without executor or readback proof.
+    - Hidden fallback editing paths.
+
+arena_config:
+  noise_band: 0.15
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut/retrospective.jsonl
+  log_entry_note: Record real prompts, invoked stages, final answer, tool calls used, and user correction. Do not fabricate usage data.
+
+cold_start_mode: false

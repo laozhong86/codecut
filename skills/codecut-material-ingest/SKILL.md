@@ -9,7 +9,10 @@ description: Use when Codecut source material must be downloaded, copied, classi
 
 Material ingest collects source facts. It does not decide the final platform, aspect ratio, caption policy, or output form.
 
-For new creative jobs, use `codecut-requirement-intake` first unless material facts are needed to ask better questions.
+For new creative jobs, use `codecut-requirement-intake` first unless material
+facts are needed to ask better questions. For source-only acquisition requests,
+run this stage without creative editing intake and stop after local material
+facts are recorded.
 
 ## Stage Ownership
 

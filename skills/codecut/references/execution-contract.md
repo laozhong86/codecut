@@ -23,16 +23,17 @@ Define success before coding:
 
 1. State assumptions. If the request has multiple valid interpretations, list them and ask only when the wrong choice would change the product outcome.
 2. Read the smallest relevant surface from `SKILL.md` routing.
-3. For Codex-generated edits, use the implemented bridge path: `get_project_info`, optional `update_project_settings` for explicit canvas/FPS requirements, `list_media_assets`, `transcribe_media`, `build_video_context` when transcript-first planning needs source-timestamped context, Codex-generated implemented `EditPlan`, `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `verify_timeline`, then `get_timeline_state`.
-4. Write or run a failing validation first for implementation code.
-5. Use existing Codecut paths:
+3. For Codex-generated edits, use the current callable MCP path: `get_project_info`, `list_media_assets`, optional `import_media`, `transcribe_media`, `build_video_context` when transcript-first planning needs source-timestamped context, Codex-generated implemented `EditPlan`, `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `verify_timeline`, then `get_timeline_state`.
+4. If the user outcome requires canvas, FPS, or background mutation and no current callable project-settings tool is visible, stop and report that runtime gap instead of naming an unavailable tool.
+5. Write or run a failing validation first for implementation code.
+6. Use existing Codecut paths:
    - actions for user-facing triggers
    - commands for undoable state changes
    - managers for editor domain operations
    - typed timeline models for element shape
    - API routes/services for media, AI, TTS, and export boundaries
-6. Keep the change narrow. Do not refactor unrelated editor code.
-7. Verify and report the exact result.
+7. Keep the change narrow. Do not refactor unrelated editor code.
+8. Verify and report the exact result.
 
 ## Agent Tool Loop
 
@@ -41,17 +42,16 @@ The current runtime contract exposes the tools needed for the Codex-only MVP:
 Before this loop starts, the local service and current executor path must be ready, and the project ID must be explicit. The editor URL is for human preview and manual adjustment, not for proving that the agent executor is available.
 
 1. `get_project_info`
-2. `update_project_settings` only when the user outcome requires a concrete canvas, FPS, or background
-3. `list_media_assets`
-4. `import_media_file` only when no suitable media exists and the user provided an absolute local file path
-5. `transcribe_media`
-6. `build_video_context` when long-video or transcript-first planning needs merged source-timestamped context
-7. `validate_edit_plan`
-8. `preview_edit_plan`
-9. `apply_edit_plan`
-10. `verify_timeline`
-11. `get_timeline_state`
-12. `export_project` only after user confirmation and only with explicit `format`, `quality`, `includeAudio`, `outputFile`, and `overwrite`
+2. `list_media_assets`
+3. `import_media` only when no suitable media exists and the user provided an explicit source
+4. `transcribe_media`
+5. `build_video_context` when long-video or transcript-first planning needs merged source-timestamped context
+6. `validate_edit_plan`
+7. `preview_edit_plan`
+8. `apply_edit_plan`
+9. `verify_timeline`
+10. `get_timeline_state`
+11. `export_project` only after user confirmation and only with explicit `format`, `quality`, `includeAudio`, `outputFile`, and `overwrite`
 
 `validate_edit_plan` and `preview_edit_plan` are read-only. `apply_edit_plan` is the only EditPlan mutation path. `verify_timeline` compares explicit verification JSON to current timeline metrics and reports field-level mismatches.
 

@@ -1,0 +1,49 @@
+name: codecut-tiktok-downloader
+version: 1
+type: functional
+primary_dimension: functional
+
+intent:
+  one_line: Acquire TikTok source media for CodeCut as local assets without making editing or export decisions.
+  target_user: Codex handling TikTok URLs, photo posts, share links, author pages, or handles before material audit or editing.
+  success_looks_like:
+    - Single-post and author inputs are classified with explicit mode and limit.
+    - yt-dlp is the primary backend, with tikwm only as explicit single-video fallback.
+    - Download facts are recorded in download_manifest.json and material audit handoff.
+    - Download success is reported as source readiness, not edit completion.
+
+known_failure_modes:
+  - mode: TikTok download success is treated as CodeCut edit completion.
+    severity: high
+    example: The agent reports a finished video after only producing local source files.
+  - mode: Author pages download too much content without an explicit limit.
+    severity: medium
+    example: A bare @handle is interpreted as download all posts.
+  - mode: Backend fallback hides a stale yt-dlp installation.
+    severity: medium
+    example: yt-dlp is older than 90 days, but the agent switches to tikwm without updating and retrying.
+
+style_constraints:
+  must_have:
+    - Source rights, mode, limit, backend, manifest path, item count, and warnings are recorded.
+    - Source-only requests stop before creative editing intake.
+  must_not_have:
+    - Batch author scraping through tikwm.
+    - Committing downloaded media, cookies, profiles, manifests, or info sidecars.
+
+arena_config:
+  noise_band: 0.15
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-tiktok-downloader/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-tiktok-downloader/retrospective.jsonl
+  log_entry_note: Record input URL or handle shape, mode, limit, backend, manifest path, warnings, and whether the user later requested editing. Do not fabricate usage data.
+
+cold_start_mode: false
