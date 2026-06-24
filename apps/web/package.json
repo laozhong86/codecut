@@ -2,6 +2,7 @@
   "name": "@codecut/web",
   "version": "0.1.0",
   "private": true,
+  "license": "GPL-3.0-only",
   "packageManager": "bun@1.2.18",
   "scripts": {
     "dev": "next dev --turbopack --port 4100",

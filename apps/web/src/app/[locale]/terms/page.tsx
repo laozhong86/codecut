@@ -110,7 +110,7 @@ export default function TermsPage() {
 					</li>
 					<li>Use Codecut for client work and paid projects</li>
 					<li>Share and distribute videos created with Codecut</li>
-					<li>Modify and distribute the Codecut software (under MIT license)</li>
+					<li>Modify and distribute the Codecut software (under GPLv3 license)</li>
 				</ul>
 				<p>
 					<strong>What we ask:</strong> Don't use Codecut for illegal activities,
