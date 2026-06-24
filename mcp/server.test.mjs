@@ -761,10 +761,8 @@ describe("Codecut MCP server contract", () => {
 	});
 
 	test("keeps created project context visible when import fails", async () => {
-		const filePath = join(
-			await mkdtemp(join(tmpdir(), "codecut-widget-")),
-			"source.mp4",
-		);
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const filePath = join(directory, "source.mp4");
 		await writeFile(filePath, "video");
 		const pendingConfirmationId =
 			serverModule.openCodecutWorkspace(
@@ -800,7 +798,7 @@ describe("Codecut MCP server contract", () => {
 				}),
 				{
 					bridgeToolImpl,
-					confirmationRoot: filePath.replace(/\/source\.mp4$/, ""),
+					confirmationRoot: directory,
 				},
 			);
 
@@ -814,7 +812,7 @@ describe("Codecut MCP server contract", () => {
 				error: "media import failed",
 			});
 		} finally {
-			await rm(filePath.replace(/\/source\.mp4$/, ""), {
+			await rm(directory, {
 				recursive: true,
 				force: true,
 			});
