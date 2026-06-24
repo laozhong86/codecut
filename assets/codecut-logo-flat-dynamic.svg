@@ -1,0 +1,18 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="codecut-flat-dynamic-title codecut-flat-dynamic-desc">
+	<title id="codecut-flat-dynamic-title">Codecut Flat Dynamic Mark</title>
+	<desc id="codecut-flat-dynamic-desc">A flat rotated agent shell with two editing slabs separated by a cyan cut line.</desc>
+	<g transform="rotate(-8 256 256)">
+		<circle cx="256" cy="256" r="154" fill="#0B0F14"/>
+		<ellipse cx="258" cy="101" rx="92" ry="78" fill="#0B0F14"/>
+		<ellipse cx="381" cy="154" rx="92" ry="84" fill="#0B0F14"/>
+		<ellipse cx="410" cy="281" rx="86" ry="96" fill="#0B0F14"/>
+		<ellipse cx="325" cy="398" rx="94" ry="82" fill="#0B0F14"/>
+		<ellipse cx="191" cy="391" rx="91" ry="85" fill="#0B0F14"/>
+		<ellipse cx="101" cy="285" rx="85" ry="94" fill="#0B0F14"/>
+		<ellipse cx="132" cy="158" rx="91" ry="83" fill="#0B0F14"/>
+	</g>
+	<path d="M190 151H361C375.5 151 383.3 168 374.1 179.2L315.2 250.7C308.3 259.1 298 264 287.1 264H135C120.5 264 112.7 247 121.9 235.8L178.3 167.3C181.2 157.5 184.8 151 190 151Z" fill="#F8FAFC"/>
+	<path d="M221 286H392C406.5 286 414.3 303 405.1 314.2L348.7 382.7C340.8 392.3 329 398 316.6 398H145C130.5 398 122.7 381 131.9 369.8L190.8 298.3C197.7 289.9 210.1 286 221 286Z" fill="#F8FAFC"/>
+	<path d="M221.5 260H330.5L290.5 309H181.5L221.5 260Z" fill="#22D3EE"/>
+	<path d="M247 260H282L242 309H207L247 260Z" fill="#7DD3FC"/>
+</svg>

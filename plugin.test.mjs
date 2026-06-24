@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -7,22 +7,47 @@ import { fileURLToPath } from "node:url";
 const pluginRoot = dirname(fileURLToPath(import.meta.url));
 
 describe("Codecut plugin startup guidance", () => {
-	test("keeps the Codecut skill as the single default plugin entrypoint", async () => {
+	test("exposes user-clickable starter prompts and plugin icons", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
 		);
-		const startupPrompt = pluginManifest.interface.defaultPrompt.join("\n");
+		const pluginInterface = pluginManifest.interface;
 
-		expect(startupPrompt).toContain("$codecut");
+		expect(pluginInterface.defaultPrompt).toEqual([
+			"Use Codecut to start a new edit from my video.",
+			"Use Codecut to make a short social cut from this source clip.",
+			"Use Codecut to open my editing workspace and set up the project.",
+		]);
+		for (const prompt of pluginInterface.defaultPrompt) {
+			expect(prompt.length).toBeLessThanOrEqual(90);
+		}
+		const promptText = pluginInterface.defaultPrompt.join("\n");
 		for (const stageSkill of [
+			"$codecut",
 			"$codecut-requirement-intake",
 			"$codecut-material-ingest",
 			"$codecut-executor-apply",
 			"$codecut-reference-template",
 			"$codecut-tiktok-downloader",
+			"open_codecut_workspace",
+			"MCP tool",
+			"before reading local files",
+			"loading stage skills",
+			"running shell commands",
+			"executor mutation",
+			"editorUrl",
 		]) {
-		expect(startupPrompt).not.toContain(stageSkill);
+			expect(promptText).not.toContain(stageSkill);
 		}
+
+		expect(pluginInterface.composerIcon).toBe(
+			"./assets/codecut-logo-flat-dynamic.svg",
+		);
+		expect(pluginInterface.logo).toBe(
+			"./assets/codecut-logo-variant-3d-transparent-1024.png",
+		);
+		await access(join(pluginRoot, pluginInterface.composerIcon));
+		await access(join(pluginRoot, pluginInterface.logo));
 	});
 
 	test("declares a local web server app for the Codecut preview", async () => {
@@ -63,16 +88,8 @@ describe("Codecut plugin startup guidance", () => {
 	});
 
 	test("opens the local preview through the current Codex in-app browser", async () => {
-		const pluginManifest = JSON.parse(
-			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
-		);
 		const skill = await readFile(
-			join(
-				pluginRoot,
-				"skills",
-				"codecut",
-				"SKILL.md",
-			),
+			join(pluginRoot, "skills", "codecut", "SKILL.md"),
 			"utf8",
 		);
 		const executorSkill = await readFile(
@@ -80,23 +97,12 @@ describe("Codecut plugin startup guidance", () => {
 			"utf8",
 		);
 		const agentCard = await readFile(
-			join(
-				pluginRoot,
-				"skills",
-				"codecut",
-				"agents",
-				"openai.yaml",
-			),
+			join(pluginRoot, "skills", "codecut", "agents", "openai.yaml"),
 			"utf8",
 		);
-		const startupPrompt = pluginManifest.interface.defaultPrompt.join("\n");
 		const normalizedSkill = skill.replace(/\s+/g, " ");
 		const normalizedExecutorSkill = executorSkill.replace(/\s+/g, " ");
 
-		expect(startupPrompt).toContain("Codex in-app browser");
-		expect(startupPrompt).toContain(
-			"Whenever Codecut creates a project and receives an editorUrl",
-		);
 		expect(agentCard).toContain("Codex in-app browser");
 		expect(agentCard).toContain(
 			"Whenever Codecut creates a project and receives an editorUrl",
@@ -134,26 +140,12 @@ describe("Codecut plugin startup guidance", () => {
 	});
 
 	test("routes new creative intake through the workspace widget before text fallback", async () => {
-		const pluginManifest = JSON.parse(
-			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
-		);
 		const routerSkill = await readFile(
-			join(
-				pluginRoot,
-				"skills",
-				"codecut",
-				"SKILL.md",
-			),
+			join(pluginRoot, "skills", "codecut", "SKILL.md"),
 			"utf8",
 		);
 		const routerAgentCard = await readFile(
-			join(
-				pluginRoot,
-				"skills",
-				"codecut",
-				"agents",
-				"openai.yaml",
-			),
+			join(pluginRoot, "skills", "codecut", "agents", "openai.yaml"),
 			"utf8",
 		);
 		const intakeSkill = await readFile(
@@ -170,31 +162,21 @@ describe("Codecut plugin startup guidance", () => {
 			),
 			"utf8",
 		);
-		const startupPrompt = pluginManifest.interface.defaultPrompt.join("\n");
 		const normalizedRouterSkill = routerSkill.replace(/\r\n/g, "\n");
 
 		for (const content of [
-			startupPrompt,
 			routerSkill,
 			routerAgentCard,
 			intakeSkill,
 			intakeAgentCard,
 		]) {
-		expect(content).toContain("open_codecut_workspace");
+			expect(content).toContain("open_codecut_workspace");
 		}
 
-		expect(startupPrompt).toContain("MCP tool directly");
-		expect(startupPrompt).toContain("before reading local files");
-		expect(startupPrompt.indexOf("open_codecut_workspace")).toBeLessThan(
-			startupPrompt.indexOf("$codecut"),
-		);
 		expect(intakeSkill).toContain("workspace widget tool is unavailable");
 		expect(intakeSkill).toContain("tool_search");
 		expect(intakeSkill).toContain("mcp__codecut_mcp.open_codecut_workspace");
 		expect(intakeSkill).toContain("text-only questions");
-		expect(startupPrompt).toContain("before reading local files");
-		expect(startupPrompt).toContain("loading stage skills");
-		expect(startupPrompt).toContain("running shell commands");
 		expect(normalizedRouterSkill).toContain("before reading\nlocal files");
 		expect(routerSkill).toContain("loading stage skills");
 		expect(routerSkill).toContain("running shell commands");
@@ -212,9 +194,9 @@ describe("Codecut plugin startup guidance", () => {
 		);
 
 		for (const content of [agents, checklist]) {
-		expect(content).toContain("fresh-thread");
-		expect(content).toContain("verify-codecut-widget-intake-thread.mjs");
-		expect(content).toContain("open_codecut_workspace");
+			expect(content).toContain("fresh-thread");
+			expect(content).toContain("verify-codecut-widget-intake-thread.mjs");
+			expect(content).toContain("open_codecut_workspace");
 		}
 		expect(checklist).toContain("do not inspect skills");
 		expect(checklist).toContain(
@@ -238,8 +220,8 @@ describe("Codecut plugin startup guidance", () => {
 		);
 
 		for (const content of [executorSkill, workflowDocs]) {
-		expect(content).toContain("apps/web/.env.local");
-		expect(content).toContain("source apps/web/.env.local");
+			expect(content).toContain("apps/web/.env.local");
+			expect(content).toContain("source apps/web/.env.local");
 		}
 		expect(frameworkSkill).toContain("Use `codecut-executor-apply`");
 	});
@@ -274,8 +256,12 @@ describe("Codecut plugin startup guidance", () => {
 		expect(requirementIntake).toContain("owns only the permission decision");
 		expect(materialIngest).toContain("owns source material facts only");
 		expect(executorApply).toContain("owns executor readiness and execution");
-		expect(executorApply).toContain("Before any long render or `export_project`");
-		expect(referenceTemplate).toContain("owns reference-derived template evidence");
+		expect(executorApply).toContain(
+			"Before any long render or `export_project`",
+		);
+		expect(referenceTemplate).toContain(
+			"owns reference-derived template evidence",
+		);
 		expect(referenceTemplate).toContain("confirmedByUser: true");
 	});
 
@@ -309,7 +295,7 @@ describe("Codecut plugin startup guidance", () => {
 			"verification-export",
 			"reference-template",
 		]) {
-		expect(contract).toContain(`\`${stage}\``);
+			expect(contract).toContain(`\`${stage}\``);
 		}
 
 		for (const requiredColumn of [
@@ -320,7 +306,7 @@ describe("Codecut plugin startup guidance", () => {
 			"Stop Condition",
 			"Next Handoff",
 		]) {
-		expect(contract).toContain(requiredColumn);
+			expect(contract).toContain(requiredColumn);
 		}
 
 		for (const rule of [
@@ -328,7 +314,7 @@ describe("Codecut plugin startup guidance", () => {
 			"Do not let MCP tools choose the workflow.",
 			"Do not treat a local MP4 as completion without matching Codecut timeline readback.",
 		]) {
-		expect(contract).toContain(rule);
+			expect(contract).toContain(rule);
 		}
 	});
 
@@ -352,7 +338,7 @@ describe("Codecut plugin startup guidance", () => {
 			"Failure Shape",
 			"Agent Next Action",
 		]) {
-		expect(toolContract).toContain(requiredColumn);
+			expect(toolContract).toContain(requiredColumn);
 		}
 		for (const requiredField of [
 			"`structuredContent`",
@@ -362,7 +348,7 @@ describe("Codecut plugin startup guidance", () => {
 			"`import_failed`",
 			"`readback_failed`",
 		]) {
-		expect(toolContract).toContain(requiredField);
+			expect(toolContract).toContain(requiredField);
 		}
 		for (const toolName of [
 			"open_codecut_workspace",
@@ -371,7 +357,7 @@ describe("Codecut plugin startup guidance", () => {
 			"verify_timeline",
 			"export_project",
 		]) {
-		expect(toolContract).toContain(`\`${toolName}\``);
+			expect(toolContract).toContain(`\`${toolName}\``);
 		}
 	});
 
@@ -392,8 +378,8 @@ describe("Codecut plugin startup guidance", () => {
 
 		for (const pathParts of currentContractPaths) {
 			const content = await readFile(join(pluginRoot, ...pathParts), "utf8");
-		expect(content).not.toContain("import_media_file");
-		expect(content).not.toContain("update_project_settings");
+			expect(content).not.toContain("import_media_file");
+			expect(content).not.toContain("update_project_settings");
 		}
 
 		const toolContract = await readFile(
@@ -426,14 +412,14 @@ describe("Codecut plugin startup guidance", () => {
 			const manifest = await readFile(
 				join(pluginRoot, "skills", skillName, "manifest.yaml"),
 				"utf8",
-		);
-		expect(manifest).toContain(`name: ${skillName}`);
-		expect(manifest).toContain("type: functional");
-		expect(manifest).toContain("usage_log_entrypoint:");
-		expect(manifest).toContain(`_runtime/logs/${skillName}/usage.jsonl`);
-		expect(manifest).toContain("retrospective_log_entrypoint:");
-		expect(manifest).toContain("Do not fabricate usage data");
-		expect(manifest).toContain("cold_start_mode: false");
+			);
+			expect(manifest).toContain(`name: ${skillName}`);
+			expect(manifest).toContain("type: functional");
+			expect(manifest).toContain("usage_log_entrypoint:");
+			expect(manifest).toContain(`_runtime/logs/${skillName}/usage.jsonl`);
+			expect(manifest).toContain("retrospective_log_entrypoint:");
+			expect(manifest).toContain("Do not fabricate usage data");
+			expect(manifest).toContain("cold_start_mode: false");
 		}
 	});
 
@@ -443,13 +429,7 @@ describe("Codecut plugin startup guidance", () => {
 			"utf8",
 		);
 		const frameworkAgentCard = await readFile(
-			join(
-				pluginRoot,
-				"skills",
-				"codecut",
-				"agents",
-				"openai.yaml",
-			),
+			join(pluginRoot, "skills", "codecut", "agents", "openai.yaml"),
 			"utf8",
 		);
 		const requirementIntake = await readFile(
@@ -489,13 +469,21 @@ describe("Codecut plugin startup guidance", () => {
 			/before treating the failure as a TikTok\s+fallback condition/,
 		);
 		expect(tiktokDownloader).toContain("download_manifest.json");
-		expect(tiktokDownloader).toContain(".codecut-workspace/projects/<projectId>/01-assets");
+		expect(tiktokDownloader).toContain(
+			".codecut-workspace/projects/<projectId>/01-assets",
+		);
 		expect(tiktokDownloader).toContain("Do not run executor mutation commands");
 		expect(tiktokDownloader).toContain("hand off to `codecut-material-ingest`");
-		expect(tiktokDownloader).toContain("hand back to `codecut-requirement-intake`");
-		expect(frameworkSkill).toContain("Source-only acquisition is not a creative editing job");
+		expect(tiktokDownloader).toContain(
+			"hand back to `codecut-requirement-intake`",
+		);
+		expect(frameworkSkill).toContain(
+			"Source-only acquisition is not a creative editing job",
+		);
 		expect(frameworkSkill).toContain("Do not open the creative editing widget");
-		expect(frameworkAgentCard).toContain("source-only download/save/extract requests");
+		expect(frameworkAgentCard).toContain(
+			"source-only download/save/extract requests",
+		);
 		expect(materialIngest).toContain("For source-only acquisition requests");
 		expect(tiktokDownloader).toContain(
 			"Do not open creative editing intake unless the user later asks for editing",
@@ -524,18 +512,14 @@ describe("Codecut plugin startup guidance", () => {
 			requirementIntake,
 			materialIngest,
 		]) {
-		expect(content).toContain("codecut-tiktok-downloader");
+			expect(content).toContain("codecut-tiktok-downloader");
 		}
 
 		expect(startupPrompt).not.toContain("$codecut-tiktok-downloader");
 	});
 
 	test("requires visual preflight for horizontal sources converted to vertical shorts", async () => {
-		const skillRoot = join(
-			pluginRoot,
-			"skills",
-			"codecut",
-		);
+		const skillRoot = join(pluginRoot, "skills", "codecut");
 		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
 		const longToShort = await readFile(
 			join(skillRoot, "references", "workflow-recipes", "long-to-short.md"),
@@ -555,11 +539,11 @@ describe("Codecut plugin startup guidance", () => {
 		);
 
 		for (const content of [skill, longToShort, platformPresets]) {
-		expect(content).toContain("visual preflight");
-		expect(content).toContain(
+			expect(content).toContain("visual preflight");
+			expect(content).toContain(
 				"vertical_face_safe_crop_above_burned_captions",
-		);
-		expect(content).toContain("Do not use `black-bar` as a subtitle mask");
+			);
+			expect(content).toContain("Do not use `black-bar` as a subtitle mask");
 		}
 
 		expect(videoContext).toContain("burnedCaptionRegion");
@@ -573,11 +557,7 @@ describe("Codecut plugin startup guidance", () => {
 	});
 
 	test("requires post-cut caption timing and video-type caption preset routing", async () => {
-		const skillRoot = join(
-			pluginRoot,
-			"skills",
-			"codecut",
-		);
+		const skillRoot = join(pluginRoot, "skills", "codecut");
 		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
 		const subtitlePass = await readFile(
 			join(skillRoot, "references", "workflow-recipes", "subtitle-pass.md"),
@@ -597,16 +577,16 @@ describe("Codecut plugin startup guidance", () => {
 		);
 
 		for (const content of [skill, subtitlePass, workflow]) {
-		expect(content).toContain("post-cut caption source");
-		expect(content).toContain("source transcript remap");
-		expect(content).toContain("edited audio transcription");
-		expect(content).toContain("build-post-cut-captions");
+			expect(content).toContain("post-cut caption source");
+			expect(content).toContain("source transcript remap");
+			expect(content).toContain("edited audio transcription");
+			expect(content).toContain("build-post-cut-captions");
 		}
 
 		for (const content of [platformPresets, editPlanSchema, workflow]) {
-		expect(content).toContain("talking-head-pop");
-		expect(content).toContain("tutorial-clean");
-		expect(content).toContain("documentary-soft");
+			expect(content).toContain("talking-head-pop");
+			expect(content).toContain("tutorial-clean");
+			expect(content).toContain("documentary-soft");
 		}
 	});
 
