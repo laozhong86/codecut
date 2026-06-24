@@ -689,9 +689,42 @@ describe("applyEditPlanToEditor", () => {
 					backgroundColor: "transparent",
 				},
 			},
+			{
+				preset: "social-highlight",
+				expected: {
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontSize: 5.6,
+					fontWeight: "bold",
+					color: "#ffffff",
+					stroke: { color: "#0f172a", width: 2 },
+					backgroundColor: "#2563eb",
+					backgroundOpacity: 0.86,
+				},
+			},
+			{
+				preset: "comment-bubble",
+				expected: {
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontSize: 5.2,
+					fontWeight: "bold",
+					color: "#111827",
+					backgroundColor: "#ffffff",
+					backgroundOpacity: 0.92,
+				},
+			},
+			{
+				preset: "minimal-reel",
+				expected: {
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontSize: 4.6,
+					fontWeight: "normal",
+					color: "#f8fafc",
+					backgroundColor: "transparent",
+				},
+			},
 		];
 
-		expect(cases).toHaveLength(8);
+		expect(cases).toHaveLength(11);
 
 		for (const captionCase of cases) {
 			const editor = fakeEditor();
@@ -725,6 +758,95 @@ describe("applyEditPlanToEditor", () => {
 					rotate: 0,
 				},
 				...captionCase.expected,
+			});
+		}
+	});
+
+	test("applies short-form social title presets with distinct positions", () => {
+		const cases = [
+			{
+				stylePreset: "social_hook",
+				expected: {
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontSize: 11,
+					fontWeight: "bold",
+					color: "#ffe45c",
+					stroke: { color: "#111111", width: 4 },
+					backgroundColor: "transparent",
+					boxWidth: 52,
+					transform: {
+						scale: 1,
+						position: { x: 0, y: -500 },
+						rotate: 0,
+					},
+				},
+			},
+			{
+				stylePreset: "product_badge",
+				expected: {
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontSize: 7,
+					fontWeight: "bold",
+					color: "#111827",
+					backgroundColor: "#ffe45c",
+					backgroundOpacity: 0.9,
+					backgroundBorderRadius: 12,
+					boxWidth: 52,
+					transform: {
+						scale: 1,
+						position: { x: 0, y: -330 },
+						rotate: 0,
+					},
+				},
+			},
+			{
+				stylePreset: "chapter_bumper",
+				expected: {
+					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontSize: 8.5,
+					fontWeight: "bold",
+					color: "#ffffff",
+					backgroundColor: "#111827",
+					backgroundOpacity: 0.78,
+					backgroundBorderRadius: 8,
+					boxWidth: 52,
+					transform: {
+						scale: 1,
+						position: { x: 0, y: 0 },
+						rotate: 0,
+					},
+				},
+			},
+		];
+
+		for (const titleCase of cases) {
+			const editor = fakeEditor();
+			const plan = {
+				...validPlan(),
+				title: {
+					text: "Stop scrolling",
+					startTime: 0,
+					duration: 2,
+					stylePreset: titleCase.stylePreset,
+				},
+			} as unknown as EditPlan;
+
+			const result = applyEditPlanToEditor({
+				plan,
+				projectId: "project-1",
+				replaceExisting: true,
+				editor,
+			});
+
+			expect(result).toMatchObject({ success: true });
+
+			const textElements = editor.timeline
+				.getTracks()
+				.flatMap((track) => (track.type === "text" ? track.elements : []));
+
+			expect(textElements[0]).toMatchObject({
+				content: "Stop scrolling",
+				...titleCase.expected,
 			});
 		}
 	});

@@ -511,9 +511,12 @@ describe("validateEditPlan", () => {
 			"product-punch",
 			"lifestyle-warm",
 			"cinematic-serif",
+			"social-highlight",
+			"comment-bubble",
+			"minimal-reel",
 		];
 
-		expect(presets).toHaveLength(8);
+		expect(presets).toHaveLength(11);
 
 		for (const preset of presets) {
 			const result = validateEditPlan({
@@ -522,6 +525,36 @@ describe("validateEditPlan", () => {
 					captionStyle: {
 						preset,
 						position: "lower-safe",
+					},
+				},
+				projectId: "project-1",
+				mediaAssets: [mediaAsset()],
+			});
+
+			expect(result.success).toBe(true);
+		}
+	});
+
+	test("accepts implemented short-form title style presets", () => {
+		const presets = [
+			"hook_title",
+			"lower_title",
+			"social_hook",
+			"product_badge",
+			"chapter_bumper",
+		];
+
+		expect(presets).toHaveLength(5);
+
+		for (const preset of presets) {
+			const result = validateEditPlan({
+				plan: {
+					...validPlan(),
+					title: {
+						text: "Stop scrolling",
+						startTime: 0,
+						duration: 2,
+						stylePreset: preset,
 					},
 				},
 				projectId: "project-1",

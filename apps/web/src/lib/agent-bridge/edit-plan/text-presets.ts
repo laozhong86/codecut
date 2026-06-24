@@ -45,6 +45,8 @@ export function resolveTitleStylePreset({
 	preset: EditPlanTextStylePreset;
 	aspectRatio: EditPlan["target"]["aspectRatio"];
 }): TextElementRaw {
+	const boxWidth = getTitleBoxWidth({ aspectRatio });
+
 	if (preset === "lower_title") {
 		return {
 			fontFamily: CODECUT_CJK_FONT_FAMILY,
@@ -54,7 +56,7 @@ export function resolveTitleStylePreset({
 			backgroundColor: "transparent",
 			stroke: { color: "#000000", width: 3 },
 			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
-			boxWidth: getTitleBoxWidth({ aspectRatio }),
+			boxWidth,
 			transform: {
 				scale: 1,
 				position: { x: 0, y: 180 },
@@ -63,23 +65,89 @@ export function resolveTitleStylePreset({
 		};
 	}
 
-	return {
-		fontFamily: CODECUT_CJK_FONT_FAMILY,
-		fontSize: 10,
-		fontWeight: "bold",
-		color: "#ffffff",
-		backgroundColor: "#000000",
-		backgroundOpacity: 0.72,
-		backgroundPaddingX: 28,
-		backgroundPaddingY: 14,
-		backgroundBorderRadius: 10,
-		boxWidth: getTitleBoxWidth({ aspectRatio }),
-		transform: {
-			scale: 1,
-			position: { x: 0, y: -420 },
-			rotate: 0,
-		},
-	};
+	if (preset === "social_hook") {
+		return {
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 11,
+			fontWeight: "bold",
+			color: "#ffe45c",
+			backgroundColor: "transparent",
+			stroke: { color: "#111111", width: 4 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 3, blur: 6 },
+			boxWidth,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: -500 },
+				rotate: 0,
+			},
+		};
+	}
+
+	if (preset === "product_badge") {
+		return {
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 7,
+			fontWeight: "bold",
+			color: "#111827",
+			backgroundColor: "#ffe45c",
+			backgroundOpacity: 0.9,
+			backgroundPaddingX: 24,
+			backgroundPaddingY: 12,
+			backgroundBorderRadius: 12,
+			shadow: { color: "#000000", offsetX: 0, offsetY: 3, blur: 6 },
+			boxWidth,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: -330 },
+				rotate: 0,
+			},
+		};
+	}
+
+	if (preset === "chapter_bumper") {
+		return {
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 8.5,
+			fontWeight: "bold",
+			color: "#ffffff",
+			backgroundColor: "#111827",
+			backgroundOpacity: 0.78,
+			backgroundPaddingX: 28,
+			backgroundPaddingY: 14,
+			backgroundBorderRadius: 8,
+			stroke: { color: "#2563eb", width: 1.5 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 6 },
+			boxWidth,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: 0 },
+				rotate: 0,
+			},
+		};
+	}
+
+	if (preset === "hook_title") {
+		return {
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 10,
+			fontWeight: "bold",
+			color: "#ffffff",
+			backgroundColor: "#000000",
+			backgroundOpacity: 0.72,
+			backgroundPaddingX: 28,
+			backgroundPaddingY: 14,
+			backgroundBorderRadius: 10,
+			boxWidth,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: -420 },
+				rotate: 0,
+			},
+		};
+	}
+
+	const exhaustivePreset: never = preset;
+	throw new Error(`Unsupported title style preset: ${exhaustivePreset}`);
 }
 
 export function resolveCaptionStylePreset({
@@ -213,6 +281,54 @@ export function resolveCaptionStylePreset({
 			backgroundColor: "transparent",
 			stroke: { color: "#000000", width: 3 },
 			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
+			boxWidth,
+			transform,
+		};
+	}
+
+	if (captionStyle.preset === "social-highlight") {
+		return {
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 5.6,
+			fontWeight: "bold",
+			color: "#ffffff",
+			backgroundColor: "#2563eb",
+			backgroundOpacity: 0.86,
+			backgroundPaddingX: 22,
+			backgroundPaddingY: 10,
+			backgroundBorderRadius: 10,
+			stroke: { color: "#0f172a", width: 2 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 5 },
+			boxWidth,
+			transform,
+		};
+	}
+
+	if (captionStyle.preset === "comment-bubble") {
+		return {
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 5.2,
+			fontWeight: "bold",
+			color: "#111827",
+			backgroundColor: "#ffffff",
+			backgroundOpacity: 0.92,
+			backgroundPaddingX: 24,
+			backgroundPaddingY: 12,
+			backgroundBorderRadius: 12,
+			shadow: { color: "#000000", offsetX: 0, offsetY: 3, blur: 8 },
+			boxWidth,
+			transform,
+		};
+	}
+
+	if (captionStyle.preset === "minimal-reel") {
+		return {
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 4.6,
+			fontWeight: "normal",
+			color: "#f8fafc",
+			backgroundColor: "transparent",
+			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 6 },
 			boxWidth,
 			transform,
 		};
