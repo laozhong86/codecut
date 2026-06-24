@@ -72,7 +72,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs inspect-video-range --project-id <id> --media-id <id> --start-seconds <seconds> --end-seconds <seconds> [--frame-count <1..16>]",
 		"  node scripts/codex-bridge.mjs get-timeline-state-v2 --project-id <id> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>] [--include-referenced-media <true|false>]",
 		"  node scripts/codex-bridge.mjs inspect-timeline --project-id <id> --start-time <seconds> [--end-time <seconds>] [--frame-count <1..16>]",
-		"  node scripts/codex-bridge.mjs build-video-quality-report --project-id <id> --plan-json-file /absolute/path/edit-plan.json --start-time <seconds> --end-time <seconds> --frame-count <1..16>",
+		"  node scripts/codex-bridge.mjs build-video-quality-report --project-id <id> --plan-json-file /absolute/path/edit-plan.json --start-time <seconds> --end-time <seconds> --frame-count <1..16> [--title-rubric-json-file /absolute/path/title-rubric.json] [--output-file /absolute/path/export.mp4 --format <mp4|webm> --include-audio <true|false>]",
 		"  node scripts/codex-bridge.mjs get-transcript --project-id <id> --granularity <segment|word> --language <auto|code> --model-id <model> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>]",
 		"  node scripts/codex-bridge.mjs add-texts --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs add-captions --project-id <id> --args-json '<json>' --confirmation-token <token>",
@@ -1572,6 +1572,10 @@ export async function buildVideoQualityReportEnvelope({
 	startTime,
 	endTime,
 	frameCount,
+	titleRubricJsonFile,
+	outputFile,
+	outputFormat,
+	includeAudio,
 }) {
 	if (startTime === undefined) {
 		throw new Error("--start-time is required");
@@ -1586,12 +1590,51 @@ export async function buildVideoQualityReportEnvelope({
 		filePath: planJsonFile,
 		flagName: "plan-json-file",
 	});
+	const titleRubric = titleRubricJsonFile
+		? await readJsonObjectFile({
+				filePath: titleRubricJsonFile,
+				flagName: "title-rubric-json-file",
+			})
+		: undefined;
+	const hasExportedFileArg =
+		outputFile !== undefined ||
+		outputFormat !== undefined ||
+		includeAudio !== undefined;
+	let exportedFile;
+	if (hasExportedFileArg) {
+		if (!outputFile) {
+			throw new Error(
+				"--output-file is required when probing an exported file",
+			);
+		}
+		if (!isAbsolute(outputFile)) {
+			throw new Error("--output-file must be an absolute path");
+		}
+		if (!outputFormat) {
+			throw new Error("--format is required when probing an exported file");
+		}
+		if (!["mp4", "webm"].includes(outputFormat)) {
+			throw new Error("--format must be mp4 or webm");
+		}
+		if (typeof includeAudio !== "boolean") {
+			throw new Error(
+				"--include-audio is required when probing an exported file",
+			);
+		}
+		exportedFile = {
+			outputFile,
+			format: outputFormat,
+			includeAudio,
+		};
+	}
 	return buildCommandEnvelope({
 		projectId,
 		tool: "build_video_quality_report",
 		args: {
 			plan,
 			inspection: optionalTimelineWindow({ startTime, endTime, frameCount }),
+			...(titleRubric === undefined ? {} : { titleRubric }),
+			...(exportedFile === undefined ? {} : { exportedFile }),
 		},
 	});
 }
@@ -2984,6 +3027,13 @@ export async function runCli({
 			endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
 			frameCount:
 				flags.frameCount === undefined ? undefined : Number(flags.frameCount),
+			titleRubricJsonFile: flags.titleRubricJsonFile,
+			outputFile: flags.outputFile,
+			outputFormat: flags.format,
+			includeAudio:
+				flags.includeAudio === undefined
+					? undefined
+					: parseBoolean(flags.includeAudio, "includeAudio"),
 		});
 	} else if (command === "get-transcript") {
 		envelope = buildGetTranscriptEnvelope({

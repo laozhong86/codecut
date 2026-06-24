@@ -362,6 +362,21 @@ const inspectTimelineArgsSchema = z
 	})
 	.strict();
 
+const videoQualityTitleRubricSchema = z
+	.object({
+		platform: z.enum(["youtube", "tiktok", "instagram", "linkedin", "generic"]),
+		primaryKeyword: z.string().trim().min(1).optional(),
+	})
+	.strict();
+
+const videoQualityExportedFileSchema = z
+	.object({
+		outputFile: z.string().min(1),
+		format: z.enum(["mp4", "webm"]),
+		includeAudio: z.boolean(),
+	})
+	.strict();
+
 const videoQualityReportArgsSchema = z
 	.object({
 		plan: z.unknown(),
@@ -376,6 +391,8 @@ const videoQualityReportArgsSchema = z
 				message:
 					"inspection endTime must be greater than or equal to startTime.",
 			}),
+		titleRubric: videoQualityTitleRubricSchema.optional(),
+		exportedFile: videoQualityExportedFileSchema.optional(),
 	})
 	.strict();
 
@@ -3135,12 +3152,44 @@ async function runInspectTimeline({
 async function runBuildVideoQualityReport({
 	state,
 	args,
+	probeExportedFile,
 }: {
 	state: ExecutorProjectState;
 	args: Record<string, unknown>;
+	probeExportedFile: ExecutorProbeExportedFile;
 }) {
 	const parsed = videoQualityReportArgsSchema.parse(args);
 	const mediaAssets = await toMediaAssets(state.mediaAssets);
+	let exportedFile:
+		| {
+				outputFile: string;
+				format: ExecutorExportFormat;
+				includeAudio: boolean;
+				outputProbe?: ExecutorOutputProbe;
+				probeError?: string;
+		  }
+		| undefined;
+	if (parsed.exportedFile) {
+		if (!isAbsolute(parsed.exportedFile.outputFile)) {
+			throw new Error("exportedFile.outputFile must be an absolute path");
+		}
+		exportedFile = {
+			outputFile: parsed.exportedFile.outputFile,
+			format: parsed.exportedFile.format,
+			includeAudio: parsed.exportedFile.includeAudio,
+		};
+		try {
+			exportedFile.outputProbe = await probeExportedFile({
+				outputFile: parsed.exportedFile.outputFile,
+				format: parsed.exportedFile.format,
+				expectedWidth: state.project.settings.canvasSize.width,
+				expectedHeight: state.project.settings.canvasSize.height,
+			});
+		} catch (error) {
+			exportedFile.probeError =
+				error instanceof Error ? error.message : String(error);
+		}
+	}
 	const report = await buildVideoQualityReport({
 		state,
 		mediaAssets,
@@ -3150,6 +3199,8 @@ async function runBuildVideoQualityReport({
 			projectDirectory({ projectId: state.project.id }),
 			"timeline-inspect",
 		),
+		titleRubric: parsed.titleRubric,
+		exportedFile,
 	});
 	return {
 		success: true,
@@ -4338,7 +4389,11 @@ async function executeCommand({
 		return runInspectTimeline({ state, args: command.args });
 	}
 	if (command.tool === "build_video_quality_report") {
-		return runBuildVideoQualityReport({ state, args: command.args });
+		return runBuildVideoQualityReport({
+			state,
+			args: command.args,
+			probeExportedFile,
+		});
 	}
 	if (command.tool === "get_transcript") {
 		return runGetTranscript({

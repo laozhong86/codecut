@@ -115,6 +115,23 @@ describe("Codecut MCP server contract", () => {
 		expect(tool?.inputSchema.granularity.safeParse("word").success).toBe(true);
 	});
 
+	test("exposes explicit quality report rubric and export probe inputs", () => {
+		const tool = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "build_video_quality_report",
+		);
+
+		expect(tool?.description).toContain("title_quality");
+		expect(tool?.description).toContain("export probe");
+		expect(tool?.inputSchema.titleRubricJsonFile.safeParse("/tmp/title.json").success).toBe(
+			true,
+		);
+		expect(tool?.inputSchema.outputFile.safeParse("/tmp/final.mp4").success).toBe(
+			true,
+		);
+		expect(tool?.inputSchema.outputFormat.safeParse("mp4").success).toBe(true);
+		expect(tool?.inputSchema.includeAudio.safeParse(true).success).toBe(true);
+	});
+
 	test("exposes protected terms for RunningHub voice tools", () => {
 		for (const name of [
 			"generate_runninghub_voice_design",
@@ -1451,6 +1468,10 @@ describe("Codecut MCP server contract", () => {
 				startTime: 0,
 				endTime: 3,
 				frameCount: 4,
+				titleRubricJsonFile: "/tmp/title-rubric.json",
+				outputFile: "/tmp/final.mp4",
+				outputFormat: "mp4",
+				includeAudio: true,
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
@@ -1465,6 +1486,14 @@ describe("Codecut MCP server contract", () => {
 			"3",
 			"--frame-count",
 			"4",
+			"--title-rubric-json-file",
+			"/tmp/title-rubric.json",
+			"--output-file",
+			"/tmp/final.mp4",
+			"--format",
+			"mp4",
+			"--include-audio",
+			"true",
 		]);
 		expect(
 			buildBridgeCliArgs("get_transcript", {

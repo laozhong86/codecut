@@ -44,6 +44,11 @@ const planJsonFileSchema = z
 	.trim()
 	.min(1)
 	.describe("Absolute path to an EditPlan JSON file.");
+const titleRubricJsonFileSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.describe("Absolute path to a title quality rubric JSON file.");
 const templateJsonFileSchema = z
 	.string()
 	.trim()
@@ -178,6 +183,15 @@ const videoQualityReportInputSchema = {
 	startTime: secondsSchema,
 	endTime: secondsSchema,
 	frameCount: z.number().int().min(1).max(16),
+	titleRubricJsonFile: titleRubricJsonFileSchema.optional(),
+	outputFile: z
+		.string()
+		.trim()
+		.min(1)
+		.describe("Absolute path to an already exported local video file to probe.")
+		.optional(),
+	outputFormat: outputFormatSchema.optional(),
+	includeAudio: z.boolean().optional(),
 };
 
 const transcriptInputSchema = {
@@ -481,7 +495,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "build_video_quality_report",
 		title: "Build Codecut Video Quality Report",
 		description:
-			"Validate one EditPlan against current timeline readback and render sampled timeline frames without mutating timeline state.",
+			"Validate one EditPlan against current timeline readback, caption_quality, optional title_quality, optional export probe, optional audio presence, and sampled timeline frames without mutating timeline state.",
 		inputSchema: videoQualityReportInputSchema,
 		readOnly: true,
 	},
@@ -1854,7 +1868,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				},
 			});
 		case "build_video_quality_report":
-			return [
+			return appendOptionalCliArgs([
 				"scripts/codex-bridge.mjs",
 				"build-video-quality-report",
 				"--project-id",
@@ -1867,7 +1881,12 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				requireNumberArg(args, "endTime"),
 				"--frame-count",
 				requireNumberArg(args, "frameCount"),
-			];
+			], args, [
+				["titleRubricJsonFile", "--title-rubric-json-file"],
+				["outputFile", "--output-file"],
+				["outputFormat", "--format"],
+				["includeAudio", "--include-audio"],
+			]);
 		case "get_transcript":
 			return buildSendArgs({
 				projectId,
