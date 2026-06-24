@@ -25,7 +25,7 @@ describe("verify Codecut widget intake thread", () => {
 							type: "mcpToolCall",
 							server: "codecut_mcp",
 							tool: "open_codecut_workspace",
-							arguments: { durationGoalSeconds: 60 },
+							arguments: { durationGoalMode: "auto" },
 						},
 					],
 				},

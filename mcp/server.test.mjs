@@ -19,7 +19,7 @@ function setupIntent(overrides = {}) {
 		projectName: "Launch Cut",
 		mediaSources: [{ kind: "filePath", filePath: "/tmp/source.mp4" }],
 		targetAspectRatio: "9:16",
-		durationGoalSeconds: 60,
+		durationGoalMode: "auto",
 		captionLanguage: "auto",
 		output: {
 			format: "mp4",
@@ -328,7 +328,14 @@ describe("Codecut MCP server contract", () => {
 			"dataset.filePath",
 			"dataset.directoryPath",
 			'id="target-aspect-ratio"',
-			'id="duration-goal-seconds"',
+			'id="duration-goal-auto"',
+			'id="duration-goal-custom"',
+			'id="duration-range-options"',
+			'id="duration-range-min-seconds"',
+			'id="duration-range-max-seconds"',
+			"renderDurationRangeOptions",
+			"toggleDurationRangeEditor",
+			"collectDurationGoal",
 			'id="caption-language"',
 			'id="caption-font"',
 			'id="caption-size"',
@@ -387,20 +394,20 @@ describe("Codecut MCP server contract", () => {
 			'data-i18n-placeholder="projectNamePlaceholder"',
 			'data-i18n-placeholder="briefCustomPlaceholder"',
 			'data-i18n-placeholder="successCriteriaCustomPlaceholder"',
+			"durationGoalAuto",
+			"durationGoalAutoHelp",
+			"durationRange",
+			"durationRangeMinSeconds",
+			"durationRangeMaxSeconds",
+			"Auto",
+			"自动",
 			"customOption",
 			"自定义",
 			"customButton.dataset.action = \"toggle-custom\"",
-			'<select id="duration-goal-seconds"',
 			'<select id="caption-language"',
 			'<select id="caption-font"',
 			'<select id="caption-size"',
 			'<select id="caption-style-preset"',
-			'value="15"',
-			'value="30"',
-			'value="45"',
-			'value="60"',
-			'value="90"',
-			'value="120"',
 			'value="zh-CN"',
 			'value="en"',
 			'value="auto"',
@@ -421,6 +428,8 @@ describe("Codecut MCP server contract", () => {
 		]) {
 			expect(html).toContain(marker);
 		}
+		expect(html).toContain("durationGoalMode");
+		expect(html).toContain("durationGoalRangeSeconds");
 		expect(html).not.toContain("<legend");
 		expect(html).not.toContain("querySelectorAll('input[type=\"checkbox\"]:checked')");
 		expect(html).not.toContain("#315cec");
@@ -451,7 +460,18 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain('data-role="url"');
 		expect(html).not.toContain("updateMediaSourceRow");
 		expect(html).not.toContain("getFileDownloadUrl");
+		expect(html).not.toContain('<select id="duration-goal-seconds"');
 		expect(html).not.toContain('<input id="duration-goal-seconds"');
+		for (const removedDurationOption of [
+			'<option value="15">15</option>',
+			'<option value="30">30</option>',
+			'<option value="45">45</option>',
+			'<option value="60">60</option>',
+			'<option value="90">90</option>',
+			'<option value="120">120</option>',
+		]) {
+			expect(html).not.toContain(removedDurationOption);
+		}
 		expect(html).not.toContain('<input id="caption-language"');
 		expect(html).not.toContain('id="inspect-button"');
 		expect(html).not.toContain('id="brief-custom-toggle"');
@@ -637,7 +657,10 @@ describe("Codecut MCP server contract", () => {
 				},
 			],
 			targetAspectRatio: "9:16",
-			durationGoalSeconds: 45,
+			durationGoalRangeOptions: [
+				{ label: "Short proof cut", minSeconds: 25, maxSeconds: 40 },
+				{ label: "Explainer cut", minSeconds: 45, maxSeconds: 75 },
+			],
 		});
 
 		expect(result.structuredContent.intentDefaults).toMatchObject({
@@ -658,7 +681,11 @@ describe("Codecut MCP server contract", () => {
 				},
 			],
 			targetAspectRatio: "9:16",
-			durationGoalSeconds: 45,
+			durationGoalMode: "auto",
+			durationGoalRangeOptions: [
+				{ label: "Short proof cut", minSeconds: 25, maxSeconds: 40 },
+				{ label: "Explainer cut", minSeconds: 45, maxSeconds: 75 },
+			],
 			captionLanguage: "auto",
 			output: { format: "mp4", quality: "high", includeAudio: true },
 		});
@@ -687,6 +714,9 @@ describe("Codecut MCP server contract", () => {
 		expect(english.structuredContent.intentDefaults.projectId).toMatch(
 			/^codecut-project-[a-z0-9]+$/,
 		);
+		expect(english.structuredContent.intentDefaults.durationGoalMode).toBe(
+			"auto",
+		);
 
 		const chinese = serverModule.openCodecutWorkspace({ locale: "zh-CN" });
 		expect(chinese.structuredContent.intentDefaults.projectName).toBe(
@@ -712,7 +742,6 @@ describe("Codecut MCP server contract", () => {
 				"结尾适合继续编辑或导出",
 			],
 			captionLanguage: "auto",
-			durationGoalSeconds: 60,
 			generateIntroCover: true,
 			output: {
 				format: "mp4",
@@ -881,6 +910,26 @@ describe("Codecut MCP server contract", () => {
 			expect(ready.checks.every((check) => check.ok)).toBe(true);
 			expect(bridgeCalls).toEqual([]);
 
+			const automaticDuration = await serverModule.inspectCodecutSetup(
+				setupIntent({ durationGoalMode: "auto" }),
+				{ bridgeToolImpl },
+			);
+			expect(automaticDuration.status).toBe("ready");
+			expect(automaticDuration.intent.durationGoalMode).toBe("auto");
+
+			const customDurationRange = await serverModule.inspectCodecutSetup(
+				setupIntent({
+					durationGoalMode: "custom",
+					durationGoalRangeSeconds: { minSeconds: 25, maxSeconds: 40 },
+				}),
+				{ bridgeToolImpl },
+			);
+			expect(customDurationRange.status).toBe("ready");
+			expect(customDurationRange.intent.durationGoalRangeSeconds).toEqual({
+				minSeconds: 25,
+				maxSeconds: 40,
+			});
+
 			for (const [label, intent] of [
 				["invalid project id", setupIntent({ projectId: "../bad" })],
 				["missing project name", setupIntent({ projectName: " " })],
@@ -892,7 +941,13 @@ describe("Codecut MCP server contract", () => {
 					}),
 				],
 				["bad aspect ratio", setupIntent({ targetAspectRatio: "4:5" })],
-				["bad duration", setupIntent({ durationGoalSeconds: 0 })],
+				[
+					"bad duration range",
+					setupIntent({
+						durationGoalMode: "custom",
+						durationGoalRangeSeconds: { minSeconds: 60, maxSeconds: 30 },
+					}),
+				],
 				[
 					"bad caption font",
 					setupIntent({

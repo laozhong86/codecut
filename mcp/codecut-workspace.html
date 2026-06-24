@@ -250,6 +250,22 @@
         gap: 3px;
       }
 
+      .duration-range-editor {
+        display: grid;
+        gap: var(--cc-space-sm);
+        grid-column: 1 / -1;
+        padding: 10px;
+        border: 1px solid var(--cc-subtle-border);
+        border-radius: var(--cc-radius-sm);
+        background: var(--cc-surface-muted);
+      }
+
+      .duration-range-inputs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--cc-space-md);
+      }
+
       .file-picker-input {
         position: absolute;
         width: 1px;
@@ -409,17 +425,27 @@
                 <option value="1:1" data-i18n="aspectSquare">1:1</option>
               </select>
             </label>
-            <label>
-              <span data-i18n="durationGoalSeconds">Duration goal seconds</span>
-              <select id="duration-goal-seconds" name="durationGoalSeconds">
-                <option value="15">15</option>
-                <option value="30">30</option>
-                <option value="45">45</option>
-                <option value="60">60</option>
-                <option value="90">90</option>
-                <option value="120">120</option>
-              </select>
+            <label class="switch-row" for="duration-goal-auto">
+              <input id="duration-goal-auto" name="durationGoalAuto" type="checkbox">
+              <span class="switch-copy">
+                <span data-i18n="durationGoalAuto">Let Codex decide duration</span>
+                <span class="muted" data-i18n="durationGoalAutoHelp">Codex chooses the range from the user request and source evidence.</span>
+              </span>
             </label>
+            <div id="duration-goal-custom" class="duration-range-editor hidden">
+              <span data-i18n="durationRange">Duration range</span>
+              <div id="duration-range-options" class="choice-options"></div>
+              <div class="duration-range-inputs">
+                <label>
+                  <span data-i18n="durationRangeMinSeconds">Minimum seconds</span>
+                  <input id="duration-range-min-seconds" name="durationRangeMinSeconds" type="number" min="1" step="1" inputmode="numeric">
+                </label>
+                <label>
+                  <span data-i18n="durationRangeMaxSeconds">Maximum seconds</span>
+                  <input id="duration-range-max-seconds" name="durationRangeMaxSeconds" type="number" min="1" step="1" inputmode="numeric">
+                </label>
+              </div>
+            </div>
             <label>
               <span data-i18n="captionLanguage">Caption language</span>
               <select id="caption-language" name="captionLanguage">
@@ -545,7 +571,11 @@
             aspectVertical: "9:16 vertical",
             aspectHorizontal: "16:9 horizontal",
             aspectSquare: "1:1 square",
-            durationGoalSeconds: "Duration goal seconds",
+            durationGoalAuto: "Let Codex decide duration",
+            durationGoalAutoHelp: "Codex chooses the range from the user request and source evidence.",
+            durationRange: "Duration range",
+            durationRangeMinSeconds: "Minimum seconds",
+            durationRangeMaxSeconds: "Maximum seconds",
             captionLanguage: "Caption language",
             captionAuto: "auto",
             captionChinese: "Chinese",
@@ -630,7 +660,11 @@
             aspectVertical: "9:16 竖屏",
             aspectHorizontal: "16:9 横屏",
             aspectSquare: "1:1 方形",
-            durationGoalSeconds: "目标时长（秒）",
+            durationGoalAuto: "让 Codex 自主决定时长",
+            durationGoalAutoHelp: "Codex 会根据用户需求和素材证据选择时长范围。",
+            durationRange: "时长范围",
+            durationRangeMinSeconds: "最短秒数",
+            durationRangeMaxSeconds: "最长秒数",
             captionLanguage: "字幕语言",
             captionAuto: "自动识别",
             captionChinese: "中文",
@@ -707,7 +741,11 @@
           addMediaSourceButton: document.getElementById("add-media-source-button"),
           addMediaFolderButton: document.getElementById("add-media-folder-button"),
           targetAspectRatio: document.getElementById("target-aspect-ratio"),
-          durationGoalSeconds: document.getElementById("duration-goal-seconds"),
+          durationGoalAuto: document.getElementById("duration-goal-auto"),
+          durationGoalCustom: document.getElementById("duration-goal-custom"),
+          durationRangeOptions: document.getElementById("duration-range-options"),
+          durationRangeMinSeconds: document.getElementById("duration-range-min-seconds"),
+          durationRangeMaxSeconds: document.getElementById("duration-range-max-seconds"),
           captionLanguage: document.getElementById("caption-language"),
           captionFont: document.getElementById("caption-font"),
           captionSize: document.getElementById("caption-size"),
@@ -795,7 +833,10 @@
           currentProjectId = defaults.projectId || slugify(fields.projectName.value);
           renderMediaSources(defaults.mediaSources || defaults.mediaSource || []);
           setSelectValue(fields.targetAspectRatio, defaults.targetAspectRatio || "9:16");
-          setSelectValue(fields.durationGoalSeconds, String(Number(defaults.durationGoalSeconds || 60)));
+          fields.durationGoalAuto.checked = defaults.durationGoalMode !== "custom";
+          renderDurationRangeOptions(defaults.durationGoalRangeOptions || []);
+          setDurationRange(defaults.durationGoalRangeSeconds);
+          toggleDurationRangeEditor();
           setSelectValue(fields.captionLanguage, defaults.captionLanguage || "auto");
           setSelectValue(fields.captionFont, defaults.output?.captionFont || "auto");
           setSelectValue(fields.captionSize, defaults.output?.captionSize || "medium");
@@ -1277,12 +1318,82 @@
           resetReadyState();
         }
 
+        function normalizeDurationRangeOptions(options) {
+          return (Array.isArray(options) ? options : [])
+            .map((option) => {
+              const minSeconds = Number(option?.minSeconds);
+              const maxSeconds = Number(option?.maxSeconds);
+              if (!Number.isFinite(minSeconds) || !Number.isFinite(maxSeconds) || minSeconds <= 0 || maxSeconds < minSeconds) {
+                return null;
+              }
+              return {
+                label: String(option.label || "").trim(),
+                minSeconds,
+                maxSeconds,
+              };
+            })
+            .filter(Boolean);
+        }
+
+        function durationRangeLabel(range) {
+          return range.label || `${range.minSeconds}-${range.maxSeconds}s`;
+        }
+
+        function renderDurationRangeOptions(options) {
+          fields.durationRangeOptions.innerHTML = "";
+          for (const range of normalizeDurationRangeOptions(options)) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "choice-option";
+            button.dataset.minSeconds = String(range.minSeconds);
+            button.dataset.maxSeconds = String(range.maxSeconds);
+            button.textContent = durationRangeLabel(range);
+            button.addEventListener("click", () => {
+              setDurationRange(range);
+              fields.durationRangeOptions.querySelectorAll(".choice-option").forEach((option) => {
+                option.classList.toggle("is-active", option === button);
+                option.setAttribute("aria-pressed", option === button ? "true" : "false");
+              });
+              resetReadyState();
+            });
+            fields.durationRangeOptions.appendChild(button);
+          }
+        }
+
+        function setDurationRange(range) {
+          fields.durationRangeMinSeconds.value =
+            range?.minSeconds === undefined ? "" : String(range.minSeconds);
+          fields.durationRangeMaxSeconds.value =
+            range?.maxSeconds === undefined ? "" : String(range.maxSeconds);
+        }
+
+        function toggleDurationRangeEditor() {
+          fields.durationGoalCustom.classList.toggle("hidden", fields.durationGoalAuto.checked);
+          resetReadyState();
+        }
+
         function collectIntroCoverChoice() {
           return fields.generateIntroCover.checked;
         }
 
+        function collectDurationGoal() {
+          if (fields.durationGoalAuto.checked) {
+            return { durationGoalMode: "auto" };
+          }
+          const minSeconds = Number(fields.durationRangeMinSeconds.value);
+          const maxSeconds = Number(fields.durationRangeMaxSeconds.value);
+          if (!Number.isFinite(minSeconds) || !Number.isFinite(maxSeconds) || minSeconds <= 0 || maxSeconds < minSeconds) {
+            throw new Error("Duration goal must be automatic or a valid positive seconds range.");
+          }
+          return {
+            durationGoalMode: "custom",
+            durationGoalRangeSeconds: { minSeconds, maxSeconds },
+          };
+        }
+
         function collectIntent() {
           const mediaSources = collectMediaSources();
+          const durationGoal = collectDurationGoal();
           return {
             pendingConfirmationId: currentPendingConfirmationId,
             projectId: currentProjectId || slugify(fields.projectName.value),
@@ -1290,7 +1401,7 @@
             mediaSource: mediaSources[0],
             mediaSources,
             targetAspectRatio: fields.targetAspectRatio.value,
-            durationGoalSeconds: Number(fields.durationGoalSeconds.value),
+            ...durationGoal,
             captionLanguage: fields.captionLanguage.value.trim() || "auto",
             output: {
               format: fields.outputFormat.value,
@@ -1491,6 +1602,7 @@
         });
         fields.mediaFilePicker.addEventListener("change", handlePickedFiles);
         fields.mediaFolderPicker.addEventListener("change", handlePickedFolder);
+        fields.durationGoalAuto.addEventListener("change", toggleDurationRangeEditor);
         fields.form.addEventListener("input", () => {
           resetReadyState();
         });
