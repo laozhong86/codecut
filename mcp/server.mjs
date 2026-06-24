@@ -912,10 +912,14 @@ export function openCodecutWorkspace(input = {}) {
 		content: [
 			{
 				type: "text",
-				text: "Rendered CodeCut workspace setup confirmation widget.",
+				text: "Rendered CodeCut workspace setup confirmation widget. Wait for the user to submit the widget before reading files, running shell commands, creating projects, importing media, or mutating timelines.",
 			},
 		],
-		structuredContent: { intentDefaults },
+		structuredContent: {
+			status: "awaiting_user_confirmation",
+			nextAction: "wait_for_widget_submission",
+			intentDefaults,
+		},
 		_meta: {
 			...codecutWorkspaceToolMeta,
 			widgetData: { intentDefaults },
