@@ -5,33 +5,47 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { FONT_OPTIONS, type FontFamily } from "@/constants/font-constants";
+import {
+	getFontOptionsForText,
+	resolveFontFamily,
+	type FontFamily,
+} from "@/constants/font-constants";
 import { cn } from "@/utils/ui";
 
 interface FontPickerProps {
-	defaultValue?: FontFamily;
+	value?: string;
+	content: string;
 	onValueChange?: (value: FontFamily) => void;
 	className?: string;
 }
 
 export function FontPicker({
-	defaultValue,
+	value,
+	content,
 	onValueChange,
 	className,
 }: FontPickerProps) {
+	const fontOptions = getFontOptionsForText({ content });
+
 	return (
-		<Select defaultValue={defaultValue} onValueChange={onValueChange}>
+		<Select value={value} onValueChange={onValueChange}>
 			<SelectTrigger
 				className={cn("w-full", className)}
 			>
 				<SelectValue placeholder="Select a font" />
 			</SelectTrigger>
 			<SelectContent>
-				{FONT_OPTIONS.map((font) => (
+				{fontOptions.map((font) => (
 					<SelectItem
 						key={font.value}
 						value={font.value}
-						style={{ fontFamily: font.value }}
+						disabled={font.disabled}
+						style={{
+							fontFamily: resolveFontFamily({
+								fontFamily: font.value,
+								content,
+							}),
+						}}
 					>
 						{font.label}
 					</SelectItem>

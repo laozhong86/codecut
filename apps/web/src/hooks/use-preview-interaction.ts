@@ -14,9 +14,31 @@ import {
 	type ElementHalfSize,
 } from "@/lib/preview/element-bounds";
 import { computePreviewSnap, type SnapGuide } from "@/lib/preview/snap";
+import { measureTextElementBounds } from "@/services/renderer/nodes/text-node";
 
 type ScaleHandle = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 type ResizeHandle = "left" | "right";
+
+let textMeasureContext: CanvasRenderingContext2D | null = null;
+
+function measureBrowserText({
+	font,
+	text,
+}: {
+	font: string;
+	text: string;
+}): number {
+	if (!textMeasureContext) {
+		const canvas = document.createElement("canvas");
+		textMeasureContext = canvas.getContext("2d");
+	}
+	if (!textMeasureContext) {
+		throw new Error("Preview text measurement requires a 2D canvas context.");
+	}
+
+	textMeasureContext.font = font;
+	return textMeasureContext.measureText(text).width;
+}
 
 interface SnapContext {
 	elementHalfSize: ElementHalfSize;
@@ -126,6 +148,7 @@ export function usePreviewInteraction({
 				canvasWidth,
 				canvasHeight,
 				currentTime,
+				measureText: measureBrowserText,
 			});
 
 			if (!hitResult) {
@@ -207,6 +230,7 @@ export function usePreviewInteraction({
 				canvasHeight,
 				draggedElementIds,
 				primaryElement: dragStateRef.current.elements[0],
+				measureText: measureBrowserText,
 			});
 
 			setIsDragging(true);
@@ -282,11 +306,19 @@ export function usePreviewInteraction({
 
 			const canvasHeight = canvasRef.current?.height ?? 0;
 			const scaleFactor = canvasHeight / FONT_SIZE_SCALE_REFERENCE;
+			if (scaleFactor <= 0) {
+				throw new Error("Preview text resize requires a measured canvas height.");
+			}
 
 			const initialBoxWidth =
 				textElement.boxWidth && textElement.boxWidth > 0
 					? textElement.boxWidth
-					: textElement.content.length * textElement.fontSize * 0.6;
+					: measureTextElementBounds({
+							element: textElement,
+							canvasHeight,
+							measureText: measureBrowserText,
+							includeBackground: false,
+						}).width / scaleFactor;
 
 			resizeStateRef.current = {
 				startX: startPos.x,
@@ -662,6 +694,7 @@ function buildSnapContext({
 	canvasHeight,
 	draggedElementIds,
 	primaryElement,
+	measureText,
 }: {
 	tracks: TimelineTrack[];
 	mediaAssets: ReturnType<ReturnType<typeof useEditor>["media"]["getAssets"]>;
@@ -670,6 +703,7 @@ function buildSnapContext({
 	canvasHeight: number;
 	draggedElementIds: Set<string>;
 	primaryElement: { elementId: string; initialTransform: Transform };
+	measureText: typeof measureBrowserText;
 }): SnapContext | null {
 	const mediaMap = new Map(mediaAssets.map((a) => [a.id, a]));
 
@@ -690,6 +724,7 @@ function buildSnapContext({
 		mediaMap,
 		canvasWidth,
 		canvasHeight,
+		measureText,
 	});
 
 	if (!elementHalfSize) return null;
@@ -715,6 +750,7 @@ function buildSnapContext({
 				mediaMap,
 				canvasWidth,
 				canvasHeight,
+				measureText,
 			});
 			if (!otherHalf) continue;
 
@@ -737,4 +773,3 @@ function buildSnapContext({
 
 	return { elementHalfSize, otherElementBounds, canvasWidth, canvasHeight };
 }
-

@@ -4,7 +4,10 @@ export interface FontOption {
 	category: "system" | "google" | "custom";
 	weights?: number[];
 	hasClassName?: boolean;
+	supportsCjk?: boolean;
 }
+
+export type SelectableFontOption = FontOption & { disabled: boolean };
 
 export const FONT_OPTIONS: FontOption[] = [
 	// System fonts (always available)
@@ -88,6 +91,7 @@ export const FONT_OPTIONS: FontOption[] = [
 		category: "google",
 		weights: [400, 700],
 		hasClassName: false,
+		supportsCjk: true,
 	},
 	{
 		value: "Noto Serif SC",
@@ -95,6 +99,7 @@ export const FONT_OPTIONS: FontOption[] = [
 		category: "google",
 		weights: [400, 700],
 		hasClassName: false,
+		supportsCjk: true,
 	},
 	{
 		value: "LXGW WenKai",
@@ -102,6 +107,7 @@ export const FONT_OPTIONS: FontOption[] = [
 		category: "custom",
 		weights: [400, 700],
 		hasClassName: false,
+		supportsCjk: true,
 	},
 	{
 		value: "Smiley Sans",
@@ -109,6 +115,7 @@ export const FONT_OPTIONS: FontOption[] = [
 		category: "custom",
 		weights: [400, 700],
 		hasClassName: false,
+		supportsCjk: true,
 	},
 	{
 		value: "ZCOOL KuaiLe",
@@ -116,6 +123,7 @@ export const FONT_OPTIONS: FontOption[] = [
 		category: "google",
 		weights: [400],
 		hasClassName: false,
+		supportsCjk: true,
 	},
 ] as const;
 
@@ -133,3 +141,72 @@ export const getGoogleFonts = (): FontOption[] =>
 
 export const getSystemFonts = (): FontOption[] =>
 	FONT_OPTIONS.filter((font) => font.category === "system");
+
+const CJK_TEXT_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+const LATIN_TEXT_RE = /\p{Script=Latin}/u;
+
+const CJK_FALLBACK_STACK =
+	'"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+
+const FONT_FALLBACKS: Partial<Record<FontFamily, string>> = {
+	"Noto Sans SC": `"Noto Sans SC", ${CJK_FALLBACK_STACK}`,
+	"Noto Serif SC": '"Noto Serif SC", "Songti SC", "STSong", SimSun, serif',
+	"LXGW WenKai": '"LXGW WenKai", "Kaiti SC", STKaiti, KaiTi, cursive',
+	"Smiley Sans": `"Smiley Sans", ${CJK_FALLBACK_STACK}`,
+	"ZCOOL KuaiLe": `"ZCOOL KuaiLe", "Heiti SC", ${CJK_FALLBACK_STACK}`,
+};
+
+export function hasCjkText({ content }: { content: string }): boolean {
+	return CJK_TEXT_RE.test(content);
+}
+
+function isPureCjkText({ content }: { content: string }): boolean {
+	return hasCjkText({ content }) && !LATIN_TEXT_RE.test(content);
+}
+
+export function getFontOptionsForText({
+	content,
+}: {
+	content: string;
+}): SelectableFontOption[] {
+	if (!isPureCjkText({ content })) {
+		return FONT_OPTIONS.map((font) => ({ ...font, disabled: false }));
+	}
+
+	const cjkFonts = FONT_OPTIONS.filter((font) => font.supportsCjk).map(
+		(font) => ({ ...font, disabled: false }),
+	);
+	const latinFonts = FONT_OPTIONS.filter((font) => !font.supportsCjk).map(
+		(font) => ({ ...font, disabled: true }),
+	);
+
+	return [...cjkFonts, ...latinFonts];
+}
+
+export function resolveFontFamily({
+	fontFamily,
+	content = "",
+}: {
+	fontFamily: string;
+	content?: string;
+}): string {
+	const option = getFontByValue(fontFamily);
+	const fallback = option?.value ? FONT_FALLBACKS[option.value] : undefined;
+	if (fallback) {
+		return fallback;
+	}
+
+	if (hasCjkText({ content })) {
+		const trimmedFontFamily = fontFamily.trim();
+		const quotedFontFamily =
+			trimmedFontFamily.includes(",") ||
+			/^["'].*["']$/.test(trimmedFontFamily) ||
+			!/\s/.test(trimmedFontFamily)
+				? trimmedFontFamily
+				: JSON.stringify(trimmedFontFamily);
+
+		return `${quotedFontFamily}, ${CJK_FALLBACK_STACK}`;
+	}
+
+	return fontFamily;
+}

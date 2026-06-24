@@ -5,6 +5,7 @@ import type {
 } from "@/types/timeline";
 import type { MediaAsset } from "@/types/assets";
 import { isMainTrack } from "@/lib/timeline";
+import type { TextMeasureFunction } from "@/services/renderer/nodes/text-node";
 import {
 	getElementHalfSize,
 	getElementCenterInCanvas,
@@ -51,6 +52,7 @@ export function hitTestElements({
 	canvasWidth,
 	canvasHeight,
 	currentTime,
+	measureText,
 }: {
 	point: { x: number; y: number };
 	tracks: TimelineTrack[];
@@ -58,6 +60,7 @@ export function hitTestElements({
 	canvasWidth: number;
 	canvasHeight: number;
 	currentTime: number;
+	measureText: TextMeasureFunction;
 }): HitResult | null {
 	const mediaMap = new Map(mediaAssets.map((asset) => [asset.id, asset]));
 
@@ -105,6 +108,7 @@ export function hitTestElements({
 			mediaMap,
 			canvasWidth,
 			canvasHeight,
+			measureText,
 		});
 
 		if (!size) continue;
