@@ -295,6 +295,13 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain('<input id="caption-language"');
 	});
 
+	test("workspace widget reads Codex host metadata defaults", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+
+		expect(html).toContain("api.toolResponseMetadata?.widgetData");
+		expect(html).toContain("api.toolOutput?.intentDefaults");
+	});
+
 	test("opens the workspace with structured defaults and widget metadata", () => {
 		const result = serverModule.openCodecutWorkspace({
 			projectName: "Creator Launch",
@@ -337,6 +344,11 @@ describe("Codecut MCP server contract", () => {
 			captionLanguage: "auto",
 			output: { format: "mp4", quality: "high", includeAudio: true },
 		});
+		expect(result.structuredContent).toMatchObject({
+			status: "awaiting_user_confirmation",
+			nextAction: "wait_for_widget_submission",
+		});
+		expect(result.content[0].text).toContain("Wait for the user to submit");
 		expect(result._meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,

@@ -586,12 +586,25 @@
           });
         }
 
+        function intentDefaultsFromPayload(payload) {
+          if (!payload || typeof payload !== "object") return null;
+          return (
+            payload.intentDefaults ||
+            payload.widgetData?.intentDefaults ||
+            payload.structuredContent?.intentDefaults ||
+            payload._meta?.widgetData?.intentDefaults ||
+            null
+          );
+        }
+
         function initialDefaults() {
           const api = window.openai || {};
           return (
-            api.widgetData?.intentDefaults ||
-            api.toolOutput?.structuredContent?.intentDefaults ||
-            api.structuredContent?.intentDefaults ||
+            api.toolResponseMetadata?.widgetData?.intentDefaults ||
+            intentDefaultsFromPayload(api.widgetData) ||
+            api.toolOutput?.intentDefaults ||
+            intentDefaultsFromPayload(api.toolOutput) ||
+            intentDefaultsFromPayload(api.structuredContent) ||
             {}
           );
         }
