@@ -390,9 +390,11 @@
           <h2 id="source-section-title" class="section-heading" data-i18n="source">Source</h2>
           <div id="media-sources" class="media-sources media-sources-list" role="list"></div>
           <input id="media-file-picker" class="file-picker-input" type="file" multiple>
+          <input id="media-folder-picker" class="file-picker-input" type="file" webkitdirectory multiple>
           <p id="file-picker-selection" class="muted"></p>
           <div class="row-actions">
             <button id="add-media-source-button" class="secondary" type="button" data-i18n="addMediaSource">Add files</button>
+            <button id="add-media-folder-button" class="secondary" type="button" data-i18n="addMediaFolder">Add folder</button>
           </div>
         </fieldset>
 
@@ -531,10 +533,13 @@
             projectNamePlaceholder: "CodeCut Project",
             source: "Source",
             addMediaSource: "Add files",
+            addMediaFolder: "Add folder",
             removeMediaSource: "Remove source",
             noMediaSources: "No media sources selected.",
             selectedFiles: "Selected files",
+            selectedFolders: "Selected folders",
             selectedFilesNeedAbsolutePath: "Selected files were added to the media list.",
+            selectedFoldersAdded: "Selected folders were added to the media list.",
             output: "Output",
             targetAspectRatio: "Target aspect ratio",
             aspectVertical: "9:16 vertical",
@@ -613,10 +618,13 @@
             projectNamePlaceholder: "CodeCut 项目",
             source: "素材",
             addMediaSource: "添加素材",
+            addMediaFolder: "添加文件夹",
             removeMediaSource: "移除素材",
             noMediaSources: "尚未选择素材。",
             selectedFiles: "已选择文件",
+            selectedFolders: "已选择文件夹",
             selectedFilesNeedAbsolutePath: "已把选择的文件加入素材列表。",
+            selectedFoldersAdded: "已把选择的文件夹加入素材列表。",
             output: "输出",
             targetAspectRatio: "目标画幅",
             aspectVertical: "9:16 竖屏",
@@ -694,8 +702,10 @@
           projectName: document.getElementById("project-name"),
           mediaSources: document.getElementById("media-sources"),
           mediaFilePicker: document.getElementById("media-file-picker"),
+          mediaFolderPicker: document.getElementById("media-folder-picker"),
           filePickerSelection: document.getElementById("file-picker-selection"),
           addMediaSourceButton: document.getElementById("add-media-source-button"),
+          addMediaFolderButton: document.getElementById("add-media-folder-button"),
           targetAspectRatio: document.getElementById("target-aspect-ratio"),
           durationGoalSeconds: document.getElementById("duration-goal-seconds"),
           captionLanguage: document.getElementById("caption-language"),
@@ -848,7 +858,16 @@
           const filePath = String(
             mediaSource.filePath || mediaSource.path || mediaSource.absolutePath || "",
           ).trim();
-          if (!filePath) return null;
+          const directoryPath = String(
+            mediaSource.directoryPath || mediaSource.folderPath || "",
+          ).trim();
+          if (!filePath && !directoryPath) return null;
+          if (directoryPath) {
+            return {
+              kind: "directoryPath",
+              directoryPath,
+            };
+          }
           return {
             kind: "filePath",
             filePath,
@@ -863,13 +882,16 @@
           const row = document.createElement("div");
           row.className = "media-source-row";
           row.setAttribute("role", "listitem");
+          row.dataset.kind = mediaSource.kind || "filePath";
           row.dataset.filePath = mediaSource.filePath || "";
+          row.dataset.directoryPath = mediaSource.directoryPath || "";
           row.dataset.previewUrl = mediaSource.previewUrl || "";
           row.dataset.previewObjectUrl = mediaSource.previewObjectUrl === true ? "true" : "false";
+          const sourcePath = row.dataset.directoryPath || row.dataset.filePath;
           row.innerHTML = `
             <div class="media-source-thumbnail" data-role="thumbnail" aria-hidden="true"></div>
-            <div class="media-source-path" title="${escapeAttribute(row.dataset.filePath)}">
-              <code>${escapeHtml(row.dataset.filePath)}</code>
+            <div class="media-source-path" title="${escapeAttribute(sourcePath)}">
+              <code>${escapeHtml(sourcePath)}</code>
             </div>
             <div class="row-actions">
               <button class="media-source-remove-button" type="button" data-action="remove-source" aria-label="${escapeAttribute(t("removeMediaSource"))}" title="${escapeAttribute(t("removeMediaSource"))}">X</button>
@@ -890,7 +912,7 @@
           const thumbnail = row.querySelector('[data-role="thumbnail"]');
           thumbnail.innerHTML = "";
           const previewUrl = row.dataset.previewUrl || "";
-          const pathValue = row.dataset.filePath || "";
+          const pathValue = row.dataset.directoryPath || row.dataset.filePath || "";
           const mediaType = String(mediaSource.previewMimeType || "").toLowerCase();
           const previewKind = mediaPreviewKind(previewUrl, mediaType);
           if (previewKind === "image") {
@@ -924,6 +946,7 @@
         function mediaThumbnailLabel(value) {
           const source = String(value || "").trim();
           if (!source) return "FILE";
+          if (!source.split(/[\\/]/).filter(Boolean).pop()?.includes(".")) return "DIR";
           const fileName = source.split(/[\\/]/).filter(Boolean).pop() || "";
           const extension = fileName.includes(".") ? fileName.split(".").pop() : "";
           return (extension || "media").slice(0, 5).toUpperCase();
@@ -963,11 +986,19 @@
 
         function collectMediaSources() {
           return Array.from(fields.mediaSources.querySelectorAll(".media-source-row"))
-            .map((row) => ({
-              kind: "filePath",
-              filePath: String(row.dataset.filePath || "").trim(),
-            }))
-            .filter((mediaSource) => mediaSource.filePath);
+            .map((row) => {
+              if (row.dataset.kind === "directoryPath") {
+                return {
+                  kind: "directoryPath",
+                  directoryPath: String(row.dataset.directoryPath || "").trim(),
+                };
+              }
+              return {
+                kind: "filePath",
+                filePath: String(row.dataset.filePath || "").trim(),
+              };
+            })
+            .filter((mediaSource) => mediaSource.filePath || mediaSource.directoryPath);
         }
 
         function appendPickedFileRows(files) {
@@ -1024,6 +1055,23 @@
           return true;
         }
 
+        async function handleHostSelectedFolders(result) {
+          const folders = Array.isArray(result)
+            ? result
+            : result?.directories || result?.folders || result?.files;
+          const mediaSources = Array.from(folders || [])
+            .map(normalizeSelectedFolder)
+            .filter(Boolean);
+          if (!mediaSources.length) return false;
+          fields.filePickerSelection.textContent =
+            `${t("selectedFolders")}: ${mediaSources.map((source) => source.directoryPath).join(", ")}. ${t("selectedFoldersAdded")}`;
+          for (const mediaSource of mediaSources) {
+            appendMediaFileRow(mediaSource);
+          }
+          resetReadyState();
+          return true;
+        }
+
         async function openHostFilePicker() {
           const api = window.openai || {};
           if (typeof api.selectFiles !== "function") {
@@ -1044,6 +1092,47 @@
           }
         }
 
+        async function openHostFolderPicker() {
+          const api = window.openai || {};
+          if (typeof api.selectFiles !== "function") {
+            fields.mediaFolderPicker.click();
+            return;
+          }
+          try {
+            const result = await api.selectFiles({
+              multiple: true,
+              directory: true,
+              directories: true,
+            });
+            if (!(await handleHostSelectedFolders(result))) {
+              fields.mediaFolderPicker.click();
+            }
+          } catch (error) {
+            fields.filePickerSelection.textContent = error instanceof Error ? error.message : String(error);
+            fields.mediaFolderPicker.click();
+          }
+        }
+
+        function normalizeSelectedFolder(folder) {
+          if (typeof folder === "string") {
+            const directoryPath = folder.trim();
+            return directoryPath ? { kind: "directoryPath", directoryPath } : null;
+          }
+          if (!folder || typeof folder !== "object") return null;
+          const directoryPath = String(
+            folder.directoryPath || folder.folderPath || folder.path || folder.absolutePath || "",
+          ).trim();
+          if (directoryPath) {
+            return { kind: "directoryPath", directoryPath };
+          }
+          const relativePath = String(folder.webkitRelativePath || "").trim();
+          const rootDirectory = relativePath.split("/").filter(Boolean)[0] || "";
+          if (rootDirectory) {
+            return { kind: "directoryPath", directoryPath: rootDirectory };
+          }
+          return folder.name ? { kind: "directoryPath", directoryPath: folder.name } : null;
+        }
+
         function pickedFilePath(file) {
           const filePath = file?.path;
           if (typeof filePath === "string" && filePath.trim()) {
@@ -1060,6 +1149,13 @@
           return file?.name || "";
         }
 
+        function directorySourceFromPickedFolder(files) {
+          const pickedFiles = Array.from(files || []);
+          const firstFile = pickedFiles.find((file) => file?.webkitRelativePath) || pickedFiles[0];
+          if (!firstFile) return null;
+          return normalizeSelectedFolder(firstFile);
+        }
+
         function handlePickedFiles() {
           const files = Array.from(fields.mediaFilePicker.files || []);
           const names = files.map((file) => file.name).filter(Boolean);
@@ -1068,6 +1164,16 @@
             : "";
           appendPickedFileRows(files);
           resetReadyState();
+        }
+
+        function handlePickedFolder() {
+          const mediaSource = directorySourceFromPickedFolder(fields.mediaFolderPicker.files);
+          if (mediaSource) {
+            appendMediaFileRow(mediaSource);
+            fields.filePickerSelection.textContent =
+              `${t("selectedFolders")}: ${mediaSource.directoryPath}. ${t("selectedFoldersAdded")}`;
+          }
+          fields.mediaFolderPicker.value = "";
         }
 
         function renderChoiceOptions(container, options, recommendedText = "", customField) {
@@ -1380,7 +1486,11 @@
         fields.addMediaSourceButton.addEventListener("click", () => {
           openHostFilePicker();
         });
+        fields.addMediaFolderButton.addEventListener("click", () => {
+          openHostFolderPicker();
+        });
         fields.mediaFilePicker.addEventListener("change", handlePickedFiles);
+        fields.mediaFolderPicker.addEventListener("change", handlePickedFolder);
         fields.form.addEventListener("input", () => {
           resetReadyState();
         });

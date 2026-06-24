@@ -269,10 +269,17 @@ describe("Codecut MCP server contract", () => {
 		const openTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
 			(tool) => tool.name === "open_codecut_workspace",
 		);
+		const submitTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
+			(tool) => tool.name === "submit_codecut_setup",
+		);
 		expect(openTool.readOnly).toBe(true);
 		expect(openTool.modelVisible).toBe(true);
+		expect(submitTool?.inputSchema.mediaSources.safeParse([]).success).toBe(
+			true,
+		);
 		expect(openTool.description).toContain("uiLanguage");
 		expect(openTool.description).toContain("mediaPaths");
+		expect(openTool.description).toContain("directoryPaths");
 		expect(openTool.description).toContain("web service");
 		expect(openTool.inputSchema.projectId).toBeUndefined();
 		expect(openTool.meta).toMatchObject({
@@ -309,10 +316,17 @@ describe("Codecut MCP server contract", () => {
 			'id="media-file-picker"',
 			'type="file"',
 			"multiple",
+			'id="media-folder-picker"',
+			"webkitdirectory",
 			'id="add-media-source-button"',
+			'id="add-media-folder-button"',
 			"appendMediaFileRow",
+			"openHostFolderPicker",
+			"handlePickedFolder",
 			"media-source-path",
+			"dataset.kind",
 			"dataset.filePath",
+			"dataset.directoryPath",
 			'id="target-aspect-ratio"',
 			'id="duration-goal-seconds"',
 			'id="caption-language"',
@@ -342,6 +356,7 @@ describe("Codecut MCP server contract", () => {
 			"selectFiles",
 			"appendPickedFileRows",
 			'fields.mediaFilePicker.addEventListener("change", handlePickedFiles)',
+			'fields.mediaFolderPicker.addEventListener("change", handlePickedFolder)',
 			'callTool("submit_codecut_setup"',
 			"openExternal",
 			"renderEditorOpenError",
@@ -809,6 +824,26 @@ describe("Codecut MCP server contract", () => {
 		]);
 	});
 
+	test("accepts directoryPath aliases as optional workspace source context", () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "Creator Launch",
+			directoryPaths: ["/tmp/creator-launch-assets", "/tmp/creator-b-roll"],
+		});
+
+		expect(result.structuredContent.intentDefaults.mediaSource).toEqual({
+			kind: "directoryPath",
+			directoryPath: "/tmp/creator-launch-assets",
+		});
+		expect(result.structuredContent.intentDefaults.mediaSources).toEqual([
+			{ kind: "directoryPath", directoryPath: "/tmp/creator-launch-assets" },
+			{ kind: "directoryPath", directoryPath: "/tmp/creator-b-roll" },
+		]);
+		expect(result._meta.widgetData.intentDefaults.mediaSources).toEqual([
+			{ kind: "directoryPath", directoryPath: "/tmp/creator-launch-assets" },
+			{ kind: "directoryPath", directoryPath: "/tmp/creator-b-roll" },
+		]);
+	});
+
 	test("rejects conflicting workspace open filePath aliases", () => {
 		expect(() =>
 			serverModule.openCodecutWorkspace({
@@ -850,17 +885,10 @@ describe("Codecut MCP server contract", () => {
 				["invalid project id", setupIntent({ projectId: "../bad" })],
 				["missing project name", setupIntent({ projectName: " " })],
 				["missing brief", setupIntent({ brief: "" })],
-				["missing media sources", setupIntent({ mediaSources: [] })],
 				[
 					"non-https url",
 					setupIntent({
 						mediaSources: [{ kind: "url", url: "http://example.com/a.mp4" }],
-					}),
-				],
-				[
-					"missing local file",
-					setupIntent({
-						mediaSources: [{ kind: "filePath", filePath: "/tmp/missing.mp4" }],
 					}),
 				],
 				["bad aspect ratio", setupIntent({ targetAspectRatio: "4:5" })],
@@ -911,6 +939,47 @@ describe("Codecut MCP server contract", () => {
 				ok: false,
 				detail: "Choose whether CodeCut should generate an opening cover image.",
 			});
+
+			for (const [label, intent] of [
+				["missing media sources", setupIntent({ mediaSources: [] })],
+				[
+					"empty local media path",
+					setupIntent({ mediaSources: [{ kind: "filePath", filePath: "" }] }),
+				],
+				[
+					"relative local media path",
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath: "source.mp4" }],
+					}),
+				],
+				[
+					"missing local file",
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath: "/tmp/missing.mp4" }],
+					}),
+				],
+				[
+					"directory path",
+					setupIntent({
+						mediaSources: [
+							{
+								kind: "directoryPath",
+								directoryPath: "/tmp/source-folder",
+							},
+						],
+					}),
+				],
+			]) {
+				const ready = await serverModule.inspectCodecutSetup(intent, {
+					bridgeToolImpl,
+				});
+				expect(ready.status, label).toBe("ready");
+				expect(ready.checks).toContainEqual({
+					id: "media-sources",
+					label: "Media sources",
+					ok: true,
+				});
+			}
 		} finally {
 			await rm(directory, {
 				recursive: true,
@@ -1099,6 +1168,201 @@ describe("Codecut MCP server contract", () => {
 			expect(result.structuredContent.continuePrompt).not.toContain(
 				"launch-cut-001",
 			);
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("creates project without importing optional local media paths that are missing or not import-ready", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const pendingConfirmationId =
+			serverModule.openCodecutWorkspace(
+				setupIntent({ mediaSources: [{ kind: "filePath", filePath: "" }] }),
+			).structuredContent.pendingConfirmationId;
+		const calls = [];
+		const bridgeToolImpl = async (toolName, args) => {
+			calls.push({ toolName, args });
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "launch-cut-canonical",
+						name: "Launch Cut",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+					},
+				};
+			}
+			if (toolName === "get_project_info") {
+				return {
+					structuredContent: {
+						results: [{ success: true, data: { revision: 1 } }],
+					},
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+
+		try {
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({
+					pendingConfirmationId,
+					mediaSources: [
+						{ kind: "filePath", filePath: "" },
+						{ kind: "filePath", filePath: "source.mp4" },
+						{ kind: "filePath", filePath: "/tmp/missing.mp4" },
+					],
+				}),
+				{ bridgeToolImpl, confirmationRoot: directory },
+			);
+
+			expect(calls.map((call) => call.toolName)).toEqual([
+				"create_project",
+				"get_project_info",
+			]);
+			expect(result.structuredContent).toMatchObject({
+				status: "created",
+				projectId: "launch-cut-canonical",
+				importedMedia: [],
+				deferredMediaSources: [
+					{ index: 0, kind: "filePath", reason: "missing_file_path" },
+					{ index: 1, kind: "filePath", reason: "file_path_not_absolute" },
+					{ index: 2, kind: "filePath", reason: "file_not_found" },
+				],
+			});
+			expect(result.structuredContent.continuePrompt).toContain(
+				"Deferred media sources",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"source.mp4",
+			);
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("creates project when setup intent omits media sources", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const pendingConfirmationId =
+			serverModule.openCodecutWorkspace(
+				setupIntent({ mediaSources: [{ kind: "filePath", filePath: "" }] }),
+			).structuredContent.pendingConfirmationId;
+		const calls = [];
+		const bridgeToolImpl = async (toolName, args) => {
+			calls.push({ toolName, args });
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "launch-cut-canonical",
+						name: "Launch Cut",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+					},
+				};
+			}
+			if (toolName === "get_project_info") {
+				return {
+					structuredContent: {
+						results: [{ success: true, data: { revision: 1 } }],
+					},
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+
+		try {
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({
+					pendingConfirmationId,
+					mediaSources: undefined,
+				}),
+				{ bridgeToolImpl, confirmationRoot: directory },
+			);
+
+			expect(calls.map((call) => call.toolName)).toEqual([
+				"create_project",
+				"get_project_info",
+			]);
+			expect(result.structuredContent).toMatchObject({
+				status: "created",
+				importedMedia: [],
+				deferredMediaSources: [
+					{ index: 0, kind: "filePath", reason: "missing_file_path" },
+				],
+			});
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("creates project without importing directory sources", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const pendingConfirmationId =
+			serverModule.openCodecutWorkspace(
+				setupIntent({
+					mediaSources: [
+						{ kind: "directoryPath", directoryPath: "/tmp/source-folder" },
+					],
+				}),
+			).structuredContent.pendingConfirmationId;
+		const calls = [];
+		const bridgeToolImpl = async (toolName, args) => {
+			calls.push({ toolName, args });
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "launch-cut-canonical",
+						name: "Launch Cut",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+					},
+				};
+			}
+			if (toolName === "get_project_info") {
+				return {
+					structuredContent: {
+						results: [{ success: true, data: { revision: 1 } }],
+					},
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+
+		try {
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({
+					pendingConfirmationId,
+					mediaSources: [
+						{ kind: "directoryPath", directoryPath: "/tmp/source-folder" },
+					],
+				}),
+				{ bridgeToolImpl, confirmationRoot: directory },
+			);
+
+			expect(calls.map((call) => call.toolName)).toEqual([
+				"create_project",
+				"get_project_info",
+			]);
+			expect(result.structuredContent).toMatchObject({
+				status: "created",
+				importedMedia: [],
+				deferredMediaSources: [
+					{
+						index: 0,
+						kind: "directoryPath",
+						directoryPath: "/tmp/source-folder",
+						reason: "directory_input",
+					},
+				],
+			});
 		} finally {
 			await rm(directory, {
 				recursive: true,
