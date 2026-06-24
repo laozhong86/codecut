@@ -92,7 +92,7 @@ import {
 import { buildEmptyTrack } from "@/lib/timeline/track-utils";
 import { calculateTotalDuration } from "@/lib/timeline";
 import type { MediaAsset } from "@/types/assets";
-import type { DerivedAsset } from "@/types/project";
+import type { DerivedAsset, ProjectCover } from "@/types/project";
 import type {
 	AudioElement,
 	CreateTimelineElement,
@@ -116,6 +116,8 @@ type ExecutorToolName =
 	| "update_project_settings"
 	| "list_media_assets"
 	| "import_media_file"
+	| "set_project_cover"
+	| "clear_project_cover"
 	| "transcribe_media"
 	| "build_video_context"
 	| "build_visual_context"
@@ -189,6 +191,7 @@ export interface ExecutorProjectState {
 	};
 	mediaAssets: ExecutorMediaAsset[];
 	derivedAssets: DerivedAsset[];
+	cover?: ProjectCover;
 	tracks: TimelineTrack[];
 }
 
@@ -222,6 +225,8 @@ const commandSchema = z
 			"update_project_settings",
 			"list_media_assets",
 			"import_media_file",
+			"set_project_cover",
+			"clear_project_cover",
 			"transcribe_media",
 			"build_video_context",
 			"build_visual_context",
@@ -290,6 +295,16 @@ const importMediaArgsSchema = z
 			})
 			.strict()
 			.optional(),
+	})
+	.strict();
+
+const setProjectCoverArgsSchema = z
+	.object({
+		mediaId: z.string().min(1),
+		title: z.string().trim().min(1).optional(),
+		prompt: z.string().trim().min(1).optional(),
+		stylePreset: z.string().trim().min(1).optional(),
+		source: z.enum(["media_asset", "timeline_frame", "generated"]).optional(),
 	})
 	.strict();
 
@@ -1425,6 +1440,7 @@ export async function getExecutorProjectSnapshot({
 		project: state.project,
 		revision: state.revision,
 		duration,
+		cover: state.cover,
 		tracks: state.tracks,
 		mediaAssets: state.mediaAssets.map((asset) => ({
 			id: asset.id,
@@ -1603,6 +1619,79 @@ async function runImportMedia({
 	};
 }
 
+function requireProjectCoverImageAsset({
+	state,
+	mediaId,
+}: {
+	state: ExecutorProjectState;
+	mediaId: string;
+}) {
+	const asset = state.mediaAssets.find((entry) => entry.id === mediaId);
+	if (!asset) {
+		throw new Error(`Project cover media asset "${mediaId}" was not found.`);
+	}
+	if (asset.type !== "image") {
+		throw new Error("Project cover media must be an image asset.");
+	}
+	if (asset.width === undefined || asset.height === undefined) {
+		throw new Error("Project cover image width and height are required.");
+	}
+	return asset as ExecutorMediaAsset & { width: number; height: number };
+}
+
+async function runSetProjectCover({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = setProjectCoverArgsSchema.parse(args);
+	const asset = requireProjectCoverImageAsset({
+		state,
+		mediaId: parsed.mediaId,
+	});
+	const now = new Date().toISOString();
+	const cover: ProjectCover = {
+		mediaId: asset.id,
+		source: parsed.source ?? "media_asset",
+		...(parsed.title ? { title: parsed.title } : {}),
+		...(parsed.prompt ? { prompt: parsed.prompt } : {}),
+		...(parsed.stylePreset ? { stylePreset: parsed.stylePreset } : {}),
+		width: asset.width,
+		height: asset.height,
+		updatedAt: now,
+	};
+	state.cover = cover;
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: "Project cover updated.",
+		data: { cover, revision: state.revision },
+	};
+}
+
+async function runClearProjectCover({
+	state,
+}: {
+	state: ExecutorProjectState;
+}) {
+	if (!state.cover) {
+		return {
+			success: true,
+			message: "Project cover is already clear.",
+			data: { cover: null, revision: state.revision },
+		};
+	}
+	delete state.cover;
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: "Project cover cleared.",
+		data: { cover: null, revision: state.revision },
+	};
+}
+
 async function runGetProjectInfo({
 	state,
 	lastStatus,
@@ -1625,6 +1714,7 @@ async function runGetProjectInfo({
 			fps: state.project.settings.fps,
 			background: state.project.settings.background,
 			duration,
+			cover: state.cover,
 			draft: {
 				version: state.version,
 				revision: state.revision,
@@ -3948,6 +4038,7 @@ function runGetTimelineStateV2({
 					? { totalFrames: secondsToFrame(duration, fps) }
 					: {}),
 			},
+			cover: state.cover,
 			window: {
 				startTime,
 				endTime,
@@ -3994,6 +4085,7 @@ function runGetTimelineState({
 			revision: state.revision,
 			tracks: state.tracks.map(serializeTrack),
 			totalDuration: duration,
+			cover: state.cover,
 			derivedAssets: state.derivedAssets,
 		},
 	};
@@ -4361,6 +4453,12 @@ async function executeCommand({
 	}
 	if (command.tool === "import_media_file") {
 		return runImportMedia({ state, args: command.args });
+	}
+	if (command.tool === "set_project_cover") {
+		return runSetProjectCover({ state, args: command.args });
+	}
+	if (command.tool === "clear_project_cover") {
+		return runClearProjectCover({ state });
 	}
 	if (command.tool === "transcribe_media") {
 		return runTranscribeMedia({

@@ -2,6 +2,7 @@ import type { EditorCore } from "@/core";
 import type {
 	TProject,
 	DerivedAsset,
+	ProjectCover,
 	TProjectMetadata,
 	TProjectSortKey,
 	TProjectSortOption,
@@ -472,6 +473,36 @@ export class ProjectManager {
 		this.active = updatedProject;
 		this.notify();
 		this.updateMetadata(updatedProject);
+		this.editor.save.markDirty();
+	}
+
+	setCover({ cover }: { cover: ProjectCover }): void {
+		if (!this.active) return;
+
+		this.active = {
+			...this.active,
+			cover,
+			metadata: {
+				...this.active.metadata,
+				updatedAt: new Date(),
+			},
+		};
+		this.notify();
+		this.editor.save.markDirty();
+	}
+
+	clearCover(): void {
+		if (!this.active) return;
+
+		const { cover: _cover, ...projectWithoutCover } = this.active;
+		this.active = {
+			...projectWithoutCover,
+			metadata: {
+				...this.active.metadata,
+				updatedAt: new Date(),
+			},
+		};
+		this.notify();
 		this.editor.save.markDirty();
 	}
 

@@ -255,6 +255,57 @@ describe("applyCodexExecutorSnapshot", () => {
 		expect(capturedTracks[0]).toEqual(snapshot.tracks);
 	});
 
+	test("syncs executor project cover into the active project without timeline mutation", async () => {
+		globalThis.fetch = (async () =>
+			new Response(
+				new Blob(["image-bytes"], { type: "image/png" }),
+			)) as unknown as typeof fetch;
+		const capturedAssets: MediaAsset[][] = [];
+		const capturedProjects: TProject[] = [];
+		const capturedTracks: unknown[] = [];
+		const snapshot = {
+			...executorSnapshot(),
+			duration: 3,
+			mediaAssets: [
+				{
+					id: "cover-1",
+					name: "cover.png",
+					type: "image" as const,
+					mimeType: "image/png",
+					width: 1080,
+					height: 1920,
+					size: 11,
+					lastModified: 123,
+					url: "/api/codex-executor/media?projectId=project-1&mediaId=cover-1",
+				},
+			],
+			cover: {
+				mediaId: "cover-1",
+				source: "media_asset" as const,
+				title: "别乱花钱",
+				prompt: "竖版 9:16 短视频封面，标题设计是画面核心",
+				stylePreset: "viral_chinese_title_cover",
+				width: 1080,
+				height: 1920,
+				updatedAt: "2026-06-21T00:00:00.000Z",
+			},
+		};
+
+		await applyCodexExecutorSnapshot({
+			editor: editorCaptureStub({
+				capturedAssets,
+				capturedProjects,
+				capturedTracks,
+			}),
+			snapshot,
+		});
+
+		expect(capturedProjects[0].cover).toEqual(snapshot.cover);
+		expect(capturedProjects[0].metadata.duration).toBe(3);
+		expect(capturedTracks[0]).toEqual(snapshot.tracks);
+		expect(capturedAssets[0]).toHaveLength(1);
+	});
+
 	test("fails before syncing when an executor media blob cannot be loaded", async () => {
 		globalThis.fetch = (async () =>
 			new Response("missing", { status: 404 })) as unknown as typeof fetch;

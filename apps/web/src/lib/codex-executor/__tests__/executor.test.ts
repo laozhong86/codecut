@@ -56,6 +56,8 @@ function envelope({
 		| "update_project_settings"
 		| "list_media_assets"
 		| "import_media_file"
+		| "set_project_cover"
+		| "clear_project_cover"
 		| "transcribe_media"
 		| "build_video_context"
 		| "build_visual_context"
@@ -419,6 +421,188 @@ describe("codex executor", () => {
 				],
 			},
 		});
+	});
+
+	test("sets and clears an independent project cover without adding timeline frames", async () => {
+		await createExecutorProject({ projectId, name: "Project cover cut" });
+		const coverImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "cover.png",
+					mimeType: "image/png",
+					base64: Buffer.from("png").toString("base64"),
+					size: 3,
+					lastModified: 1,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 8,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const coverMediaId = resultData<{ assets: Array<{ id: string }> }>(
+			coverImport.results[0],
+		).assets[0].id;
+		const videoMediaId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: videoMediaId,
+						target: { durationSec: 4, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 4,
+								timelineStart: 0,
+								fit: "cover",
+								reason: "Main body clip",
+							},
+						],
+						rationale: "Project cover must stay outside the timeline.",
+					},
+				},
+			}),
+		});
+		const beforeState = await getExecutorProjectState({ projectId });
+
+		const setResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_project_cover",
+				args: {
+					mediaId: coverMediaId,
+					title: "别乱花钱",
+					prompt: "竖版 9:16 短视频封面，标题设计是画面核心",
+					stylePreset: "viral_chinese_title_cover",
+				},
+			}),
+		});
+		const afterSetState = await getExecutorProjectState({ projectId });
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2" },
+			}),
+		});
+		const projectInfoResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_project_info", args: {} }),
+		});
+		const snapshot = await getExecutorProjectSnapshot({ projectId });
+
+		expect(setResult.results[0]).toMatchObject({
+			tool: "set_project_cover",
+			success: true,
+			data: {
+				cover: {
+					mediaId: coverMediaId,
+					source: "media_asset",
+					title: "别乱花钱",
+					prompt: "竖版 9:16 短视频封面，标题设计是画面核心",
+					stylePreset: "viral_chinese_title_cover",
+					width: 1080,
+					height: 1920,
+				},
+			},
+		});
+		expect(afterSetState.revision).toBe(beforeState.revision + 1);
+		expect(afterSetState.tracks).toEqual(beforeState.tracks);
+		expect(afterSetState.cover).toMatchObject({
+			mediaId: coverMediaId,
+			source: "media_asset",
+			title: "别乱花钱",
+			width: 1080,
+			height: 1920,
+		});
+
+		const timelineData = resultData<{
+			project: { totalDuration: number };
+			window: { totalElementCount: number };
+			cover?: { mediaId: string; title?: string };
+		}>(timelineResult.results[0]);
+		expect(timelineData.project.totalDuration).toBe(4);
+		expect(timelineData.window.totalElementCount).toBe(1);
+		expect(timelineData.cover).toMatchObject({
+			mediaId: coverMediaId,
+			title: "别乱花钱",
+		});
+		expect(
+			resultData<{ cover?: { mediaId: string } }>(projectInfoResult.results[0])
+				.cover,
+		).toMatchObject({ mediaId: coverMediaId });
+		expect(snapshot.cover).toMatchObject({ mediaId: coverMediaId });
+
+		const clearResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "clear_project_cover", args: {} }),
+		});
+		const afterClearState = await getExecutorProjectState({ projectId });
+
+		expect(clearResult.results[0]).toMatchObject({
+			tool: "clear_project_cover",
+			success: true,
+			data: { cover: null, revision: afterSetState.revision + 1 },
+		});
+		expect(afterClearState.cover).toBeUndefined();
+		expect(afterClearState.tracks).toEqual(beforeState.tracks);
+	});
+
+	test("rejects a project cover that is not a dimensioned image asset without mutating revision", async () => {
+		await createExecutorProject({ projectId, name: "Project cover guard" });
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 8,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const videoMediaId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const beforeState = await getExecutorProjectState({ projectId });
+
+		const setResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_project_cover",
+				args: { mediaId: videoMediaId, title: "封面标题" },
+			}),
+		});
+		const afterState = await getExecutorProjectState({ projectId });
+
+		expect(setResult.results[0]).toMatchObject({
+			tool: "set_project_cover",
+			success: false,
+			message: "Project cover media must be an image asset.",
+		});
+		expect(afterState.revision).toBe(beforeState.revision);
+		expect(afterState.cover).toBeUndefined();
 	});
 
 	test("rejects imported video without dimensions before saving media", async () => {

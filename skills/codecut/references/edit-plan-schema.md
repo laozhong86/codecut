@@ -177,7 +177,9 @@ target aspect ratios into `visual.transform.scale`. It is readable through
 `get_timeline_state`.
 
 `introCover` creates a generated image element at `startTime: 0` on the main
-video track. Codex must import the generated cover image first, then reference
+video track. It is not the project cover/poster. For a project cover, import the
+image and use `set_project_cover` instead so exported video duration remains
+unchanged. Codex must import the generated intro image first, then reference
 that imported image asset by `introCover.mediaId`. After applying, verify
 `get_timeline_state` readback includes an element with `type: "image"`,
 `startTime: 0`, the requested `duration`, and the same `mediaId`.

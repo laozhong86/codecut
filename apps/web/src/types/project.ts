@@ -38,6 +38,19 @@ export interface TTimelineViewState {
 	playheadTime: number;
 }
 
+export type ProjectCoverSource = "media_asset" | "timeline_frame" | "generated";
+
+export interface ProjectCover {
+	mediaId: string;
+	source: ProjectCoverSource;
+	title?: string;
+	prompt?: string;
+	stylePreset?: string;
+	width: number;
+	height: number;
+	updatedAt: string;
+}
+
 export interface DerivedAsset {
 	id: string;
 	type: "person-mask";
@@ -58,6 +71,7 @@ export interface TProject {
 	settings: TProjectSettings;
 	version: number;
 	derivedAssets: DerivedAsset[];
+	cover?: ProjectCover;
 	timelineViewState?: TTimelineViewState;
 	agentMessages?: AgentMessage[];
 }

@@ -136,6 +136,7 @@ class StorageService {
 			settings: project.settings,
 			version: project.version,
 			derivedAssets: project.derivedAssets,
+			cover: project.cover,
 			timelineViewState: project.timelineViewState,
 			agentMessages: project.agentMessages,
 		};
@@ -184,6 +185,7 @@ class StorageService {
 			settings: serializedProject.settings,
 			version: serializedProject.version,
 			derivedAssets: serializedProject.derivedAssets ?? [],
+			cover: serializedProject.cover,
 			timelineViewState: serializedProject.timelineViewState,
 			agentMessages: serializedProject.agentMessages ?? [],
 		};

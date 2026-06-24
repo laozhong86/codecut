@@ -130,26 +130,35 @@ Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview
 - For tutorial, product-proof, screen-recording, or horizontal-to-vertical jobs,
   use visual preflight before final EditPlan authoring when crop, caption, or
   proof risk affects the result.
-- If confirmed setup intent has `generateIntroCover: true`, create an opening
-  cover before final EditPlan authoring. Determine the final first clip's
-  `sourceStart`, inspect that source frame or a tight range with
-  `inspect_video_range`, choose a prompt from
+- Project cover and EditPlan `introCover` are separate products. A project
+  cover is a poster/thumbnail outside the timeline; set it only by importing an
+  image with `import_media` and calling `set_project_cover`. Do not represent a
+  project cover with `introCover`, and do not shift timeline clips for it.
+- If the user asks for a short-video cover/poster, use the video first frame or
+  visual evidence to create an image outside Codecut runtime, import the image,
+  then call `set_project_cover` with the imported image `mediaId`, title text,
+  prompt, and style preset metadata. Verify with `get_project_info` or
+  `get_timeline_state` that `cover` is present and total duration is unchanged.
+- If confirmed setup intent has `generateIntroCover: true`, create a timeline
+  opening image before final EditPlan authoring. This is not the project cover.
+  Determine the final first clip's `sourceStart`, inspect that source frame or a
+  tight range with `inspect_video_range`, choose a prompt from
   `references/intro-cover-prompts.md` based on video type, generate a separate
   image through an available image generation capability outside Codecut
   runtime, import that image with `import_media`, and write `introCover` in the
   EditPlan.
-- Do not generate an intro cover when confirmed setup intent has
+- Do not generate a timeline intro image when confirmed setup intent has
   `generateIntroCover: false`.
-- Do not silently downgrade intro cover work. If image generation capability is
+- Do not silently downgrade cover work. If image generation capability is
   unavailable, first-frame visual evidence is missing, or the generated image
   cannot be imported as an image asset with width and height, stop and report
-  the blocker before calling `apply_edit_plan`.
+  the blocker before calling timeline mutation tools.
 - Intro cover duration is planned explicitly by Codex. The current recommended
   starting value is `1.2s`; do not rely on a runtime default. The first video
   clip's `timelineStart` must equal `introCover.duration`.
-- Prefer adding titles through Codecut text/title layers. Bake text into the
-  generated cover only when the user explicitly needs image text, and keep the
-  platform title-safe area clear.
+- For project covers, baked title text is expected when the user asks for
+  short-video cover style. For timeline intro images, prefer adding titles
+  through Codecut text/title layers unless the user explicitly needs image text.
 - For horizontal sources converted to vertical shorts, use
   `vertical_face_safe_crop_above_burned_captions` only when current visual
   evidence supports that policy.
@@ -167,9 +176,10 @@ Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview
 - After applying captions, use `get_timeline_state` readback and verify text
   elements include `content`, `startTime`, `duration`, and `style`.
 - Local video import through `import-media --file-path` must produce
-  `duration`, `width`, and `height`; local audio import must produce
-  `duration`. Verify with `list_media_assets` or
-  `get_timeline_state` v2 `includeReferencedMedia` before authoring cover,
+  `duration`, `width`, and `height`; local image import used as project cover
+  must produce `width` and `height`; local audio import must produce `duration`.
+  Verify with `list_media_assets` or `get_timeline_state` v2
+  `includeReferencedMedia` before authoring project cover, intro cover,
   sourceCrop, or export-sensitive plans.
 
 ## Planning References
@@ -182,7 +192,7 @@ Read only what matches the task:
 - Intent router: `references/editing-intent-router.md`
 - Tool contract: `references/codecut-agent-tool-contract.md`
 - EditPlan schema: `references/edit-plan-schema.md`
-- Intro cover prompt guide: `references/intro-cover-prompts.md`
+- Project and intro cover prompt guide: `references/intro-cover-prompts.md`
 - Long-to-short: `references/workflow-recipes/long-to-short.md`
 - Talking-head polish: `references/workflow-recipes/talking-head-polish.md`
 - Subtitle pass: `references/workflow-recipes/subtitle-pass.md`
