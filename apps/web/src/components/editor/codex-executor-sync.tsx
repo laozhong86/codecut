@@ -146,7 +146,7 @@ async function loadExecutorMediaFile({
 			type: asset.mimeType,
 			lastModified: asset.lastModified,
 		}),
-		url,
+		url: URL.createObjectURL(blob),
 	};
 }
 

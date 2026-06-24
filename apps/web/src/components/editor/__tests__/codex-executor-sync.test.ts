@@ -12,6 +12,7 @@ import {
 } from "../codex-executor-sync";
 
 const originalFetch = globalThis.fetch;
+const originalCreateObjectURL = URL.createObjectURL;
 
 function editorStub({ capturedAssets }: { capturedAssets: MediaAsset[][] }) {
 	return {
@@ -123,6 +124,7 @@ function executorSnapshot() {
 describe("applyCodexExecutorSnapshot", () => {
 	afterEach(() => {
 		globalThis.fetch = originalFetch;
+		URL.createObjectURL = originalCreateObjectURL;
 	});
 
 	test("loads executor snapshots with the browser bridge token", async () => {
@@ -178,12 +180,17 @@ describe("applyCodexExecutorSnapshot", () => {
 		});
 	});
 
-	test("hydrates media assets with the executor media blob before syncing", async () => {
+	test("hydrates media assets with browser-readable blob URLs before syncing", async () => {
 		const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
 		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 			fetchCalls.push({ url: String(input), init });
 			return new Response(new Blob(["video-bytes"], { type: "video/mp4" }));
 		}) as unknown as typeof fetch;
+		const objectUrlBlobs: Blob[] = [];
+		URL.createObjectURL = ((blob: Blob) => {
+			objectUrlBlobs.push(blob);
+			return `blob:executor-media-${objectUrlBlobs.length}`;
+		}) as typeof URL.createObjectURL;
 		const capturedAssets: MediaAsset[][] = [];
 
 		await applyCodexExecutorSnapshot({
@@ -201,9 +208,9 @@ describe("applyCodexExecutorSnapshot", () => {
 		});
 		expect(capturedAssets).toHaveLength(1);
 		expect(capturedAssets[0][0].file.size).toBe(11);
-		expect(capturedAssets[0][0].url).toBe(
-			"/api/codex-executor/media?projectId=project-1&mediaId=media-1&revision=7",
-		);
+		expect(objectUrlBlobs).toHaveLength(1);
+		expect(objectUrlBlobs[0].size).toBe(11);
+		expect(capturedAssets[0][0].url).toBe("blob:executor-media-1");
 	});
 
 	test("syncs project media and timeline from the executor draft snapshot", async () => {
