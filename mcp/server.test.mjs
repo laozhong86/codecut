@@ -339,8 +339,10 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain("检查设置");
 		expect(html).not.toContain("创建项目前需要先检查。");
 		expect(html).toContain(
-			'<button id="submit-button" type="submit" data-i18n="createProject">Create project</button>',
+			'<button id="submit-button" class="create-project-cta" type="submit" data-i18n="createProject">Create project</button>',
 		);
+		expect(html).toContain(".create-project-cta");
+		expect(html).toContain("--cc-create-cta-background");
 	});
 
 	test("workspace widget reads Codex host metadata defaults", async () => {
