@@ -1,15 +1,24 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { EditorCore } from "@/core";
 import type { MediaAsset } from "@/types/assets";
 import type { TProject } from "@/types/project";
-import {
+
+const generateThumbnail = mock(
+	async () => "data:image/jpeg;base64,executor-thumb",
+);
+
+mock.module("@/lib/media/processing", () => ({
+	generateThumbnail,
+}));
+
+const {
 	applyCodexExecutorSnapshot,
 	EXECUTOR_STATUS_DOT_CLASS,
 	getExecutorStatusDotState,
 	loadCodexExecutorSnapshot,
 	loadCodexExecutorStatus,
 	shouldSyncExecutorRevision,
-} from "../codex-executor-sync";
+} = await import("../codex-executor-sync");
 
 const originalFetch = globalThis.fetch;
 const originalCreateObjectURL = URL.createObjectURL;
@@ -125,6 +134,7 @@ describe("applyCodexExecutorSnapshot", () => {
 	afterEach(() => {
 		globalThis.fetch = originalFetch;
 		URL.createObjectURL = originalCreateObjectURL;
+		generateThumbnail.mockClear();
 	});
 
 	test("loads executor snapshots with the browser bridge token", async () => {
@@ -211,6 +221,13 @@ describe("applyCodexExecutorSnapshot", () => {
 		expect(objectUrlBlobs).toHaveLength(1);
 		expect(objectUrlBlobs[0].size).toBe(11);
 		expect(capturedAssets[0][0].url).toBe("blob:executor-media-1");
+		expect(capturedAssets[0][0].thumbnailUrl).toBe(
+			"data:image/jpeg;base64,executor-thumb",
+		);
+		expect(generateThumbnail).toHaveBeenCalledWith({
+			videoFile: capturedAssets[0][0].file,
+			timeInSeconds: 1,
+		});
 	});
 
 	test("syncs project media and timeline from the executor draft snapshot", async () => {
