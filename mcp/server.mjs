@@ -22,6 +22,8 @@ const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
 const bridgeAllowedEnvKeys = new Set(["RUNNINGHUB_API_KEY"]);
 const workspaceResourceMimeType = "text/html;profile=mcp-app";
+const codecutServiceStartCommand = "bun run dev:web";
+const defaultCodecutReadinessUrl = "http://127.0.0.1:4100/en/projects";
 
 const projectIdSchema = z
 	.string()
@@ -960,7 +962,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1013,6 +1015,61 @@ export function openCodecutWorkspace(input = {}) {
 			widgetData: { pendingConfirmationId, intentDefaults },
 		},
 	};
+}
+
+function buildCodecutServiceBlockedResult({ readinessUrl, error }) {
+	const verifyCommand = `curl -fsS -o /dev/null ${readinessUrl}`;
+	return {
+		content: [
+			{
+				type: "text",
+				text: `P0 blocked: Codecut web service is not available on ${readinessUrl}. Start it with \`${codecutServiceStartCommand}\`, then verify with \`${verifyCommand}\` before opening the setup widget.`,
+			},
+		],
+		structuredContent: {
+			status: "service_unavailable",
+			nextAction: "start_codecut_web_service",
+			startCommand: codecutServiceStartCommand,
+			verifyCommand,
+			readinessUrl,
+			error,
+		},
+		isError: true,
+	};
+}
+
+async function assertCodecutServiceReady({
+	cwd = pluginRoot,
+	env = process.env,
+	fetchImpl = fetch,
+} = {}) {
+	const bridgeEnv = buildBridgeProcessEnv({ cwd, env });
+	const baseUrl = bridgeEnv.CODECUT_AGENT_BRIDGE_URL;
+	const readinessUrl = baseUrl
+		? `${baseUrl.replace(/\/$/, "")}/en/projects`
+		: defaultCodecutReadinessUrl;
+	if (!baseUrl) {
+		return buildCodecutServiceBlockedResult({
+			readinessUrl,
+			error: "CODECUT_AGENT_BRIDGE_URL is required before opening CodeCut workspace.",
+		});
+	}
+
+	try {
+		const response = await fetchImpl(readinessUrl);
+		if (!response.ok) {
+			return buildCodecutServiceBlockedResult({
+				readinessUrl,
+				error: `Codecut web service returned ${response.status}`,
+			});
+		}
+		return null;
+	} catch (error) {
+		return buildCodecutServiceBlockedResult({
+			readinessUrl,
+			error: `Codecut web service is not reachable: ${error instanceof Error ? error.message : String(error)}`,
+		});
+	}
 }
 
 export async function inspectCodecutSetup(
@@ -2504,8 +2561,14 @@ export function createCodecutMcpServer() {
 	return server;
 }
 
-async function callCodecutWorkspaceTool(toolName, input) {
+export async function callCodecutWorkspaceTool(
+	toolName,
+	input,
+	{ cwd = pluginRoot, env = process.env, fetchImpl = fetch } = {},
+) {
 	if (toolName === "open_codecut_workspace") {
+		const blocked = await assertCodecutServiceReady({ cwd, env, fetchImpl });
+		if (blocked) return blocked;
 		return openCodecutWorkspace(input);
 	}
 	if (toolName === "inspect_codecut_setup") {

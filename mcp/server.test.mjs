@@ -263,6 +263,7 @@ describe("Codecut MCP server contract", () => {
 		expect(openTool.readOnly).toBe(true);
 		expect(openTool.modelVisible).toBe(true);
 		expect(openTool.description).toContain("uiLanguage");
+		expect(openTool.description).toContain("web service");
 		expect(openTool.inputSchema.projectId).toBeUndefined();
 		expect(openTool.meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
@@ -360,6 +361,107 @@ describe("Codecut MCP server contract", () => {
 		);
 		expect(html).toContain(".create-project-cta");
 		expect(html).toContain("--cc-create-cta-background");
+	});
+
+	test("blocks workspace widget rendering when the CodeCut web service is unreachable", async () => {
+		const result = await serverModule.callCodecutWorkspaceTool(
+			"open_codecut_workspace",
+			{ projectName: "Creator Launch" },
+			{
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+				},
+				fetchImpl: async () => {
+					throw new Error("fetch failed");
+				},
+			},
+		);
+
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toMatchObject({
+			status: "service_unavailable",
+			nextAction: "start_codecut_web_service",
+			startCommand: "bun run dev:web",
+			verifyCommand:
+				"curl -fsS -o /dev/null http://127.0.0.1:4100/en/projects",
+			readinessUrl: "http://127.0.0.1:4100/en/projects",
+			error: "Codecut web service is not reachable: fetch failed",
+		});
+		expect(result.structuredContent).not.toHaveProperty(
+			"pendingConfirmationId",
+		);
+		expect(result._meta).toBeUndefined();
+	});
+
+	test("blocks workspace widget rendering when the CodeCut web service returns a non-2xx response", async () => {
+		const result = await serverModule.callCodecutWorkspaceTool(
+			"open_codecut_workspace",
+			{ projectName: "Creator Launch" },
+			{
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+				},
+				fetchImpl: async () => ({ ok: false, status: 503 }),
+			},
+		);
+
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toMatchObject({
+			status: "service_unavailable",
+			nextAction: "start_codecut_web_service",
+			readinessUrl: "http://127.0.0.1:4100/en/projects",
+			error: "Codecut web service returned 503",
+		});
+		expect(result._meta).toBeUndefined();
+	});
+
+	test("blocks workspace widget rendering when CODECUT_AGENT_BRIDGE_URL is missing", async () => {
+		const result = await serverModule.callCodecutWorkspaceTool(
+			"open_codecut_workspace",
+			{ projectName: "Creator Launch" },
+			{
+				env: {},
+				fetchImpl: async () => {
+					throw new Error("fetch must not run without bridge url");
+				},
+			},
+		);
+
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toMatchObject({
+			status: "service_unavailable",
+			nextAction: "start_codecut_web_service",
+			readinessUrl: "http://127.0.0.1:4100/en/projects",
+			error:
+				"CODECUT_AGENT_BRIDGE_URL is required before opening CodeCut workspace.",
+		});
+		expect(result._meta).toBeUndefined();
+	});
+
+	test("renders the workspace widget only after the CodeCut web service is reachable", async () => {
+		const result = await serverModule.callCodecutWorkspaceTool(
+			"open_codecut_workspace",
+			{ projectName: "Creator Launch" },
+			{
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+				},
+				fetchImpl: async () => ({ ok: true, status: 200 }),
+			},
+		);
+
+		expect(result.structuredContent).toMatchObject({
+			status: "awaiting_user_confirmation",
+			nextAction: "wait_for_widget_submission",
+			intentDefaults: { projectName: "Creator Launch" },
+		});
+		expect(result.structuredContent.pendingConfirmationId).toMatch(
+			/^ccpending_[a-f0-9]{24}$/,
+		);
+		expect(result._meta).toMatchObject({
+			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
+			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
+		});
 	});
 
 	test("workspace widget reads Codex host metadata defaults", async () => {
