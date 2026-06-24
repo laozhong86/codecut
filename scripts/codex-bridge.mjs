@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { buildRsyncArgs } from "./sync-codex-local-plugin.mjs";
+import { assertCodecutConfirmationToken } from "./codecut-confirmation-gate.mjs";
 
 const requiredConfig = [
 	"CODECUT_AGENT_BRIDGE_URL",
@@ -19,18 +20,52 @@ const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
 const execFileAsync = promisify(execFile);
 const importBytesBase64MaxBytes = 15 * 1024 * 1024;
+const confirmationGatedCommands = new Set([
+	"create-project",
+	"rename-project",
+	"delete-project",
+	"import-media",
+	"export",
+	"generate-digital-human",
+	"generate-runninghub-voice-design",
+	"generate-runninghub-voice-clone",
+	"apply-plan",
+	"apply-narrated-remix-plan",
+	"add-texts",
+	"add-captions",
+	"insert-clips",
+	"move-clips",
+	"remove-clips",
+	"split-clip",
+	"set-clip-properties",
+	"set-keyframes",
+	"ripple-delete-ranges",
+]);
+const confirmationGatedSendTools = new Set([
+	"add_texts",
+	"add_captions",
+	"insert_clips",
+	"move_clips",
+	"remove_clips",
+	"split_clip",
+	"set_clip_properties",
+	"set_keyframes",
+	"ripple_delete_ranges",
+	"create_text_background_effect",
+	"create_human_pip_effect",
+]);
 
 function usage() {
 	return [
 		"Usage:",
-		"  node scripts/codex-bridge.mjs create-project --project-id <id> --name <name>",
+		"  node scripts/codex-bridge.mjs create-project --project-id <id> --name <name> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs plugin:freshness",
 		"  node scripts/codex-bridge.mjs doctor-install --project-id <id>",
 		"  node scripts/codex-bridge.mjs doctor --project-id <id>",
 		'  node scripts/codex-bridge.mjs fresh-session-smoke --project-id <id> --scripted-media-name <name> --expected-caption-line-count <n> --expected-protected-term-count <n> --expected-caption-texts-json \'["$2.34","Venmo that ASAP"]\'',
-		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>'",
-		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file",
-		"  node scripts/codex-bridge.mjs import-media --project-id <id> --bytes-base64-file /absolute/path/payload.base64 --file-name <name> --mime-type <type> [--spoken-script-json-file /absolute/path/spoken-script.json]",
+		"  node scripts/codex-bridge.mjs send --project-id <id> --tool <tool> --args-json '<json>' [--confirmation-token <token> for side-effect tools]",
+		"  node scripts/codex-bridge.mjs import-media --project-id <id> --file-path /absolute/path/media-file --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs import-media --project-id <id> --bytes-base64-file /absolute/path/payload.base64 --file-name <name> --mime-type <type> --confirmation-token <token> [--spoken-script-json-file /absolute/path/spoken-script.json]",
 		"  node scripts/codex-bridge.mjs transcribe --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-visual-context --project-id <id> --media-id <id> --target-aspect-ratio <9:16|16:9|1:1>",
@@ -39,33 +74,33 @@ function usage() {
 		"  node scripts/codex-bridge.mjs inspect-timeline --project-id <id> --start-time <seconds> [--end-time <seconds>] [--frame-count <1..16>]",
 		"  node scripts/codex-bridge.mjs build-video-quality-report --project-id <id> --plan-json-file /absolute/path/edit-plan.json --start-time <seconds> --end-time <seconds> --frame-count <1..16>",
 		"  node scripts/codex-bridge.mjs get-transcript --project-id <id> --granularity <segment|word> --language <auto|code> --model-id <model> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>]",
-		"  node scripts/codex-bridge.mjs add-texts --project-id <id> --args-json '<json>'",
-		"  node scripts/codex-bridge.mjs add-captions --project-id <id> --args-json '<json>'",
-		"  node scripts/codex-bridge.mjs insert-clips --project-id <id> --args-json '<json>'",
-		"  node scripts/codex-bridge.mjs move-clips --project-id <id> --args-json '<json>'",
-		"  node scripts/codex-bridge.mjs remove-clips --project-id <id> --args-json '<json>'",
-		"  node scripts/codex-bridge.mjs split-clip --project-id <id> --args-json '<json>'",
-		"  node scripts/codex-bridge.mjs set-clip-properties --project-id <id> --args-json '<json>'",
-		"  node scripts/codex-bridge.mjs set-keyframes --project-id <id> --args-json '<json>'",
-		"  node scripts/codex-bridge.mjs ripple-delete-ranges --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs add-texts --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs add-captions --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs insert-clips --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs move-clips --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs remove-clips --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs split-clip --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs set-clip-properties --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs set-keyframes --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs ripple-delete-ranges --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs list-models --project-id <id> [--type <transcription|digital_human>]",
 		"  node scripts/codex-bridge.mjs search-media --project-id <id> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs import-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs update-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs delete-system-template-script --project-id <id> --template-id <id> --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
-		'  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text "..." --motion-prompt "..." --width 1280 --height 720 --fps 25',
-		'  node scripts/codex-bridge.mjs generate-runninghub-voice-design --project-id <id> --text "..." --emotion-prompt "..."',
-		'  node scripts/codex-bridge.mjs generate-runninghub-voice-clone --project-id <id> --audio-path /absolute/path/reference.wav --text "..."',
+		'  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text "..." --motion-prompt "..." --width 1280 --height 720 --fps 25 --confirmation-token <token>',
+		'  node scripts/codex-bridge.mjs generate-runninghub-voice-design --project-id <id> --text "..." --emotion-prompt "..." --confirmation-token <token>',
+		'  node scripts/codex-bridge.mjs generate-runninghub-voice-clone --project-id <id> --audio-path /absolute/path/reference.wav --text "..." --confirmation-token <token>',
 		"  node scripts/codex-bridge.mjs validate-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs preview-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
-		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false>",
-		"  node scripts/codex-bridge.mjs apply-narrated-remix-plan --project-id <id> --plan-json-file /absolute/path/remix-plan.json --replace-existing <true|false>",
+		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false> --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs apply-narrated-remix-plan --project-id <id> --plan-json-file /absolute/path/remix-plan.json --replace-existing <true|false> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs verify-timeline --project-id <id> --verification-json-file /absolute/path/verification.json",
-		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --output-file /absolute/path/out.mp4 --overwrite <true|false>",
+		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --output-file /absolute/path/out.mp4 --overwrite <true|false> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs list-projects",
-		"  node scripts/codex-bridge.mjs rename-project --project-id <id> --name <name>",
-		"  node scripts/codex-bridge.mjs delete-project --project-id <id>",
+		"  node scripts/codex-bridge.mjs rename-project --project-id <id> --name <name> --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs delete-project --project-id <id> --confirmation-token <token>",
 		"",
 		"Required local env:",
 		...requiredConfig.map((name) => `  ${name}`),
@@ -2689,6 +2724,16 @@ export async function runCli({
 		return result.ok ? 0 : 1;
 	}
 
+	if (
+		confirmationGatedCommands.has(command) ||
+		(command === "send" && confirmationGatedSendTools.has(String(flags.tool || "")))
+	) {
+		await assertCodecutConfirmationToken({
+			root: env?.CODECUT_CONFIRMATION_ROOT,
+			projectId: flags.projectId,
+			confirmationToken: flags.confirmationToken,
+		});
+	}
 	const config = requireRuntimeConfig({ env, flags });
 	let envelope;
 

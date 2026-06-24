@@ -136,6 +136,7 @@ enabled = true
 		expect(args).toContain("--exclude=.turbo/");
 		expect(args).toContain("--exclude=.playwright-cli/");
 		expect(args).toContain("--exclude=.worktrees/");
+		expect(args).toContain("--exclude=.codecut-confirmations/");
 		expect(args).toContain("--exclude=.codecut-workspace/");
 		expect(args).toContain("--exclude=.codecut-executor/");
 		expect(args).toContain("--exclude=output/");

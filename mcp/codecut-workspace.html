@@ -549,6 +549,7 @@
         };
 
         let currentProjectId = "";
+        let currentPendingConfirmationId = "";
         let activeLanguage = "en";
 
         function normalizeUiLanguage(value) {
@@ -586,6 +587,12 @@
 
         function initialDefaults() {
           const api = window.openai || {};
+          currentPendingConfirmationId =
+            api.toolResponseMetadata?.widgetData?.pendingConfirmationId ||
+            api.widgetData?.pendingConfirmationId ||
+            api.toolOutput?.pendingConfirmationId ||
+            api.structuredContent?.pendingConfirmationId ||
+            "";
           return (
             api.toolResponseMetadata?.widgetData?.intentDefaults ||
             intentDefaultsFromPayload(api.widgetData) ||
@@ -924,6 +931,7 @@
         function collectIntent() {
           const mediaSources = collectMediaSources();
           return {
+            pendingConfirmationId: currentPendingConfirmationId,
             projectId: currentProjectId || slugify(fields.projectName.value),
             projectName: fields.projectName.value.trim(),
             mediaSource: mediaSources[0],
