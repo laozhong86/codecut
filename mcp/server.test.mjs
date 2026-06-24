@@ -328,13 +328,8 @@ describe("Codecut MCP server contract", () => {
 			"dataset.filePath",
 			"dataset.directoryPath",
 			'id="target-aspect-ratio"',
-			'id="duration-goal-auto"',
-			'id="duration-goal-custom"',
-			'id="duration-range-options"',
-			'id="duration-range-min-seconds"',
-			'id="duration-range-max-seconds"',
-			"renderDurationRangeOptions",
-			"toggleDurationRangeEditor",
+			'id="duration-goal-range"',
+			"setDurationGoalSelection",
 			"collectDurationGoal",
 			'id="caption-language"',
 			'id="caption-font"',
@@ -394,13 +389,15 @@ describe("Codecut MCP server contract", () => {
 			'data-i18n-placeholder="projectNamePlaceholder"',
 			'data-i18n-placeholder="briefCustomPlaceholder"',
 			'data-i18n-placeholder="successCriteriaCustomPlaceholder"',
+			"durationGoalRange",
 			"durationGoalAuto",
-			"durationGoalAutoHelp",
-			"durationRange",
-			"durationRangeMinSeconds",
-			"durationRangeMaxSeconds",
-			"Auto",
+			"durationRange15To30",
+			"durationRange30To60",
+			"durationRange1To3Minutes",
 			"自动",
+			"15～30秒",
+			"30～60 秒",
+			"1～3 分钟",
 			"customOption",
 			"自定义",
 			"customButton.dataset.action = \"toggle-custom\"",
@@ -430,6 +427,17 @@ describe("Codecut MCP server contract", () => {
 		}
 		expect(html).toContain("durationGoalMode");
 		expect(html).toContain("durationGoalRangeSeconds");
+		expect(html).toContain('introCoverRecommended: "用AI 生成新的封面"');
+		expect(html).not.toContain('id="duration-goal-auto"');
+		expect(html).not.toContain('id="duration-goal-custom"');
+		expect(html).not.toContain('id="duration-range-options"');
+		expect(html).not.toContain('id="duration-range-min-seconds"');
+		expect(html).not.toContain('id="duration-range-max-seconds"');
+		expect(html).not.toContain("durationGoalRangeOptions");
+		expect(html).not.toContain("durationGoalAutoHelp");
+		expect(html).not.toContain('data-i18n="introCoverHelp"');
+		expect(html).not.toContain("生成时间线开头图");
+		expect(html).not.toContain("项目封面使用 set_project_cover");
 		expect(html).not.toContain("<legend");
 		expect(html).not.toContain("querySelectorAll('input[type=\"checkbox\"]:checked')");
 		expect(html).not.toContain("#315cec");
@@ -657,10 +665,6 @@ describe("Codecut MCP server contract", () => {
 				},
 			],
 			targetAspectRatio: "9:16",
-			durationGoalRangeOptions: [
-				{ label: "Short proof cut", minSeconds: 25, maxSeconds: 40 },
-				{ label: "Explainer cut", minSeconds: 45, maxSeconds: 75 },
-			],
 		});
 
 		expect(result.structuredContent.intentDefaults).toMatchObject({
@@ -682,10 +686,6 @@ describe("Codecut MCP server contract", () => {
 			],
 			targetAspectRatio: "9:16",
 			durationGoalMode: "auto",
-			durationGoalRangeOptions: [
-				{ label: "Short proof cut", minSeconds: 25, maxSeconds: 40 },
-				{ label: "Explainer cut", minSeconds: 45, maxSeconds: 75 },
-			],
 			captionLanguage: "auto",
 			output: { format: "mp4", quality: "high", includeAudio: true },
 		});
@@ -920,14 +920,14 @@ describe("Codecut MCP server contract", () => {
 			const customDurationRange = await serverModule.inspectCodecutSetup(
 				setupIntent({
 					durationGoalMode: "custom",
-					durationGoalRangeSeconds: { minSeconds: 25, maxSeconds: 40 },
+					durationGoalRangeSeconds: { minSeconds: 15, maxSeconds: 30 },
 				}),
 				{ bridgeToolImpl },
 			);
 			expect(customDurationRange.status).toBe("ready");
 			expect(customDurationRange.intent.durationGoalRangeSeconds).toEqual({
-				minSeconds: 25,
-				maxSeconds: 40,
+				minSeconds: 15,
+				maxSeconds: 30,
 			});
 
 			for (const [label, intent] of [
