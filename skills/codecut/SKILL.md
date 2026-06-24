@@ -38,7 +38,10 @@ asks only to download, save, extract, or make source media available locally,
 route to the source acquisition stage and stop before editing intake, executor
 project creation, timeline mutation, or export.
 
-For new creative jobs with missing setup fields, call
+For new creative jobs with missing setup fields, first verify the local
+Codecut web service gate at `http://127.0.0.1:4100/en/projects`. If the service
+is not reachable, start it with `bun run dev:web` from the plugin root and wait
+until the readiness check succeeds. Only after that, call
 `open_codecut_workspace` directly from the MCP tool surface before reading
 local files, loading stage skills, running shell commands, or sending text-only
 questions. Use `tool_search` only if the widget tool is not visible. After
@@ -50,7 +53,7 @@ export.
 | Request shape | Required stage |
 | --- | --- |
 | Source-only acquisition: "download", "save locally", "提取到本地", "下载到本地", or similar with no editing, timeline, template, or export request | Use `codecut-tiktok-downloader` for TikTok sources, otherwise use `codecut-material-ingest`. Do not open the creative editing widget or run executor mutation commands. |
-| New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", or any request that will create, edit, verify, or export a timeline | Call `open_codecut_workspace` directly before loading child skills or shell. After widget submission, use `codecut-requirement-intake` to pass or block the execution gate. |
+| New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", or any request that will create, edit, verify, or export a timeline | Verify `http://127.0.0.1:4100/en/projects` first; if it fails, start `bun run dev:web` and wait for readiness. Then call `open_codecut_workspace` before loading child skills or shell. After widget submission, use `codecut-requirement-intake` to pass or block the execution gate. |
 | New creative job with explicit setup fields already provided | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` before executor mutation. |
 | TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally for an editing job | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition only after widget submission and requirement intake pass. |
 | Source needs download, file copy, workspace init, or ffprobe audit for a creative editing job | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest` only after widget submission and requirement intake pass. |
@@ -63,6 +66,9 @@ export.
 ## Non-Negotiable Gates
 
 - Requirement intake must pass before timeline mutation for new creative jobs.
+- New creative jobs must pass the local service gate before
+  `open_codecut_workspace`; a `service_unavailable` result is a blocker, not a
+  rendered widget.
 - New creative jobs must pass through `open_codecut_workspace` and
   `submit_codecut_setup` before material ingest, workspace init/add-assets,
   doctor checks, executor project creation, media import, generated media,

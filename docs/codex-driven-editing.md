@@ -148,7 +148,9 @@ Do not pass the token as a CLI flag. Do not commit local tokens or `.env` files.
 
 ## Local Web Service Gate
 
-Before opening, asking the user to open, or navigating the Codex in-app browser, Codex must verify that Codecut is serving the MVP origin:
+Before calling `open_codecut_workspace`, asking the user to open a setup
+widget, or navigating the Codex in-app browser, Codex must verify that Codecut
+is serving the MVP origin:
 
 ```bash
 curl -fsS -o /dev/null http://127.0.0.1:4100/en/projects
@@ -162,7 +164,12 @@ bun run dev:web
 
 Wait until the same readiness check succeeds. If the app cannot start or `http://127.0.0.1:4100/en/projects` remains unavailable, stop the workflow and report `P0 blocked: Codecut web service is not available on 127.0.0.1:4100`.
 
-Do not ask the user to open the Browser, import media, inspect bridge env, or send bridge commands until this service gate passes. Do not switch to another port, external origin, or magic default. The browser URL, bridge URL, and editor origin must stay aligned on `http://127.0.0.1:4100`.
+Do not render `open_codecut_workspace`, ask the user to open the Browser,
+import media, inspect bridge env, or send bridge commands until this service
+gate passes. `open_codecut_workspace` must return `service_unavailable` instead
+of widget metadata when this gate fails. Do not switch to another port,
+external origin, or magic default. The browser URL, bridge URL, and editor
+origin must stay aligned on `http://127.0.0.1:4100`.
 
 ## CLI Runtime And Human Preview
 

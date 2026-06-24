@@ -11,6 +11,11 @@ The change is verified only when a fresh `@codecut` thread produces a real
 `codecut_mcp.open_codecut_workspace` MCP call. Source files, installed cache
 contents, and unit tests are necessary but not sufficient.
 
+Before running the fresh-thread widget proof, the local Codecut web service must
+already be reachable at `http://127.0.0.1:4100/en/projects`. If
+`open_codecut_workspace` returns `service_unavailable`, the runtime is blocked;
+that result is not a rendered widget and does not satisfy widget intake proof.
+
 The validation thread must not run shell commands, write files, download media,
 create projects, import media, transcribe, mutate timelines, or send text-only
 fallback questions.
@@ -83,7 +88,20 @@ open_codecut_workspace Codecut workspace setup widget
 The expected callable tool is
 `mcp__codecut_mcp.open_codecut_workspace`.
 
-5. Create a fresh `@codecut` validation thread with a minimal prompt:
+5. Confirm the local Codecut web service is ready before opening the widget:
+
+```bash
+curl -fsS -o /dev/null http://127.0.0.1:4100/en/projects
+```
+
+If the readiness check fails, start the app from the plugin root and wait until
+the same check succeeds:
+
+```bash
+bun run dev:web
+```
+
+6. Create a fresh `@codecut` validation thread with a minimal prompt:
 
 ```text
 [@codecut](plugin://codecut@local-opc) Validate intake behavior: I have a local
@@ -95,7 +113,7 @@ If editing setup fields are missing, use the normal Codecut plugin intake path
 and render the setup widget instead of sending text questions.
 ```
 
-6. Inspect the fresh thread with `read_thread` and verify it contains:
+7. Inspect the fresh thread with `read_thread` and verify it contains:
 
 ```text
 mcpToolCall server=codecut_mcp tool=open_codecut_workspace
@@ -104,7 +122,7 @@ mcpToolCall server=codecut_mcp tool=open_codecut_workspace
 It must not contain `exec_command`, `fileChange`, or text fallback prompts such
 as `直接回复` or `C/A/A/A/A`.
 
-7. Run the verifier:
+8. Run the verifier:
 
 ```bash
 node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId>
@@ -119,6 +137,9 @@ node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId> --se
 
 ## Failure Meaning
 
+- `service_unavailable`: the local Codecut web service was not ready before
+  widget intake; start `bun run dev:web`, wait for the readiness curl to pass,
+  and rerun the fresh-thread proof.
 - Missing `open_codecut_workspace`: the agent did not enter widget intake.
 - Text fallback prompt: the skill routing regressed to chat-only clarification.
 - `exec_command`: the validation prompt was not kept read-only.
