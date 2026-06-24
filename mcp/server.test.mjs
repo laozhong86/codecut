@@ -299,6 +299,9 @@ describe("Codecut MCP server contract", () => {
 			'type="file"',
 			"multiple",
 			'id="add-media-source-button"',
+			"appendMediaFileRow",
+			"media-source-path",
+			"dataset.filePath",
 			'id="target-aspect-ratio"',
 			'id="duration-goal-seconds"',
 			'id="caption-language"',
@@ -322,9 +325,6 @@ describe("Codecut MCP server contract", () => {
 			"handlePickedFiles",
 			"openHostFilePicker",
 			"handleHostSelectedFiles",
-			"resolveHostSelectedFile",
-			"getFileDownloadUrl",
-			"fileId",
 			"selectFiles",
 			"appendPickedFileRows",
 			'fields.mediaFilePicker.addEventListener("change", handlePickedFiles)',
@@ -339,14 +339,12 @@ describe("Codecut MCP server contract", () => {
 		}
 		expect(html).toContain('row.setAttribute("role", "listitem")');
 		expect(html).toContain('data-role="thumbnail"');
-		expect(html).toContain('class="media-source-fields"');
+		expect(html).toContain('class="media-source-path"');
 		expect(html).toContain('data-action="remove-source"');
 		expect(html).toContain("row.remove();");
 		expect(html).not.toContain("fields.mediaSources.children.length > 1");
 		for (const marker of [
 			'data-i18n-placeholder="projectNamePlaceholder"',
-			'data-i18n-placeholder="filePathPlaceholder"',
-			'data-i18n-placeholder="urlPlaceholder"',
 			'data-i18n-placeholder="briefCustomPlaceholder"',
 			'data-i18n-placeholder="successCriteriaCustomPlaceholder"',
 			"customOption",
@@ -354,7 +352,6 @@ describe("Codecut MCP server contract", () => {
 			"customButton.dataset.action = \"toggle-custom\"",
 			'<select id="duration-goal-seconds"',
 			'<select id="caption-language"',
-			'data-field="mimeType"',
 			'value="15"',
 			'value="30"',
 			'value="45"',
@@ -374,6 +371,23 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain('data-i18n="projectId"');
 		expect(html).not.toContain('id="media-file-path"');
 		expect(html).not.toContain('id="media-url"');
+		expect(html).not.toContain('id="media-file-picker-button"');
+		expect(html).not.toContain('data-i18n="chooseFiles"');
+		expect(html).not.toContain("chooseFiles");
+		expect(html).not.toContain('data-i18n="mediaSource"');
+		expect(html).not.toContain('t("mediaSource")');
+		expect(html).not.toContain('mediaSource: "Media source"');
+		expect(html).not.toContain('mediaSource: "素材来源"');
+		expect(html).not.toContain("localFilePath");
+		expect(html).not.toContain("httpsUrl");
+		expect(html).not.toContain("urlPlaceholder");
+		expect(html).not.toContain("mimeType");
+		expect(html).not.toContain('data-field="kind"');
+		expect(html).not.toContain('data-field="url"');
+		expect(html).not.toContain('data-field="mimeType"');
+		expect(html).not.toContain('data-role="url"');
+		expect(html).not.toContain("updateMediaSourceRow");
+		expect(html).not.toContain("getFileDownloadUrl");
 		expect(html).not.toContain('<input id="duration-goal-seconds"');
 		expect(html).not.toContain('<input id="caption-language"');
 		expect(html).not.toContain('id="inspect-button"');
