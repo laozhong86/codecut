@@ -21,9 +21,12 @@
       "Write"
     ],
     "defaultPrompt": [
-      "For new creative editing intake with missing setup fields, call the open_codecut_workspace MCP tool directly before reading local files, loading stage skills, running shell commands, or sending text clarification fallback; discover it with tool_search only if the tool is not visible.",
-      "Use $codecut after intake fields exist, after widget submission, or for non-intake Codecut work to route Codecut and operate the current Codex-only editing MVP through the local executor and EditPlan workflow. Whenever Codecut creates a project and receives an editorUrl, open that exact editorUrl in the Codex in-app browser before reporting the project ready."
+      "Use Codecut to start a new edit from my video.",
+      "Use Codecut to make a short social cut from this source clip.",
+      "Use Codecut to open my editing workspace and set up the project."
     ],
-    "brandColor": "#2563EB"
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/codecut-logo-flat-dynamic.svg",
+    "logo": "./assets/codecut-logo-variant-3d-transparent-1024.png"
   }
 }
