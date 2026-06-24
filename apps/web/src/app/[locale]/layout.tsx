@@ -1,7 +1,7 @@
-import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/components/providers/i18n-provider";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 import { getMessages } from "@i18next-toolkit/nextjs-approuter/server";
 import { i18nConfig } from "../../i18n.config";
 
