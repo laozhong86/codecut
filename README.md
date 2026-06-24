@@ -110,6 +110,58 @@ The early flagship workflow is:
 - `PostgreSQL + Redis` (optional for frontend-only work)
 - `TypeScript` across the project
 
+## Codex Plugin Install, Publish, And Verify
+
+Codecut can run as a normal local app, but the Codex plugin release has four
+separate layers: marketplace discovery, plugin enablement, installed cache, and
+the active Codex session. Do not treat a passing source test as proof that a
+fresh Codex thread can see the current plugin.
+
+Install from a local marketplace:
+
+1. Clone Codecut into the plugin folder used by your marketplace root.
+2. Confirm `.codex-plugin/plugin.json` exists and keeps the stable plugin name
+   `codecut`.
+3. Add or update `~/.agents/plugins/marketplace.json` so its `source.path`
+   points to this plugin folder relative to the marketplace root.
+4. Register that marketplace root, then install using your marketplace name:
+
+```bash
+codex plugin marketplace add <marketplace-root>
+codex plugin add codecut@<marketplace-name>
+```
+
+Publish a local update after changing `.codex-plugin/plugin.json`, `skills/`,
+`.mcp.json`, MCP resources, widgets, bridge code, or plugin-facing assets:
+
+```bash
+node scripts/sync-codex-local-plugin.mjs --marketplace <marketplace-name>
+bun run plugin:freshness
+```
+
+`node scripts/sync-codex-local-plugin.mjs` copies the source checkout into the
+installed Codex cache and verifies key source/cache checksums. `bun run
+plugin:freshness` is read-only; it reports source, marketplace, enabled config,
+installed cache, and session freshness without repairing state.
+
+Before calling a plugin release ready, record the checklist in
+`docs/codecut-version-release-matrix.md`:
+
+- Manifest: `.codex-plugin/plugin.json` name and version.
+- Marketplace/config: the enabled `codecut@<marketplace-name>` entry points at
+  this source checkout.
+- Installed cache: source-to-cache sync is clean after the update.
+- Fresh Codex session: start a fresh Codex thread after install or cache sync.
+- Tool surface: use `tool_search` for `open_codecut_workspace Codecut MCP
+  workspace setup widget` and confirm `open_codecut_workspace` is callable.
+- Fresh-thread widget proof: follow `docs/codecut-widget-intake-fresh-thread.md`
+  before claiming widget or MCP routing changes are visible.
+
+Codecut workspace data, imported media, generated planning artifacts, timeline
+state, and exports belong to the user's project or executor workspace. They are
+not plugin source files and must not be used as proof that the plugin bundle is
+published.
+
 ## Quick Start (Fast Path)
 
 ```bash

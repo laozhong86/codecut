@@ -83,6 +83,52 @@ Codecut 暂时不是为这些人优先设计：
 - `PostgreSQL + Redis`，前端开发时可按需启用。
 - 全项目使用 `TypeScript`。
 
+## Codex 插件安装、发布与验证
+
+Codecut 可以作为普通本地应用启动，但 Codex 插件发布要分四层验证：marketplace
+发现、插件启用、installed cache、当前 Codex 会话。源码测试通过，不等于一个
+fresh Codex 会话已经看到了最新插件。
+
+从本地 marketplace 安装：
+
+1. 把 Codecut clone 到你的 marketplace root 会引用的插件目录。
+2. 确认 `.codex-plugin/plugin.json` 存在，并保持稳定插件名 `codecut`。
+3. 在 `~/.agents/plugins/marketplace.json` 里添加或更新条目，让 `source.path`
+   以 marketplace root 为基准指向这个插件目录。
+4. 注册这个 marketplace root，再用你的 marketplace 名安装：
+
+```bash
+codex plugin marketplace add <marketplace-root>
+codex plugin add codecut@<marketplace-name>
+```
+
+修改 `.codex-plugin/plugin.json`、`skills/`、`.mcp.json`、MCP resource、widget、
+bridge 代码或插件展示资源后，发布本地更新：
+
+```bash
+node scripts/sync-codex-local-plugin.mjs --marketplace <marketplace-name>
+bun run plugin:freshness
+```
+
+`node scripts/sync-codex-local-plugin.mjs` 会把 source checkout 同步到 Codex
+installed cache，并校验关键 source/cache checksum。`bun run plugin:freshness`
+是只读检查，只报告 source、marketplace、enabled config、installed cache 和
+session freshness，不会自动修复状态。
+
+报告插件发布就绪前，把 `docs/codecut-version-release-matrix.md` 里的自检表补齐：
+
+- Manifest：`.codex-plugin/plugin.json` 的 name 和 version。
+- Marketplace/config：启用的 `codecut@<marketplace-name>` 指向当前 source checkout。
+- Installed cache：更新后 source-to-cache sync 干净。
+- fresh Codex 会话：安装或 cache sync 后开启新的 Codex 对话。
+- Tool surface：用 `tool_search` 搜索 `open_codecut_workspace Codecut MCP
+  workspace setup widget`，确认 `open_codecut_workspace` 可调用。
+- Fresh-thread widget proof：涉及 widget 或 MCP 路由变化时，按
+  `docs/codecut-widget-intake-fresh-thread.md` 验证后再报告可见。
+
+Codecut 的 workspace 数据、导入素材、生成的计划文件、时间线状态和导出文件属于用户项目或
+executor workspace。它们不是插件源码，也不能作为插件 bundle 已发布的证明。
+
 ## 快速启动
 
 ```bash
