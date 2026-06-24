@@ -384,6 +384,12 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain('data-i18n="projectId"');
 		expect(html).not.toContain('id="media-file-path"');
 		expect(html).not.toContain('id="media-url"');
+		expect(html).not.toContain('class="status"');
+		expect(html).not.toContain('id="status-title"');
+		expect(html).not.toContain('id="status-message"');
+		expect(html).not.toContain('id="checks"');
+		expect(html).not.toContain("readyToCreate");
+		expect(html).not.toContain("defaultsReady");
 		expect(html).not.toContain('id="media-file-picker-button"');
 		expect(html).not.toContain('data-i18n="chooseFiles"');
 		expect(html).not.toContain("chooseFiles");
