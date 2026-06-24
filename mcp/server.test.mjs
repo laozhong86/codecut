@@ -416,26 +416,34 @@ describe("Codecut MCP server contract", () => {
 	});
 
 	test("blocks workspace widget rendering when CODECUT_AGENT_BRIDGE_URL is missing", async () => {
-		const result = await serverModule.callCodecutWorkspaceTool(
-			"open_codecut_workspace",
-			{ projectName: "Creator Launch" },
-			{
-				env: {},
-				fetchImpl: async () => {
-					throw new Error("fetch must not run without bridge url");
-				},
-			},
+		const isolatedCwd = await mkdtemp(
+			join(tmpdir(), "codecut-no-bridge-url-"),
 		);
+		try {
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_workspace",
+				{ projectName: "Creator Launch" },
+				{
+					cwd: isolatedCwd,
+					env: {},
+					fetchImpl: async () => {
+						throw new Error("fetch must not run without bridge url");
+					},
+				},
+			);
 
-		expect(result.isError).toBe(true);
-		expect(result.structuredContent).toMatchObject({
-			status: "service_unavailable",
-			nextAction: "start_codecut_web_service",
-			readinessUrl: "http://127.0.0.1:4100/en/projects",
-			error:
-				"CODECUT_AGENT_BRIDGE_URL is required before opening CodeCut workspace.",
-		});
-		expect(result._meta).toBeUndefined();
+			expect(result.isError).toBe(true);
+			expect(result.structuredContent).toMatchObject({
+				status: "service_unavailable",
+				nextAction: "start_codecut_web_service",
+				readinessUrl: "http://127.0.0.1:4100/en/projects",
+				error:
+					"CODECUT_AGENT_BRIDGE_URL is required before opening CodeCut workspace.",
+			});
+			expect(result._meta).toBeUndefined();
+		} finally {
+			await rm(isolatedCwd, { recursive: true, force: true });
+		}
 	});
 
 	test("renders the workspace widget only after the CodeCut web service is reachable", async () => {
