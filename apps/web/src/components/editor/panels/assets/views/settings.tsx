@@ -4,6 +4,7 @@ import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import Image from "next/image";
 import { memo, useCallback, useMemo, useState } from "react";
 import { PanelBaseView as BaseView } from "@/components/editor/panels/panel-base-view";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -28,6 +29,7 @@ import {
 	IMAGE_PROVIDERS,
 	VIDEO_PROVIDERS,
 } from "@/lib/ai/providers";
+import { buildProjectCoverFromImageAsset } from "@/lib/project/cover";
 import { useAISettingsStore } from "@/stores/ai-settings-store";
 import { cn } from "@/utils/ui";
 import {
@@ -61,6 +63,15 @@ function ProjectSettingsTabs() {
 					),
 				},
 				{
+					value: "cover",
+					label: t("Cover"),
+					content: (
+						<div className="p-5">
+							<CoverSettingsView />
+						</div>
+					),
+				},
+				{
 					value: "background",
 					label: t("Background"),
 					content: (
@@ -83,6 +94,144 @@ function ProjectSettingsTabs() {
 			]}
 			className="flex h-full flex-col justify-between p-0"
 		/>
+	);
+}
+
+function CoverSettingsView() {
+	const { t } = useTranslation();
+	const editor = useEditor();
+	const activeProject = editor.project.getActive();
+	const cover = activeProject.cover;
+	const imageAssets = editor.media
+		.getAssets()
+		.filter(
+			(asset) =>
+				asset.type === "image" &&
+				asset.width !== undefined &&
+				asset.height !== undefined,
+		);
+	const coverAsset = imageAssets.find((asset) => asset.id === cover?.mediaId);
+	const [title, setTitle] = useState(cover?.title ?? "");
+
+	const handleSetCover = ({ assetId }: { assetId: string }) => {
+		const asset = imageAssets.find((entry) => entry.id === assetId);
+		if (!asset) {
+			throw new Error("Project cover requires an image asset with dimensions.");
+		}
+		editor.project.setCover({
+			cover: buildProjectCoverFromImageAsset({
+				asset,
+				existingCover: cover,
+				title,
+			}),
+		});
+	};
+
+	return (
+		<div className="flex flex-col gap-4">
+			<PropertyItem direction="column">
+				<PropertyItemLabel>{t("Current cover")}</PropertyItemLabel>
+				<PropertyItemValue>
+					<div className="border-foreground/15 bg-muted/25 relative aspect-[9/16] w-28 overflow-hidden rounded-sm border">
+						{coverAsset?.url ? (
+							<Image
+								src={coverAsset.url}
+								alt={coverAsset.name}
+								fill
+								sizes="112px"
+								className="object-cover"
+								loading="lazy"
+								unoptimized
+							/>
+						) : (
+							<div className="text-muted-foreground flex size-full items-center justify-center text-xs">
+								{t("No cover")}
+							</div>
+						)}
+					</div>
+				</PropertyItemValue>
+			</PropertyItem>
+
+			<PropertyItem direction="column">
+				<PropertyItemLabel>{t("Title")}</PropertyItemLabel>
+				<PropertyItemValue>
+					<div className="flex w-full gap-2">
+						<Input
+							value={title}
+							onChange={(event) => setTitle(event.target.value)}
+							placeholder={t("Cover title")}
+							className="min-w-0 flex-1"
+						/>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={!coverAsset}
+							onClick={() =>
+								coverAsset
+									? handleSetCover({ assetId: coverAsset.id })
+									: undefined
+							}
+						>
+							{t("Update")}
+						</Button>
+					</div>
+				</PropertyItemValue>
+			</PropertyItem>
+
+			<div className="flex flex-col gap-2">
+				<span className="text-foreground text-xs font-medium">
+					{t("Image")}
+				</span>
+				<div className="grid grid-cols-2 gap-2">
+					{imageAssets.map((asset) => {
+						const isSelected = cover?.mediaId === asset.id;
+						return (
+							<button
+								key={asset.id}
+								type="button"
+								className={cn(
+									"border-foreground/15 bg-muted/25 hover:border-primary flex min-h-28 flex-col overflow-hidden rounded-sm border text-left",
+									isSelected && "border-primary border-2",
+								)}
+								onClick={() => handleSetCover({ assetId: asset.id })}
+								aria-label={t("Set {{name}} as cover", { name: asset.name })}
+							>
+								<div className="relative aspect-[9/16] w-full">
+									<Image
+										src={asset.url ?? ""}
+										alt={asset.name}
+										fill
+										sizes="160px"
+										className="object-cover"
+										loading="lazy"
+										unoptimized
+									/>
+								</div>
+								<span className="block w-full truncate px-2 py-1 text-xs">
+									{asset.name}
+								</span>
+							</button>
+						);
+					})}
+				</div>
+				{imageAssets.length === 0 ? (
+					<div className="text-muted-foreground rounded-sm border border-dashed px-3 py-6 text-center text-xs">
+						{t("No images")}
+					</div>
+				) : null}
+			</div>
+
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				disabled={!cover}
+				onClick={() => editor.project.clearCover()}
+			>
+				{t("Clear cover")}
+			</Button>
+		</div>
 	);
 }
 

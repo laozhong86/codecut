@@ -1,11 +1,15 @@
-# Intro Cover Prompt Guide
+# Project And Intro Cover Prompt Guide
 
-Use this guide only when confirmed setup intent has `generateIntroCover: true`.
-Codecut runtime does not generate images. Codex generates the cover through an
-available image generation capability, imports the resulting image, then
-references the imported image in `EditPlan.introCover`.
+Use this guide when creating a project cover poster or, separately, a timeline
+opening image. Codecut runtime does not generate images. Codex generates the
+cover through an available image generation capability, then imports the
+resulting image with `import_media`.
 
-## Required Workflow
+Project cover is outside the timeline and must be set with `set_project_cover`.
+`EditPlan.introCover` is only for a timeline opening image that becomes an
+actual image element at the start of the video.
+
+## Required Project Cover Workflow
 
 1. Decide the final first video clip before cover generation.
 2. Use that clip's `sourceMediaId` and `sourceStart` as the first-frame target.
@@ -15,12 +19,32 @@ references the imported image in `EditPlan.introCover`.
    the recognizable person, product, place, or screen state unless the user
    asked for a different concept.
 5. Import the generated image with `import_media`.
-6. Write `introCover` in the EditPlan:
+6. Call `set_project_cover` with the imported image `mediaId`, title text,
+   prompt, and style preset metadata. Verify the cover is present without
+   changing timeline duration:
+
+```json
+{
+  "mediaId": "imported-cover-image-id",
+  "title": "这里替换标题文本内容",
+  "prompt": "竖版 9:16 短视频封面，标题设计是画面核心，超大中文标题占据顶部或中部，2-3 行错落排版，粗宋体与粗黑体混排，文字带厚描边、强投影、高对比，关键词使用亮黄、红色、绿色或橙色跳色强调，可加入半透明色块、标签底板、括号、话题符号作为标题装饰，背景真实、有轻微虚化和景深，主体居中或偏下，给标题保留充足留白，暖色自然光，清晰商业感，适合知识、情感、教育、带货、工具教程等多类型短视频封面，多元丰富但统一为爆款中文标题封面风格。标题：这里替换标题文本内容",
+  "stylePreset": "viral_chinese_title_cover"
+}
+```
+
+Project cover must not create timeline elements and must not change exported
+video duration.
+
+## Timeline Intro Image Workflow
+
+Use this only when the confirmed setup intent has `generateIntroCover: true` or
+the user explicitly asks for an opening image frame in the video. After importing
+the generated image, write `introCover` in the EditPlan:
 
 ```json
 {
   "introCover": {
-    "mediaId": "imported-cover-image-id",
+    "mediaId": "imported-intro-image-id",
     "duration": 1.2,
     "fit": "cover",
     "reason": "Generated from the final first clip frame to create a clearer opening hook."
@@ -28,13 +52,14 @@ references the imported image in `EditPlan.introCover`.
 }
 ```
 
-The first video clip must start at `timelineStart: 1.2` when the cover duration
-is `1.2`. Use another duration only when the user or editing context requires
-it, and keep the first clip aligned to that duration.
+The first video clip must start at `timelineStart: 1.2` when the intro image
+duration is `1.2`. Use another duration only when the user or editing context
+requires it, and keep the first clip aligned to that duration.
 
 ## Prompt Principles
 
-- Start with the job: "opening video cover image for..." before style words.
+- Start with the job: "short video project cover for..." or "opening timeline
+  image for..." before style words.
 - Keep one dominant subject and one hook. Product, face, screen, or place must
   be readable at phone-feed size.
 - Use image-to-image when available so the cover stays consistent with the
@@ -43,9 +68,10 @@ it, and keep the first clip aligned to that duration.
   props, dense UI, and unreadable charts.
 - Leave platform-safe title space. For vertical covers, keep important subject
   detail away from top/bottom UI zones and side crop risk.
-- Prefer no baked text. Add title text through Codecut text layers. If baked
-  text is explicitly required, reserve a clean safe area and use very short
-  wording.
+- For project covers, title text may be baked into the generated image when the
+  user asks for short-video cover style. For timeline intro images, prefer no
+  baked text and add title text through Codecut text layers unless explicitly
+  required.
 - Do not copy another creator's thumbnail style, face, brand marks, or exact
   composition. Use references only to infer layout constraints.
 

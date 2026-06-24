@@ -39,6 +39,8 @@ describe("Codecut MCP server contract", () => {
 			"get_project_info",
 			"list_media_assets",
 			"import_media",
+			"set_project_cover",
+			"clear_project_cover",
 			"transcribe_media",
 			"build_video_context",
 			"build_visual_context",
@@ -152,6 +154,8 @@ describe("Codecut MCP server contract", () => {
 		expect(readOnlyByTool.get("import_system_template_script")).toBe(false);
 		expect(readOnlyByTool.get("update_system_template_script")).toBe(false);
 		expect(readOnlyByTool.get("delete_system_template_script")).toBe(false);
+		expect(readOnlyByTool.get("set_project_cover")).toBe(false);
+		expect(readOnlyByTool.get("clear_project_cover")).toBe(false);
 		expect(readOnlyByTool.get("add_texts")).toBe(false);
 		expect(readOnlyByTool.get("add_captions")).toBe(false);
 		expect(readOnlyByTool.get("set_keyframes")).toBe(false);
@@ -212,6 +216,8 @@ describe("Codecut MCP server contract", () => {
 
 		for (const toolName of [
 			"import_media",
+			"set_project_cover",
+			"clear_project_cover",
 			"import_system_template_script",
 			"update_system_template_script",
 			"delete_system_template_script",
@@ -1232,6 +1238,51 @@ describe("Codecut MCP server contract", () => {
 			confirmationToken,
 			"--mime-type",
 			"image/png",
+		]);
+
+		expect(
+			buildBridgeCliArgs("set_project_cover", {
+				projectId: "project-1",
+				mediaId: "cover-1",
+				title: "别乱花钱",
+				prompt: "竖版 9:16 短视频封面，标题设计是画面核心",
+				stylePreset: "viral_chinese_title_cover",
+				confirmationToken,
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"send",
+			"--project-id",
+			"project-1",
+			"--tool",
+			"set_project_cover",
+			"--args-json",
+			JSON.stringify({
+				mediaId: "cover-1",
+				title: "别乱花钱",
+				prompt: "竖版 9:16 短视频封面，标题设计是画面核心",
+				stylePreset: "viral_chinese_title_cover",
+			}),
+			"--confirmation-token",
+			confirmationToken,
+		]);
+
+		expect(
+			buildBridgeCliArgs("clear_project_cover", {
+				projectId: "project-1",
+				confirmationToken,
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"send",
+			"--project-id",
+			"project-1",
+			"--tool",
+			"clear_project_cover",
+			"--args-json",
+			"{}",
+			"--confirmation-token",
+			confirmationToken,
 		]);
 
 		expect(

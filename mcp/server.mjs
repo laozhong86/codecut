@@ -83,6 +83,21 @@ const fileNameSchema = z.string().trim().min(1);
 const mimeTypeSchema = z.string().trim().min(1);
 
 const mediaIdSchema = z.string().trim().min(1).describe("Codecut media ID.");
+const coverTitleSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.describe("Human-readable project cover title text.");
+const coverPromptSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.describe("Prompt or design instruction used to create the project cover image.");
+const coverStylePresetSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.describe("Project cover style preset identifier.");
 const languageSchema = z
 	.string()
 	.trim()
@@ -384,6 +399,8 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["create_text_background_effect", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
 	["create_human_pip_effect", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
 	["import_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
+	["set_project_cover", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
+	["clear_project_cover", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	["import_system_template_script", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	["update_system_template_script", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	["delete_system_template_script", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
@@ -441,6 +458,32 @@ export const CODECUT_MCP_TOOLS = [
 			duration: z.number().positive().optional(),
 			width: z.number().positive().optional(),
 			height: z.number().positive().optional(),
+		},
+		readOnly: false,
+	},
+	{
+		name: "set_project_cover",
+		title: "Set Codecut Project Cover",
+		description:
+			"Set or replace the independent project cover poster from one imported image media asset. This does not add a timeline frame or change exported video duration.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
+			mediaId: mediaIdSchema,
+			title: coverTitleSchema.optional(),
+			prompt: coverPromptSchema.optional(),
+			stylePreset: coverStylePresetSchema.optional(),
+		},
+		readOnly: false,
+	},
+	{
+		name: "clear_project_cover",
+		title: "Clear Codecut Project Cover",
+		description:
+			"Clear the independent project cover poster without mutating timeline tracks or exported video duration.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
 		},
 		readOnly: false,
 	},
@@ -2138,6 +2181,31 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				["width", "--width"],
 				["height", "--height"],
 			]);
+		case "set_project_cover":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
+				args: {
+					mediaId: requireStringArg(args, "mediaId"),
+					...(args.title === undefined
+						? {}
+						: { title: requireStringArg(args, "title") }),
+					...(args.prompt === undefined
+						? {}
+						: { prompt: requireStringArg(args, "prompt") }),
+					...(args.stylePreset === undefined
+						? {}
+						: { stylePreset: requireStringArg(args, "stylePreset") }),
+				},
+			});
+		case "clear_project_cover":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
+				args: {},
+			});
 		case "apply_edit_plan":
 			if (!args.planJsonFile) {
 				throw new Error("planJsonFile is required");

@@ -31,6 +31,7 @@ type ExecutorSnapshot = {
 	};
 	revision: number;
 	duration: number;
+	cover?: TProject["cover"];
 	tracks: TimelineTrack[];
 	derivedAssets: TProject["derivedAssets"];
 	mediaAssets: Array<{
@@ -253,6 +254,7 @@ async function applyCodexExecutorSnapshotAsync({
 		settings: snapshot.project.settings,
 		version: CURRENT_PROJECT_VERSION,
 		derivedAssets: snapshot.derivedAssets,
+		cover: snapshot.cover,
 	};
 	const mediaAssets: MediaAsset[] = await Promise.all(
 		snapshot.mediaAssets.map(async (asset) => {

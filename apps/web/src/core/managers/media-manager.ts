@@ -74,6 +74,10 @@ export class MediaManager {
 		this.assets = this.assets.filter((asset) => !mediaIdsToRemove.has(asset.id));
 		this.notify();
 
+		if (activeProject?.cover && mediaIdsToRemove.has(activeProject.cover.mediaId)) {
+			this.editor.project.clearCover();
+		}
+
 		for (const derivedAssetId of cleanupPlan.derivedAssetIds) {
 			this.editor.project.removeDerivedAsset({ id: derivedAssetId });
 		}

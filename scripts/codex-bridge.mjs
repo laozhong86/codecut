@@ -42,6 +42,8 @@ const confirmationGatedCommands = new Set([
 	"ripple-delete-ranges",
 ]);
 const confirmationGatedSendTools = new Set([
+	"set_project_cover",
+	"clear_project_cover",
 	"add_texts",
 	"add_captions",
 	"insert_clips",
