@@ -25,6 +25,9 @@ function setupIntent(overrides = {}) {
 			format: "mp4",
 			quality: "high",
 			includeAudio: true,
+			captionFont: "auto",
+			captionSize: "medium",
+			captionStylePreset: "short-form-bold",
 		},
 		generateIntroCover: true,
 		brief: "Cut a high-retention short for a product launch.",
@@ -313,6 +316,9 @@ describe("Codecut MCP server contract", () => {
 			'id="target-aspect-ratio"',
 			'id="duration-goal-seconds"',
 			'id="caption-language"',
+			'id="caption-font"',
+			'id="caption-size"',
+			'id="caption-style-preset"',
 			'id="brief-options"',
 			'id="brief-label"',
 			'aria-labelledby="brief-label"',
@@ -371,6 +377,9 @@ describe("Codecut MCP server contract", () => {
 			"customButton.dataset.action = \"toggle-custom\"",
 			'<select id="duration-goal-seconds"',
 			'<select id="caption-language"',
+			'<select id="caption-font"',
+			'<select id="caption-size"',
+			'<select id="caption-style-preset"',
 			'value="15"',
 			'value="30"',
 			'value="45"',
@@ -379,6 +388,20 @@ describe("Codecut MCP server contract", () => {
 			'value="120"',
 			'value="zh-CN"',
 			'value="en"',
+			'value="auto"',
+			'value="medium"',
+			'value="large"',
+			'value="small"',
+			'value="short-form-bold"',
+			'value="talking-head-pop"',
+			'value="product-punch"',
+			"value=\"minimal-reel\"",
+			"captionFont",
+			"captionSize",
+			"captionStylePreset",
+			"captionFontAuto",
+			"captionSizeMedium",
+			"captionStyleShortFormBold",
 			"setSelectValue",
 		]) {
 			expect(html).toContain(marker);
@@ -676,7 +699,39 @@ describe("Codecut MCP server contract", () => {
 			captionLanguage: "auto",
 			durationGoalSeconds: 60,
 			generateIntroCover: true,
-			output: { format: "mp4", quality: "high", includeAudio: true },
+			output: {
+				format: "mp4",
+				quality: "high",
+				includeAudio: true,
+				captionFont: "auto",
+				captionSize: "medium",
+				captionStylePreset: "short-form-bold",
+			},
+		});
+	});
+
+	test("opens the workspace with caption output preferences", () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "Caption Controls",
+			output: {
+				captionFont: "serif",
+				captionSize: "large",
+				captionStylePreset: "product-punch",
+			},
+		});
+
+		expect(result.structuredContent.intentDefaults.output).toMatchObject({
+			format: "mp4",
+			quality: "high",
+			includeAudio: true,
+			captionFont: "serif",
+			captionSize: "large",
+			captionStylePreset: "product-punch",
+		});
+		expect(result._meta.widgetData.intentDefaults.output).toMatchObject({
+			captionFont: "serif",
+			captionSize: "large",
+			captionStylePreset: "product-punch",
 		});
 	});
 
@@ -810,6 +865,30 @@ describe("Codecut MCP server contract", () => {
 				],
 				["bad aspect ratio", setupIntent({ targetAspectRatio: "4:5" })],
 				["bad duration", setupIntent({ durationGoalSeconds: 0 })],
+				[
+					"bad caption font",
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath }],
+						output: { ...setupIntent().output, captionFont: "papyrus" },
+					}),
+				],
+				[
+					"bad caption size",
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath }],
+						output: { ...setupIntent().output, captionSize: "huge" },
+					}),
+				],
+				[
+					"bad caption style preset",
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath }],
+						output: {
+							...setupIntent().output,
+							captionStylePreset: "keyword-highlight",
+						},
+					}),
+				],
 			]) {
 				const blocked = await serverModule.inspectCodecutSetup(intent, {
 					bridgeToolImpl,
@@ -959,6 +1038,11 @@ describe("Codecut MCP server contract", () => {
 				intent: {
 					projectId: "launch-cut-canonical",
 					generateIntroCover: true,
+					output: {
+						captionFont: "auto",
+						captionSize: "medium",
+						captionStylePreset: "short-form-bold",
+					},
 				},
 				importedMedia: [
 					{ id: "media-1", name: "source.mp4" },
@@ -1008,6 +1092,9 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				'"generateIntroCover":true',
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				'"captionStylePreset":"short-form-bold"',
 			);
 			expect(result.structuredContent.continuePrompt).not.toContain(
 				"launch-cut-001",

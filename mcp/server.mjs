@@ -112,6 +112,24 @@ const secondsSchema = z.number().nonnegative();
 const targetAspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 const outputFormatSchema = z.enum(["mp4", "webm"]);
 const outputQualitySchema = z.enum(["low", "medium", "high", "very_high"]);
+const captionFontValues = ["auto", "sans", "serif", "handwriting"];
+const captionSizeValues = ["small", "medium", "large"];
+const captionStylePresetValues = [
+	"short-form-bold",
+	"black-bar",
+	"talking-head-pop",
+	"tutorial-clean",
+	"documentary-soft",
+	"product-punch",
+	"lifestyle-warm",
+	"cinematic-serif",
+	"social-highlight",
+	"comment-bubble",
+	"minimal-reel",
+];
+const captionFontSchema = z.enum(captionFontValues);
+const captionSizeSchema = z.enum(captionSizeValues);
+const captionStylePresetSchema = z.enum(captionStylePresetValues);
 
 const workspaceMediaSourceSchema = z
 	.object({
@@ -128,6 +146,9 @@ const workspaceOutputSchema = z
 		format: outputFormatSchema,
 		quality: outputQualitySchema,
 		includeAudio: z.boolean(),
+		captionFont: captionFontSchema,
+		captionSize: captionSizeSchema,
+		captionStylePreset: captionStylePresetSchema,
 	})
 	.strict();
 
@@ -1194,6 +1215,27 @@ async function validateCodecutSetupIntent(intent, { statImpl = stat } = {}) {
 		typeof normalized.generateIntroCover === "boolean",
 		"Choose whether CodeCut should generate an opening cover image.",
 	);
+	pushCheck(
+		checks,
+		"caption-font",
+		"Caption font",
+		captionFontValues.includes(normalized.output.captionFont),
+		"Caption font must be auto, sans, serif, or handwriting.",
+	);
+	pushCheck(
+		checks,
+		"caption-size",
+		"Caption size",
+		captionSizeValues.includes(normalized.output.captionSize),
+		"Caption size must be small, medium, or large.",
+	);
+	pushCheck(
+		checks,
+		"caption-style-preset",
+		"Caption style preset",
+		captionStylePresetValues.includes(normalized.output.captionStylePreset),
+		"Caption style preset must be a supported CodeCut caption preset.",
+	);
 
 	return {
 		status: checks.every((check) => check.ok) ? "ready" : "blocked",
@@ -1399,6 +1441,9 @@ function buildWorkspaceIntentDefaults(input = {}) {
 				typeof input.output?.includeAudio === "boolean"
 					? input.output.includeAudio
 					: true,
+			captionFont: input.output?.captionFont || "auto",
+			captionSize: input.output?.captionSize || "medium",
+			captionStylePreset: input.output?.captionStylePreset || "short-form-bold",
 		},
 		generateIntroCover:
 			typeof input.generateIntroCover === "boolean"
@@ -1558,6 +1603,9 @@ function normalizeWorkspaceIntent(intent) {
 			format: String(intent.output?.format || ""),
 			quality: String(intent.output?.quality || ""),
 			includeAudio: Boolean(intent.output?.includeAudio),
+			captionFont: String(intent.output?.captionFont || ""),
+			captionSize: String(intent.output?.captionSize || ""),
+			captionStylePreset: String(intent.output?.captionStylePreset || ""),
 		},
 		generateIntroCover: intent.generateIntroCover,
 		brief: String(intent.brief || "").trim(),
