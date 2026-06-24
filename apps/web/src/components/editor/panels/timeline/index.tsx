@@ -66,13 +66,6 @@ export function Timeline() {
 	const editor = useEditor();
 	const timeline = editor.timeline;
 	const tracks = timeline.getTracks();
-	const activeProject = editor.project.getActiveOrNull();
-	const projectCover = activeProject?.cover;
-	const projectCoverAsset = projectCover
-		? editor.media
-				.getAssets()
-				.find((asset) => asset.id === projectCover.mediaId && asset.type === "image")
-		: undefined;
 	const seek = (time: number) => editor.playback.seek({ time });
 
 	// refs
@@ -226,11 +219,6 @@ export function Timeline() {
 				zoomLevel={zoomLevel}
 				minZoom={minZoomLevel}
 				setZoomLevel={({ zoom }) => setZoomLevel(zoom)}
-			/>
-			<ProjectCoverTimelineTile
-				label={t("Cover")}
-				coverUrl={projectCoverAsset?.url}
-				coverName={projectCoverAsset?.name ?? projectCover?.title}
 			/>
 
 			<div
@@ -560,35 +548,6 @@ export function Timeline() {
 				</div>
 			</div>
 		</section>
-	);
-}
-
-function ProjectCoverTimelineTile({
-	label,
-	coverUrl,
-	coverName,
-}: {
-	label: string;
-	coverUrl?: string;
-	coverName?: string;
-}) {
-	return (
-		<div
-			role="img"
-			className="pointer-events-none absolute top-12 left-3 z-40 flex h-14 w-[72px] items-center justify-center overflow-hidden rounded-sm border border-dashed border-foreground/15 bg-muted/70 text-xs font-semibold text-muted-foreground"
-			aria-label={coverName ? `${label}: ${coverName}` : label}
-			title={coverName ? `${label}: ${coverName}` : label}
-		>
-			{coverUrl ? (
-				<div
-					className="absolute inset-0 bg-cover bg-center"
-					style={{ backgroundImage: `url(${coverUrl})` }}
-				/>
-			) : null}
-			<span className="relative rounded-sm bg-black/45 px-2 py-1 text-white">
-				{label}
-			</span>
-		</div>
 	);
 }
 

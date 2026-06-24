@@ -57,6 +57,29 @@ describe("buildProjectCoverFromImageAsset", () => {
 		});
 	});
 
+	test("marks extracted video frames as timeline frame covers", () => {
+		const cover = buildProjectCoverFromImageAsset({
+			asset: {
+				id: "frame-cover-1",
+				type: "image",
+				width: 720,
+				height: 1280,
+			},
+			source: "timeline_frame",
+			title: "Selected frame",
+			updatedAt: "2026-06-22T00:00:00.000Z",
+		});
+
+		expect(cover).toEqual({
+			mediaId: "frame-cover-1",
+			source: "timeline_frame",
+			title: "Selected frame",
+			width: 720,
+			height: 1280,
+			updatedAt: "2026-06-22T00:00:00.000Z",
+		});
+	});
+
 	test("rejects non-image assets before creating a project cover", () => {
 		expect(() =>
 			buildProjectCoverFromImageAsset({
