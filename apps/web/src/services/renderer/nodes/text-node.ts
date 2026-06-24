@@ -1,4 +1,5 @@
 import { FONT_SIZE_SCALE_REFERENCE } from "@/constants/text-constants";
+import { resolveFontFamily } from "@/constants/font-constants";
 import type { TextElement, TextShadow } from "@/types/timeline";
 import type { CanvasRenderer } from "../canvas-renderer";
 import { BaseNode } from "./base-node";
@@ -14,7 +15,7 @@ type RenderContext =
 	| CanvasRenderingContext2D
 	| OffscreenCanvasRenderingContext2D;
 
-function scaleFontSize({
+export function scaleFontSize({
 	fontSize,
 	canvasHeight,
 }: {
@@ -40,6 +41,31 @@ export type TextNodeParams = TextElement & {
 	textBaseline?: CanvasTextBaseline;
 };
 
+function getTextElementRunFont({
+	element,
+	runStyle,
+	scaledFontSize,
+}: {
+	element: TextElement;
+	runStyle: TextRunStyle;
+	scaledFontSize: number;
+}): string {
+	const fontWeight =
+		runStyle.fontWeight ?? (element.fontWeight === "bold" ? "bold" : "normal");
+	const fontStyle =
+		runStyle.fontStyle ?? (element.fontStyle === "italic" ? "italic" : "normal");
+	const fontSize = scaledFontSize * (runStyle.fontScale ?? 1);
+	return buildCanvasFont({
+		fontStyle,
+		fontWeight,
+		fontSize,
+		fontFamily: resolveFontFamily({
+			fontFamily: element.fontFamily,
+			content: element.content,
+		}),
+	});
+}
+
 function getRunFont({
 	params,
 	runStyle,
@@ -49,16 +75,10 @@ function getRunFont({
 	runStyle: TextRunStyle;
 	scaledFontSize: number;
 }): string {
-	const fontWeight =
-		runStyle.fontWeight ?? (params.fontWeight === "bold" ? "bold" : "normal");
-	const fontStyle =
-		runStyle.fontStyle ?? (params.fontStyle === "italic" ? "italic" : "normal");
-	const fontSize = scaledFontSize * (runStyle.fontScale ?? 1);
-	return buildCanvasFont({
-		fontStyle,
-		fontWeight,
-		fontSize,
-		fontFamily: params.fontFamily,
+	return getTextElementRunFont({
+		element: params,
+		runStyle,
+		scaledFontSize,
 	});
 }
 
@@ -82,6 +102,137 @@ export function buildCanvasFont({
 			: JSON.stringify(trimmedFontFamily);
 
 	return `${fontStyle} ${fontWeight} ${fontSize}px ${canvasFontFamily}`;
+}
+
+export interface TextElementBounds {
+	leftOffset: number;
+	topOffset: number;
+	width: number;
+	height: number;
+	lineHeight: number;
+}
+
+export type TextMeasureFunction = ({
+	text,
+	font,
+}: {
+	text: string;
+	font: string;
+}) => number;
+
+export function measureTextElementBounds({
+	element,
+	canvasHeight,
+	measureText,
+	includeBackground = false,
+	textBaseline = "middle",
+}: {
+	element: TextElement;
+	canvasHeight: number;
+	measureText: TextMeasureFunction;
+	includeBackground?: boolean;
+	textBaseline?: CanvasTextBaseline;
+}): TextElementBounds {
+	const scaledFontSize = scaleFontSize({
+		fontSize: element.fontSize,
+		canvasHeight,
+	});
+	const scaledBoxWidth =
+		element.boxWidth !== undefined && element.boxWidth > 0
+			? scaleBoxWidth({
+					boxWidth: element.boxWidth,
+					canvasHeight,
+				})
+			: undefined;
+	const layout = createTextLayout({
+		content: element.content,
+		richSpans: element.richSpans,
+		maxWidth: scaledBoxWidth,
+		measureText: (text, style) =>
+			measureText({
+				text,
+				font: getTextElementRunFont({
+					element,
+					runStyle: style,
+					scaledFontSize,
+				}),
+			}),
+	});
+	const lineHeight = scaledFontSize * 1.3;
+	const measuredTextWidth =
+		scaledBoxWidth ?? Math.max(0, ...layout.lines.map((line) => line.width));
+	const textHeight = layout.lines.length * lineHeight;
+	const hasBackground =
+		includeBackground &&
+		!!element.backgroundColor &&
+		element.backgroundColor !== "transparent";
+	const textWidth = hasBackground
+		? scaledBoxWidth ?? Math.max(measuredTextWidth, lineHeight)
+		: measuredTextWidth;
+	const padX = hasBackground ? element.backgroundPaddingX ?? 8 : 0;
+	const padY = hasBackground ? element.backgroundPaddingY ?? 4 : 0;
+	const width = textWidth + padX * 2;
+	const height = textHeight + padY * 2;
+	const leftOffset = getTextBoundsLeftOffset({
+		element,
+		textWidth,
+		padX,
+		scaledBoxWidth,
+		hasBackground,
+	});
+	const topOffset = textBaseline === "bottom" ? -height : -height / 2;
+
+	return {
+		leftOffset,
+		topOffset,
+		width,
+		height,
+		lineHeight,
+	};
+}
+
+function getTextBoundsLeftOffset({
+	element,
+	textWidth,
+	padX,
+	scaledBoxWidth,
+	hasBackground,
+}: {
+	element: TextElement;
+	textWidth: number;
+	padX: number;
+	scaledBoxWidth: number | undefined;
+	hasBackground: boolean;
+}): number {
+	if (hasBackground) {
+		return getBackgroundX({
+			textAlign: element.textAlign,
+			textWidth,
+			padX,
+			scaledBoxWidth,
+		});
+	}
+	if (scaledBoxWidth !== undefined) return -scaledBoxWidth / 2;
+	if (element.textAlign === "left") return 0;
+	if (element.textAlign === "right") return -textWidth;
+	return -textWidth / 2;
+}
+
+function getBackgroundX({
+	textAlign,
+	textWidth,
+	padX,
+	scaledBoxWidth,
+}: {
+	textAlign: TextElement["textAlign"];
+	textWidth: number;
+	padX: number;
+	scaledBoxWidth: number | undefined;
+}): number {
+	if (scaledBoxWidth !== undefined) return -scaledBoxWidth / 2 - padX;
+	if (textAlign === "left") return -padX;
+	if (textAlign === "right") return -textWidth - padX;
+	return -textWidth / 2 - padX;
 }
 
 function resetShadow({ context }: { context: RenderContext }) {
@@ -262,10 +413,12 @@ export class TextNode extends BaseNode<TextNodeParams> {
 		padX: number;
 		scaledBoxWidth: number | undefined;
 	}): number {
-		if (scaledBoxWidth !== undefined) return -scaledBoxWidth / 2 - padX;
-		if (this.params.textAlign === "left") return -padX;
-		if (this.params.textAlign === "right") return -textWidth - padX;
-		return -textWidth / 2 - padX;
+		return getBackgroundX({
+			textAlign: this.params.textAlign,
+			textWidth,
+			padX,
+			scaledBoxWidth,
+		});
 	}
 
 	private getLineStartX({

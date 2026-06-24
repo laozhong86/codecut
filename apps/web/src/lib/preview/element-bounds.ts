@@ -1,7 +1,10 @@
 import type { TimelineElement, Transform } from "@/types/timeline";
 import type { MediaAsset } from "@/types/assets";
-import { FONT_SIZE_SCALE_REFERENCE } from "@/constants/text-constants";
 import { isBottomAlignedSubtitleText } from "@/lib/timeline/text-utils";
+import {
+	measureTextElementBounds,
+	type TextMeasureFunction,
+} from "@/services/renderer/nodes/text-node";
 
 export interface ElementHalfSize {
 	halfWidth: number;
@@ -14,12 +17,14 @@ export function getElementHalfSize({
 	mediaMap,
 	canvasWidth,
 	canvasHeight,
+	measureText,
 }: {
 	element: TimelineElement;
 	transform: Transform;
 	mediaMap: Map<string, MediaAsset>;
 	canvasWidth: number;
 	canvasHeight: number;
+	measureText?: TextMeasureFunction;
 }): ElementHalfSize | null {
 	if (element.type === "video" || element.type === "image") {
 		const media = mediaMap.get(element.mediaId);
@@ -33,35 +38,20 @@ export function getElementHalfSize({
 	}
 
 	if (element.type === "text") {
-		const scaleFactor = canvasHeight / FONT_SIZE_SCALE_REFERENCE;
-		const scaledFontSize = element.fontSize * scaleFactor;
-		const elementScale = element.transform.scale;
-
-		const elementBoxWidth = element.boxWidth;
-		const hasBoxWidth =
-			elementBoxWidth !== undefined && elementBoxWidth > 0;
-
-		if (hasBoxWidth) {
-			const scaledBoxWidth = elementBoxWidth * scaleFactor;
-			const lineHeight = scaledFontSize * 1.3;
-			const charsPerLine = Math.max(
-				1,
-				Math.floor(scaledBoxWidth / (scaledFontSize * 0.6)),
-			);
-			const lineCount = Math.max(
-				1,
-				Math.ceil(element.content.length / charsPerLine),
-			);
-			return {
-				halfWidth: (scaledBoxWidth * elementScale) / 2,
-				halfHeight: ((lineCount * lineHeight) * elementScale) / 2,
-			};
+		if (!measureText) {
+			throw new Error("Text element bounds require a text measurement function.");
 		}
 
+		const bounds = measureTextElementBounds({
+			element,
+			canvasHeight,
+			measureText,
+			includeBackground: true,
+			textBaseline: isBottomAlignedSubtitleText({ element }) ? "bottom" : "middle",
+		});
 		return {
-			halfWidth:
-				(element.content.length * scaledFontSize * 0.6 * elementScale) / 2,
-			halfHeight: ((scaledFontSize * 1.4) * elementScale) / 2,
+			halfWidth: (bounds.width * transform.scale) / 2,
+			halfHeight: (bounds.height * transform.scale) / 2,
 		};
 	}
 

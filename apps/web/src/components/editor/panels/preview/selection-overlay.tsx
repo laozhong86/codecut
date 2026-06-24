@@ -10,8 +10,8 @@ import type {
 	ElementType,
 } from "@/types/timeline";
 import type { MediaAsset } from "@/types/assets";
-import { FONT_SIZE_SCALE_REFERENCE } from "@/constants/text-constants";
 import { isBottomAlignedSubtitleText } from "@/lib/timeline/text-utils";
+import { measureTextElementBounds } from "@/services/renderer/nodes/text-node";
 
 type ScaleHandle = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 type ResizeHandle = "left" | "right";
@@ -26,6 +26,27 @@ const SCALE_HANDLES: ScaleHandle[] = [
 	"bottom-left",
 	"bottom-right",
 ];
+
+let textMeasureContext: CanvasRenderingContext2D | null = null;
+
+function measureBrowserText({
+	font,
+	text,
+}: {
+	font: string;
+	text: string;
+}): number {
+	if (!textMeasureContext) {
+		const canvas = document.createElement("canvas");
+		textMeasureContext = canvas.getContext("2d");
+	}
+	if (!textMeasureContext) {
+		throw new Error("Preview text measurement requires a 2D canvas context.");
+	}
+
+	textMeasureContext.font = font;
+	return textMeasureContext.measureText(text).width;
+}
 
 interface ElementBounds {
 	left: number;
@@ -105,49 +126,23 @@ function computeTextBounds({
 	canvasHeight: number;
 	displayScale: number;
 }): ElementBounds {
-	const scaleFactor = canvasHeight / FONT_SIZE_SCALE_REFERENCE;
-	const scaledFontSize = element.fontSize * scaleFactor;
-
-	const elementBoxWidth = element.boxWidth;
-	const hasBoxWidth =
-		elementBoxWidth !== undefined && elementBoxWidth > 0;
-	const scaledBoxWidth = hasBoxWidth ? elementBoxWidth * scaleFactor : 0;
-
-	let estimatedWidth: number;
-	let estimatedHeight: number;
 	const elementScale = element.transform.scale;
-
-	if (hasBoxWidth) {
-		estimatedWidth = scaledBoxWidth;
-		const lineHeight = scaledFontSize * 1.3;
-		const charsPerLine = Math.max(
-			1,
-			Math.floor(scaledBoxWidth / (scaledFontSize * 0.6)),
-		);
-		const lineCount = Math.max(
-			1,
-			Math.ceil(element.content.length / charsPerLine),
-		);
-		estimatedHeight = lineCount * lineHeight;
-	} else {
-		estimatedWidth = element.content.length * scaledFontSize * 0.6;
-		estimatedHeight = scaledFontSize * 1.4;
-	}
-
 	const centerX = canvasWidth / 2 + element.transform.position.x;
 	const baseY = canvasHeight / 2 + element.transform.position.y;
 	const isBottomAligned = isBottomAlignedSubtitleText({ element });
-	const scaledEstimatedWidth = estimatedWidth * elementScale;
-	const scaledEstimatedHeight = estimatedHeight * elementScale;
-	const topY = isBottomAligned
-		? baseY - scaledEstimatedHeight
-		: baseY - scaledEstimatedHeight / 2;
+	const bounds = measureTextElementBounds({
+		element,
+		canvasHeight,
+		measureText: measureBrowserText,
+		includeBackground: true,
+		textBaseline: isBottomAligned ? "bottom" : "middle",
+	});
 
 	return {
-		left: (centerX - scaledEstimatedWidth / 2) * displayScale,
-		top: topY * displayScale,
-		width: scaledEstimatedWidth * displayScale,
-		height: scaledEstimatedHeight * displayScale,
+		left: (centerX + bounds.leftOffset * elementScale) * displayScale,
+		top: (baseY + bounds.topOffset * elementScale) * displayScale,
+		width: bounds.width * elementScale * displayScale,
+		height: bounds.height * elementScale * displayScale,
 		rotate: element.transform.rotate,
 	};
 }
