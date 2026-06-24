@@ -20,7 +20,8 @@ The validation thread must not run shell commands, write files, download media,
 create projects, import media, transcribe, mutate timelines, or send text-only
 fallback questions.
 
-`open_codecut_workspace` returns a pending confirmation ID for the setup widget.
+`open_codecut_workspace` must be called exactly once and return a pending
+confirmation ID for the setup widget.
 Only `submit_codecut_setup` can exchange that pending ID for a confirmed setup
 token. Side-effect tools must not run until that confirmed token exists.
 
@@ -116,7 +117,7 @@ and render the setup widget instead of sending text questions.
 7. Inspect the fresh thread with `read_thread` and verify it contains:
 
 ```text
-mcpToolCall server=codecut_mcp tool=open_codecut_workspace
+exactly one mcpToolCall server=codecut_mcp tool=open_codecut_workspace
 ```
 
 It must not contain `exec_command`, `fileChange`, or text fallback prompts such
@@ -141,6 +142,8 @@ node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId> --se
   widget intake; start `bun run dev:web`, wait for the readiness curl to pass,
   and rerun the fresh-thread proof.
 - Missing `open_codecut_workspace`: the agent did not enter widget intake.
+- Multiple `open_codecut_workspace` calls: the agent retried widget rendering in
+  one intake thread, which can leave duplicate setup surfaces in the host UI.
 - Text fallback prompt: the skill routing regressed to chat-only clarification.
 - `exec_command`: the validation prompt was not kept read-only.
 - `fileChange`: the validation prompt changed local state and is not a clean

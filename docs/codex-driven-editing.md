@@ -171,6 +171,11 @@ of widget metadata when this gate fails. Do not switch to another port,
 external origin, or magic default. The browser URL, bridge URL, and editor
 origin must stay aligned on `http://127.0.0.1:4100`.
 
+If a host mounts the workspace widget for a failed or malformed
+`open_codecut_workspace` result, the widget must fail closed: no setup form, no
+project creation CTA, and no `submit_codecut_setup` call without the pending
+confirmation ID from a successful `open_codecut_workspace` result.
+
 ## CLI Runtime And Human Preview
 
 Codecut editing commands should be consumed by a local CLI/executor process that reads and writes the project state directly. The browser page subscribes to project state and displays progress/results for the human user.

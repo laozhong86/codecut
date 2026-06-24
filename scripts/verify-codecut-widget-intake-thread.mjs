@@ -161,6 +161,11 @@ export function assertWidgetIntakeThread({ threadId, records }) {
 			`Codecut widget intake was not proven: missing codecut_mcp.open_codecut_workspace mcpToolCall${suffix}`,
 		);
 	}
+	if (widgetCallCount > 1) {
+		throw new Error(
+			`Codecut widget intake regressed: expected exactly one open_codecut_workspace call, found ${widgetCallCount}.`,
+		);
+	}
 	if (textFallbackCount > 0) {
 		throw new Error(
 			"Codecut widget intake regressed: found text fallback prompt after widget validation.",

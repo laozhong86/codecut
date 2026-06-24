@@ -281,6 +281,7 @@ describe("Codecut MCP server contract", () => {
 		expect(openTool.description).toContain("mediaPaths");
 		expect(openTool.description).toContain("directoryPaths");
 		expect(openTool.description).toContain("web service");
+		expect(openTool.description).toContain("Use exactly one source input style");
 		expect(openTool.inputSchema.projectId).toBeUndefined();
 		expect(openTool.meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
@@ -613,6 +614,16 @@ describe("Codecut MCP server contract", () => {
 		expect(html).toContain("api.toolOutput?.intentDefaults");
 		expect(html).toContain("api.toolResponseMetadata?.widgetData?.pendingConfirmationId");
 		expect(html).toContain("pendingConfirmationId: currentPendingConfirmationId");
+	});
+
+	test("workspace widget blocks the setup form without a pending confirmation id", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+
+		expect(html).toContain('id="setup-unavailable"');
+		expect(html).toContain("setupUnavailable");
+		expect(html).toContain("if (!currentPendingConfirmationId)");
+		expect(html).toContain('fields.form.classList.add("hidden")');
+		expect(html).toContain('fields.setupUnavailable.classList.remove("hidden")');
 	});
 
 	test("workspace widget selects recommended choice options only by default", async () => {

@@ -1040,7 +1040,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Pass mediaPaths for multiple resolved local media files and directoryPaths for local source folders that Codex should decide how to inspect later. Keep durationGoalMode auto unless the user explicitly asked for one of the fixed duration ranges. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Keep durationGoalMode auto unless the user explicitly asked for one of the fixed duration ranges. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,

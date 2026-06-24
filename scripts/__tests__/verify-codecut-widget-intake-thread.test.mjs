@@ -88,6 +88,33 @@ describe("verify Codecut widget intake thread", () => {
 		).toThrow("Fresh widget validation thread must not run shell commands.");
 	});
 
+	test("fails when a fresh thread opens the Codecut workspace widget more than once", () => {
+		expect(() =>
+			assertWidgetIntakeThread({
+				threadId: "thread-duplicate-widget",
+				records: [
+					{
+						type: "turn",
+						items: [
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "open_codecut_workspace",
+							},
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "open_codecut_workspace",
+							},
+						],
+					},
+				],
+			}),
+		).toThrow(
+			"Codecut widget intake regressed: expected exactly one open_codecut_workspace call, found 2.",
+		);
+	});
+
 	test("reads Codex JSONL records and finds a thread session file", async () => {
 		const root = await mkdtemp(join(tmpdir(), "codecut-widget-thread-"));
 		const sessionsRoot = join(root, "sessions/2026/06/24");

@@ -377,6 +377,11 @@
       <h1 data-i18n="title">CodeCut Workspace</h1>
       <p data-i18n="subtitle">Review the prefilled editing intent, adjust only if needed, then create the executor project.</p>
 
+      <section id="setup-unavailable" class="result hidden" aria-live="polite">
+        <strong class="blocked" data-i18n="blocked">Blocked</strong>
+        <p class="muted" data-i18n="setupUnavailable">This setup widget is missing a confirmation id. Reopen CodeCut setup from Codex.</p>
+      </section>
+
       <form id="workspace-form">
         <fieldset aria-labelledby="project-section-title">
           <h2 id="project-section-title" class="section-heading" data-i18n="project">Project</h2>
@@ -609,6 +614,7 @@
             retryFollowUp: "Retry follow-up",
             openaiUnavailable: "window.openai is unavailable.",
             callToolUnavailable: "window.openai.callTool is unavailable.",
+            setupUnavailable: "This setup widget is missing a confirmation id. Reopen CodeCut setup from Codex.",
           },
           "zh-CN": {
             title: "CodeCut 工作区",
@@ -697,6 +703,7 @@
             retryFollowUp: "重试发送后续任务",
             openaiUnavailable: "window.openai 不可用。",
             callToolUnavailable: "window.openai.callTool 不可用。",
+            setupUnavailable: "当前设置组件缺少确认 ID。请从 Codex 重新打开 CodeCut 设置。",
           },
         };
 
@@ -724,6 +731,7 @@
           successCriteria: document.getElementById("success-criteria"),
           successCriteriaOptions: document.getElementById("success-criteria-options"),
           submitButton: document.getElementById("submit-button"),
+          setupUnavailable: document.getElementById("setup-unavailable"),
           result: document.getElementById("result"),
           followUp: document.getElementById("follow-up"),
         };
@@ -1389,8 +1397,18 @@
           if (checks) fields.result.appendChild(checks);
         }
 
+        function renderSetupUnavailable() {
+          fields.form.classList.add("hidden");
+          fields.submitButton.disabled = true;
+          fields.setupUnavailable.classList.remove("hidden");
+        }
+
         async function submit(event) {
           event.preventDefault();
+          if (!currentPendingConfirmationId) {
+            renderSetupUnavailable();
+            return;
+          }
           fields.submitButton.disabled = true;
           fields.submitButton.textContent = t("creating");
           try {
@@ -1530,6 +1548,10 @@
 
         const defaults = initialDefaults();
         applyLanguage(defaults);
+        if (!currentPendingConfirmationId) {
+          renderSetupUnavailable();
+          return;
+        }
         applyDefaults(defaults);
       })();
     </script>
