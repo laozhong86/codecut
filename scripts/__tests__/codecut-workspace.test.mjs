@@ -117,6 +117,18 @@ describe("Codecut workspace CLI helpers", () => {
 			).toContain("Recommended");
 			expect(
 				await readFile(
+					join(result.projectDirectory, "00-brief/assumptions.md"),
+					"utf8",
+				),
+			).toContain("Draft");
+			expect(
+				await readFile(
+					join(result.projectDirectory, "00-brief/requirement-intake.md"),
+					"utf8",
+				),
+			).toContain("Draft");
+			expect(
+				await readFile(
 					join(result.projectDirectory, "03-content/talking-script.md"),
 					"utf8",
 				),
@@ -133,6 +145,49 @@ describe("Codecut workspace CLI helpers", () => {
 		} finally {
 			await rm(sourceRoot, { recursive: true, force: true });
 			await rm(confirmationRoot, { recursive: true, force: true });
+		}
+	});
+
+	test("writes requirement intake stage documents into the brief folder", async () => {
+		const sourceRoot = await makeTempRoot();
+		const confirmationToken = await createWorkspaceConfirmationToken(
+			sourceRoot,
+			"intake-cut",
+		);
+
+		try {
+			await initWorkspace({
+				sourceRoot,
+				projectId: "intake-cut",
+				name: "Intake cut",
+				userMessage: "剪一个产品视频",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
+			});
+
+			const intakeResult = await writeWorkspaceDocument({
+				sourceRoot,
+				projectId: "intake-cut",
+				kind: "requirement-intake",
+				content: "# Requirement Intake\n\nGate passed.\n",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
+			});
+			const assumptionsResult = await writeWorkspaceDocument({
+				sourceRoot,
+				projectId: "intake-cut",
+				kind: "assumptions",
+				content: "# Assumptions\n\nSafe defaults.\n",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
+			});
+
+			expect(intakeResult.path.endsWith(join("00-brief", "requirement-intake.md"))).toBe(true);
+			expect(assumptionsResult.path.endsWith(join("00-brief", "assumptions.md"))).toBe(true);
+			expect(await readFile(intakeResult.path, "utf8")).toContain("Gate passed.");
+			expect(await readFile(assumptionsResult.path, "utf8")).toContain("Safe defaults.");
+		} finally {
+			await rm(sourceRoot, { recursive: true, force: true });
 		}
 	});
 

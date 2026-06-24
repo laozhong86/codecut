@@ -284,19 +284,24 @@ describe("Codecut plugin startup guidance", () => {
 		);
 
 		expect(frameworkSkill).toContain("workflow-stage-contract.md");
-		expect(workflowDocs).toContain("workflow-stage-contract.md");
+			expect(workflowDocs).toContain("workflow-stage-contract.md");
 
-		for (const stage of [
-			"requirement-intake",
-			"material-ingest",
-			"evidence-build",
-			"edit-planning",
-			"executor-apply",
-			"verification-export",
-			"reference-template",
-		]) {
-			expect(contract).toContain(`\`${stage}\``);
-		}
+			for (const stage of [
+				"router",
+				"requirement-intake",
+				"source-acquisition",
+				"material-ingest",
+				"reference-template",
+				"executor-apply",
+			]) {
+				expect(contract).toContain(`\`${stage}\``);
+			}
+			expect(contract).toContain("Non-Skill Workflow Phases");
+			expect(contract).toContain("`evidence-build` and `edit-planning`");
+			expect(contract).toMatch(/not\s+loadable stage skills/);
+			expect(contract).toContain(
+				'"Timeline updated", "Verified in timeline", or "Export produced"',
+			);
 
 		for (const requiredColumn of [
 			"Owner",

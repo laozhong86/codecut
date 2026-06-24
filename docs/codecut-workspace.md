@@ -41,6 +41,8 @@ documents for variants that share the same source pack.
     intent-analysis.md
     clarification-questions.md
     clarification-answers.md
+    assumptions.md
+    requirement-intake.md
   01-assets/
     original/
     video/
@@ -131,6 +133,8 @@ user-message
 intent-analysis
 clarification-questions
 clarification-answers
+assumptions
+requirement-intake
 content-breakdown
 hook-selection
 voiceover-script

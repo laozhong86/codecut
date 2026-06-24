@@ -5,6 +5,15 @@ description: Use when Codecut source material must be downloaded, copied, classi
 
 # Codecut Material Ingest
 
+## Core Boundary
+
+Material ingest is the source-facts stage for confirmed Codecut work. It makes
+local and remote material inspectable before creative planning or executor
+mutation.
+
+It must not decide creative strategy, platform defaults, timeline shape, or
+completion status.
+
 ## Core Rule
 
 Material ingest collects source facts after creative setup is confirmed. It
@@ -32,6 +41,48 @@ It does not pass requirement intake, choose creative strategy, infer platform or
 aspect ratio defaults, write EditPlans, import into the executor, mutate the
 timeline, or verify completed edits. If material facts reveal missing business
 or output decisions, hand back to `codecut-requirement-intake`.
+
+## Inputs
+
+- Confirmed setup token for creative jobs.
+- Confirmed project ID and business project name.
+- Local media paths, remote source URLs, TikTok download manifests, or existing
+  workspace asset references.
+- Requirement intake output, including output form and caption/source policy.
+
+## Outputs
+
+- Local workspace asset inventory.
+- Material audit with source reachability, duration, dimensions, audio presence,
+  warnings, and blockers.
+- Next-stage recommendation based only on material facts.
+
+## Artifacts
+
+Primary artifacts live under `.codecut-workspace/projects/<projectId>/...`:
+
+- `01-assets/` for copied or downloaded source files.
+- `02-inventory/asset-manifest.json`
+- `02-inventory/ffprobe-report.json`
+- `02-inventory/material-audit.md`
+
+Do not use a skill-local `.artifacts` directory as the primary Codecut artifact
+path.
+
+## Stop Conditions
+
+- Confirmed setup token is missing or invalid for a creative job.
+- Remote source cannot be accessed or downloaded.
+- Local media path is not absolute.
+- Probe cannot read positive duration for required video or audio assets.
+
+## Handoff
+
+Report `Stage`, `Status`, `Proof`, `Next`, and `Risk`. Hand back to
+`codecut-requirement-intake` if source facts reveal missing decisions; otherwise
+hand off to `codecut-reference-template` for reference derivation or to Codex
+planning with workflow recipes before `codecut-executor-apply`. This skill does
+not own those planning phases.
 
 ## Responsibilities
 
@@ -63,18 +114,3 @@ For YouTube source extraction, use a local download tool only after separating d
 For TikTok source extraction, use `codecut-tiktok-downloader` instead of
 embedding TikTok-specific backend rules here. Record its `download_manifest.json`
 path and downloaded file paths before probing the assets.
-
-## Stop Conditions
-
-- Remote source cannot be accessed or downloaded.
-- Local media path is not absolute.
-- `ffprobe` cannot read positive duration for video/audio.
-- The requested output requires widget submission or a confirmed setup token
-  that is missing or invalid.
-
-## Handoff
-
-After ingest, hand off to:
-
-- `codecut-requirement-intake` if questions remain.
-- `codecut-executor-apply` only after requirement intake passes.

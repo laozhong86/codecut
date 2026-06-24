@@ -15,6 +15,57 @@ full execution manual. The complete current runtime contract lives in
 `../../docs/codex-driven-editing.md`; stage skills own stage gates; MCP tools
 expose atomic primitives only.
 
+## Stage Ownership
+
+This skill owns request classification and stage routing only. It chooses the
+next Codecut skill, recipe, or read-only reference to load.
+
+It does not collect missing setup answers, download source media, create
+projects, import assets, write plans, mutate timelines, verify exports, or
+repair timeline state.
+
+## Inputs
+
+- User request and any explicit source path, URL, project ID, template name,
+  output target, or completion requirement.
+- Plugin startup context from `.codex-plugin/plugin.json`
+  `interface.defaultPrompt`.
+- Current stage evidence only when the user is continuing an existing Codecut
+  job.
+
+## Outputs
+
+- Selected route: source acquisition, requirement intake, material ingest,
+  reference-template, workflow recipe, executor apply, inspection, or
+  implementation work.
+- A stage handoff statement using `Stage`, `Status`, `Proof`, `Next`, and
+  `Risk` when reporting progress or blockers.
+- No timeline, workspace, template, or export mutation.
+
+## Artifacts
+
+This router does not create its own primary artifacts. Codecut stage proof must
+live under `.codecut-workspace/projects/<projectId>/...` once a creative job has
+a confirmed project ID.
+
+Do not introduce a skill-local `.artifacts/<run_id>` path as Codecut truth. The
+workspace and executor readback are the durable evidence surfaces.
+
+## Stop Conditions
+
+- The request shape is ambiguous enough that routing would choose a side-effect
+  stage incorrectly.
+- The Codecut web service gate fails before a new creative job can open
+  `open_codecut_workspace`.
+- The required stage skill, recipe, or MCP widget tool is unavailable in the
+  current session.
+
+## Handoff
+
+Route to exactly one next owner and carry forward all known context. Do not ask
+the user to restate details that are already present in the request or prior
+stage proof.
+
 ## Governance Layers
 
 - `AGENTS.md`: durable product boundaries and safety principles.
