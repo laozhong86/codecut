@@ -262,19 +262,48 @@ only this shape when calling `apply_narrated_remix_plan`:
     durationSec: number,
     aspectRatio: "9:16" | "16:9" | "1:1"
   },
-  visualBeats: Array<{
-    id: string,
-    mediaId: string,
-    sourceStart: number,
-    sourceEnd: number,
-    timelineStart: number,
-    muted: true,
-    reason: string
-  }>,
+  visualBeats: Array<
+    | {
+        id: string,
+        mediaType?: "video",
+        mediaId: string,
+        sourceStart: number,
+        sourceEnd: number,
+        timelineStart: number,
+        muted: true,
+        reason: string
+      }
+    | {
+        id: string,
+        mediaType: "image",
+        mediaId: string,
+        timelineStart: number,
+        duration: number,
+        fit: "cover",
+        reason: string
+      }
+  >,
   narration: {
     mediaId: string,
     sourceStart: number
   },
+  textOverlays?: Array<{
+    name: string,
+    text: string,
+    startTime: number,
+    duration: number,
+    fontSize: number,
+    color: string,
+    backgroundColor?: string,
+    backgroundOpacity?: number,
+    backgroundPaddingX?: number,
+    backgroundPaddingY?: number,
+    backgroundBorderRadius?: number,
+    boxWidth: number,
+    position: { x: number, y: number },
+    textAlign: "left" | "center" | "right",
+    fontWeight: "normal" | "bold"
+  }>,
   captions: Array<{
     text: string,
     startTime: number,
@@ -301,19 +330,22 @@ Current validation fail-fast checks include:
 
 - `projectId` must match the active project.
 - `narration.mediaId` must resolve to an imported audio media asset.
-- every `visualBeats[].mediaId` must resolve to an imported video media asset.
-- all audio/video durations must be known.
-- every visual source range must have `sourceEnd > sourceStart`.
-- every visual source range must fit inside the referenced media duration.
+- every video beat `mediaId` must resolve to an imported video media asset.
+- every image beat `mediaId` must resolve to an imported image media asset with known width and height.
+- all audio/video durations used by the plan must be known.
+- every video beat source range must have `sourceEnd > sourceStart`.
+- every video beat source range must fit inside the referenced media duration.
 - visual beats must start at `0`, be continuous, and have no gaps or overlaps.
 - visual beat total duration must equal `target.durationSec`.
+- top-level `textOverlays`, when present, must fit inside
+  `target.durationSec` and use controlled local `TextElement` style fields.
 - captions must fit inside `target.durationSec`.
 - captions require top-level `captionStyle` and must pass the same duration,
   overlap, two-line, and orphan-line quality contract as EditPlan captions.
 - narration must cover `target.durationSec` from `narration.sourceStart`.
 
-Do not include TTS, generated speech, BGM, SFX, image B-roll, external media
-URLs, effect instructions, append instructions, or arbitrary style fields in
+Do not include TTS, generated speech, BGM, SFX, external media URLs, effect
+instructions, append instructions, or arbitrary CSS/style fields in
 `NarratedRemixPlan v1`.
 
 ## Invalid Plan Behavior

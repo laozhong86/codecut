@@ -156,7 +156,7 @@ You can:
 - talking-head-short uses transcript evidence, SpeechCleanupPlan when removing filler or restarts, then an EditPlan v1 projection.
 - tutorial-demo uses transcript plus visible step evidence and must preserve a problem -> step 1 -> step 2 -> result structure.
 - product-proof-ad requires product facts and visual proof; every claim must map to transcript, visible evidence, or supplied product facts.
-- narrated-broll uses NarratedRemixPlan v1 only. It requires existing narration audio and video B-roll, and does not support TTS, BGM, SFX, image B-roll, effects, or append mode.
+- narrated-broll uses NarratedRemixPlan v1 only. It requires existing narration audio and visual B-roll. Visual beats may be muted video or image B-roll; optional text overlays are independent timed text elements and must be explicit. It does not support TTS, BGM, SFX, effects, or append mode.
 ${localTemplateScriptsContext}
 
 ## Reference & Consistency for AI Generation

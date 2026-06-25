@@ -53,7 +53,7 @@ Current callable MCP tools relevant to Codex-driven editing:
 | `validate_edit_plan` | Validate an implemented EditPlan v1 without mutating timeline state. |
 | `preview_edit_plan` | Return EditPlan summary, clip list, caption/audio/transition counts, and replacement warning without mutating timeline state. |
 | `apply_edit_plan` | Validate and apply the implemented EditPlan v1 to the timeline. |
-| `apply_narrated_remix_plan` | Validate and apply the implemented NarratedRemixPlan v1 for existing narration audio plus muted video B-roll and captions. |
+| `apply_narrated_remix_plan` | Validate and apply the implemented NarratedRemixPlan v1 for existing narration audio plus muted video or image B-roll, optional independent text overlays, and captions. |
 | `build_video_quality_report` | Return read-only `schemaVersion: 2` checks for validation, readback, caption quality, optional title quality rubric, optional export probe, optional audio presence, voice consistency, text layout, transitions, and contact-sheet rendering. It does not export files, infer platforms, perform OCR, face detection, or burned-caption detection. |
 | `add_transitions` | Add native `TrackTransition` entries between adjacent visual elements on video tracks. Requires `trackId`, `fromElementId`, `toElementId`, `type`, `duration`, and a confirmation token. It must fail instead of moving clips or creating keyframes. |
 | `update_transition` | Update one native transition by `trackId` and `transitionId`. Requires at least one of `type` or `duration`, and must preserve revision on invalid IDs, non-adjacent pairs, or excessive duration. |
@@ -93,10 +93,10 @@ Existing narration plus B-roll uses the separate deterministic path:
 get_project_info -> list_media_assets -> optional import_media -> Codex writes NarratedRemixPlan -> apply_narrated_remix_plan -> get_timeline_state
 ```
 
-`NarratedRemixPlan v1` only accepts existing narration audio, imported video
-B-roll, and captions. It rejects TTS fields, BGM, SFX, image B-roll, gaps,
-overlaps, missing `captionStyle`, and caption quality failures before mutating
-timeline state.
+`NarratedRemixPlan v1` only accepts existing narration audio, imported video or
+image B-roll, optional independent text overlays, and captions. It rejects TTS
+fields, BGM, SFX, gaps, overlaps, missing `captionStyle`, and caption quality
+failures before mutating timeline state.
 
 Masked visual effects use explicit deterministic actions outside EditPlan v1:
 
@@ -124,11 +124,11 @@ Current `apply_narrated_remix_plan` behavior:
 
 - validates the full plan before mutating timeline state
 - rejects non-empty timelines unless `replaceExisting=true`
-- replaces the timeline with one muted video B-roll track, one narration audio track, and one caption text track
+- replaces the timeline with one muted visual B-roll track, one narration audio track, optional `Text Overlays`, and one caption text track
 - requires continuous visual beats whose total duration equals `target.durationSec`
 - requires top-level `captionStyle` when captions are present
 - requires `narration.mediaId` to be an existing audio asset
-- requires every `visualBeats[].mediaId` to be an existing video asset
+- requires every `visualBeats[].mediaId` to be an existing video asset for video beats or an existing image asset for image beats
 
 ## Product Direction
 

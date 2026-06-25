@@ -55,7 +55,9 @@ describe("buildSystemPrompt", () => {
 		expect(prompt).toContain("does not support TTS");
 		expect(prompt).toContain("BGM");
 		expect(prompt).toContain("SFX");
-		expect(prompt).toContain("image B-roll");
+		expect(prompt).toContain("video or image B-roll");
+		expect(prompt).toContain("independent timed text elements");
+		expect(prompt).not.toContain("does not support TTS, BGM, SFX, image B-roll");
 	});
 
 	test("exposes Codecut system template scripts as read-only editing context", () => {

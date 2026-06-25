@@ -83,6 +83,22 @@ const validAssets = [
 	audioAsset(),
 ];
 
+function validTextOverlay(overrides: Record<string, unknown> = {}) {
+	return {
+		name: "Overlay",
+		text: "Readable overlay",
+		startTime: 0,
+		duration: 3,
+		fontSize: 4.8,
+		color: "#ffffff",
+		boxWidth: 52,
+		position: { x: 0, y: -240 },
+		textAlign: "center",
+		fontWeight: "bold",
+		...overrides,
+	};
+}
+
 describe("validateNarratedRemixPlan", () => {
 	test("accepts an existing-audio narrated remix plan", () => {
 		const result = validateNarratedRemixPlan({
@@ -101,7 +117,7 @@ describe("validateNarratedRemixPlan", () => {
 		});
 	});
 
-	test("accepts image card beats with editable card text", () => {
+	test("accepts visual beats with multiple independent text overlays", () => {
 		const result = validateNarratedRemixPlan({
 			plan: {
 				...validPlan(),
@@ -114,12 +130,224 @@ describe("validateNarratedRemixPlan", () => {
 						timelineStart: 0,
 						duration: 10,
 						fit: "cover",
-						cardText: {
-							title: "天府新区双华麓港",
-							info: "117.55㎡ 套三双卫 总价186万",
-							bottomText: "地铁口商圈边",
-						},
-						reason: "Property qualification card.",
+						reason: "Property image with explicit editable overlays.",
+					},
+					{
+						id: "beat-2",
+						mediaId: "video-2",
+						sourceStart: 12,
+						sourceEnd: 32,
+						timelineStart: 10,
+						muted: true,
+						reason: "Shows the process.",
+					},
+				],
+				textOverlays: [
+					{
+						name: "Property title",
+						text: "天府新区双华麓港",
+						startTime: 0,
+						duration: 10,
+						fontSize: 5.6,
+						color: "#ffffff",
+						backgroundColor: "#000000",
+						backgroundOpacity: 0.86,
+						backgroundPaddingX: 22,
+						backgroundPaddingY: 10,
+						backgroundBorderRadius: 8,
+						boxWidth: 52,
+						position: { x: 0, y: -780 },
+						textAlign: "center",
+						fontWeight: "bold",
+					},
+					{
+						name: "Property info",
+						text: "117.55㎡ 套三双卫 总价186万",
+						startTime: 0,
+						duration: 10,
+						fontSize: 4.8,
+						color: "#141414",
+						backgroundColor: "#ffca21",
+						backgroundOpacity: 0.92,
+						backgroundPaddingX: 20,
+						backgroundPaddingY: 9,
+						backgroundBorderRadius: 8,
+						boxWidth: 52,
+						position: { x: 0, y: -710 },
+						textAlign: "center",
+						fontWeight: "bold",
+					},
+					{
+						name: "Property selling point",
+						text: "地铁口商圈边",
+						startTime: 0,
+						duration: 10,
+						fontSize: 5.2,
+						color: "#ffffff",
+						backgroundColor: "#000000",
+						backgroundOpacity: 0.84,
+						backgroundPaddingX: 22,
+						backgroundPaddingY: 12,
+						backgroundBorderRadius: 10,
+						boxWidth: 52,
+						position: { x: 0, y: 430 },
+						textAlign: "center",
+						fontWeight: "bold",
+					},
+				],
+			},
+			projectId: "project-1",
+			mediaAssets: [imageAsset(), mediaAsset({ id: "video-2" }), audioAsset()],
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) throw new Error(result.message);
+		expect(result.normalizedPlan.visualBeats[0]).toMatchObject({
+			mediaType: "image",
+			mediaId: "image-1",
+		});
+		expect(result.normalizedPlan.textOverlays).toMatchObject([
+			{ name: "Property title", text: "天府新区双华麓港" },
+			{ name: "Property info", text: "117.55㎡ 套三双卫 总价186万" },
+			{ name: "Property selling point", text: "地铁口商圈边" },
+		]);
+	});
+
+	test("accepts independent text overlays during a video beat", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 30, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						mediaType: "image",
+						id: "property-visual",
+						mediaId: "image-1",
+						timelineStart: 0,
+						duration: 10,
+						fit: "cover",
+						reason: "Plain image B-roll.",
+					},
+					{
+						id: "beat-2",
+						mediaId: "video-2",
+						sourceStart: 12,
+						sourceEnd: 32,
+						timelineStart: 10,
+						muted: true,
+						reason: "Video beat.",
+					},
+				],
+				textOverlays: [
+					{
+						name: "Video beat callout",
+						text: "这段文字不绑定图片",
+						startTime: 12,
+						duration: 4,
+						fontSize: 4.8,
+						color: "#ffffff",
+						boxWidth: 52,
+						position: { x: 0, y: -240 },
+						textAlign: "center",
+						fontWeight: "bold",
+					},
+				],
+			},
+			projectId: "project-1",
+			mediaAssets: [imageAsset(), mediaAsset({ id: "video-2" }), audioAsset()],
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) throw new Error(result.message);
+		expect(result.normalizedPlan.textOverlays).toMatchObject([
+			{
+				name: "Video beat callout",
+				startTime: 12,
+				duration: 4,
+			},
+		]);
+	});
+
+	test("accepts image beats and separately timed text overlays", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 30, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						mediaType: "image",
+						id: "property-visual",
+						mediaId: "image-1",
+						timelineStart: 0,
+						duration: 10,
+						fit: "cover",
+						reason: "Image B-roll with separately timed text overlay.",
+					},
+					{
+						id: "beat-2",
+						mediaId: "video-2",
+						sourceStart: 12,
+						sourceEnd: 32,
+						timelineStart: 10,
+						muted: true,
+						reason: "Shows the process.",
+					},
+				],
+				textOverlays: [
+					{
+						name: "Property price",
+						text: "117.55㎡ 套三双卫 总价186万",
+						startTime: 0,
+						duration: 10,
+						fontSize: 4.8,
+						color: "#141414",
+						backgroundColor: "#ffca21",
+						backgroundOpacity: 0.92,
+						backgroundPaddingX: 20,
+						backgroundPaddingY: 9,
+						backgroundBorderRadius: 8,
+						boxWidth: 52,
+						position: { x: 0, y: -710 },
+						textAlign: "center",
+						fontWeight: "bold",
+					},
+				],
+			},
+			projectId: "project-1",
+			mediaAssets: [imageAsset(), mediaAsset({ id: "video-2" }), audioAsset()],
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) throw new Error(result.message);
+		expect(result.normalizedPlan.visualBeats[0]).toMatchObject({
+			mediaType: "image",
+			mediaId: "image-1",
+		});
+		expect(result.normalizedPlan.textOverlays).toMatchObject([
+			{
+				name: "Property price",
+				text: "117.55㎡ 套三双卫 总价186万",
+				startTime: 0,
+				duration: 10,
+				position: { x: 0, y: -710 },
+			},
+		]);
+	});
+
+	test("accepts plain image beats without text overlays", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 30, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						mediaType: "image",
+						id: "image-broll",
+						mediaId: "image-1",
+						timelineStart: 0,
+						duration: 10,
+						fit: "cover",
+						reason: "Plain image B-roll with no extra on-screen text.",
 					},
 					{
 						id: "beat-2",
@@ -141,11 +369,130 @@ describe("validateNarratedRemixPlan", () => {
 		expect(result.normalizedPlan.visualBeats[0]).toMatchObject({
 			mediaType: "image",
 			mediaId: "image-1",
-			cardText: {
-				title: "天府新区双华麓港",
-				info: "117.55㎡ 套三双卫 总价186万",
-				bottomText: "地铁口商圈边",
+			duration: 10,
+		});
+	});
+
+	test("rejects text overlays beyond target duration", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				textOverlays: [
+					{
+						name: "Late overlay",
+						text: "Too late",
+						startTime: 29,
+						duration: 2,
+						fontSize: 4.8,
+						color: "#ffffff",
+						boxWidth: 52,
+						position: { x: 0, y: -240 },
+						textAlign: "center",
+						fontWeight: "bold",
+					},
+				],
 			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "NarratedRemixPlan textOverlay exceeds target duration.",
+			path: "textOverlays[0]",
+		});
+	});
+
+	test("rejects invalid text overlay color hex values", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				textOverlays: [validTextOverlay({ color: "#12345" })],
+			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "NarratedRemixPlan schema is invalid.",
+			path: "textOverlays[0].color",
+		});
+	});
+
+	test("rejects renderer-hostile text overlay geometry", () => {
+		for (const [field, overlay] of [
+			["fontSize", validTextOverlay({ fontSize: 39 })],
+			["boxWidth", validTextOverlay({ boxWidth: 101 })],
+			[
+				"position.x",
+				validTextOverlay({ position: { x: 961, y: -240 } }),
+			],
+			["backgroundPaddingX", validTextOverlay({ backgroundPaddingX: 101 })],
+		] as const) {
+			const result = validateNarratedRemixPlan({
+				plan: {
+					...validPlan(),
+					textOverlays: [overlay],
+				},
+				projectId: "project-1",
+				mediaAssets: validAssets,
+			});
+
+			expect(result).toEqual({
+				success: false,
+				message: "NarratedRemixPlan schema is invalid.",
+				path: `textOverlays[0].${field}`,
+			});
+		}
+	});
+
+	test("rejects background styling without a background color", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				textOverlays: [validTextOverlay({ backgroundOpacity: 0.5 })],
+			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "NarratedRemixPlan schema is invalid.",
+			path: "textOverlays[0].backgroundColor",
+		});
+	});
+
+	test("rejects excessive text overlays and overlong overlay text", () => {
+		const tooManyOverlays = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				textOverlays: Array.from({ length: 25 }, (_, index) =>
+					validTextOverlay({ name: `Overlay ${index}` }),
+				),
+			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+		expect(tooManyOverlays).toEqual({
+			success: false,
+			message: "NarratedRemixPlan schema is invalid.",
+			path: "textOverlays",
+		});
+
+		const overlongText = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				textOverlays: [validTextOverlay({ text: "字".repeat(241) })],
+			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+		expect(overlongText).toEqual({
+			success: false,
+			message: "NarratedRemixPlan schema is invalid.",
+			path: "textOverlays[0].text",
 		});
 	});
 
@@ -164,7 +511,6 @@ describe("validateNarratedRemixPlan", () => {
 			path: "captionStyle",
 		});
 	});
-
 	test("rejects TTS fields in narration", () => {
 		const result = validateNarratedRemixPlan({
 			plan: {
@@ -223,7 +569,7 @@ describe("validateNarratedRemixPlan", () => {
 		});
 	});
 
-	test("rejects image card beats that reference video assets", () => {
+	test("rejects image beats that reference video assets", () => {
 		const result = validateNarratedRemixPlan({
 			plan: {
 				...validPlan(),
@@ -235,12 +581,7 @@ describe("validateNarratedRemixPlan", () => {
 						timelineStart: 0,
 						duration: 30,
 						fit: "cover",
-						cardText: {
-							title: "天府新区双华麓港",
-							info: "117.55㎡ 套三双卫 总价186万",
-							bottomText: "地铁口商圈边",
-						},
-						reason: "Property qualification card.",
+						reason: "Image beat pointing at the wrong media type.",
 					},
 				],
 			},
@@ -255,7 +596,7 @@ describe("validateNarratedRemixPlan", () => {
 		});
 	});
 
-	test("rejects image card beats missing editable info text", () => {
+	test("rejects text overlays missing text", () => {
 		const result = validateNarratedRemixPlan({
 			plan: {
 				...validPlan(),
@@ -267,12 +608,26 @@ describe("validateNarratedRemixPlan", () => {
 						timelineStart: 0,
 						duration: 30,
 						fit: "cover",
-						cardText: {
-							title: "天府新区双华麓港",
-							info: "",
-							bottomText: "地铁口商圈边",
-						},
-						reason: "Property qualification card.",
+						reason: "Image B-roll.",
+					},
+				],
+				textOverlays: [
+					{
+						name: "Property info",
+						text: "",
+						startTime: 0,
+						duration: 30,
+						fontSize: 4.8,
+						color: "#141414",
+						backgroundColor: "#ffca21",
+						backgroundOpacity: 0.92,
+						backgroundPaddingX: 20,
+						backgroundPaddingY: 9,
+						backgroundBorderRadius: 8,
+						boxWidth: 52,
+						position: { x: 0, y: -710 },
+						textAlign: "center",
+						fontWeight: "bold",
 					},
 				],
 			},
@@ -283,11 +638,11 @@ describe("validateNarratedRemixPlan", () => {
 		expect(result).toEqual({
 			success: false,
 			message: "NarratedRemixPlan schema is invalid.",
-			path: "visualBeats[0].cardText.info",
+			path: "textOverlays[0].text",
 		});
 	});
 
-	test("rejects image card beats outside the 9:16 card contract", () => {
+	test("accepts generic image beats outside 9:16", () => {
 		const result = validateNarratedRemixPlan({
 			plan: {
 				...validPlan(),
@@ -300,12 +655,7 @@ describe("validateNarratedRemixPlan", () => {
 						timelineStart: 0,
 						duration: 30,
 						fit: "cover",
-						cardText: {
-							title: "天府新区双华麓港",
-							info: "117.55㎡ 套三双卫 总价186万",
-							bottomText: "地铁口商圈边",
-						},
-						reason: "Property qualification card.",
+						reason: "Plain widescreen image B-roll.",
 					},
 				],
 			},
@@ -313,11 +663,7 @@ describe("validateNarratedRemixPlan", () => {
 			mediaAssets: [imageAsset(), audioAsset()],
 		});
 
-		expect(result).toEqual({
-			success: false,
-			message: "NarratedRemixPlan image cards only support 9:16 target.",
-			path: "visualBeats[0]",
-		});
+		expect(result.success).toBe(true);
 	});
 
 	test("rejects visual beat gaps", () => {

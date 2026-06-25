@@ -4743,8 +4743,8 @@ describe("codex executor", () => {
 		});
 	});
 
-	test("keeps image card text editable through timeline readback", async () => {
-		await createExecutorProject({ projectId, name: "Narrated image cards" });
+	test("keeps text overlays editable through timeline readback", async () => {
+		await createExecutorProject({ projectId, name: "Narrated text overlays" });
 		const videoImport = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "import_media_file",
@@ -4818,17 +4818,65 @@ describe("codex executor", () => {
 							},
 							{
 								mediaType: "image",
-								id: "property-card",
+								id: "property-image",
 								mediaId: imageId,
 								timelineStart: 10,
 								duration: 20,
 								fit: "cover",
-								cardText: {
-									title: "天府新区双华麓港",
-									info: "117.55㎡ 套三双卫 总价186万",
-									bottomText: "地铁口商圈边",
-								},
-								reason: "Editable property qualification card",
+								reason: "Image B-roll with explicit editable overlays",
+							},
+						],
+						textOverlays: [
+							{
+								name: "Property title",
+								text: "天府新区双华麓港",
+								startTime: 10,
+								duration: 20,
+								fontSize: 5.6,
+								color: "#ffffff",
+								backgroundColor: "#000000",
+								backgroundOpacity: 0.86,
+								backgroundPaddingX: 22,
+								backgroundPaddingY: 10,
+								backgroundBorderRadius: 8,
+								boxWidth: 52,
+								position: { x: 0, y: -780 },
+								textAlign: "center",
+								fontWeight: "bold",
+							},
+							{
+								name: "Property info",
+								text: "117.55㎡ 套三双卫 总价186万",
+								startTime: 10,
+								duration: 20,
+								fontSize: 4.8,
+								color: "#141414",
+								backgroundColor: "#ffca21",
+								backgroundOpacity: 0.92,
+								backgroundPaddingX: 20,
+								backgroundPaddingY: 9,
+								backgroundBorderRadius: 8,
+								boxWidth: 52,
+								position: { x: 0, y: -710 },
+								textAlign: "center",
+								fontWeight: "bold",
+							},
+							{
+								name: "Property selling point",
+								text: "地铁口商圈边",
+								startTime: 10,
+								duration: 20,
+								fontSize: 5.2,
+								color: "#ffffff",
+								backgroundColor: "#000000",
+								backgroundOpacity: 0.84,
+								backgroundPaddingX: 22,
+								backgroundPaddingY: 12,
+								backgroundBorderRadius: 10,
+								boxWidth: 52,
+								position: { x: 0, y: 430 },
+								textAlign: "center",
+								fontWeight: "bold",
 							},
 						],
 						narration: { mediaId: narrationId, sourceStart: 0 },
@@ -4839,7 +4887,7 @@ describe("codex executor", () => {
 							preset: "talking-head-pop",
 							position: "lower-safe",
 						},
-						rationale: "Narration-led image card remix",
+						rationale: "Narration-led image overlay remix",
 					},
 				},
 			}),
@@ -4856,7 +4904,7 @@ describe("codex executor", () => {
 			data: {
 				visualBeatCount: 2,
 				imageBeatCount: 1,
-				cardTextElementCount: 3,
+				textOverlayElementCount: 3,
 				captionCount: 1,
 			},
 		});
@@ -4880,8 +4928,8 @@ describe("codex executor", () => {
 			}>;
 		}>(timelineResult.results[0]);
 		const visualTrack = timeline.tracks.find((track) => track.type === "video");
-		const cardTextTrack = timeline.tracks.find(
-			(track) => track.name === "Card Text",
+		const textOverlayTrack = timeline.tracks.find(
+			(track) => track.name === "Text Overlays",
 		);
 		const captionTrack = timeline.tracks.find(
 			(track) => track.name === "Captions",
@@ -4891,13 +4939,13 @@ describe("codex executor", () => {
 				expect.objectContaining({ type: "image", mediaId: imageId }),
 			]),
 		);
-		expect(cardTextTrack?.elements.map((element) => element.content)).toEqual([
+		expect(textOverlayTrack?.elements.map((element) => element.content)).toEqual([
 			"天府新区双华麓港",
 			"117.55㎡ 套三双卫 总价186万",
 			"地铁口商圈边",
 		]);
 		expect(
-			cardTextTrack?.elements.every(
+			textOverlayTrack?.elements.every(
 				(element) => element.startTime === 10 && element.duration === 20,
 			),
 		).toBe(true);
@@ -4924,8 +4972,8 @@ describe("codex executor", () => {
 			},
 		});
 
-		const infoElementId = cardTextTrack?.elements.find(
-			(element) => element.name === "Card info",
+		const infoElementId = textOverlayTrack?.elements.find(
+			(element) => element.name === "Property info",
 		)?.id;
 		expect(infoElementId).toBeString();
 		await executeCodexExecutorEnvelope({
@@ -4964,11 +5012,11 @@ describe("codex executor", () => {
 		const updatedVisualTrack = updatedTimeline.tracks.find(
 			(track) => track.type === "video",
 		);
-		const updatedCardTextTrack = updatedTimeline.tracks.find(
-			(track) => track.name === "Card Text",
+		const updatedTextOverlayTrack = updatedTimeline.tracks.find(
+			(track) => track.name === "Text Overlays",
 		);
 		expect(
-			updatedCardTextTrack?.elements.map((element) => element.content),
+			updatedTextOverlayTrack?.elements.map((element) => element.content),
 		).toEqual(
 			expect.arrayContaining([
 				"天府新区双华麓港",

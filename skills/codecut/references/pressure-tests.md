@@ -263,21 +263,21 @@ Prompt:
 
 Expected route:
 
-- Template ID: `narrated-broll` only if existing narration audio and imported video B-roll are available.
-- Required evidence: existing narration audio and video B-roll.
+- Template ID: `narrated-broll` only if existing narration audio and imported visual B-roll are available.
+- Required evidence: existing narration audio and visual B-roll.
 - Verification exit: blocked because TTS is not supported by NarratedRemixPlan v1.
 
 Pass criteria:
 
 - Identifies `narrated-broll` as the only P0 narrated remix path.
 - Stops on missing existing narration audio instead of generating speech or switching to EditPlan v1.
-- Reports that current NarratedRemixPlan v1 does not support TTS, BGM, SFX, image B-roll, effects, or append mode.
+- Reports that current NarratedRemixPlan v1 does not support TTS, BGM, SFX, effects, or append mode.
 
 Fail signals:
 
 - Invents a voice ID, generated narration asset, BGM, or SFX.
 - Applies a visual-only remix and reports a complete narrated result.
-- Uses `captionStyle` in NarratedRemixPlan v1.
+- Omits required `captionStyle` when captions are present in NarratedRemixPlan v1.
 
 ## Test 11: Animated Subtitle Is Not A Template Capability
 

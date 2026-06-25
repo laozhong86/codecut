@@ -42,12 +42,12 @@ describe("resolveVideoTemplate", () => {
 		});
 	});
 
-	test("routes existing narration and B-roll requests to narrated-broll", () => {
+	test("routes existing narration and visual B-roll requests to narrated-broll", () => {
 		const result = resolveVideoTemplate({
-			userIntent: "用已有旁白和视频 B-roll 做一个讲解混剪",
+			userIntent: "用已有旁白和图片 B-roll 做一个讲解混剪",
 			materialFacts: {
 				hasExistingNarrationAudio: true,
-				hasVideoBroll: true,
+				hasVisualBroll: true,
 			},
 		});
 
@@ -91,7 +91,7 @@ describe("resolveVideoTemplate", () => {
 	test("does not downgrade narrated-broll when narration audio is missing", () => {
 		const result = resolveVideoTemplate({
 			userIntent: "用旁白和 B-roll 做混剪",
-			materialFacts: { hasVideoBroll: true },
+			materialFacts: { hasVisualBroll: true },
 		});
 
 		expect(result).toEqual({
