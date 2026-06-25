@@ -127,9 +127,26 @@ const captionStylePresetValues = [
 	"comment-bubble",
 	"minimal-reel",
 ];
+const transitionPreferenceValues = [
+	"auto",
+	"none",
+	"fade",
+	"dissolve",
+	"wipe-left",
+	"wipe-right",
+	"wipe-up",
+	"wipe-down",
+	"slide-left",
+	"slide-right",
+	"slide-up",
+	"slide-down",
+	"zoom-in",
+	"zoom-out",
+];
 const captionFontSchema = z.enum(captionFontValues);
 const captionSizeSchema = z.enum(captionSizeValues);
 const captionStylePresetSchema = z.enum(captionStylePresetValues);
+const transitionPreferenceSchema = z.enum(transitionPreferenceValues);
 const durationGoalModeSchema = z.enum(["auto", "custom"]);
 const durationGoalRangeSecondsSchema = z
 	.object({
@@ -170,6 +187,7 @@ const workspaceIntentInputSchema = {
 	durationGoalMode: durationGoalModeSchema,
 	durationGoalRangeSeconds: durationGoalRangeSecondsSchema.optional(),
 	captionLanguage: z.string().trim(),
+	transitionPreference: transitionPreferenceSchema,
 	output: workspaceOutputSchema,
 	generateIntroCover: z.boolean(),
 	brief: z.string(),
@@ -194,6 +212,7 @@ const workspaceOpenInputSchema = {
 	durationGoalMode: durationGoalModeSchema.optional(),
 	durationGoalRangeSeconds: durationGoalRangeSecondsSchema.optional(),
 	captionLanguage: z.string().trim().optional(),
+	transitionPreference: transitionPreferenceSchema.optional(),
 	locale: z.string().trim().optional(),
 	uiLanguage: z.string().trim().optional(),
 	output: workspaceOutputSchema.partial().optional(),
@@ -1040,7 +1059,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Keep durationGoalMode auto unless the user explicitly asked for one of the fixed duration ranges. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Keep durationGoalMode auto unless the user explicitly asked for one of the fixed duration ranges. Keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1214,6 +1233,13 @@ async function validateCodecutSetupIntent(intent) {
 		"Intro cover",
 		typeof normalized.generateIntroCover === "boolean",
 		"Choose whether CodeCut should generate an opening cover image.",
+	);
+	pushCheck(
+		checks,
+		"transition-preference",
+		"Transition animation",
+		transitionPreferenceValues.includes(normalized.transitionPreference),
+		"Transition animation must be auto, none, or a supported CodeCut transition type.",
 	);
 	pushCheck(
 		checks,
@@ -1452,6 +1478,9 @@ function buildWorkspaceIntentDefaults(input = {}) {
 			typeof input.generateIntroCover === "boolean"
 				? input.generateIntroCover
 				: true,
+		transitionPreference: normalizeWorkspaceTransitionPreference(
+			input.transitionPreference,
+		),
 		brief,
 		briefOptions: normalizeWorkspaceOptionList(
 			input.briefOptions,
@@ -1605,6 +1634,13 @@ function normalizeWorkspaceUiLanguage(value) {
 	return normalized.startsWith("zh") ? "zh-CN" : "en";
 }
 
+function normalizeWorkspaceTransitionPreference(value) {
+	if (value === undefined) return "auto";
+	const normalized = String(value).trim();
+	if (transitionPreferenceValues.includes(normalized)) return normalized;
+	throw new Error("transitionPreference must be auto, none, or a supported CodeCut transition type.");
+}
+
 function buildWorkspaceProjectSlug(projectName) {
 	const slug =
 		String(projectName || "codecut-project")
@@ -1641,6 +1677,10 @@ function normalizeWorkspaceIntent(intent) {
 			intent.durationGoalRangeSeconds,
 		),
 		captionLanguage: String(intent.captionLanguage || "auto").trim() || "auto",
+		transitionPreference:
+			intent.transitionPreference === undefined
+				? ""
+				: String(intent.transitionPreference).trim(),
 		output: {
 			format: String(intent.output?.format || ""),
 			quality: String(intent.output?.quality || ""),
