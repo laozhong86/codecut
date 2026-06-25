@@ -69,6 +69,13 @@ documents for variants that share the same source pack.
     edit-plan-notes.md
   05-execution/
   06-verification/
+    visual-qa/
+      <runId>/
+        timeline-contact-sheet.png
+        export-contact-sheet.png
+        export-frames-manifest.json
+        visual-qa-verdict.json
+        visual-qa-verdict.md
   07-exports/
 ```
 
@@ -85,6 +92,10 @@ documents for variants that share the same source pack.
    requirement intake still needs them.
 8. Write route and planning documents.
 9. Create the Codecut executor project only when editing execution begins.
+10. Before reporting editing completion, record visual QA under
+    `06-verification/visual-qa/<runId>/`.
+11. After MP4 export, extract frames from the final exported file and update the
+    visual QA verdict before reporting delivery.
 
 ## CLI
 
@@ -123,6 +134,29 @@ node scripts/codecut-workspace.mjs write-doc \
   --project-id <id> \
   --kind workflow-route \
   --content-file /absolute/path/workflow-route.md \
+  --confirmation-token <token>
+```
+
+Extract frames from a final exported MP4:
+
+```bash
+node scripts/codecut-workspace.mjs extract-export-frames \
+  --project-id <id> \
+  --run-id qa-YYYYMMDD-HHMMSS \
+  --export-file /absolute/path/final.mp4 \
+  --start-time 0 \
+  --end-time <duration-seconds> \
+  --frame-count 8 \
+  --confirmation-token <token>
+```
+
+Record the visual QA verdict after inspecting the contact sheets:
+
+```bash
+node scripts/codecut-workspace.mjs record-visual-qa \
+  --project-id <id> \
+  --run-id qa-YYYYMMDD-HHMMSS \
+  --verdict-json-file /absolute/path/visual-qa-verdict.json \
   --confirmation-token <token>
 ```
 

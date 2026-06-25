@@ -272,5 +272,33 @@ For editing execution, completion requires:
 - successful validation/application result
 - `get_timeline_state` readback
 - expected track, element, duration, trim range, and media source proof
+- a visual QA verdict recorded under
+  `.codecut-workspace/projects/<projectId>/06-verification/visual-qa/<runId>/`
 - editor URL for human preview
 - explicit statement when MP4 export was not produced
+
+`inspect_timeline` and `build_video_quality_report` only generate evidence.
+They are not a visual pass by themselves. Before reporting completion, Codex
+must inspect the timeline contact sheet and report a verdict that includes:
+contact sheet path, frame count, sampled timestamps, pass/fail status, issues
+found, and whether each issue was fixed.
+
+For MP4 delivery, Codex must also sample frames from the exported MP4 with
+`codecut-workspace extract-export-frames`, inspect the export contact sheet,
+compare it against the timeline preview, and record the final verdict with
+`codecut-workspace record-visual-qa`. Timeline frames prove editor state; export
+frames prove the delivered file. They are not interchangeable.
+
+The required visual QA checks are:
+
+- `first_frame_not_black`
+- `title_not_clipped`
+- `text_layers_not_overlapping`
+- `subject_not_cropped_by_cover`
+- `bottom_safe_area_clear`
+- `ending_normal`
+- `export_matches_timeline_preview`
+
+`export_matches_timeline_preview` may be `not_applicable` only when no MP4
+export was requested; in that case the final report must explicitly say that
+no MP4 was produced.

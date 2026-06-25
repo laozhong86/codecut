@@ -21,6 +21,15 @@ import {
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { assertCodecutConfirmationToken } from "./codecut-confirmation-gate.mjs";
+import {
+	extractExportFrames,
+	recordVisualQaVerdict,
+} from "./codecut-visual-qa.mjs";
+
+export {
+	extractExportFrames,
+	recordVisualQaVerdict,
+} from "./codecut-visual-qa.mjs";
 
 const execFileAsync = promisify(execFile);
 const WORKSPACE_ROOT = ".codecut-workspace";
@@ -111,6 +120,8 @@ function usage() {
 		"  node scripts/codecut-workspace.mjs add-assets --project-id <id> --file /absolute/path/source.mp4 [--file /absolute/path/brief.pdf] --confirmation-token <token>",
 		"  node scripts/codecut-workspace.mjs probe-assets --project-id <id> --confirmation-token <token>",
 		"  node scripts/codecut-workspace.mjs write-doc --project-id <id> --kind <kind> --content-file /absolute/path/doc.md --confirmation-token <token>",
+		"  node scripts/codecut-workspace.mjs extract-export-frames --project-id <id> --run-id <id> --export-file /absolute/path/final.mp4 --start-time <seconds> --end-time <seconds> --frame-count <1..16> --confirmation-token <token>",
+		"  node scripts/codecut-workspace.mjs record-visual-qa --project-id <id> --run-id <id> --verdict-json-file /absolute/path/visual-qa-verdict.json --confirmation-token <token>",
 		"",
 		"Optional:",
 		"  --source-root <path>  Defaults to the current plugin root.",
@@ -709,6 +720,38 @@ export async function runCli({
 				content: await readFile(flags.contentFile, "utf8"),
 				confirmationToken: flags.confirmationToken,
 			});
+		stdout(JSON.stringify(result, null, 2));
+		return 0;
+	}
+	if (command === "extract-export-frames") {
+		const result = await extractExportFrames({
+			sourceRoot: resolvedSourceRoot,
+			projectId: flags.projectId,
+			runId: flags.runId,
+			exportFile: flags.exportFile,
+			startTime: Number(flags.startTime),
+			endTime: Number(flags.endTime),
+			frameCount: Number(flags.frameCount),
+			confirmationToken: flags.confirmationToken,
+			execFileImpl,
+		});
+		stdout(JSON.stringify(result, null, 2));
+		return 0;
+	}
+	if (command === "record-visual-qa") {
+		if (!flags.verdictJsonFile) {
+			throw new Error("--verdict-json-file is required");
+		}
+		if (!isAbsolute(flags.verdictJsonFile)) {
+			throw new Error("--verdict-json-file must be an absolute path");
+		}
+		const result = await recordVisualQaVerdict({
+			sourceRoot: resolvedSourceRoot,
+			projectId: flags.projectId,
+			runId: flags.runId,
+			verdictJsonFile: flags.verdictJsonFile,
+			confirmationToken: flags.confirmationToken,
+		});
 		stdout(JSON.stringify(result, null, 2));
 		return 0;
 	}
