@@ -7,6 +7,7 @@ type MobileDrawerType =
 	| "text"
 	| "sticker"
 	| "audio"
+	| "captions"
 	| "ai"
 	| "properties"
 	| null;

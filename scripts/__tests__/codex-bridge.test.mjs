@@ -40,6 +40,7 @@ import {
 	buildVideoQualityReportEnvelope,
 	buildVisualContextEnvelope,
 	buildVerifyTimelineEnvelope,
+	buildCaptionDiagnosticsEnvelope,
 	parseBoolean,
 	requireRuntimeConfig,
 	runInstallDoctor,
@@ -585,6 +586,46 @@ describe("codex bridge CLI helpers", () => {
 				},
 			],
 		});
+	});
+
+	test("buildCaptionDiagnosticsEnvelope requires explicit caption style", () => {
+		expect(
+			buildCaptionDiagnosticsEnvelope({
+				projectId: "project-1",
+				language: "zh",
+				modelId: "whisper-base",
+				captionStylePreset: "creator-clean",
+				captionPosition: "lower-safe",
+				captionMotionPreset: "soft-reveal",
+			}),
+		).toEqual({
+			version: 1,
+			projectId: "project-1",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "build_caption_diagnostics",
+					args: {
+						language: "zh",
+						modelId: "whisper-base",
+						captionStyle: {
+							preset: "creator-clean",
+							position: "lower-safe",
+							motionPreset: "soft-reveal",
+						},
+					},
+				},
+			],
+		});
+		expect(() =>
+			buildCaptionDiagnosticsEnvelope({
+				projectId: "project-1",
+				language: "zh",
+				modelId: "whisper-base",
+				captionPosition: "lower-safe",
+			}),
+		).toThrow("--caption-style-preset is required");
 	});
 
 	test("buildDigitalHumanEnvelope creates a generate_digital_human command", () => {

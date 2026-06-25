@@ -27,6 +27,22 @@ const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
 const execFileAsync = promisify(execFile);
 const importBytesBase64MaxBytes = 15 * 1024 * 1024;
+const captionStylePresetValues = [
+	"creator-clean",
+	"short-form-bold",
+	"black-bar",
+	"talking-head-pop",
+	"tutorial-clean",
+	"documentary-soft",
+	"product-punch",
+	"lifestyle-warm",
+	"cinematic-serif",
+	"social-highlight",
+	"comment-bubble",
+	"minimal-reel",
+];
+const captionPositionValues = ["lower-safe", "center"];
+const captionMotionPresetValues = ["slam-in", "soft-reveal", "pop-bounce"];
 const confirmationGatedCommands = new Set([
 	"create-project",
 	"rename-project",
@@ -106,6 +122,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs import-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs update-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs delete-system-template-script --project-id <id> --template-id <id> --confirmed-by-user true",
+		"  node scripts/codex-bridge.mjs build-caption-diagnostics --project-id <id> --language <auto|code> --model-id <model> --caption-style-preset <preset> --caption-position <lower-safe|center> [--caption-motion-preset <preset>]",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
 		'  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text "..." --motion-prompt "..." --width 1280 --height 720 --fps 25 --confirmation-token <token>',
 		'  node scripts/codex-bridge.mjs generate-runninghub-voice-design --project-id <id> --text "..." --emotion-prompt "..." --confirmation-token <token>',
@@ -2181,6 +2198,65 @@ export function buildPostCutCaptionsEnvelope({ projectId, language, modelId }) {
 	});
 }
 
+function requireOneOf(value, flagName, allowedValues) {
+	if (!value) {
+		throw new Error(`--${flagName} is required`);
+	}
+	if (!allowedValues.includes(value)) {
+		throw new Error(
+			`--${flagName} must be one of ${allowedValues.join(", ")}`,
+		);
+	}
+	return value;
+}
+
+export function buildCaptionDiagnosticsEnvelope({
+	projectId,
+	language,
+	modelId,
+	captionStylePreset,
+	captionPosition,
+	captionMotionPreset,
+}) {
+	if (!language) {
+		throw new Error("--language is required");
+	}
+	if (!modelId) {
+		throw new Error("--model-id is required");
+	}
+	const captionStyle = {
+		preset: requireOneOf(
+			captionStylePreset,
+			"caption-style-preset",
+			captionStylePresetValues,
+		),
+		position: requireOneOf(
+			captionPosition,
+			"caption-position",
+			captionPositionValues,
+		),
+		...(captionMotionPreset === undefined
+			? {}
+			: {
+					motionPreset: requireOneOf(
+						captionMotionPreset,
+						"caption-motion-preset",
+						captionMotionPresetValues,
+					),
+				}),
+	};
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "build_caption_diagnostics",
+		args: {
+			language,
+			modelId,
+			captionStyle,
+		},
+	});
+}
+
 function parsePositiveNumber(value, label) {
 	const parsed = Number(value);
 	if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -3250,6 +3326,15 @@ export async function runCli({
 		envelope = buildRippleDeleteRangesEnvelope({
 			projectId: flags.projectId,
 			...payload,
+		});
+	} else if (command === "build-caption-diagnostics") {
+		envelope = buildCaptionDiagnosticsEnvelope({
+			projectId: flags.projectId,
+			language: flags.language,
+			modelId: flags.modelId,
+			captionStylePreset: flags.captionStylePreset,
+			captionPosition: flags.captionPosition,
+			captionMotionPreset: flags.captionMotionPreset,
 		});
 	} else if (command === "build-post-cut-captions") {
 		envelope = buildPostCutCaptionsEnvelope({

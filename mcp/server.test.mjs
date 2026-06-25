@@ -79,6 +79,7 @@ describe("Codecut MCP server contract", () => {
 			"inspect_timeline",
 			"build_video_quality_report",
 			"get_transcript",
+			"build_caption_diagnostics",
 			"build_post_cut_captions",
 			"list_models",
 			"search_media",
@@ -188,6 +189,7 @@ describe("Codecut MCP server contract", () => {
 
 		expect(readOnlyByTool.get("list_models")).toBe(true);
 		expect(readOnlyByTool.get("search_media")).toBe(true);
+		expect(readOnlyByTool.get("build_caption_diagnostics")).toBe(true);
 		expect(readOnlyByTool.get("import_system_template_script")).toBe(false);
 		expect(readOnlyByTool.get("update_system_template_script")).toBe(false);
 		expect(readOnlyByTool.get("delete_system_template_script")).toBe(false);
@@ -217,6 +219,7 @@ describe("Codecut MCP server contract", () => {
 			"list_media_assets",
 			"build_video_context",
 			"build_visual_context",
+			"build_caption_diagnostics",
 			"inspect_timeline",
 			"get_timeline_state",
 			"get_timeline_state_v2",
@@ -280,6 +283,26 @@ describe("Codecut MCP server contract", () => {
 				CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
 			);
 		}
+	});
+
+	test("exposes caption diagnostics as an explicit read-only MCP schema", () => {
+		const tool = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "build_caption_diagnostics",
+		);
+
+		expect(tool?.readOnly).toBe(true);
+		expect(tool?.governanceCategory).toBe(
+			CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
+		);
+		expect(tool?.description).toContain("transcription failures");
+		expect(
+			tool?.inputSchema.captionStyle.safeParse({
+				preset: "creator-clean",
+				position: "lower-safe",
+				motionPreset: "soft-reveal",
+			}).success,
+		).toBe(true);
+		expect(tool?.inputSchema.captionStyle.safeParse({}).success).toBe(false);
 	});
 
 	test("marks template mutation tools as destructive in MCP annotations", () => {
@@ -2467,6 +2490,33 @@ describe("Codecut MCP server contract", () => {
 			"zh",
 			"--model-id",
 			"whisper-base",
+		]);
+		expect(
+			buildBridgeCliArgs("build_caption_diagnostics", {
+				projectId: "project-1",
+				language: "zh",
+				modelId: "whisper-base",
+				captionStyle: {
+					preset: "creator-clean",
+					position: "lower-safe",
+					motionPreset: "soft-reveal",
+				},
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"build-caption-diagnostics",
+			"--project-id",
+			"project-1",
+			"--language",
+			"zh",
+			"--model-id",
+			"whisper-base",
+			"--caption-style-preset",
+			"creator-clean",
+			"--caption-position",
+			"lower-safe",
+			"--caption-motion-preset",
+			"soft-reveal",
 		]);
 		expect(
 			buildBridgeCliArgs("generate_digital_human", {
