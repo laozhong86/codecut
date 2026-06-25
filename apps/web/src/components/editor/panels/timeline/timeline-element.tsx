@@ -57,6 +57,7 @@ import { uppercase } from "@/utils/string";
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import type { ComponentProps } from "react";
 import { VideoThumbnailStrip } from "./video-thumbnail-strip";
+import { getVisualKeyframeTimes } from "@/lib/timeline/keyframe-values";
 
 function getDisplayShortcut(action: TAction) {
 	const { defaultShortcuts } = getActionDefinition(action);
@@ -349,6 +350,8 @@ function ElementInner({
 				)}
 			</button>
 
+			<TimelineKeyframeMarkers element={element} />
+
 			{isSelected && (
 				<>
 					<div className="border-primary pointer-events-none absolute inset-0 z-20 rounded-[0.5rem] border-2" />
@@ -364,6 +367,33 @@ function ElementInner({
 					/>
 				</>
 			)}
+		</div>
+	);
+}
+
+function TimelineKeyframeMarkers({
+	element,
+}: {
+	element: TimelineElementType;
+}) {
+	const times = getVisualKeyframeTimes({ keyframes: element.keyframes });
+	if (times.length === 0 || element.duration <= 0) return null;
+
+	return (
+		<div className="pointer-events-none absolute inset-x-1 top-1 z-30 h-2">
+			{times.map((time) => {
+				const percent = Math.max(0, Math.min(100, (time / element.duration) * 100));
+				return (
+					<div
+						key={time}
+						data-testid="timeline-keyframe-marker"
+						role="img"
+						aria-label={`Keyframe at ${time}s`}
+						className="absolute size-2 -translate-x-1/2 rotate-45 rounded-[1px] border border-background bg-primary shadow-sm"
+						style={{ left: `${percent}%` }}
+					/>
+				);
+			})}
 		</div>
 	);
 }

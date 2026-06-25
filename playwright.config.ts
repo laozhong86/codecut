@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 import { join } from "node:path";
 
-const port = 4100;
+const port = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? "4100", 10);
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;
 const executorStateDir = join(process.cwd(), "tmp", "playwright-executor-state");
 
@@ -34,7 +34,7 @@ export default defineConfig({
 		},
 	],
 	webServer: {
-		command: "bun run --cwd apps/web dev",
+		command: `bun --cwd apps/web next dev --turbopack --port ${port}`,
 		url: `${baseURL}/en/projects`,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120_000,

@@ -287,6 +287,7 @@ function PreviewToolbar({
 				variant="text"
 				size="icon"
 				type="button"
+				aria-label={isPlaying ? "Pause" : "Play"}
 				onMouseDown={(event) => event.preventDefault()}
 				onClick={() => invokeAction("toggle-play")}
 			>

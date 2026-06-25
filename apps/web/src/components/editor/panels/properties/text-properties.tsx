@@ -9,6 +9,7 @@ import type {
 	TextRichSpan,
 	TextStroke,
 	TextShadow,
+	TimelineElementKeyframes,
 	Transform,
 } from "@/types/timeline";
 import { Switch } from "@/components/ui/switch";
@@ -37,6 +38,8 @@ import {
 } from "@/constants/text-style-presets";
 import { sanitizeTextRichSpansForContent } from "@/services/renderer/nodes/text-layout";
 import { cn } from "@/utils/ui";
+import { KeyframeToggle } from "./keyframe-toggle";
+import { useVisualKeyframeEditor } from "./use-visual-keyframe-editor";
 
 interface TextElementRef {
 	element: TextElement;
@@ -49,9 +52,16 @@ export function TextProperties({
 	elements: TextElementRef[];
 }) {
 	const element = elementRefs[0].element;
+	const singleElementTrackId = elementRefs[0].trackId;
+	const isSingleElement = elementRefs.length === 1;
 
 	const { t } = useTranslation();
 	const editor = useEditor();
+	const keyframeEditor = useVisualKeyframeEditor({
+		element,
+		trackId: singleElementTrackId,
+		enabled: isSingleElement,
+	});
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [, forceRender] = useReducer((x: number) => x + 1, 0);
 	const isEditingFontSize = useRef(false);
@@ -84,7 +94,7 @@ export function TextProperties({
 		: element.fontSize.toString();
 	const opacityDisplay = isEditingOpacity.current
 		? opacityDraft.current
-		: Math.round(element.opacity * 100).toString();
+		: Math.round(keyframeEditor.resolvedOpacity * 100).toString();
 	const contentDisplay = isEditingContent.current
 		? contentDraft.current
 		: element.content;
@@ -99,6 +109,9 @@ export function TextProperties({
 	const initialPosYRef = useRef<number | null>(null);
 	const initialScaleRef = useRef<number | null>(null);
 	const initialRotationRef = useRef<number | null>(null);
+	const initialKeyframesRef = useRef<TimelineElementKeyframes | undefined | null>(
+		null,
+	);
 	const initialStrokeRef = useRef<TextStroke | null>(null);
 	const initialShadowRef = useRef<TextShadow | null>(null);
 	const initialStrokeColorRef = useRef<string | null>(null);
@@ -109,19 +122,19 @@ export function TextProperties({
 	const initialBgPaddingYRef = useRef<number | null>(null);
 	const initialRichSpansRef = useRef<TextRichSpan[] | null>(null);
 
-	const scalePercent = Math.round(element.transform.scale * 100);
+	const scalePercent = Math.round(keyframeEditor.resolvedTransform.scale * 100);
 	const posXDisplay = isEditingPosX.current
 		? posXDraft.current
-		: Math.round(element.transform.position.x).toString();
+		: Math.round(keyframeEditor.resolvedTransform.position.x).toString();
 	const posYDisplay = isEditingPosY.current
 		? posYDraft.current
-		: Math.round(element.transform.position.y).toString();
+		: Math.round(keyframeEditor.resolvedTransform.position.y).toString();
 	const scaleDisplay = isEditingScale.current
 		? scaleDraft.current
 		: scalePercent.toString();
 	const rotationDisplay = isEditingRotation.current
 		? rotationDraft.current
-		: Math.round(element.transform.rotate).toString();
+		: Math.round(keyframeEditor.resolvedTransform.rotate).toString();
 	const contentLength = Array.from(element.content).length;
 	const keywordStart = parseInt(keywordStartDraft.current, 10);
 	const keywordEnd = parseInt(keywordEndDraft.current, 10);
@@ -152,6 +165,28 @@ export function TextProperties({
 			})),
 			pushHistory,
 		});
+	};
+
+	const beginKeyframeEdit = () => {
+		if (initialKeyframesRef.current === null) {
+			initialKeyframesRef.current = structuredClone(element.keyframes);
+		}
+	};
+
+	const commitKeyframeEdit = ({
+		apply,
+	}: {
+		apply: (baseKeyframes: TimelineElementKeyframes | undefined) => void;
+	}) => {
+		if (initialKeyframesRef.current === null) return false;
+		const baseKeyframes = initialKeyframesRef.current;
+		keyframeEditor.restoreKeyframes({
+			keyframes: baseKeyframes,
+			pushHistory: false,
+		});
+		apply(baseKeyframes);
+		initialKeyframesRef.current = null;
+		return true;
 	};
 
 	const strokeEnabled = !!element.stroke;
@@ -287,6 +322,15 @@ export function TextProperties({
 			const opacityPercent = Number.isNaN(parsed)
 				? Math.round(element.opacity * 100)
 				: clamp({ value: parsed, min: 0, max: 100 });
+			if (keyframeEditor.writesKeyframes("opacity")) {
+				beginKeyframeEdit();
+				keyframeEditor.setScalarValue({
+					property: "opacity",
+					value: opacityPercent / 100,
+					pushHistory: false,
+				});
+				return;
+			}
 			editor.timeline.updateElements({
 				updates: buildBatchUpdates({ opacity: opacityPercent / 100 }),
 				pushHistory: false,
@@ -295,6 +339,29 @@ export function TextProperties({
 	};
 
 	const handleOpacityBlur = () => {
+		if (
+			commitKeyframeEdit({
+				apply: (baseKeyframes) => {
+					const parsed = parseInt(opacityDraft.current, 10);
+					const opacityPercent = Number.isNaN(parsed)
+						? Math.round(keyframeEditor.resolvedOpacity * 100)
+						: clamp({ value: parsed, min: 0, max: 100 });
+					keyframeEditor.setScalarValue({
+						property: "opacity",
+						value: opacityPercent / 100,
+						pushHistory: true,
+						baseKeyframes,
+						useBaseKeyframes: true,
+					});
+				},
+			})
+		) {
+			initialOpacityRef.current = null;
+			isEditingOpacity.current = false;
+			opacityDraft.current = "";
+			forceRender();
+			return;
+		}
 		if (initialOpacityRef.current !== null) {
 			const parsed = parseInt(opacityDraft.current, 10);
 			const opacityPercent = Number.isNaN(parsed)
@@ -716,15 +783,35 @@ export function TextProperties({
 									</PropertyItemValue>
 								</PropertyItem>
 								<PropertyItem direction="column">
-									<PropertyItemLabel>{t("Opacity")}</PropertyItemLabel>
+									<PropertyItemLabel className="flex items-center gap-1.5">
+										{isSingleElement && (
+											<KeyframeToggle
+												label="Toggle opacity keyframe"
+												pressed={keyframeEditor.isActive("opacity")}
+												disabled={!keyframeEditor.canEditAtPlayhead}
+												onClick={() => keyframeEditor.toggle("opacity")}
+											/>
+										)}
+										{t("Opacity")}
+									</PropertyItemLabel>
 									<PropertyItemValue>
 										<div className="flex items-center gap-2">
 											<Slider
-												value={[element.opacity * 100]}
+												value={[keyframeEditor.resolvedOpacity * 100]}
 												min={0}
 												max={100}
 												step={1}
+												disabled={keyframeEditor.isDisabled("opacity")}
 												onValueChange={([value]) => {
+													if (keyframeEditor.writesKeyframes("opacity")) {
+														beginKeyframeEdit();
+														keyframeEditor.setScalarValue({
+															property: "opacity",
+															value: value / 100,
+															pushHistory: false,
+														});
+														return;
+													}
 													if (initialOpacityRef.current === null) {
 														initialOpacityRef.current = element.opacity;
 													}
@@ -736,6 +823,21 @@ export function TextProperties({
 													});
 												}}
 												onValueCommit={([value]) => {
+													if (
+														commitKeyframeEdit({
+															apply: (baseKeyframes) =>
+																keyframeEditor.setScalarValue({
+																	property: "opacity",
+																	value: value / 100,
+																	pushHistory: true,
+																	baseKeyframes,
+																	useBaseKeyframes: true,
+																}),
+														})
+													) {
+														initialOpacityRef.current = null;
+														return;
+													}
 													if (initialOpacityRef.current !== null) {
 														editor.timeline.updateElements({
 															updates: buildBatchUpdates({
@@ -759,10 +861,12 @@ export function TextProperties({
 												value={opacityDisplay}
 												min={0}
 												max={100}
+												aria-label="Opacity percentage"
+												disabled={keyframeEditor.isDisabled("opacity")}
 												onFocus={() => {
 													isEditingOpacity.current = true;
 													opacityDraft.current = Math.round(
-														element.opacity * 100,
+														keyframeEditor.resolvedOpacity * 100,
 													).toString();
 													forceRender();
 												}}
@@ -1304,15 +1408,29 @@ export function TextProperties({
 						<PropertyGroup title={t("Transform")}>
 							<div className="space-y-6">
 								<PropertyItem>
-									<PropertyItemLabel>{t("Position X")}</PropertyItemLabel>
+									<PropertyItemLabel className="flex items-center gap-1.5">
+										{isSingleElement && (
+											<KeyframeToggle
+												label="Toggle position keyframe"
+												pressed={keyframeEditor.isActive("transform.position")}
+												disabled={!keyframeEditor.canEditAtPlayhead}
+												onClick={() =>
+													keyframeEditor.toggle("transform.position")
+												}
+											/>
+										)}
+										{t("Position X")}
+									</PropertyItemLabel>
 									<PropertyItemValue>
 										<Input
+											aria-label="Position X"
 											type="number"
 											value={posXDisplay}
+											disabled={keyframeEditor.isDisabled("transform.position")}
 											onFocus={() => {
 												isEditingPosX.current = true;
 												posXDraft.current = Math.round(
-													element.transform.position.x,
+													keyframeEditor.resolvedTransform.position.x,
 												).toString();
 												forceRender();
 											}}
@@ -1324,6 +1442,19 @@ export function TextProperties({
 												}
 												const parsed = Number.parseFloat(e.target.value);
 												if (!Number.isNaN(parsed)) {
+													if (
+														keyframeEditor.writesKeyframes(
+															"transform.position",
+														)
+													) {
+														beginKeyframeEdit();
+														keyframeEditor.setPositionAxisValue({
+															axis: "x",
+															value: parsed,
+															pushHistory: false,
+														});
+														return;
+													}
 													updateTransform({
 														updates: {
 															position: {
@@ -1336,6 +1467,31 @@ export function TextProperties({
 												}
 											}}
 											onBlur={() => {
+												if (
+													commitKeyframeEdit({
+														apply: (baseKeyframes) => {
+															const parsed = Number.parseFloat(
+																posXDraft.current,
+															);
+															const value = Number.isNaN(parsed)
+																? keyframeEditor.resolvedTransform.position.x
+																: parsed;
+															keyframeEditor.setPositionAxisValue({
+																axis: "x",
+																value,
+																pushHistory: true,
+																baseKeyframes,
+																useBaseKeyframes: true,
+															});
+														},
+													})
+												) {
+													initialPosXRef.current = null;
+													isEditingPosX.current = false;
+													posXDraft.current = "";
+													forceRender();
+													return;
+												}
 												if (initialPosXRef.current !== null) {
 													const parsed = Number.parseFloat(posXDraft.current);
 													const value = Number.isNaN(parsed)
@@ -1373,12 +1529,14 @@ export function TextProperties({
 									<PropertyItemLabel>{t("Position Y")}</PropertyItemLabel>
 									<PropertyItemValue>
 										<Input
+											aria-label="Position Y"
 											type="number"
 											value={posYDisplay}
+											disabled={keyframeEditor.isDisabled("transform.position")}
 											onFocus={() => {
 												isEditingPosY.current = true;
 												posYDraft.current = Math.round(
-													element.transform.position.y,
+													keyframeEditor.resolvedTransform.position.y,
 												).toString();
 												forceRender();
 											}}
@@ -1390,6 +1548,19 @@ export function TextProperties({
 												}
 												const parsed = Number.parseFloat(e.target.value);
 												if (!Number.isNaN(parsed)) {
+													if (
+														keyframeEditor.writesKeyframes(
+															"transform.position",
+														)
+													) {
+														beginKeyframeEdit();
+														keyframeEditor.setPositionAxisValue({
+															axis: "y",
+															value: parsed,
+															pushHistory: false,
+														});
+														return;
+													}
 													updateTransform({
 														updates: {
 															position: {
@@ -1402,6 +1573,31 @@ export function TextProperties({
 												}
 											}}
 											onBlur={() => {
+												if (
+													commitKeyframeEdit({
+														apply: (baseKeyframes) => {
+															const parsed = Number.parseFloat(
+																posYDraft.current,
+															);
+															const value = Number.isNaN(parsed)
+																? keyframeEditor.resolvedTransform.position.y
+																: parsed;
+															keyframeEditor.setPositionAxisValue({
+																axis: "y",
+																value,
+																pushHistory: true,
+																baseKeyframes,
+																useBaseKeyframes: true,
+															});
+														},
+													})
+												) {
+													initialPosYRef.current = null;
+													isEditingPosY.current = false;
+													posYDraft.current = "";
+													forceRender();
+													return;
+												}
 												if (initialPosYRef.current !== null) {
 													const parsed = Number.parseFloat(posYDraft.current);
 													const value = Number.isNaN(parsed)
@@ -1436,7 +1632,17 @@ export function TextProperties({
 									</PropertyItemValue>
 								</PropertyItem>
 								<PropertyItem direction="column">
-									<PropertyItemLabel>{t("Scale")}</PropertyItemLabel>
+									<PropertyItemLabel className="flex items-center gap-1.5">
+										{isSingleElement && (
+											<KeyframeToggle
+												label="Toggle scale keyframe"
+												pressed={keyframeEditor.isActive("transform.scale")}
+												disabled={!keyframeEditor.canEditAtPlayhead}
+												onClick={() => keyframeEditor.toggle("transform.scale")}
+											/>
+										)}
+										{t("Scale")}
+									</PropertyItemLabel>
 									<PropertyItemValue>
 										<div className="flex items-center gap-2">
 											<Slider
@@ -1444,7 +1650,19 @@ export function TextProperties({
 												min={10}
 												max={500}
 												step={1}
+												disabled={keyframeEditor.isDisabled("transform.scale")}
 												onValueChange={([value]) => {
+													if (
+														keyframeEditor.writesKeyframes("transform.scale")
+													) {
+														beginKeyframeEdit();
+														keyframeEditor.setScalarValue({
+															property: "transform.scale",
+															value: value / 100,
+															pushHistory: false,
+														});
+														return;
+													}
 													if (initialScaleRef.current === null) {
 														initialScaleRef.current = element.transform.scale;
 													}
@@ -1454,6 +1672,21 @@ export function TextProperties({
 													});
 												}}
 												onValueCommit={([value]) => {
+													if (
+														commitKeyframeEdit({
+															apply: (baseKeyframes) =>
+																keyframeEditor.setScalarValue({
+																	property: "transform.scale",
+																	value: value / 100,
+																	pushHistory: true,
+																	baseKeyframes,
+																	useBaseKeyframes: true,
+																}),
+														})
+													) {
+														initialScaleRef.current = null;
+														return;
+													}
 													if (initialScaleRef.current !== null) {
 														updateTransform({
 															updates: { scale: initialScaleRef.current },
@@ -1473,6 +1706,8 @@ export function TextProperties({
 												value={scaleDisplay}
 												min={10}
 												max={500}
+												aria-label="Scale percentage"
+												disabled={keyframeEditor.isDisabled("transform.scale")}
 												onFocus={() => {
 													isEditingScale.current = true;
 													scaleDraft.current = scalePercent.toString();
@@ -1491,6 +1726,19 @@ export function TextProperties({
 															min: 10,
 															max: 500,
 														});
+														if (
+															keyframeEditor.writesKeyframes(
+																"transform.scale",
+															)
+														) {
+															beginKeyframeEdit();
+															keyframeEditor.setScalarValue({
+																property: "transform.scale",
+																value: clamped / 100,
+																pushHistory: false,
+															});
+															return;
+														}
 														updateTransform({
 															updates: { scale: clamped / 100 },
 															pushHistory: false,
@@ -1498,6 +1746,36 @@ export function TextProperties({
 													}
 												}}
 												onBlur={() => {
+													if (
+														commitKeyframeEdit({
+															apply: (baseKeyframes) => {
+																const parsed = parseInt(
+																	scaleDraft.current,
+																	10,
+																);
+																const clamped = Number.isNaN(parsed)
+																	? scalePercent
+																	: clamp({
+																			value: parsed,
+																			min: 10,
+																			max: 500,
+																		});
+																keyframeEditor.setScalarValue({
+																	property: "transform.scale",
+																	value: clamped / 100,
+																	pushHistory: true,
+																	baseKeyframes,
+																	useBaseKeyframes: true,
+																});
+															},
+														})
+													) {
+														initialScaleRef.current = null;
+														isEditingScale.current = false;
+														scaleDraft.current = "";
+														forceRender();
+														return;
+													}
 													if (initialScaleRef.current !== null) {
 														const parsed = parseInt(scaleDraft.current, 10);
 														const clamped = Number.isNaN(parsed)
@@ -1523,15 +1801,37 @@ export function TextProperties({
 									</PropertyItemValue>
 								</PropertyItem>
 								<PropertyItem direction="column">
-									<PropertyItemLabel>{t("Rotation")}</PropertyItemLabel>
+									<PropertyItemLabel className="flex items-center gap-1.5">
+										{isSingleElement && (
+											<KeyframeToggle
+												label="Toggle rotation keyframe"
+												pressed={keyframeEditor.isActive("transform.rotate")}
+												disabled={!keyframeEditor.canEditAtPlayhead}
+												onClick={() => keyframeEditor.toggle("transform.rotate")}
+											/>
+										)}
+										{t("Rotation")}
+									</PropertyItemLabel>
 									<PropertyItemValue>
 										<div className="flex items-center gap-2">
 											<Slider
-												value={[element.transform.rotate]}
+												value={[keyframeEditor.resolvedTransform.rotate]}
 												min={-180}
 												max={180}
 												step={1}
+												disabled={keyframeEditor.isDisabled("transform.rotate")}
 												onValueChange={([value]) => {
+													if (
+														keyframeEditor.writesKeyframes("transform.rotate")
+													) {
+														beginKeyframeEdit();
+														keyframeEditor.setScalarValue({
+															property: "transform.rotate",
+															value,
+															pushHistory: false,
+														});
+														return;
+													}
 													if (initialRotationRef.current === null) {
 														initialRotationRef.current =
 															element.transform.rotate;
@@ -1542,6 +1842,21 @@ export function TextProperties({
 													});
 												}}
 												onValueCommit={([value]) => {
+													if (
+														commitKeyframeEdit({
+															apply: (baseKeyframes) =>
+																keyframeEditor.setScalarValue({
+																	property: "transform.rotate",
+																	value,
+																	pushHistory: true,
+																	baseKeyframes,
+																	useBaseKeyframes: true,
+																}),
+														})
+													) {
+														initialRotationRef.current = null;
+														return;
+													}
 													if (initialRotationRef.current !== null) {
 														updateTransform({
 															updates: {
@@ -1563,10 +1878,12 @@ export function TextProperties({
 												value={rotationDisplay}
 												min={-360}
 												max={360}
+												aria-label="Rotation degrees"
+												disabled={keyframeEditor.isDisabled("transform.rotate")}
 												onFocus={() => {
 													isEditingRotation.current = true;
 													rotationDraft.current = Math.round(
-														element.transform.rotate,
+														keyframeEditor.resolvedTransform.rotate,
 													).toString();
 													forceRender();
 												}}
@@ -1579,6 +1896,19 @@ export function TextProperties({
 													}
 													const parsed = Number.parseFloat(e.target.value);
 													if (!Number.isNaN(parsed)) {
+														if (
+															keyframeEditor.writesKeyframes(
+																"transform.rotate",
+															)
+														) {
+															beginKeyframeEdit();
+															keyframeEditor.setScalarValue({
+																property: "transform.rotate",
+																value: parsed,
+																pushHistory: false,
+															});
+															return;
+														}
 														updateTransform({
 															updates: { rotate: parsed },
 															pushHistory: false,
@@ -1586,6 +1916,31 @@ export function TextProperties({
 													}
 												}}
 												onBlur={() => {
+													if (
+														commitKeyframeEdit({
+															apply: (baseKeyframes) => {
+																const parsed = Number.parseFloat(
+																	rotationDraft.current,
+																);
+																const value = Number.isNaN(parsed)
+																	? keyframeEditor.resolvedTransform.rotate
+																	: parsed;
+																keyframeEditor.setScalarValue({
+																	property: "transform.rotate",
+																	value,
+																	pushHistory: true,
+																	baseKeyframes,
+																	useBaseKeyframes: true,
+																});
+															},
+														})
+													) {
+														initialRotationRef.current = null;
+														isEditingRotation.current = false;
+														rotationDraft.current = "";
+														forceRender();
+														return;
+													}
 													if (initialRotationRef.current !== null) {
 														const parsed = Number.parseFloat(
 															rotationDraft.current,

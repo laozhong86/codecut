@@ -7424,6 +7424,131 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("set_keyframes accepts the full interpolation contract for non-text visual readback", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "sticker-track-1",
+					type: "sticker",
+					name: "Stickers",
+					hidden: false,
+					elements: [
+						{
+							id: "sticker-1",
+							type: "sticker",
+							name: "Badge",
+							iconName: "solar:star-bold",
+							color: "#ffffff",
+							hidden: false,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+							startTime: 0,
+							duration: 4,
+							trimStart: 0,
+							trimEnd: 0,
+						},
+					],
+				},
+			],
+		});
+
+		const scaleResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_keyframes",
+				args: {
+					elementId: "sticker-1",
+					property: "transform.scale",
+					keyframes: [
+						{ time: 0, value: 1, interpolation: "ease-in-out" },
+						{ time: 2, value: 1.5, interpolation: "ease-out" },
+					],
+				},
+			}),
+		});
+		const positionResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_keyframes",
+				args: {
+					elementId: "sticker-1",
+					property: "transform.position",
+					keyframes: [
+						{
+							time: 0,
+							value: { x: 0, y: 0 },
+							interpolation: "ease-in",
+						},
+						{
+							time: 2,
+							value: { x: 120, y: 80 },
+							interpolation: "ease-out",
+						},
+					],
+				},
+			}),
+		});
+		const readback = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2" },
+			}),
+		});
+
+		expect(scaleResult.results[0]).toMatchObject({ success: true });
+		expect(positionResult.results[0]).toMatchObject({ success: true });
+		expect(readback.results[0]).toMatchObject({
+			success: true,
+			data: {
+				tracks: [
+					{
+						elements: [
+							{
+								id: "sticker-1",
+								keyframes: {
+									"transform.scale": [
+										{ time: 0, value: 1, interpolation: "ease-in-out" },
+										{ time: 2, value: 1.5, interpolation: "ease-out" },
+									],
+									"transform.position": [
+										{
+											time: 0,
+											value: { x: 0, y: 0 },
+											interpolation: "ease-in",
+										},
+										{
+											time: 2,
+											value: { x: 120, y: 80 },
+											interpolation: "ease-out",
+										},
+									],
+								},
+								motion: {
+									keyframes: {
+										"transform.scale": [
+											{ time: 0, value: 1, interpolation: "ease-in-out" },
+											{ time: 2, value: 1.5, interpolation: "ease-out" },
+										],
+										"transform.position": [
+											{
+												time: 0,
+												value: { x: 0, y: 0 },
+												interpolation: "ease-in",
+											},
+											{
+												time: 2,
+												value: { x: 120, y: 80 },
+												interpolation: "ease-out",
+											},
+										],
+									},
+								},
+							},
+						],
+					},
+				],
+			},
+		});
+	});
+
 	test("search_media finds metadata and cached spoken transcript hits", async () => {
 		await seedDraftState({
 			mediaAssets: [
