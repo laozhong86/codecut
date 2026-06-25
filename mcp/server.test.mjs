@@ -37,6 +37,33 @@ function setupIntent(overrides = {}) {
 	};
 }
 
+function readStyleDeclarations(html, selector) {
+	const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const match = html.match(
+		new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\n\\s*\\}`, "m"),
+	);
+	if (!match) {
+		throw new Error(`Missing style rule for ${selector}`);
+	}
+
+	const declarations = new Map();
+	for (const declaration of match[1].split(";")) {
+		const trimmedDeclaration = declaration.trim();
+		if (!trimmedDeclaration) {
+			continue;
+		}
+		const separatorIndex = trimmedDeclaration.indexOf(":");
+		if (separatorIndex === -1) {
+			throw new Error(`Invalid CSS declaration: ${trimmedDeclaration}`);
+		}
+		declarations.set(
+			trimmedDeclaration.slice(0, separatorIndex).trim(),
+			trimmedDeclaration.slice(separatorIndex + 1).trim(),
+		);
+	}
+	return declarations;
+}
+
 describe("Codecut MCP server contract", () => {
 	test("exposes only the stable Codecut editing primitives", () => {
 		expect(CODECUT_MCP_TOOLS.map((tool) => tool.name)).toEqual([
@@ -395,6 +422,9 @@ describe("Codecut MCP server contract", () => {
 		]) {
 			expect(html).toContain(marker);
 		}
+		expect(html).not.toContain(
+			"\n        height: var(--cc-media-list-max-height);\n",
+		);
 		expect(html).toContain('row.setAttribute("role", "listitem")');
 		expect(html).toContain('data-role="thumbnail"');
 		expect(html).toContain('class="media-source-path"');
@@ -543,6 +573,22 @@ describe("Codecut MCP server contract", () => {
 		);
 		expect(html).toContain(".create-project-cta");
 		expect(html).toContain("--cc-create-cta-background");
+	});
+
+	test("workspace media source list keeps only a maximum-height scroll constraint", async () => {
+		const html = await readFile("mcp/codecut-workspace.html", "utf8");
+		const mediaSourceDeclarations = readStyleDeclarations(html, ".media-sources");
+
+		expect(mediaSourceDeclarations.get("display")).toBe("grid");
+		expect(mediaSourceDeclarations.get("gap")).toBe("var(--cc-space-sm)");
+		expect(mediaSourceDeclarations.has("height")).toBe(false);
+		expect(mediaSourceDeclarations.has("min-height")).toBe(false);
+		expect(mediaSourceDeclarations.has("block-size")).toBe(false);
+		expect(mediaSourceDeclarations.has("min-block-size")).toBe(false);
+		expect(mediaSourceDeclarations.get("max-height")).toBe(
+			"var(--cc-media-list-max-height)",
+		);
+		expect(mediaSourceDeclarations.get("overflow-y")).toBe("auto");
 	});
 
 	test("blocks workspace widget rendering when the CodeCut web service is unreachable", async () => {
