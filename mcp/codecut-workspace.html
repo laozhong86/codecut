@@ -521,14 +521,9 @@
         <fieldset aria-labelledby="intent-section-title">
           <h2 id="intent-section-title" class="section-heading" data-i18n="intent">Intent</h2>
           <div class="intent-field">
-            <span id="brief-label" data-i18n="brief">Brief</span>
-            <div id="brief-options" class="choice-options"></div>
-            <textarea id="brief" class="hidden" name="brief" aria-labelledby="brief-label" data-i18n-placeholder="briefCustomPlaceholder"></textarea>
-          </div>
-          <div class="intent-field">
-            <span id="success-criteria-label" data-i18n="successCriteria">Success criteria</span>
-            <div id="success-criteria-options" class="choice-options"></div>
-            <textarea id="success-criteria" class="hidden" name="successCriteria" aria-labelledby="success-criteria-label" data-i18n-placeholder="successCriteriaCustomPlaceholder"></textarea>
+            <span id="requirements-label" data-i18n="requirements">Requirements</span>
+            <div id="requirement-options" class="choice-options"></div>
+            <textarea id="requirements" class="hidden" name="requirements" aria-labelledby="requirements-label" data-i18n-placeholder="requirementsCustomPlaceholder"></textarea>
           </div>
         </fieldset>
 
@@ -626,13 +621,10 @@
             yes: "true",
             no: "false",
             intent: "Intent",
-            brief: "Brief",
-            briefPlaceholder: "Cut a clear short with the key message, readable captions, and natural audio.",
+            requirements: "Requirements",
+            requirementsPlaceholder: "Cut a clear short; clear hook; tight pacing; readable captions; natural audio; export-ready ending.",
             customOption: "Custom",
-            briefCustomPlaceholder: "Add custom brief details.",
-            successCriteria: "Success criteria",
-            successCriteriaPlaceholder: "Clear hook, tight pacing, readable captions, export-ready ending.",
-            successCriteriaCustomPlaceholder: "Add custom success criteria.",
+            requirementsCustomPlaceholder: "Add custom editing requirements.",
             createProject: "Create project",
             blocked: "Blocked",
             ok: "OK",
@@ -731,13 +723,10 @@
             yes: "是",
             no: "否",
             intent: "剪辑需求",
-            brief: "需求说明",
-            briefPlaceholder: "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
+            requirements: "剪辑要求",
+            requirementsPlaceholder: "剪成节奏清晰的短视频；开头有明确信息点；主体节奏紧凑；字幕清晰可读；自然音频；结尾适合继续编辑或导出。",
             customOption: "自定义",
-            briefCustomPlaceholder: "补充自定义需求。",
-            successCriteria: "成功标准",
-            successCriteriaPlaceholder: "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
-            successCriteriaCustomPlaceholder: "补充自定义成功标准。",
+            requirementsCustomPlaceholder: "补充自定义剪辑要求。",
             createProject: "创建项目",
             blocked: "已阻塞",
             ok: "通过",
@@ -778,10 +767,8 @@
           outputQuality: document.getElementById("output-quality"),
           includeAudio: document.getElementById("include-audio"),
           generateIntroCover: document.getElementById("generate-intro-cover"),
-          brief: document.getElementById("brief"),
-          briefOptions: document.getElementById("brief-options"),
-          successCriteria: document.getElementById("success-criteria"),
-          successCriteriaOptions: document.getElementById("success-criteria-options"),
+          requirements: document.getElementById("requirements"),
+          requirementOptions: document.getElementById("requirement-options"),
           submitButton: document.getElementById("submit-button"),
           setupUnavailable: document.getElementById("setup-unavailable"),
           result: document.getElementById("result"),
@@ -868,15 +855,8 @@
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
           fields.generateIntroCover.checked = defaults.generateIntroCover !== false;
-          renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t("briefPlaceholder")], defaults.brief, fields.brief);
-          renderChoiceOptions(
-            fields.successCriteriaOptions,
-            defaults.successCriteriaOptions || [defaults.successCriteria || t("successCriteriaPlaceholder")],
-            defaults.successCriteria,
-            fields.successCriteria,
-          );
-          fields.brief.value = "";
-          fields.successCriteria.value = "";
+          renderChoiceOptions(fields.requirementOptions, defaults.requirementOptions || [defaults.requirements || t("requirementsPlaceholder")], defaults.recommendedRequirementOptions || [], fields.requirements);
+          fields.requirements.value = "";
           resetReadyState();
         }
 
@@ -1240,10 +1220,10 @@
           fields.mediaFolderPicker.value = "";
         }
 
-        function renderChoiceOptions(container, options, recommendedText = "", customField) {
+        function renderChoiceOptions(container, options, recommendedValues = "", customField) {
           container.innerHTML = "";
           const normalizedOptions = normalizeChoiceOptions(options);
-          const recommendedChoices = recommendedChoiceSet(normalizedOptions, recommendedText);
+          const recommendedChoices = recommendedChoiceSet(normalizedOptions, recommendedValues);
           for (const optionText of normalizedOptions) {
             const isRecommendedChoice = recommendedChoices.has(optionText);
             const button = document.createElement("button");
@@ -1277,18 +1257,12 @@
           container.appendChild(customButton);
         }
 
-        function recommendedChoiceSet(options, recommendedText) {
+        function recommendedChoiceSet(options, recommendedValues) {
           if (!options.length) return new Set();
-          const recommendedKeys = atomizeChoiceOption(recommendedText).map(choiceKey);
-          const selected = options.filter((optionText) => {
-            const optionKey = choiceKey(optionText);
-            return recommendedKeys.some((recommendedKey) =>
-              recommendedKey === optionKey ||
-              recommendedKey.includes(optionKey) ||
-              optionKey.includes(recommendedKey),
-            );
-          });
-          return new Set(selected.length ? selected : [options[0]]);
+          const recommendedKeys = new Set(normalizeChoiceOptions(
+            Array.isArray(recommendedValues) ? recommendedValues : [recommendedValues],
+          ).map(choiceKey));
+          return new Set(options.filter((optionText) => recommendedKeys.has(choiceKey(optionText))));
         }
 
         function choiceKey(value) {
@@ -1395,8 +1369,7 @@
               captionStylePreset: fields.captionStylePreset.value,
             },
             generateIntroCover: collectIntroCoverChoice(),
-            brief: collectChoiceText(fields.briefOptions, fields.brief),
-            successCriteria: collectChoiceText(fields.successCriteriaOptions, fields.successCriteria),
+            requirements: collectChoiceText(fields.requirementOptions, fields.requirements),
           };
         }
 
