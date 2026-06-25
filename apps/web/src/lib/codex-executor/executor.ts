@@ -16,6 +16,7 @@ import { z } from "zod";
 import { applyEditPlanToEditor } from "@/lib/agent-bridge/edit-plan/apply";
 import { validateEditPlan } from "@/lib/agent-bridge/edit-plan/validate";
 import { auditCaptions } from "@/lib/agent-bridge/caption-quality";
+import { KEYFRAME_INTERPOLATIONS } from "@/lib/timeline/keyframe-values";
 import {
 	EditPlanCaptionStyleSchema,
 	type EditPlanCaptionStyle,
@@ -612,7 +613,7 @@ const setClipPropertiesArgsSchema = z
 		},
 	);
 
-const keyframeInterpolationSchema = z.enum(["linear", "hold"]);
+const keyframeInterpolationSchema = z.enum(KEYFRAME_INTERPOLATIONS);
 const scalarKeyframeSchema = z
 	.object({
 		time: z.number().nonnegative(),

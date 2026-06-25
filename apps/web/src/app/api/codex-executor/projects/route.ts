@@ -13,6 +13,13 @@ const createProjectBodySchema = z
 	})
 	.strict();
 
+function editorBaseUrl() {
+	return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:4100").replace(
+		/\/$/,
+		"",
+	);
+}
+
 export async function POST(request: NextRequest) {
 	const tokenError = validateExecutorToken(request);
 	if (tokenError) return tokenError;
@@ -34,7 +41,7 @@ export async function POST(request: NextRequest) {
 		projectId: state.project.id,
 		name: state.project.name,
 		revision: state.revision,
-		editorUrl: `http://127.0.0.1:4100/en/editor/${state.project.id}#bridgeToken=${encodeURIComponent(state.browserBridgeToken)}`,
+		editorUrl: `${editorBaseUrl()}/en/editor/${state.project.id}#bridgeToken=${encodeURIComponent(state.browserBridgeToken)}`,
 	});
 }
 

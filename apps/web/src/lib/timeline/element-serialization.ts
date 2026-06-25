@@ -70,6 +70,13 @@ export function serializeElementVisualProperties(element: TimelineElement) {
 					? { color: element.color }
 					: {}),
 			},
+			...(element.keyframes
+				? {
+						motion: {
+							keyframes: element.keyframes,
+						},
+					}
+				: {}),
 		};
 	}
 

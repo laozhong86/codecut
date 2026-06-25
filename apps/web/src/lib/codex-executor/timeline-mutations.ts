@@ -2,6 +2,7 @@ import { calculateTotalDuration } from "@/lib/timeline";
 import { buildTextElement } from "@/lib/timeline/element-utils";
 import { buildEmptyTrack } from "@/lib/timeline/track-utils";
 import { canElementGoOnTrack } from "@/lib/timeline/track-utils";
+import { KEYFRAME_INTERPOLATIONS } from "@/lib/timeline/keyframe-values";
 import type {
 	CreateTimelineElement,
 	PositionKeyframe,
@@ -798,9 +799,9 @@ function normalizeKeyframes({
 			);
 		}
 		const interpolation = keyframe.interpolation ?? "linear";
-		if (interpolation !== "linear" && interpolation !== "hold") {
+		if (!KEYFRAME_INTERPOLATIONS.includes(interpolation)) {
 			throw new Error(
-				`keyframes[${index}].interpolation must be linear or hold.`,
+				`keyframes[${index}].interpolation must be one of ${KEYFRAME_INTERPOLATIONS.join(", ")}.`,
 			);
 		}
 		if (keyframeValueKey(property) === "position") {

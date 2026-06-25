@@ -14,7 +14,9 @@ import {
 import { ColorPicker } from "@/components/ui/color-picker";
 import { clamp } from "@/utils/math";
 import { useEditor } from "@/hooks/use-editor";
-import type { StickerElement } from "@/types/timeline";
+import type { StickerElement, TimelineElementKeyframes } from "@/types/timeline";
+import { KeyframeToggle } from "./keyframe-toggle";
+import { useVisualKeyframeEditor } from "./use-visual-keyframe-editor";
 
 export function StickerProperties({
 	_element: element,
@@ -25,6 +27,7 @@ export function StickerProperties({
 }) {
 	const { t } = useTranslation();
 	const editor = useEditor();
+	const keyframeEditor = useVisualKeyframeEditor({ element, trackId });
 	const [, forceRender] = useReducer((x: number) => x + 1, 0);
 
 	const isEditingScale = useRef(false);
@@ -45,23 +48,26 @@ export function StickerProperties({
 	const initialRotationRef = useRef<number | null>(null);
 	const initialOpacityRef = useRef<number | null>(null);
 	const initialColorRef = useRef<string | null>(null);
+	const initialKeyframesRef = useRef<TimelineElementKeyframes | undefined | null>(
+		null,
+	);
 
-	const scalePercent = Math.round(element.transform.scale * 100);
+	const scalePercent = Math.round(keyframeEditor.resolvedTransform.scale * 100);
 	const scaleDisplay = isEditingScale.current
 		? scaleDraft.current
 		: scalePercent.toString();
 	const posXDisplay = isEditingPosX.current
 		? posXDraft.current
-		: Math.round(element.transform.position.x).toString();
+		: Math.round(keyframeEditor.resolvedTransform.position.x).toString();
 	const posYDisplay = isEditingPosY.current
 		? posYDraft.current
-		: Math.round(element.transform.position.y).toString();
+		: Math.round(keyframeEditor.resolvedTransform.position.y).toString();
 	const rotationDisplay = isEditingRotation.current
 		? rotationDraft.current
-		: Math.round(element.transform.rotate).toString();
+		: Math.round(keyframeEditor.resolvedTransform.rotate).toString();
 	const opacityDisplay = isEditingOpacity.current
 		? opacityDraft.current
-		: Math.round(element.opacity * 100).toString();
+		: Math.round(keyframeEditor.resolvedOpacity * 100).toString();
 
 	const updateElement = ({
 		updates,
@@ -106,6 +112,28 @@ export function StickerProperties({
 		initial.current = null;
 	};
 
+	const beginKeyframeEdit = () => {
+		if (initialKeyframesRef.current === null) {
+			initialKeyframesRef.current = structuredClone(element.keyframes);
+		}
+	};
+
+	const commitKeyframeEdit = ({
+		apply,
+	}: {
+		apply: (baseKeyframes: TimelineElementKeyframes | undefined) => void;
+	}) => {
+		if (initialKeyframesRef.current === null) return false;
+		const baseKeyframes = initialKeyframesRef.current;
+		keyframeEditor.restoreKeyframes({
+			keyframes: baseKeyframes,
+			pushHistory: false,
+		});
+		apply(baseKeyframes);
+		initialKeyframesRef.current = null;
+		return true;
+	};
+
 	return (
 		<div className="flex h-full flex-col">
 			<PanelBaseView className="p-0">
@@ -116,15 +144,25 @@ export function StickerProperties({
 				>
 					<div className="space-y-6">
 						<PropertyItem>
-							<PropertyItemLabel>{t("Position X")}</PropertyItemLabel>
+							<PropertyItemLabel className="flex items-center gap-1.5">
+								<KeyframeToggle
+									label={t("Toggle position keyframe")}
+									pressed={keyframeEditor.isActive("transform.position")}
+									disabled={!keyframeEditor.canEditAtPlayhead}
+									onClick={() => keyframeEditor.toggle("transform.position")}
+								/>
+								{t("Position X")}
+							</PropertyItemLabel>
 							<PropertyItemValue>
 								<Input
+									aria-label={t("Position X")}
 									type="number"
 									value={posXDisplay}
+									disabled={keyframeEditor.isDisabled("transform.position")}
 									onFocus={() => {
 										isEditingPosX.current = true;
 										posXDraft.current = Math.round(
-											element.transform.position.x,
+											keyframeEditor.resolvedTransform.position.x,
 										).toString();
 										forceRender();
 									}}
@@ -136,6 +174,15 @@ export function StickerProperties({
 										}
 										const parsed = Number.parseFloat(event.target.value);
 										if (!Number.isNaN(parsed)) {
+											if (keyframeEditor.writesKeyframes("transform.position")) {
+												beginKeyframeEdit();
+												keyframeEditor.setPositionAxisValue({
+													axis: "x",
+													value: parsed,
+													pushHistory: false,
+												});
+												return;
+											}
 											updateTransform({
 												updates: {
 													position: {
@@ -148,6 +195,29 @@ export function StickerProperties({
 										}
 									}}
 									onBlur={() => {
+										if (
+											commitKeyframeEdit({
+												apply: (baseKeyframes) => {
+													const parsed = Number.parseFloat(posXDraft.current);
+													const value = Number.isNaN(parsed)
+														? keyframeEditor.resolvedTransform.position.x
+														: parsed;
+													keyframeEditor.setPositionAxisValue({
+														axis: "x",
+														value,
+														pushHistory: true,
+														baseKeyframes,
+														useBaseKeyframes: true,
+													});
+												},
+											})
+										) {
+											initialPosXRef.current = null;
+											isEditingPosX.current = false;
+											posXDraft.current = "";
+											forceRender();
+											return;
+										}
 										commitNumberField({
 											draft: posXDraft.current,
 											initial: initialPosXRef,
@@ -185,12 +255,14 @@ export function StickerProperties({
 							<PropertyItemLabel>{t("Position Y")}</PropertyItemLabel>
 							<PropertyItemValue>
 								<Input
+									aria-label={t("Position Y")}
 									type="number"
 									value={posYDisplay}
+									disabled={keyframeEditor.isDisabled("transform.position")}
 									onFocus={() => {
 										isEditingPosY.current = true;
 										posYDraft.current = Math.round(
-											element.transform.position.y,
+											keyframeEditor.resolvedTransform.position.y,
 										).toString();
 										forceRender();
 									}}
@@ -202,6 +274,15 @@ export function StickerProperties({
 										}
 										const parsed = Number.parseFloat(event.target.value);
 										if (!Number.isNaN(parsed)) {
+											if (keyframeEditor.writesKeyframes("transform.position")) {
+												beginKeyframeEdit();
+												keyframeEditor.setPositionAxisValue({
+													axis: "y",
+													value: parsed,
+													pushHistory: false,
+												});
+												return;
+											}
 											updateTransform({
 												updates: {
 													position: {
@@ -214,6 +295,29 @@ export function StickerProperties({
 										}
 									}}
 									onBlur={() => {
+										if (
+											commitKeyframeEdit({
+												apply: (baseKeyframes) => {
+													const parsed = Number.parseFloat(posYDraft.current);
+													const value = Number.isNaN(parsed)
+														? keyframeEditor.resolvedTransform.position.y
+														: parsed;
+													keyframeEditor.setPositionAxisValue({
+														axis: "y",
+														value,
+														pushHistory: true,
+														baseKeyframes,
+														useBaseKeyframes: true,
+													});
+												},
+											})
+										) {
+											initialPosYRef.current = null;
+											isEditingPosY.current = false;
+											posYDraft.current = "";
+											forceRender();
+											return;
+										}
 										commitNumberField({
 											draft: posYDraft.current,
 											initial: initialPosYRef,
@@ -248,7 +352,15 @@ export function StickerProperties({
 						</PropertyItem>
 
 						<PropertyItem direction="column">
-							<PropertyItemLabel>{t("Scale")}</PropertyItemLabel>
+							<PropertyItemLabel className="flex items-center gap-1.5">
+								<KeyframeToggle
+									label={t("Toggle scale keyframe")}
+									pressed={keyframeEditor.isActive("transform.scale")}
+									disabled={!keyframeEditor.canEditAtPlayhead}
+									onClick={() => keyframeEditor.toggle("transform.scale")}
+								/>
+								{t("Scale")}
+							</PropertyItemLabel>
 							<PropertyItemValue>
 								<div className="flex items-center gap-2">
 									<Slider
@@ -256,7 +368,17 @@ export function StickerProperties({
 										min={10}
 										max={500}
 										step={1}
+										disabled={keyframeEditor.isDisabled("transform.scale")}
 										onValueChange={([value]) => {
+											if (keyframeEditor.writesKeyframes("transform.scale")) {
+												beginKeyframeEdit();
+												keyframeEditor.setScalarValue({
+													property: "transform.scale",
+													value: value / 100,
+													pushHistory: false,
+												});
+												return;
+											}
 											if (initialScaleRef.current === null) {
 												initialScaleRef.current = element.transform.scale;
 											}
@@ -266,6 +388,21 @@ export function StickerProperties({
 											});
 										}}
 										onValueCommit={([value]) => {
+											if (
+												commitKeyframeEdit({
+													apply: (baseKeyframes) =>
+														keyframeEditor.setScalarValue({
+															property: "transform.scale",
+															value: value / 100,
+															pushHistory: true,
+															baseKeyframes,
+															useBaseKeyframes: true,
+														}),
+												})
+											) {
+												initialScaleRef.current = null;
+												return;
+											}
 											if (initialScaleRef.current !== null) {
 												updateTransform({
 													updates: { scale: initialScaleRef.current },
@@ -285,6 +422,8 @@ export function StickerProperties({
 										value={scaleDisplay}
 										min={10}
 										max={500}
+										aria-label={t("Scale percentage")}
+										disabled={keyframeEditor.isDisabled("transform.scale")}
 										onFocus={() => {
 											isEditingScale.current = true;
 											scaleDraft.current = scalePercent.toString();
@@ -303,6 +442,15 @@ export function StickerProperties({
 													min: 10,
 													max: 500,
 												});
+												if (keyframeEditor.writesKeyframes("transform.scale")) {
+													beginKeyframeEdit();
+													keyframeEditor.setScalarValue({
+														property: "transform.scale",
+														value: clamped / 100,
+														pushHistory: false,
+													});
+													return;
+												}
 												updateTransform({
 													updates: { scale: clamped / 100 },
 													pushHistory: false,
@@ -310,6 +458,32 @@ export function StickerProperties({
 											}
 										}}
 										onBlur={() => {
+											if (
+												commitKeyframeEdit({
+													apply: (baseKeyframes) => {
+														const parsed = Number.parseInt(
+															scaleDraft.current,
+															10,
+														);
+														const clamped = Number.isNaN(parsed)
+															? scalePercent
+															: clamp({ value: parsed, min: 10, max: 500 });
+														keyframeEditor.setScalarValue({
+															property: "transform.scale",
+															value: clamped / 100,
+															pushHistory: true,
+															baseKeyframes,
+															useBaseKeyframes: true,
+														});
+													},
+												})
+											) {
+												initialScaleRef.current = null;
+												isEditingScale.current = false;
+												scaleDraft.current = "";
+												forceRender();
+												return;
+											}
 											if (initialScaleRef.current !== null) {
 												const parsed = Number.parseInt(
 													scaleDraft.current,
@@ -339,15 +513,33 @@ export function StickerProperties({
 						</PropertyItem>
 
 						<PropertyItem direction="column">
-							<PropertyItemLabel>{t("Rotation")}</PropertyItemLabel>
+							<PropertyItemLabel className="flex items-center gap-1.5">
+								<KeyframeToggle
+									label={t("Toggle rotation keyframe")}
+									pressed={keyframeEditor.isActive("transform.rotate")}
+									disabled={!keyframeEditor.canEditAtPlayhead}
+									onClick={() => keyframeEditor.toggle("transform.rotate")}
+								/>
+								{t("Rotation")}
+							</PropertyItemLabel>
 							<PropertyItemValue>
 								<div className="flex items-center gap-2">
 									<Slider
-										value={[element.transform.rotate]}
+										value={[keyframeEditor.resolvedTransform.rotate]}
 										min={-180}
 										max={180}
 										step={1}
+										disabled={keyframeEditor.isDisabled("transform.rotate")}
 										onValueChange={([value]) => {
+											if (keyframeEditor.writesKeyframes("transform.rotate")) {
+												beginKeyframeEdit();
+												keyframeEditor.setScalarValue({
+													property: "transform.rotate",
+													value,
+													pushHistory: false,
+												});
+												return;
+											}
 											if (initialRotationRef.current === null) {
 												initialRotationRef.current = element.transform.rotate;
 											}
@@ -357,6 +549,21 @@ export function StickerProperties({
 											});
 										}}
 										onValueCommit={([value]) => {
+											if (
+												commitKeyframeEdit({
+													apply: (baseKeyframes) =>
+														keyframeEditor.setScalarValue({
+															property: "transform.rotate",
+															value,
+															pushHistory: true,
+															baseKeyframes,
+															useBaseKeyframes: true,
+														}),
+												})
+											) {
+												initialRotationRef.current = null;
+												return;
+											}
 											if (initialRotationRef.current !== null) {
 												updateTransform({
 													updates: {
@@ -378,10 +585,12 @@ export function StickerProperties({
 										value={rotationDisplay}
 										min={-360}
 										max={360}
+										aria-label={t("Rotation degrees")}
+										disabled={keyframeEditor.isDisabled("transform.rotate")}
 										onFocus={() => {
 											isEditingRotation.current = true;
 											rotationDraft.current = Math.round(
-												element.transform.rotate,
+												keyframeEditor.resolvedTransform.rotate,
 											).toString();
 											forceRender();
 										}}
@@ -393,6 +602,15 @@ export function StickerProperties({
 											}
 											const parsed = Number.parseFloat(event.target.value);
 											if (!Number.isNaN(parsed)) {
+												if (keyframeEditor.writesKeyframes("transform.rotate")) {
+													beginKeyframeEdit();
+													keyframeEditor.setScalarValue({
+														property: "transform.rotate",
+														value: parsed,
+														pushHistory: false,
+													});
+													return;
+												}
 												updateTransform({
 													updates: { rotate: parsed },
 													pushHistory: false,
@@ -400,6 +618,31 @@ export function StickerProperties({
 											}
 										}}
 										onBlur={() => {
+											if (
+												commitKeyframeEdit({
+													apply: (baseKeyframes) => {
+														const parsed = Number.parseFloat(
+															rotationDraft.current,
+														);
+														const value = Number.isNaN(parsed)
+															? keyframeEditor.resolvedTransform.rotate
+															: parsed;
+														keyframeEditor.setScalarValue({
+															property: "transform.rotate",
+															value,
+															pushHistory: true,
+															baseKeyframes,
+															useBaseKeyframes: true,
+														});
+													},
+												})
+											) {
+												initialRotationRef.current = null;
+												isEditingRotation.current = false;
+												rotationDraft.current = "";
+												forceRender();
+												return;
+											}
 											commitNumberField({
 												draft: rotationDraft.current,
 												initial: initialRotationRef,
@@ -431,15 +674,33 @@ export function StickerProperties({
 				<PropertyGroup title={t("Appearance")} collapsible={false}>
 					<div className="space-y-6">
 						<PropertyItem direction="column">
-							<PropertyItemLabel>{t("Opacity")}</PropertyItemLabel>
+							<PropertyItemLabel className="flex items-center gap-1.5">
+								<KeyframeToggle
+									label={t("Toggle opacity keyframe")}
+									pressed={keyframeEditor.isActive("opacity")}
+									disabled={!keyframeEditor.canEditAtPlayhead}
+									onClick={() => keyframeEditor.toggle("opacity")}
+								/>
+								{t("Opacity")}
+							</PropertyItemLabel>
 							<PropertyItemValue>
 								<div className="flex items-center gap-2">
 									<Slider
-										value={[element.opacity * 100]}
+										value={[keyframeEditor.resolvedOpacity * 100]}
 										min={0}
 										max={100}
 										step={1}
+										disabled={keyframeEditor.isDisabled("opacity")}
 										onValueChange={([value]) => {
+											if (keyframeEditor.writesKeyframes("opacity")) {
+												beginKeyframeEdit();
+												keyframeEditor.setScalarValue({
+													property: "opacity",
+													value: value / 100,
+													pushHistory: false,
+												});
+												return;
+											}
 											if (initialOpacityRef.current === null) {
 												initialOpacityRef.current = element.opacity;
 											}
@@ -449,6 +710,21 @@ export function StickerProperties({
 											});
 										}}
 										onValueCommit={([value]) => {
+											if (
+												commitKeyframeEdit({
+													apply: (baseKeyframes) =>
+														keyframeEditor.setScalarValue({
+															property: "opacity",
+															value: value / 100,
+															pushHistory: true,
+															baseKeyframes,
+															useBaseKeyframes: true,
+														}),
+												})
+											) {
+												initialOpacityRef.current = null;
+												return;
+											}
 											if (initialOpacityRef.current !== null) {
 												updateElement({
 													updates: {
@@ -470,10 +746,12 @@ export function StickerProperties({
 										value={opacityDisplay}
 										min={0}
 										max={100}
+										aria-label={t("Opacity percentage")}
+										disabled={keyframeEditor.isDisabled("opacity")}
 										onFocus={() => {
 											isEditingOpacity.current = true;
 											opacityDraft.current = Math.round(
-												element.opacity * 100,
+												keyframeEditor.resolvedOpacity * 100,
 											).toString();
 											forceRender();
 										}}
@@ -493,6 +771,15 @@ export function StickerProperties({
 													min: 0,
 													max: 100,
 												});
+												if (keyframeEditor.writesKeyframes("opacity")) {
+													beginKeyframeEdit();
+													keyframeEditor.setScalarValue({
+														property: "opacity",
+														value: opacityPercent / 100,
+														pushHistory: false,
+													});
+													return;
+												}
 												updateElement({
 													updates: {
 														opacity: opacityPercent / 100,
@@ -502,6 +789,36 @@ export function StickerProperties({
 											}
 										}}
 										onBlur={() => {
+											if (
+												commitKeyframeEdit({
+													apply: (baseKeyframes) => {
+														const parsed = Number.parseInt(
+															opacityDraft.current,
+															10,
+														);
+														const opacityPercent = Number.isNaN(parsed)
+															? Math.round(keyframeEditor.resolvedOpacity * 100)
+															: clamp({
+																	value: parsed,
+																	min: 0,
+																	max: 100,
+																});
+														keyframeEditor.setScalarValue({
+															property: "opacity",
+															value: opacityPercent / 100,
+															pushHistory: true,
+															baseKeyframes,
+															useBaseKeyframes: true,
+														});
+													},
+												})
+											) {
+												initialOpacityRef.current = null;
+												isEditingOpacity.current = false;
+												opacityDraft.current = "";
+												forceRender();
+												return;
+											}
 											if (initialOpacityRef.current !== null) {
 												const parsed = Number.parseInt(
 													opacityDraft.current,
