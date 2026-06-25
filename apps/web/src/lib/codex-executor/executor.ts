@@ -19,6 +19,7 @@ import { auditCaptions } from "@/lib/agent-bridge/caption-quality";
 import { KEYFRAME_INTERPOLATIONS } from "@/lib/timeline/keyframe-values";
 import {
 	EditPlanCaptionStyleSchema,
+	EditPlanTransitionTypeSchema,
 	type EditPlanCaptionStyle,
 } from "@/lib/agent-bridge/edit-plan/schema";
 import { buildPostCutCaptionEntries } from "@/lib/agent-bridge/edit-plan/caption-chunking";
@@ -89,6 +90,7 @@ import {
 	addTransitionToTrack,
 	areElementsAdjacent,
 	buildTrackTransition,
+	removeTransitionFromTrack,
 } from "@/lib/timeline/transition-utils";
 import { buildEmptyTrack } from "@/lib/timeline/track-utils";
 import { calculateTotalDuration } from "@/lib/timeline";
@@ -97,6 +99,7 @@ import type { DerivedAsset, ProjectCover } from "@/types/project";
 import type {
 	AudioElement,
 	CreateTimelineElement,
+	ImageElement,
 	PositionKeyframe,
 	ScalarKeyframe,
 	TimelineElement,
@@ -131,6 +134,9 @@ type ExecutorToolName =
 	| "add_captions"
 	| "list_models"
 	| "set_keyframes"
+	| "add_transitions"
+	| "update_transition"
+	| "remove_transition"
 	| "search_media"
 	| "validate_edit_plan"
 	| "preview_edit_plan"
@@ -171,7 +177,10 @@ interface ExecutorSpokenScript {
 	text: string;
 	captions: string[];
 	protectedTerms?: string[];
-	provider?: "imported-tts" | "runninghub-voice-design" | "runninghub-voice-clone";
+	provider?:
+		| "imported-tts"
+		| "runninghub-voice-design"
+		| "runninghub-voice-clone";
 	providerTaskId?: string;
 }
 
@@ -240,6 +249,9 @@ const commandSchema = z
 			"add_captions",
 			"list_models",
 			"set_keyframes",
+			"add_transitions",
+			"update_transition",
+			"remove_transition",
 			"search_media",
 			"validate_edit_plan",
 			"preview_edit_plan",
@@ -290,7 +302,11 @@ const importMediaArgsSchema = z
 				captions: z.array(z.string().min(1)).min(1),
 				protectedTerms: z.array(z.string().min(1)).optional(),
 				provider: z
-					.enum(["imported-tts", "runninghub-voice-design", "runninghub-voice-clone"])
+					.enum([
+						"imported-tts",
+						"runninghub-voice-design",
+						"runninghub-voice-clone",
+					])
 					.optional(),
 				providerTaskId: z.string().min(1).optional(),
 			})
@@ -647,6 +663,42 @@ const setKeyframesArgsSchema = z
 	})
 	.strict();
 
+const addTransitionEntrySchema = z
+	.object({
+		trackId: z.string().min(1),
+		fromElementId: z.string().min(1),
+		toElementId: z.string().min(1),
+		type: EditPlanTransitionTypeSchema,
+		duration: z.number().positive(),
+	})
+	.strict();
+
+const addTransitionsArgsSchema = z
+	.object({
+		entries: z.array(addTransitionEntrySchema).min(1),
+	})
+	.strict();
+
+const updateTransitionArgsSchema = z
+	.object({
+		trackId: z.string().min(1),
+		transitionId: z.string().min(1),
+		type: EditPlanTransitionTypeSchema.optional(),
+		duration: z.number().positive().optional(),
+	})
+	.strict()
+	.refine(
+		(value) => value.type !== undefined || value.duration !== undefined,
+		"type or duration is required",
+	);
+
+const removeTransitionArgsSchema = z
+	.object({
+		trackId: z.string().min(1),
+		transitionId: z.string().min(1),
+	})
+	.strict();
+
 const searchMediaArgsSchema = z
 	.object({
 		query: z.string().trim().min(1),
@@ -756,6 +808,7 @@ const verifyTimelineArgsSchema = z
 				clipCount: z.number().int().nonnegative().optional(),
 				captionCount: z.number().int().nonnegative().optional(),
 				audioCount: z.number().int().nonnegative().optional(),
+				transitionCount: z.number().int().nonnegative().optional(),
 				mediaIds: z.array(z.string().min(1)).optional(),
 			})
 			.strict(),
@@ -829,11 +882,7 @@ function requireSafeProjectId({ projectId }: { projectId: string }): string {
 }
 
 function projectDirectory({ projectId }: { projectId: string }): string {
-	return join(
-		executorRoot(),
-		"projects",
-		requireSafeProjectId({ projectId }),
-	);
+	return join(executorRoot(), "projects", requireSafeProjectId({ projectId }));
 }
 
 function projectsDirectory(): string {
@@ -874,7 +923,11 @@ function mediaDirectory({ projectId }: { projectId: string }): string {
 	return join(projectDirectory({ projectId }), "media");
 }
 
-function transcriptCacheDirectory({ projectId }: { projectId: string }): string {
+function transcriptCacheDirectory({
+	projectId,
+}: {
+	projectId: string;
+}): string {
 	return join(projectDirectory({ projectId }), "transcripts");
 }
 
@@ -1318,6 +1371,105 @@ function addTransition({
 		candidate.id === trackId ? updatedTrack : candidate,
 	);
 	return transition;
+}
+
+function countNativeTransitions({
+	state,
+}: {
+	state: ExecutorProjectState;
+}): number {
+	return state.tracks.reduce((total, track) => {
+		if (track.type !== "video") return total;
+		return total + (track.transitions?.length ?? 0);
+	}, 0);
+}
+
+function findVideoTrackForTransition({
+	state,
+	trackId,
+}: {
+	state: ExecutorProjectState;
+	trackId: string;
+}): { success: true; track: VideoTrack } | { success: false; message: string } {
+	const track = state.tracks.find((candidate) => candidate.id === trackId);
+	if (!track) {
+		return { success: false, message: `Track "${trackId}" was not found.` };
+	}
+	if (track.type !== "video") {
+		return {
+			success: false,
+			message: `Track "${trackId}" is not a video track.`,
+		};
+	}
+	return { success: true, track: track as VideoTrack };
+}
+
+function findTransitionOnTrack({
+	track,
+	transitionId,
+}: {
+	track: VideoTrack;
+	transitionId: string;
+}):
+	| { success: true; transition: TrackTransition }
+	| { success: false; message: string } {
+	const transition = (track.transitions ?? []).find(
+		(candidate) => candidate.id === transitionId,
+	);
+	if (!transition) {
+		return {
+			success: false,
+			message: `Transition "${transitionId}" was not found.`,
+		};
+	}
+	return { success: true, transition };
+}
+
+function validateNativeTransitionPair({
+	track,
+	fromElementId,
+	toElementId,
+	duration,
+}: {
+	track: VideoTrack;
+	fromElementId: string;
+	toElementId: string;
+	duration: number;
+}):
+	| {
+			success: true;
+			fromElement: VideoElement | ImageElement;
+			toElement: VideoElement | ImageElement;
+	  }
+	| { success: false; message: string } {
+	const fromElement = track.elements.find(
+		(element) => element.id === fromElementId,
+	);
+	if (!fromElement) {
+		return {
+			success: false,
+			message: `Transition element "${fromElementId}" was not found.`,
+		};
+	}
+	const toElement = track.elements.find(
+		(element) => element.id === toElementId,
+	);
+	if (!toElement) {
+		return {
+			success: false,
+			message: `Transition element "${toElementId}" was not found.`,
+		};
+	}
+	if (!areElementsAdjacent({ elementA: fromElement, elementB: toElement })) {
+		return { success: false, message: "Transition elements must be adjacent." };
+	}
+	if (duration > Math.min(fromElement.duration, toElement.duration)) {
+		return {
+			success: false,
+			message: "Transition duration exceeds neighboring element duration.",
+		};
+	}
+	return { success: true, fromElement, toElement };
 }
 
 async function saveProjectState({ state }: { state: ExecutorProjectState }) {
@@ -1893,8 +2045,7 @@ async function runPreviewEditPlan({
 	}
 
 	const plan = validation.normalizedPlan;
-	const audioCount =
-		(plan.audio?.bgm ? 1 : 0) + (plan.audio?.sfx?.length ?? 0);
+	const audioCount = (plan.audio?.bgm ? 1 : 0) + (plan.audio?.sfx?.length ?? 0);
 	const totalClipDuration = plan.clips.reduce(
 		(total, clip) => total + clip.sourceEnd - clip.sourceStart,
 		0,
@@ -1972,7 +2123,9 @@ function assertExportFormatProbe({
 }) {
 	if (expected === "mp4" && actual.includes("mp4")) return;
 	if (expected === "webm" && actual.includes("webm")) return;
-	throw new Error(`Export probe expected ${expected}, got ${actual || "unknown"}.`);
+	throw new Error(
+		`Export probe expected ${expected}, got ${actual || "unknown"}.`,
+	);
 }
 
 function readPositiveNumber({
@@ -2064,11 +2217,10 @@ async function runExportProject({
 	if (!isAbsolute(parsed.outputFile)) {
 		throw new Error("--output-file must be an absolute path");
 	}
-	if (
-		!parsed.overwrite &&
-		(await localFileExists(parsed.outputFile))
-	) {
-		throw new Error("Output file already exists. Set overwrite=true to replace it.");
+	if (!parsed.overwrite && (await localFileExists(parsed.outputFile))) {
+		throw new Error(
+			"Output file already exists. Set overwrite=true to replace it.",
+		);
 	}
 
 	const totalDuration = calculateTotalDuration({ tracks: state.tracks });
@@ -2109,13 +2261,21 @@ async function runExportProject({
 	};
 }
 
-function timelineVerificationActuals({ state }: { state: ExecutorProjectState }) {
+function timelineVerificationActuals({
+	state,
+}: {
+	state: ExecutorProjectState;
+}) {
 	const mediaIds = new Set<string>();
 	let clipCount = 0;
 	let captionCount = 0;
 	let audioCount = 0;
+	let transitionCount = 0;
 
 	for (const track of state.tracks) {
+		if (track.type === "video") {
+			transitionCount += track.transitions?.length ?? 0;
+		}
 		for (const element of track.elements) {
 			if ("mediaId" in element && typeof element.mediaId === "string") {
 				mediaIds.add(element.mediaId);
@@ -2138,6 +2298,7 @@ function timelineVerificationActuals({ state }: { state: ExecutorProjectState })
 		clipCount,
 		captionCount,
 		audioCount,
+		transitionCount,
 		mediaIds: [...mediaIds].sort(),
 	};
 }
@@ -2169,6 +2330,7 @@ function runVerifyTimeline({
 		"clipCount",
 		"captionCount",
 		"audioCount",
+		"transitionCount",
 	] as const) {
 		if (expected[field] !== undefined && actual[field] !== expected[field]) {
 			failures.push({
@@ -2439,7 +2601,9 @@ function runningHubAudioExtension({ mimeType }: { mimeType: string }): string {
 	if (mimeType === "audio/aac") return "aac";
 	if (mimeType === "audio/ogg") return "ogg";
 	if (mimeType === "audio/flac" || mimeType === "audio/x-flac") return "flac";
-	throw new Error(`RunningHub returned unsupported audio MIME type: ${mimeType}`);
+	throw new Error(
+		`RunningHub returned unsupported audio MIME type: ${mimeType}`,
+	);
 }
 
 function runningHubVoiceFileName({
@@ -2455,21 +2619,29 @@ function runningHubVoiceFileName({
 	return `${providerId}-${safeTaskId}.${runningHubAudioExtension({ mimeType })}`;
 }
 
-function runningHubVoiceSourceFileName({ mimeType }: { mimeType: string }): string {
-	if (mimeType === "audio/wav" || mimeType === "audio/x-wav") return "source.wav";
-	if (mimeType === "audio/mpeg" || mimeType === "audio/mp3") return "source.mp3";
-	if (mimeType === "audio/mp4" || mimeType === "audio/x-m4a") return "source.m4a";
+function runningHubVoiceSourceFileName({
+	mimeType,
+}: {
+	mimeType: string;
+}): string {
+	if (mimeType === "audio/wav" || mimeType === "audio/x-wav")
+		return "source.wav";
+	if (mimeType === "audio/mpeg" || mimeType === "audio/mp3")
+		return "source.mp3";
+	if (mimeType === "audio/mp4" || mimeType === "audio/x-m4a")
+		return "source.m4a";
 	if (mimeType === "audio/aac") return "source.aac";
 	if (mimeType === "audio/ogg") return "source.ogg";
-	if (mimeType === "audio/flac" || mimeType === "audio/x-flac") return "source.flac";
-	throw new Error(`RunningHub returned unsupported audio MIME type: ${mimeType}`);
+	if (mimeType === "audio/flac" || mimeType === "audio/x-flac")
+		return "source.flac";
+	throw new Error(
+		`RunningHub returned unsupported audio MIME type: ${mimeType}`,
+	);
 }
 
-function parseTimelineReadyWavAudio({
-	audioBytes,
-}: {
-	audioBytes: Buffer;
-}): { duration: number } {
+function parseTimelineReadyWavAudio({ audioBytes }: { audioBytes: Buffer }): {
+	duration: number;
+} {
 	if (
 		audioBytes.byteLength < 44 ||
 		audioBytes.subarray(0, 4).toString("ascii") !== "RIFF" ||
@@ -2512,7 +2684,9 @@ function parseTimelineReadyWavAudio({
 				blockAlign <= 0 ||
 				bitsPerSample <= 0
 			) {
-				throw new Error("RunningHub voice WAV result has invalid audio metadata");
+				throw new Error(
+					"RunningHub voice WAV result has invalid audio metadata",
+				);
 			}
 			byteRate = parsedByteRate;
 		}
@@ -2613,10 +2787,7 @@ async function normalizeRunningHubVoiceAudio({
 			Output,
 			WavOutputFormat,
 		},
-	] = await Promise.all([
-		import("@napi-rs/webcodecs"),
-		import("mediabunny"),
-	]);
+	] = await Promise.all([import("@napi-rs/webcodecs"), import("mediabunny")]);
 	const globals = globalThis as Record<string, unknown>;
 	globals.AudioData ??= webcodecs.AudioData;
 	globals.AudioDecoder ??= webcodecs.AudioDecoder;
@@ -2687,7 +2858,9 @@ async function normalizeRunningHubVoiceAudio({
 			throw new Error("RunningHub voice WAV normalization produced no audio");
 		}
 		if (!Number.isFinite(duration) || duration <= 0) {
-			throw new Error("RunningHub voice WAV normalization produced no duration");
+			throw new Error(
+				"RunningHub voice WAV normalization produced no duration",
+			);
 		}
 		return {
 			audioBytes: Buffer.from(target.buffer),
@@ -2822,7 +2995,9 @@ async function runGenerateDigitalHuman({
 	}
 	const mimeType = generated.mimeType || "video/mp4";
 	if (!mimeType.startsWith("video/")) {
-		throw new Error(`RunningHub returned unsupported video MIME type: ${mimeType}`);
+		throw new Error(
+			`RunningHub returned unsupported video MIME type: ${mimeType}`,
+		);
 	}
 
 	const mediaId = generateUUID();
@@ -3310,7 +3485,9 @@ function roundTimelineSeconds(value: number): number {
 	return Math.round(value * 1000) / 1000;
 }
 
-function isVisibleVideoElement(element: TimelineElement): element is VideoElement {
+function isVisibleVideoElement(
+	element: TimelineElement,
+): element is VideoElement {
 	return (
 		element.type === "video" &&
 		!(
@@ -3330,7 +3507,9 @@ function isAudibleUploadAudioElement(
 	);
 }
 
-type CaptionSourceElement = VideoElement | (AudioElement & { sourceType: "upload" });
+type CaptionSourceElement =
+	| VideoElement
+	| (AudioElement & { sourceType: "upload" });
 
 function isTranscriptElement(element: TimelineElement) {
 	if (element.type === "video") {
@@ -3464,8 +3643,8 @@ async function runGetTranscript({
 		(total, clip) =>
 			total +
 			(parsed.granularity === "word"
-				? ((clip as { words: unknown[] }).words.length)
-				: ((clip as { segments: unknown[] }).segments.length)),
+				? (clip as { words: unknown[] }).words.length
+				: (clip as { segments: unknown[] }).segments.length),
 		0,
 	);
 	const rowFormat = [
@@ -3531,7 +3710,9 @@ function normalizeSpokenScriptCaptionTexts({
 }: {
 	spokenScript: ExecutorSpokenScript;
 	mediaName: string;
-}): { success: true; captions: string[] } | { success: false; message: string } {
+}):
+	| { success: true; captions: string[] }
+	| { success: false; message: string } {
 	const captions = spokenScript.captions
 		.map((caption) => caption.trim())
 		.filter(Boolean);
@@ -3599,7 +3780,11 @@ function groupWeightedItemsByTiming({
 	let consumedItemWeight = 0;
 	let cumulativeTimingWeight = 0;
 
-	for (let segmentIndex = 0; segmentIndex < timingSegments.length; segmentIndex += 1) {
+	for (
+		let segmentIndex = 0;
+		segmentIndex < timingSegments.length;
+		segmentIndex += 1
+	) {
 		const remainingSegments = timingSegments.length - segmentIndex;
 		const remainingItems = items.length - itemIndex;
 		if (remainingSegments === 1) {
@@ -3615,7 +3800,8 @@ function groupWeightedItemsByTiming({
 		}
 
 		cumulativeTimingWeight += weights[segmentIndex];
-		const targetWeight = (totalItemWeight * cumulativeTimingWeight) / totalWeight;
+		const targetWeight =
+			(totalItemWeight * cumulativeTimingWeight) / totalWeight;
 		const chunkItems: string[] = [];
 		let chunkWeight = 0;
 		while (itemIndex < items.length - (remainingSegments - 1)) {
@@ -3721,16 +3907,18 @@ async function buildPostCutCaptionsData({
 				!("muted" in track && track.muted) &&
 				!("hidden" in track && track.hidden),
 		)
-		.flatMap((track): Array<{ element: CaptionSourceElement; trackId: string }> => {
-			if (track.type === "video") {
+		.flatMap(
+			(track): Array<{ element: CaptionSourceElement; trackId: string }> => {
+				if (track.type === "video") {
+					return track.elements
+						.filter(isVisibleVideoElement)
+						.map((element) => ({ element, trackId: track.id }));
+				}
 				return track.elements
-					.filter(isVisibleVideoElement)
+					.filter(isAudibleUploadAudioElement)
 					.map((element) => ({ element, trackId: track.id }));
-			}
-			return track.elements
-				.filter(isAudibleUploadAudioElement)
-				.map((element) => ({ element, trackId: track.id }));
-		})
+			},
+		)
 		.sort((left, right) => left.element.startTime - right.element.startTime);
 
 	if (clips.length === 0) {
@@ -3744,7 +3932,9 @@ async function buildPostCutCaptionsData({
 		const mediaAsset = state.mediaAssets.find(
 			(asset) => asset.id === element.mediaId,
 		);
-		return element.type === "audio" && mediaAsset?.spokenScript?.source === "tts";
+		return (
+			element.type === "audio" && mediaAsset?.spokenScript?.source === "tts"
+		);
 	});
 	const source = hasScriptedTtsAudio
 		? "scripted_tts_audio"
@@ -3911,7 +4101,9 @@ async function buildPostCutCaptionsData({
 	};
 }
 
-function aspectRatioForState(state: ExecutorProjectState): "9:16" | "16:9" | "1:1" {
+function aspectRatioForState(
+	state: ExecutorProjectState,
+): "9:16" | "16:9" | "1:1" {
 	const { width, height } = state.project.settings.canvasSize;
 	if (width === height) return "1:1";
 	return width < height ? "9:16" : "16:9";
@@ -4223,6 +4415,160 @@ async function runSetKeyframes({
 	};
 }
 
+async function runAddTransitions({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = addTransitionsArgsSchema.parse(args);
+	const transitions: TrackTransition[] = [];
+	for (const entry of parsed.entries) {
+		const trackResult = findVideoTrackForTransition({
+			state,
+			trackId: entry.trackId,
+		});
+		if (!trackResult.success) return trackResult;
+		const pairResult = validateNativeTransitionPair({
+			track: trackResult.track,
+			fromElementId: entry.fromElementId,
+			toElementId: entry.toElementId,
+			duration: entry.duration,
+		});
+		if (!pairResult.success) return pairResult;
+	}
+
+	for (const entry of parsed.entries) {
+		const transition = buildTrackTransition({
+			type: entry.type as TransitionType,
+			duration: entry.duration,
+			fromElementId: entry.fromElementId,
+			toElementId: entry.toElementId,
+		});
+		state.tracks = state.tracks.map((track) =>
+			track.id === entry.trackId && track.type === "video"
+				? addTransitionToTrack({ track: track as VideoTrack, transition })
+				: track,
+		);
+		transitions.push(transition);
+	}
+
+	await saveProjectState({ state });
+	const firstTrackId = parsed.entries[0].trackId;
+	return {
+		success: true,
+		message: `Added ${transitions.length} transition(s).`,
+		data: {
+			revision: state.revision,
+			trackId: firstTrackId,
+			transitionCount: countNativeTransitions({ state }),
+			transitions,
+		},
+	};
+}
+
+async function runUpdateTransition({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = updateTransitionArgsSchema.parse(args);
+	const trackResult = findVideoTrackForTransition({
+		state,
+		trackId: parsed.trackId,
+	});
+	if (!trackResult.success) return trackResult;
+	const transitionResult = findTransitionOnTrack({
+		track: trackResult.track,
+		transitionId: parsed.transitionId,
+	});
+	if (!transitionResult.success) return transitionResult;
+	const nextDuration = parsed.duration ?? transitionResult.transition.duration;
+	const pairResult = validateNativeTransitionPair({
+		track: trackResult.track,
+		fromElementId: transitionResult.transition.fromElementId,
+		toElementId: transitionResult.transition.toElementId,
+		duration: nextDuration,
+	});
+	if (!pairResult.success) return pairResult;
+
+	const updatedTransition: TrackTransition = {
+		...transitionResult.transition,
+		...(parsed.type === undefined
+			? {}
+			: { type: parsed.type as TransitionType }),
+		...(parsed.duration === undefined ? {} : { duration: parsed.duration }),
+	};
+	state.tracks = state.tracks.map((track) =>
+		track.id === parsed.trackId && track.type === "video"
+			? {
+					...(track as VideoTrack),
+					transitions: ((track as VideoTrack).transitions ?? []).map(
+						(transition) =>
+							transition.id === parsed.transitionId
+								? updatedTransition
+								: transition,
+					),
+				}
+			: track,
+	);
+
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Updated transition "${parsed.transitionId}".`,
+		data: {
+			revision: state.revision,
+			trackId: parsed.trackId,
+			transitionCount: countNativeTransitions({ state }),
+			transition: updatedTransition,
+		},
+	};
+}
+
+async function runRemoveTransition({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = removeTransitionArgsSchema.parse(args);
+	const trackResult = findVideoTrackForTransition({
+		state,
+		trackId: parsed.trackId,
+	});
+	if (!trackResult.success) return trackResult;
+	const transitionResult = findTransitionOnTrack({
+		track: trackResult.track,
+		transitionId: parsed.transitionId,
+	});
+	if (!transitionResult.success) return transitionResult;
+	state.tracks = state.tracks.map((track) =>
+		track.id === parsed.trackId && track.type === "video"
+			? removeTransitionFromTrack({
+					track: track as VideoTrack,
+					transitionId: parsed.transitionId,
+				})
+			: track,
+	);
+
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Removed transition "${parsed.transitionId}".`,
+		data: {
+			revision: state.revision,
+			trackId: parsed.trackId,
+			transitionCount: countNativeTransitions({ state }),
+			removedTransition: transitionResult.transition,
+		},
+	};
+}
+
 async function runRippleDeleteRanges({
 	state,
 	args,
@@ -4319,7 +4665,8 @@ function mediaMatchesQuery({
 	asset: ExecutorMediaAsset;
 	query: string;
 }) {
-	const haystack = `${asset.name} ${asset.type} ${asset.mimeType}`.toLowerCase();
+	const haystack =
+		`${asset.name} ${asset.type} ${asset.mimeType}`.toLowerCase();
 	return haystack.includes(query.toLowerCase());
 }
 
@@ -4355,9 +4702,7 @@ async function runSearchMedia({
 		scope === "spoken"
 			? []
 			: candidates
-					.filter((asset) =>
-						mediaMatchesQuery({ asset, query: parsed.query }),
-					)
+					.filter((asset) => mediaMatchesQuery({ asset, query: parsed.query }))
 					.slice(0, limit)
 					.map((asset) => ({
 						mediaId: asset.id,
@@ -4559,6 +4904,15 @@ async function executeCommand({
 	}
 	if (command.tool === "set_keyframes") {
 		return runSetKeyframes({ state, args: command.args });
+	}
+	if (command.tool === "add_transitions") {
+		return runAddTransitions({ state, args: command.args });
+	}
+	if (command.tool === "update_transition") {
+		return runUpdateTransition({ state, args: command.args });
+	}
+	if (command.tool === "remove_transition") {
+		return runRemoveTransition({ state, args: command.args });
 	}
 	if (command.tool === "ripple_delete_ranges") {
 		return runRippleDeleteRanges({ state, args: command.args });

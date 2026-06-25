@@ -1129,6 +1129,17 @@ Do not start the render if either freshness gate fails.
 - If BGM/SFX is requested, Codex must import or select valid audio assets before writing the EditPlan. Missing or non-audio assets must stop the workflow.
 - If TTS, generic image B-roll, image cards outside 9:16, BGM, or SFX is requested for narrated remix, stop and report that the current `NarratedRemixPlan v1` path only supports existing narration audio, video B-roll, 9:16 editable image cards, and captions.
 - If transitions are requested, Codex must generate adjacent clip timings before applying the EditPlan. Do not rely on Codecut to reposition clips.
+- A transition request is complete only after readback shows native
+  `TrackTransition` state: `get_timeline_state_v2.summary.transitionCount`
+  must match the expected count or be greater than zero for open-ended
+  transition requests, and the target video track's `transitions[]` must expose
+  the expected `type`, `duration`, `fromElementId`, and `toElementId`.
+- When using `verify_timeline` for a transition request, include
+  `transitionCount` in the verification JSON. Do not accept duration, caption,
+  audio, or media-only verification as transition completion.
+- `set_keyframes` can implement visual motion such as fade, push, pull, zoom,
+  or opacity animation, but it is not a native transition and must not be
+  reported as a completed transition.
 - If a masked effect is requested, Codex must verify `get_timeline_state` exposes a matching `derivedAssets[]` person-mask entry before calling the effect action.
 - If `create_text_background_effect` or `create_human_pip_effect` fails, fix the media or derived-asset input. Do not simulate the effect with unrelated low-level timeline tools.
 - If export fails with the Node-compatible renderer runtime gap, report that blocker. Do not use browser download as a fallback.

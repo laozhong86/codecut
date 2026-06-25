@@ -133,10 +133,20 @@ export.
   doctor checks, imports, apply, export, and readback.
 - Do not use low-level MCP mutation tools as the default editing path. Tools
   such as `insert_clips`, `add_texts`, `add_captions`, `move_clips`,
-  `remove_clips`, `split_clip`, `set_clip_properties`, `set_keyframes`, and
+  `remove_clips`, `split_clip`, `set_clip_properties`, `set_keyframes`,
+  `add_transitions`, `update_transition`, `remove_transition`, and
   `ripple_delete_ranges` are advanced repair tools after timeline readback or
   explicit user intent. Normal generated edits go through strict EditPlan or
   NarratedRemixPlan paths.
+- When the user asks for transitions, transition, or picture-to-picture
+  transitions, use native timeline transitions (`TrackTransition`,
+  `tracks[].transitions`, `summary.transitionCount`) or report a capability
+  blocker. `set_keyframes` is only for motion effects such as push, pull, fade,
+  zoom, or opacity animation and must not be reported as a transition.
+- Before completing a transition task, read back
+  `get_timeline_state_v2.summary.transitionCount` and the target video
+  track's `transitions[]`. For `verify_timeline`, include `transitionCount` in
+  the verification JSON when a transition was requested.
 - Do not use FFmpeg, shell scripts, or overlay rendering as the Codecut editing
   path for cuts or subtitle burn-in.
 - Do not claim MP4 export unless `export_project` or the equivalent verified

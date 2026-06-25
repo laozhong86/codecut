@@ -3,7 +3,14 @@
 import { access, readFile, stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
-import { basename, extname, isAbsolute, join, relative, resolve } from "node:path";
+import {
+	basename,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -39,6 +46,9 @@ const confirmationGatedCommands = new Set([
 	"split-clip",
 	"set-clip-properties",
 	"set-keyframes",
+	"add-transitions",
+	"update-transition",
+	"remove-transition",
 	"ripple-delete-ranges",
 ]);
 const confirmationGatedSendTools = new Set([
@@ -52,6 +62,9 @@ const confirmationGatedSendTools = new Set([
 	"split_clip",
 	"set_clip_properties",
 	"set_keyframes",
+	"add_transitions",
+	"update_transition",
+	"remove_transition",
 	"ripple_delete_ranges",
 	"create_text_background_effect",
 	"create_human_pip_effect",
@@ -84,6 +97,9 @@ function usage() {
 		"  node scripts/codex-bridge.mjs split-clip --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs set-clip-properties --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs set-keyframes --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs add-transitions --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs update-transition --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs remove-transition --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs ripple-delete-ranges --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs list-models --project-id <id> [--type <transcription|digital_human>]",
 		"  node scripts/codex-bridge.mjs search-media --project-id <id> --args-json '<json>'",
@@ -233,10 +249,7 @@ async function readPluginManifest(path) {
 
 async function checkSourcePlugin({ cwd }) {
 	const manifestPath = join(cwd, ".codex-plugin/plugin.json");
-	const skillPath = join(
-		cwd,
-		"skills/codecut/SKILL.md",
-	);
+	const skillPath = join(cwd, "skills/codecut/SKILL.md");
 
 	let manifest;
 	try {
@@ -316,10 +329,7 @@ async function checkCachePlugin({ homeDir, sourceManifest }) {
 		sourceManifest.version,
 	);
 	const manifestPath = join(cacheRoot, ".codex-plugin/plugin.json");
-	const skillPath = join(
-		cacheRoot,
-		"skills/codecut/SKILL.md",
-	);
+	const skillPath = join(cacheRoot, "skills/codecut/SKILL.md");
 	let manifest;
 	try {
 		manifest = await readPluginManifest(manifestPath);
@@ -471,8 +481,7 @@ async function checkCacheBridgeEnv({ cwd, cacheRoot, sourceOk, cacheOk }) {
 			return doctorCheck({
 				id: "cache_bridge_env",
 				ok: false,
-				message:
-					"Source and installed cache bridge env files must both exist.",
+				message: "Source and installed cache bridge env files must both exist.",
 				data: {
 					sourceEnvPath,
 					cacheEnvPath,
@@ -1827,6 +1836,63 @@ export function buildSetKeyframesEnvelope({
 	});
 }
 
+export function buildAddTransitionsEnvelope({ projectId, entries }) {
+	if (!Array.isArray(entries) || entries.length === 0) {
+		throw new Error("--entries must contain at least one transition entry");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "add_transitions",
+		args: { entries },
+	});
+}
+
+export function buildUpdateTransitionEnvelope({
+	projectId,
+	trackId,
+	transitionId,
+	type,
+	duration,
+}) {
+	if (!trackId) {
+		throw new Error("--track-id is required");
+	}
+	if (!transitionId) {
+		throw new Error("--transition-id is required");
+	}
+	if (type === undefined && duration === undefined) {
+		throw new Error("--type or --duration is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "update_transition",
+		args: {
+			trackId,
+			transitionId,
+			...(type === undefined ? {} : { type }),
+			...(duration === undefined ? {} : { duration }),
+		},
+	});
+}
+
+export function buildRemoveTransitionEnvelope({
+	projectId,
+	trackId,
+	transitionId,
+}) {
+	if (!trackId) {
+		throw new Error("--track-id is required");
+	}
+	if (!transitionId) {
+		throw new Error("--transition-id is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "remove_transition",
+		args: { trackId, transitionId },
+	});
+}
+
 export function buildSearchMediaEnvelope({
 	projectId,
 	query,
@@ -2307,7 +2373,9 @@ function normalizeMediaMetadata({ duration, width, height }) {
 		...(duration === undefined
 			? {}
 			: { duration: parsePositiveNumber(duration, "duration") }),
-		...(width === undefined ? {} : { width: parsePositiveNumber(width, "width") }),
+		...(width === undefined
+			? {}
+			: { width: parsePositiveNumber(width, "width") }),
 		...(height === undefined
 			? {}
 			: { height: parsePositiveNumber(height, "height") }),
@@ -2577,7 +2645,9 @@ async function fetchAgentBridgeHeartbeat({ config, projectId, fetchImpl }) {
 	);
 	const text = await response.text();
 	if (!response.ok) {
-		throw new Error(`Agent bridge heartbeat failed: ${response.status} ${text}`);
+		throw new Error(
+			`Agent bridge heartbeat failed: ${response.status} ${text}`,
+		);
 	}
 	return JSON.parse(text);
 }
@@ -2586,7 +2656,11 @@ async function waitForAgentBridge({ config, projectId, fetchImpl }) {
 	if (!projectId) {
 		throw new Error("--project-id is required");
 	}
-	const status = await fetchAgentBridgeHeartbeat({ config, projectId, fetchImpl });
+	const status = await fetchAgentBridgeHeartbeat({
+		config,
+		projectId,
+		fetchImpl,
+	});
 	if (status.mounted !== true) {
 		throw new Error(
 			`Agent bridge is not mounted for project ${projectId}. Open the editor URL before importing system templates.`,
@@ -2700,7 +2774,9 @@ async function patchExecutorProject({ config, projectId, name, fetchImpl }) {
 	);
 	const text = await response.text();
 	if (!response.ok) {
-		throw new Error(`Executor project rename failed: ${response.status} ${text}`);
+		throw new Error(
+			`Executor project rename failed: ${response.status} ${text}`,
+		);
 	}
 	return JSON.parse(text);
 }
@@ -2719,7 +2795,9 @@ async function deleteExecutorProject({ config, projectId, fetchImpl }) {
 	);
 	const text = await response.text();
 	if (!response.ok) {
-		throw new Error(`Executor project delete failed: ${response.status} ${text}`);
+		throw new Error(
+			`Executor project delete failed: ${response.status} ${text}`,
+		);
 	}
 	return JSON.parse(text);
 }
@@ -2787,7 +2865,8 @@ export async function runCli({
 
 	if (
 		confirmationGatedCommands.has(command) ||
-		(command === "send" && confirmationGatedSendTools.has(String(flags.tool || "")))
+		(command === "send" &&
+			confirmationGatedSendTools.has(String(flags.tool || "")))
 	) {
 		await assertCodecutConfirmationToken({
 			root: env?.CODECUT_CONFIRMATION_ROOT,
@@ -2942,14 +3021,14 @@ export async function runCli({
 			args: parseArgsJsonFlag(flags),
 		});
 	} else if (command === "export") {
-			envelope = buildExportEnvelope({
-				projectId: flags.projectId,
-				format: flags.format,
-				quality: flags.quality,
-				includeAudio: parseBoolean(flags.includeAudio, "includeAudio"),
-				outputFile: flags.outputFile,
-				overwrite: parseBoolean(flags.overwrite, "overwrite"),
-			});
+		envelope = buildExportEnvelope({
+			projectId: flags.projectId,
+			format: flags.format,
+			quality: flags.quality,
+			includeAudio: parseBoolean(flags.includeAudio, "includeAudio"),
+			outputFile: flags.outputFile,
+			overwrite: parseBoolean(flags.overwrite, "overwrite"),
+		});
 	} else if (command === "import-media") {
 		const flagMetadata = normalizeMediaMetadata({
 			duration: flags.duration,
@@ -3098,28 +3177,19 @@ export async function runCli({
 		envelope = await buildImportSystemTemplateScriptEnvelope({
 			projectId: flags.projectId,
 			templateJsonFile: flags.templateJsonFile,
-			confirmedByUser: parseBoolean(
-				flags.confirmedByUser,
-				"confirmedByUser",
-			),
+			confirmedByUser: parseBoolean(flags.confirmedByUser, "confirmedByUser"),
 		});
 	} else if (command === "update-system-template-script") {
 		envelope = await buildUpdateSystemTemplateScriptEnvelope({
 			projectId: flags.projectId,
 			templateJsonFile: flags.templateJsonFile,
-			confirmedByUser: parseBoolean(
-				flags.confirmedByUser,
-				"confirmedByUser",
-			),
+			confirmedByUser: parseBoolean(flags.confirmedByUser, "confirmedByUser"),
 		});
 	} else if (command === "delete-system-template-script") {
 		envelope = buildDeleteSystemTemplateScriptEnvelope({
 			projectId: flags.projectId,
 			templateId: flags.templateId,
-			confirmedByUser: parseBoolean(
-				flags.confirmedByUser,
-				"confirmedByUser",
-			),
+			confirmedByUser: parseBoolean(flags.confirmedByUser, "confirmedByUser"),
 		});
 	} else if (command === "insert-clips") {
 		const payload = parseArgsJsonFlag(flags);
@@ -3154,6 +3224,24 @@ export async function runCli({
 	} else if (command === "set-keyframes") {
 		const payload = parseArgsJsonFlag(flags);
 		envelope = buildSetKeyframesEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "add-transitions") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildAddTransitionsEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "update-transition") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildUpdateTransitionEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "remove-transition") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildRemoveTransitionEnvelope({
 			projectId: flags.projectId,
 			...payload,
 		});

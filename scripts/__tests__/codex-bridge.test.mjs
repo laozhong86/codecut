@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
 	buildAddCaptionsEnvelope,
 	buildAddTextsEnvelope,
+	buildAddTransitionsEnvelope,
 	buildApplyPlanEnvelope,
 	buildCommandEnvelope,
 	buildDeleteSystemTemplateScriptEnvelope,
@@ -25,12 +26,14 @@ import {
 	buildPreviewEditPlanEnvelope,
 	buildPostCutCaptionsEnvelope,
 	buildRemoveClipsEnvelope,
+	buildRemoveTransitionEnvelope,
 	buildRippleDeleteRangesEnvelope,
 	buildSearchMediaEnvelope,
 	buildSetClipPropertiesEnvelope,
 	buildSetKeyframesEnvelope,
 	buildSplitClipEnvelope,
 	buildTranscribeEnvelope,
+	buildUpdateTransitionEnvelope,
 	buildUpdateSystemTemplateScriptEnvelope,
 	buildValidateEditPlanEnvelope,
 	buildVideoContextEnvelope,
@@ -203,28 +206,28 @@ describe("codex bridge CLI helpers", () => {
 				},
 			}),
 		);
-			expect(() =>
-				buildGetTranscriptEnvelope({
-					projectId: "project-1",
-					granularity: "segment",
-					language: "",
-					modelId: "whisper-base",
-				}),
-			).toThrow("--language is required");
-			expect(() =>
-				buildGetTranscriptEnvelope({
-					projectId: "project-1",
-					granularity: "sentence",
-					language: "auto",
-					modelId: "whisper-base",
-				}),
-			).toThrow("--granularity must be segment or word");
-			expect(() =>
-				buildGetTranscriptEnvelope({
-					projectId: "project-1",
-					granularity: "segment",
-					language: "auto",
-					modelId: "whisper-base",
+		expect(() =>
+			buildGetTranscriptEnvelope({
+				projectId: "project-1",
+				granularity: "segment",
+				language: "",
+				modelId: "whisper-base",
+			}),
+		).toThrow("--language is required");
+		expect(() =>
+			buildGetTranscriptEnvelope({
+				projectId: "project-1",
+				granularity: "sentence",
+				language: "auto",
+				modelId: "whisper-base",
+			}),
+		).toThrow("--granularity must be segment or word");
+		expect(() =>
+			buildGetTranscriptEnvelope({
+				projectId: "project-1",
+				granularity: "segment",
+				language: "auto",
+				modelId: "whisper-base",
 				startTime: 10,
 				endTime: 0,
 			}),
@@ -1104,6 +1107,82 @@ describe("codex bridge CLI helpers", () => {
 		).toThrow("--property must be a supported keyframe property");
 
 		expect(
+			buildAddTransitionsEnvelope({
+				projectId: "project-123",
+				entries: [
+					{
+						trackId: "video-track-1",
+						fromElementId: "clip-1",
+						toElementId: "clip-2",
+						type: "fade",
+						duration: 0.35,
+					},
+				],
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "add_transitions",
+				args: {
+					entries: [
+						{
+							trackId: "video-track-1",
+							fromElementId: "clip-1",
+							toElementId: "clip-2",
+							type: "fade",
+							duration: 0.35,
+						},
+					],
+				},
+			}),
+		);
+
+		expect(
+			buildUpdateTransitionEnvelope({
+				projectId: "project-123",
+				trackId: "video-track-1",
+				transitionId: "transition-1",
+				type: "slide-left",
+				duration: 0.25,
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "update_transition",
+				args: {
+					trackId: "video-track-1",
+					transitionId: "transition-1",
+					type: "slide-left",
+					duration: 0.25,
+				},
+			}),
+		);
+
+		expect(
+			buildRemoveTransitionEnvelope({
+				projectId: "project-123",
+				trackId: "video-track-1",
+				transitionId: "transition-1",
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "remove_transition",
+				args: {
+					trackId: "video-track-1",
+					transitionId: "transition-1",
+				},
+			}),
+		);
+		expect(() =>
+			buildUpdateTransitionEnvelope({
+				projectId: "project-123",
+				trackId: "video-track-1",
+				transitionId: "transition-1",
+			}),
+		).toThrow("--type or --duration is required");
+
+		expect(
 			buildSearchMediaEnvelope({
 				projectId: "project-123",
 				query: "intro",
@@ -1397,7 +1476,9 @@ describe("codex bridge CLI helpers", () => {
 				templateId: "proof-demo-cut",
 				confirmedByUser: false,
 			}),
-		).toThrow("--confirmed-by-user must be true after explicit user confirmation");
+		).toThrow(
+			"--confirmed-by-user must be true after explicit user confirmation",
+		);
 
 		expect(
 			buildDeleteSystemTemplateScriptEnvelope({
@@ -1601,9 +1682,7 @@ describe("codex bridge CLI helpers", () => {
 				"http://localhost:4100/api/agent-bridge/commands",
 				"http://localhost:4100/api/agent-bridge/results?id=bridge-1",
 			]);
-			expect(requests[1].init.headers.Authorization).toBe(
-				"Bearer local-token",
-			);
+			expect(requests[1].init.headers.Authorization).toBe("Bearer local-token");
 			expect(JSON.parse(requests[1].init.body).envelope.commands[0]).toEqual({
 				id: "cmd-1",
 				tool: "import_system_template_script",
@@ -1901,7 +1980,9 @@ describe("codex bridge CLI helpers", () => {
 				stdout: () => {},
 			});
 
-			expect(requests.map((request) => [request.init.method, request.url])).toEqual([
+			expect(
+				requests.map((request) => [request.init.method, request.url]),
+			).toEqual([
 				["GET", "http://localhost:4100/api/codex-executor/projects"],
 				["PATCH", "http://localhost:4100/api/codex-executor/project"],
 				["DELETE", "http://localhost:4100/api/codex-executor/project"],
@@ -3043,7 +3124,9 @@ describe("codex bridge CLI helpers", () => {
 
 	test("creates a local executor project and prints its editor URL", async () => {
 		const cwdRoot = await mkdtemp(join(tmpdir(), "codecut-cwd-"));
-		const confirmationRoot = await mkdtemp(join(tmpdir(), "codecut-confirmation-"));
+		const confirmationRoot = await mkdtemp(
+			join(tmpdir(), "codecut-confirmation-"),
+		);
 		const requests = [];
 		const output = [];
 		const confirmationToken = await createTestConfirmationToken(

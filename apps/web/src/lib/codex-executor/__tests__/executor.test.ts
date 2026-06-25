@@ -70,6 +70,9 @@ function envelope({
 		| "add_captions"
 		| "list_models"
 		| "set_keyframes"
+		| "add_transitions"
+		| "update_transition"
+		| "remove_transition"
 		| "search_media"
 		| "insert_clips"
 		| "move_clips"
@@ -647,10 +650,7 @@ describe("codex executor", () => {
 					spokenScript: {
 						source: "tts",
 						text: "A pizza portion costs $2.34. Venmo that ASAP.",
-						captions: [
-							"A pizza portion costs $2.34.",
-							"Venmo that ASAP.",
-						],
+						captions: ["A pizza portion costs $2.34.", "Venmo that ASAP."],
 						protectedTerms: ["$2.34", "Venmo that ASAP"],
 					},
 				},
@@ -705,10 +705,7 @@ describe("codex executor", () => {
 					spokenScript: {
 						source: "tts",
 						text: "A pizza portion costs $2.34. Venmo that ASAP.",
-						captions: [
-							"A pizza portion costs $2.34.",
-							"Venmo that ASAP.",
-						],
+						captions: ["A pizza portion costs $2.34.", "Venmo that ASAP."],
 						protectedTerms: ["$2.34", "Venmo that ASAP"],
 					},
 				},
@@ -1335,7 +1332,10 @@ describe("codex executor", () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 		const tempDir = await mkdtemp(join(tmpdir(), "voice-clone-"));
 		const referencePath = join(tempDir, "reference.wav");
-		await writeFile(referencePath, await createFixtureBareAudio({ format: "wav" }));
+		await writeFile(
+			referencePath,
+			await createFixtureBareAudio({ format: "wav" }),
+		);
 		const cloneBytes = await createFixtureBareAudio({ format: "wav" });
 
 		try {
@@ -1389,7 +1389,8 @@ describe("codex executor", () => {
 			const state = await getExecutorProjectState({ projectId });
 			const asset = state.mediaAssets.find(
 				(item) =>
-					item.id === resultData<{ mediaId: string }>(result.results[0]).mediaId,
+					item.id ===
+					resultData<{ mediaId: string }>(result.results[0]).mediaId,
 			);
 			expect(asset?.spokenScript).toMatchObject({
 				provider: "runninghub-voice-clone",
@@ -2799,6 +2800,7 @@ describe("codex executor", () => {
 						totalDuration: 10,
 						trackCount: 1,
 						clipCount: 1,
+						transitionCount: 1,
 						captionCount: 0,
 						audioCount: 0,
 						mediaIds: ["media-1"],
@@ -2815,6 +2817,7 @@ describe("codex executor", () => {
 					{ field: "totalDuration", expected: 10, actual: 0 },
 					{ field: "trackCount", expected: 1, actual: 0 },
 					{ field: "clipCount", expected: 1, actual: 0 },
+					{ field: "transitionCount", expected: 1, actual: 0 },
 					{ field: "mediaIds", expected: ["media-1"], actual: [] },
 				],
 			},
@@ -4100,9 +4103,7 @@ describe("codex executor", () => {
 		const data = resultData<{ source: string; captions: EditPlanCaption[] }>(
 			result.results[0],
 		);
-		const captionText = data.captions
-			.map((caption) => caption.text)
-			.join(" ");
+		const captionText = data.captions.map((caption) => caption.text).join(" ");
 
 		expect(data.source).toBe("scripted_tts_audio");
 		expect(captionText).toContain("$2.34");
@@ -4216,23 +4217,23 @@ describe("codex executor", () => {
 			transcribeMediaRange: async ({ range, language, modelId }) => {
 				ranges.push(range);
 				if (range.start === 10) {
-						return {
-							text: "first clip",
-							language,
-							modelId,
-							segments: [{ text: "第一句", start: 0.25, end: 1.25 }],
-							...asrContractFields(),
-						};
-					}
 					return {
-						text: "second clip",
+						text: "first clip",
 						language,
 						modelId,
-						segments: [{ text: "第二句", start: 0.5, end: 1.5 }],
+						segments: [{ text: "第一句", start: 0.25, end: 1.25 }],
 						...asrContractFields(),
 					};
-				},
-			});
+				}
+				return {
+					text: "second clip",
+					language,
+					modelId,
+					segments: [{ text: "第二句", start: 0.5, end: 1.5 }],
+					...asrContractFields(),
+				};
+			},
+		});
 		const postCutCaptions = resultData<{
 			captions: EditPlanCaption[];
 			captionStyle: EditPlanCaptionStyle;
@@ -4629,7 +4630,9 @@ describe("codex executor", () => {
 							},
 						],
 						narration: { mediaId: narrationId, sourceStart: 0 },
-						captions: [{ text: "Voiceover caption", startTime: 24, duration: 3 }],
+						captions: [
+							{ text: "Voiceover caption", startTime: 24, duration: 3 },
+						],
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
@@ -4699,7 +4702,9 @@ describe("codex executor", () => {
 		expect(captionTrack?.elements.map((element) => element.content)).toEqual([
 			"Voiceover caption",
 		]);
-		const referencedMediaKeys = Object.keys(timeline.referencedMedia ?? {}).sort();
+		const referencedMediaKeys = Object.keys(
+			timeline.referencedMedia ?? {},
+		).sort();
 		expect(referencedMediaKeys).toHaveLength(3);
 		const imageElement = visualTrack?.elements.find(
 			(element) => element.type === "image",
@@ -4760,12 +4765,14 @@ describe("codex executor", () => {
 		const updatedCardTextTrack = updatedTimeline.tracks.find(
 			(track) => track.name === "Card Text",
 		);
-		expect(updatedCardTextTrack?.elements.map((element) => element.content)).toEqual(
+		expect(
+			updatedCardTextTrack?.elements.map((element) => element.content),
+		).toEqual(
 			expect.arrayContaining([
 				"天府新区双华麓港",
 				"117.55㎡ 套三双卫 总价183万",
 				"地铁口商圈边",
-				]),
+			]),
 		);
 		expect(Object.keys(updatedTimeline.referencedMedia ?? {}).sort()).toEqual(
 			referencedMediaKeys,
@@ -7547,6 +7554,282 @@ describe("codex executor", () => {
 				],
 			},
 		});
+	});
+
+	test("add update and remove native transitions through executor repair tools", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Video",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "image-1",
+							type: "image",
+							name: "Image 1",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+							opacity: 1,
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+						},
+						{
+							id: "image-2",
+							type: "image",
+							name: "Image 2",
+							mediaId: "media-2",
+							startTime: 2,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+							opacity: 1,
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const addResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_transitions",
+				args: {
+					entries: [
+						{
+							trackId: "video-track-1",
+							fromElementId: "image-1",
+							toElementId: "image-2",
+							type: "fade",
+							duration: 0.4,
+						},
+					],
+				},
+			}),
+		});
+		const addedTransition = resultData<{
+			transitions: Array<{ id: string; type: string; duration: number }>;
+		}>(addResult.results[0]).transitions[0];
+
+		expect(addResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				revision: 2,
+				trackId: "video-track-1",
+				transitionCount: 1,
+				transitions: [
+					{
+						type: "fade",
+						duration: 0.4,
+						fromElementId: "image-1",
+						toElementId: "image-2",
+					},
+				],
+			},
+		});
+
+		const updateResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_transition",
+				args: {
+					trackId: "video-track-1",
+					transitionId: addedTransition.id,
+					type: "slide-left",
+					duration: 0.25,
+				},
+			}),
+		});
+		expect(updateResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				revision: 3,
+				trackId: "video-track-1",
+				transitionCount: 1,
+				transition: {
+					id: addedTransition.id,
+					type: "slide-left",
+					duration: 0.25,
+				},
+			},
+		});
+
+		const removeResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "remove_transition",
+				args: {
+					trackId: "video-track-1",
+					transitionId: addedTransition.id,
+				},
+			}),
+		});
+		const readback = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2" },
+			}),
+		});
+
+		expect(removeResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				revision: 4,
+				trackId: "video-track-1",
+				transitionCount: 0,
+				removedTransition: {
+					id: addedTransition.id,
+					type: "slide-left",
+					duration: 0.25,
+				},
+			},
+		});
+		expect(readback.results[0]).toMatchObject({
+			success: true,
+			data: {
+				summary: { transitionCount: 0 },
+				tracks: [
+					{
+						id: "video-track-1",
+						transitions: [],
+					},
+				],
+			},
+		});
+	});
+
+	test("transition repair tools fail fast without mutating revision", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Video",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "image-1",
+							type: "image",
+							name: "Image 1",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 1,
+							trimStart: 0,
+							trimEnd: 0,
+							opacity: 1,
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+						},
+						{
+							id: "image-2",
+							type: "image",
+							name: "Image 2",
+							mediaId: "media-2",
+							startTime: 1,
+							duration: 1,
+							trimStart: 0,
+							trimEnd: 0,
+							opacity: 1,
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+						},
+						{
+							id: "image-3",
+							type: "image",
+							name: "Image 3",
+							mediaId: "media-3",
+							startTime: 3,
+							duration: 1,
+							trimStart: 0,
+							trimEnd: 0,
+							opacity: 1,
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+						},
+					],
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const nonAdjacent = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_transitions",
+				args: {
+					entries: [
+						{
+							trackId: "video-track-1",
+							fromElementId: "image-1",
+							toElementId: "image-3",
+							type: "fade",
+							duration: 0.2,
+						},
+					],
+				},
+			}),
+		});
+		const tooLong = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_transitions",
+				args: {
+					entries: [
+						{
+							trackId: "video-track-1",
+							fromElementId: "image-1",
+							toElementId: "image-2",
+							type: "fade",
+							duration: 2,
+						},
+					],
+				},
+			}),
+		});
+		const missingTransition = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_transition",
+				args: {
+					trackId: "video-track-1",
+					transitionId: "missing-transition",
+					duration: 0.2,
+				},
+			}),
+		});
+
+		expect(nonAdjacent.results[0]).toMatchObject({
+			success: false,
+			message: "Transition elements must be adjacent.",
+		});
+		expect(tooLong.results[0]).toMatchObject({
+			success: false,
+			message: "Transition duration exceeds neighboring element duration.",
+		});
+		expect(missingTransition.results[0]).toMatchObject({
+			success: false,
+			message: 'Transition "missing-transition" was not found.',
+		});
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
 	});
 
 	test("search_media finds metadata and cached spoken transcript hits", async () => {
