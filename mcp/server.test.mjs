@@ -129,8 +129,10 @@ describe("Codecut MCP server contract", () => {
 			"verify_timeline",
 			"export_project",
 			"get_timeline_state",
-			"get_timeline_state_v2",
 		]);
+		expect(CODECUT_MCP_TOOLS.map((tool) => tool.name)).not.toContain(
+			"get_timeline_state_v2",
+		);
 	});
 
 	test("requires scoped host-compatible object ranges for ripple delete input", () => {
@@ -239,7 +241,6 @@ describe("Codecut MCP server contract", () => {
 			"build_visual_context",
 			"inspect_timeline",
 			"get_timeline_state",
-			"get_timeline_state_v2",
 		]) {
 			expect(categoryByTool.get(toolName)).toBe(
 				CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
@@ -597,7 +598,10 @@ describe("Codecut MCP server contract", () => {
 
 	test("workspace media source list keeps only a maximum-height scroll constraint", async () => {
 		const html = await readFile("mcp/codecut-workspace.html", "utf8");
-		const mediaSourceDeclarations = readStyleDeclarations(html, ".media-sources");
+		const mediaSourceDeclarations = readStyleDeclarations(
+			html,
+			".media-sources",
+		);
 
 		expect(mediaSourceDeclarations.get("display")).toBe("grid");
 		expect(mediaSourceDeclarations.get("gap")).toBe("var(--cc-space-sm)");
@@ -763,7 +767,9 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain('button.setAttribute("aria-pressed", "true");');
 		expect(html).not.toContain('customButton.setAttribute("aria-pressed"');
 		expect(html).not.toContain("customButton.dataset.choiceOption");
-		expect(html).not.toContain("fields.requirementsCustomToggle.addEventListener");
+		expect(html).not.toContain(
+			"fields.requirementsCustomToggle.addEventListener",
+		);
 		expect(html).not.toContain("optionKey.includes(recommendedKey)");
 		expect(html).not.toContain("recommendedKey.includes(optionKey)");
 	});
@@ -797,8 +803,8 @@ describe("Codecut MCP server contract", () => {
 		const result = evaluateWorkspaceRecommendedChoices(html, {
 			options: workspace.structuredContent.intentDefaults.requirementOptions,
 			recommendedValues:
-				workspace.structuredContent.intentDefaults.recommendedRequirementOptions ||
-				[],
+				workspace.structuredContent.intentDefaults
+					.recommendedRequirementOptions || [],
 		});
 
 		expect(result).toEqual([]);
@@ -1488,6 +1494,9 @@ describe("Codecut MCP server contract", () => {
 				"list_media_assets",
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
+				"get_timeline_state",
+			);
+			expect(result.structuredContent.continuePrompt).not.toContain(
 				"get_timeline_state_v2",
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
@@ -1827,20 +1836,7 @@ describe("Codecut MCP server contract", () => {
 		]);
 
 		expect(
-			buildBridgeCliArgs("get_timeline_state", { projectId: "project-1" }),
-		).toEqual([
-			"scripts/codex-bridge.mjs",
-			"send",
-			"--project-id",
-			"project-1",
-			"--tool",
-			"get_timeline_state",
-			"--args-json",
-			"{}",
-		]);
-
-		expect(
-			buildBridgeCliArgs("get_timeline_state_v2", {
+			buildBridgeCliArgs("get_timeline_state", {
 				projectId: "project-1",
 				startTime: 1,
 				endTime: 3,
@@ -1856,13 +1852,18 @@ describe("Codecut MCP server contract", () => {
 			"get_timeline_state",
 			"--args-json",
 			JSON.stringify({
-				format: "v2",
 				startTime: 1,
 				endTime: 3,
 				includeFrames: true,
 				includeReferencedMedia: true,
 			}),
 		]);
+		expect(() =>
+			buildBridgeCliArgs("get_timeline_state", {
+				projectId: "project-1",
+				format: "v2",
+			}),
+		).toThrow("get_timeline_state does not accept argument(s): format");
 	});
 
 	test("maps write primitives to narrow codex-bridge commands", async () => {

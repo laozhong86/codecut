@@ -14,7 +14,7 @@ import {
 	buildRunningHubVoiceDesignEnvelope,
 	buildExportEnvelope,
 	buildFreshSessionSmokeReport,
-	buildGetTimelineStateV2Envelope,
+	buildGetTimelineStateEnvelope,
 	buildGetTranscriptEnvelope,
 	buildImportSystemTemplateScriptEnvelope,
 	buildImportMediaEnvelope,
@@ -110,9 +110,9 @@ describe("codex bridge CLI helpers", () => {
 		});
 	});
 
-	test("buildGetTimelineStateV2Envelope preserves v1 tool name with explicit v2 args", () => {
+	test("buildGetTimelineStateEnvelope builds canonical readback args", () => {
 		expect(
-			buildGetTimelineStateV2Envelope({
+			buildGetTimelineStateEnvelope({
 				projectId: "project-1",
 				startTime: 1,
 				endTime: 3,
@@ -128,7 +128,6 @@ describe("codex bridge CLI helpers", () => {
 					id: "cmd-1",
 					tool: "get_timeline_state",
 					args: {
-						format: "v2",
 						startTime: 1,
 						endTime: 3,
 						includeFrames: true,
@@ -137,6 +136,15 @@ describe("codex bridge CLI helpers", () => {
 				},
 			],
 		});
+	});
+
+	test("buildGetTimelineStateEnvelope rejects removed format selector", () => {
+		expect(() =>
+			buildGetTimelineStateEnvelope({
+				projectId: "project-1",
+				format: "v2",
+			}),
+		).toThrow("get_timeline_state does not accept option(s): format");
 	});
 
 	test("buildInspectTimelineEnvelope validates timeline inspect ranges", () => {
@@ -1537,6 +1545,30 @@ describe("codex bridge CLI helpers", () => {
 		);
 	});
 
+	test("get-timeline-state CLI rejects removed format flag", async () => {
+		await expect(
+			runCli({
+				argv: [
+					"get-timeline-state",
+					"--project-id",
+					"project-123",
+					"--format",
+					"v2",
+				],
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+					CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+					CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+				},
+				fetchImpl: async (url) => {
+					throw new Error(`Unexpected request: ${url}`);
+				},
+				stdout: () => {},
+			}),
+		).rejects.toThrow("get-timeline-state does not accept flag(s): --format");
+	});
+
 	test("sends and polls a command using documented CLI flags", async () => {
 		const requests = [];
 		const fetchImpl = async (url, init) => {
@@ -2149,13 +2181,13 @@ describe("codex bridge CLI helpers", () => {
 			scriptedMediaId: "audio-1",
 			scriptedMediaName: "blind-narration.wav",
 		});
-		expect(report.checks.map((check) => [check.id, check.ok])).toEqual([
-			["doctor_install", true],
-			["doctor", true],
-			["scripted_media_asset", true],
-			["timeline_v2", true],
-			["referenced_scripted_media", true],
-			["expected_caption_text", true],
+			expect(report.checks.map((check) => [check.id, check.ok])).toEqual([
+				["doctor_install", true],
+				["doctor", true],
+				["scripted_media_asset", true],
+				["timeline_readback", true],
+				["referenced_scripted_media", true],
+				["expected_caption_text", true],
 		]);
 		expect(JSON.stringify(report)).not.toContain("local-token");
 	});
@@ -2368,13 +2400,13 @@ describe("codex bridge CLI helpers", () => {
 			requests
 				.slice(1)
 				.map((request) => JSON.parse(request.init.body).envelope.commands[0]),
-		).toMatchObject([
-			{ tool: "list_media_assets", args: {} },
-			{
-				tool: "get_timeline_state",
-				args: { format: "v2", includeReferencedMedia: true },
-			},
-		]);
+			).toMatchObject([
+				{ tool: "list_media_assets", args: {} },
+				{
+					tool: "get_timeline_state",
+					args: { includeReferencedMedia: true },
+				},
+			]);
 		const report = JSON.parse(output[0]);
 		expect(report.ok).toBe(true);
 		expect(report.summary).toMatchObject({

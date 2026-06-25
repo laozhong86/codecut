@@ -1130,7 +1130,7 @@ Do not start the render if either freshness gate fails.
 - If TTS, generic image B-roll, image cards outside 9:16, BGM, or SFX is requested for narrated remix, stop and report that the current `NarratedRemixPlan v1` path only supports existing narration audio, video B-roll, 9:16 editable image cards, and captions.
 - If transitions are requested, Codex must generate adjacent clip timings before applying the EditPlan. Do not rely on Codecut to reposition clips.
 - A transition request is complete only after readback shows native
-  `TrackTransition` state: `get_timeline_state_v2.summary.transitionCount`
+  `TrackTransition` state: `get_timeline_state.summary.transitionCount`
   must match the expected count or be greater than zero for open-ended
   transition requests, and the target video track's `transitions[]` must expose
   the expected `type`, `duration`, `fromElementId`, and `toElementId`.
