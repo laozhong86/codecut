@@ -142,13 +142,14 @@ For short-form vertical planning:
 
 Use implemented caption presets only:
 
+- `creator-clean`: default Chinese creator-caption route, especially Xiaohongshu or clean talking-head clips that need a polished font-first look.
 - `talking-head-pop`: vertical opinion, creator talking-head, high-retention claim clips.
 - `tutorial-clean`: screen recording, product walkthrough, step-by-step demo.
 - `documentary-soft`: calmer essay, interview, narrative explanation, horizontal YouTube-style edit.
 - `product-punch`: product proof, UGC ad, deal hook, comparison demo, before/after.
 - `lifestyle-warm`: vlog, Xiaohongshu-style lifestyle, food, travel, daily routine, soft recommendation.
 - `cinematic-serif`: brand story, fashion, emotional montage, premium product film.
-- `short-form-bold`: generic short-form route only when the user request is explicitly generic and no P0 template is selected; do not use it as a hidden fallback.
+- `short-form-bold`: legacy bold short-form route only when the user explicitly asks for that heavier look; do not use it as a hidden fallback.
 - `black-bar`: only when the user explicitly wants a boxed subtitle look; Do not use it to mask burned-in captions.
 
 ## Preset Selection

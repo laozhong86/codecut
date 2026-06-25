@@ -28,7 +28,7 @@ function setupIntent(overrides = {}) {
 			includeAudio: true,
 			captionFont: "auto",
 			captionSize: "medium",
-			captionStylePreset: "short-form-bold",
+			captionStylePreset: "creator-clean",
 		},
 		generateIntroCover: true,
 		brief: "Cut a high-retention short for a product launch.",
@@ -428,6 +428,7 @@ describe("Codecut MCP server contract", () => {
 			'value="medium"',
 			'value="large"',
 			'value="small"',
+			'value="creator-clean"',
 			'value="short-form-bold"',
 			'value="talking-head-pop"',
 			'value="product-punch"',
@@ -442,6 +443,7 @@ describe("Codecut MCP server contract", () => {
 			"transitionPreferenceZoomIn",
 			"captionFontAuto",
 			"captionSizeMedium",
+			"captionStyleCreatorClean",
 			"captionStyleShortFormBold",
 			"setSelectValue",
 		]) {
@@ -807,7 +809,7 @@ describe("Codecut MCP server contract", () => {
 				includeAudio: true,
 				captionFont: "auto",
 				captionSize: "medium",
-				captionStylePreset: "short-form-bold",
+				captionStylePreset: "creator-clean",
 			},
 		});
 	});
@@ -1251,7 +1253,7 @@ describe("Codecut MCP server contract", () => {
 					output: {
 						captionFont: "auto",
 						captionSize: "medium",
-						captionStylePreset: "short-form-bold",
+						captionStylePreset: "creator-clean",
 					},
 				},
 				importedMedia: [
@@ -1304,7 +1306,7 @@ describe("Codecut MCP server contract", () => {
 				'"generateIntroCover":true',
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
-				'"captionStylePreset":"short-form-bold"',
+				'"captionStylePreset":"creator-clean"',
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				'"transitionPreference":"dissolve"',

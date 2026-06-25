@@ -58,7 +58,9 @@ confirms a translation overlay or duplicate-language caption.
      chunks that the current preset renders as one or two balanced lines; avoid
      three-line captions and 1-2 character orphan last lines.
    - English: short phrase groups, usually 3-7 words.
-6. Select the caption preset by video type: `talking-head-pop` for vertical opinion/talking-head clips, `tutorial-clean` for screen recordings or demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` as the fallback.
+6. Select the caption preset by video type: `creator-clean` for the default Chinese creator/talking-head look, `talking-head-pop` for high-retention opinion clips that need stronger contrast, `tutorial-clean` for screen recordings or demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` only when the user explicitly asks for the older bold short-form look.
+   - Prefer font choice, line breaking, and subtle shadow over heavy black outlines.
+   - Use `richSpans` for one key phrase per sentence; do not style every caption as a visual effect.
 7. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`.
 8. Generate or update an implemented EditPlan v1 with `captions`.
 9. Validate, preview, apply, read back with `get_timeline_state` v2, run

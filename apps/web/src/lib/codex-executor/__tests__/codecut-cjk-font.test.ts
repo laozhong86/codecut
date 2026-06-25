@@ -4,6 +4,7 @@ import {
 	resolveCodecutCjkFontPaths,
 	registerCodecutCjkFont,
 } from "../codecut-cjk-font";
+import * as codecutFontModule from "../codecut-cjk-font";
 
 describe("Codecut CJK font registration", () => {
 	test("uses the explicit CJK font path from environment", () => {
@@ -75,5 +76,77 @@ describe("Codecut CJK font registration", () => {
 		).toThrow(
 			"Codecut node renderer requires a CJK font for CodecutCJK.",
 		);
+	});
+
+	test("registers an explicit curated Codecut caption font family", () => {
+		const calls: Array<{ path: string; family: string }> = [];
+		const registerCodecutFontFamily = (
+			codecutFontModule as unknown as {
+				registerCodecutFontFamily?: (input: {
+					fontFamily: string;
+					fontPaths?: readonly string[];
+					existsSync: (path: string) => boolean;
+					globalFonts: {
+						has(family: string): boolean;
+						registerFromPath(path: string, family: string): unknown;
+					};
+				}) => unknown;
+			}
+		).registerCodecutFontFamily;
+
+		expect(registerCodecutFontFamily).toBeDefined();
+		const result = registerCodecutFontFamily?.({
+			fontFamily: "CodecutYanBoSong",
+			existsSync: (path) => path.endsWith("MaoKenWangYanBoSong-M.ttf"),
+			globalFonts: {
+				has: () => false,
+				registerFromPath: (path, family) => {
+					calls.push({ path, family });
+					return {};
+				},
+			},
+		});
+
+		expect(result).toMatchObject({
+			family: "CodecutYanBoSong",
+			fontPath: expect.stringContaining("MaoKenWangYanBoSong-M.ttf"),
+			registered: true,
+		});
+		expect(calls).toEqual([
+			{
+				path: expect.stringContaining("MaoKenWangYanBoSong-M.ttf"),
+				family: "CodecutYanBoSong",
+			},
+		]);
+	});
+
+	test("fails clearly for unknown curated Codecut caption font families", () => {
+		const registerCodecutFontFamily = (
+			codecutFontModule as unknown as {
+				registerCodecutFontFamily?: (input: {
+					fontFamily: string;
+					fontPaths?: readonly string[];
+					existsSync: (path: string) => boolean;
+					globalFonts: {
+						has(family: string): boolean;
+						registerFromPath(path: string, family: string): unknown;
+					};
+				}) => unknown;
+			}
+		).registerCodecutFontFamily;
+
+		expect(() =>
+			registerCodecutFontFamily?.({
+				fontFamily: "UnlistedFont",
+				fontPaths: ["/fonts/unlisted.ttf"],
+				existsSync: () => true,
+				globalFonts: {
+					has: () => false,
+					registerFromPath: () => {
+						throw new Error("must not register unknown fonts");
+					},
+				},
+			}),
+		).toThrow("Unsupported Codecut caption font family: UnlistedFont.");
 	});
 });

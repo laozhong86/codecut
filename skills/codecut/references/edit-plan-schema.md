@@ -67,6 +67,7 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
   }>,
   captionStyle?: {
     preset:
+      | "creator-clean"
       | "short-form-bold"
       | "black-bar"
       | "talking-head-pop"
@@ -141,13 +142,16 @@ Current validation fail-fast checks include:
 - captionStyle accepts only `preset` and `position`. Do not add `fontFamily`,
   `fontSize`, `color`, CSS, or external renderer fields to captions or
   captionStyle. Presets resolve to controlled local renderer styles; the
-  current implementation uses the deterministic CJK renderer font.
+  current implementation uses curated local CJK renderer fonts.
+- `creator-clean` is the default Chinese creator-caption treatment. It uses a
+  local serif font, white text, no heavy black stroke, and subtle shadow for
+  readability.
 - captions must not overlap, each caption duration must be `0.5s..4s`, and the
   resolved preset/layout must render at most two lines with no 1-2 character
   orphan final line.
 - captionStyle preset must be one of the implemented local presets:
-  `short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`,
-  `documentary-soft`, `product-punch`, `lifestyle-warm`, or
+  `creator-clean`, `short-form-bold`, `black-bar`, `talking-head-pop`,
+  `tutorial-clean`, `documentary-soft`, `product-punch`, `lifestyle-warm`, or
   `cinematic-serif`, `social-highlight`, `comment-bubble`, or `minimal-reel`.
 - `richSpans` must use integer `[start, end)` code point indexes, must be
   ordered and non-overlapping, and must stay inside the corresponding title or
@@ -278,6 +282,7 @@ only this shape when calling `apply_narrated_remix_plan`:
   }>,
   captionStyle: {
     preset:
+      | "creator-clean"
       | "short-form-bold"
       | "black-bar"
       | "talking-head-pop"

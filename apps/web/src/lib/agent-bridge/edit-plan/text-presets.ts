@@ -1,5 +1,10 @@
 import type { buildTextElement } from "@/lib/timeline/element-utils";
-import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
+import {
+	CODECUT_CJK_FONT_FAMILY,
+	CODECUT_SMILEY_SANS_FONT_FAMILY,
+	CODECUT_WEN_KAI_FONT_FAMILY,
+	CODECUT_YAN_BO_SONG_FONT_FAMILY,
+} from "@/lib/codecut-fonts";
 import type {
 	EditPlan,
 	EditPlanCaptionStyle,
@@ -167,6 +172,19 @@ export function resolveCaptionStylePreset({
 	};
 	const boxWidth = getCaptionBoxWidth({ aspectRatio });
 
+	if (captionStyle.preset === "creator-clean") {
+		return {
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+			fontSize: 5.2,
+			fontWeight: "normal",
+			color: "#ffffff",
+			backgroundColor: "transparent",
+			shadow: { color: "rgba(0,0,0,0.42)", offsetX: 0, offsetY: 2, blur: 6 },
+			boxWidth,
+			transform,
+		};
+	}
+
 	if (captionStyle.preset === "black-bar") {
 		return {
 			fontFamily: CODECUT_CJK_FONT_FAMILY,
@@ -243,12 +261,12 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "lifestyle-warm") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
-			fontSize: 6,
-			fontWeight: "bold",
+			fontFamily: CODECUT_WEN_KAI_FONT_FAMILY,
+			fontSize: 5.4,
+			fontWeight: "normal",
 			color: "#fff7ed",
 			backgroundColor: "#7c2d12",
-			backgroundOpacity: 0.62,
+			backgroundOpacity: 0.54,
 			backgroundPaddingX: 20,
 			backgroundPaddingY: 10,
 			backgroundBorderRadius: 8,
@@ -259,13 +277,11 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "cinematic-serif") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
-			fontSize: 5,
-			fontWeight: "bold",
-			fontStyle: "italic",
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+			fontSize: 5.1,
+			fontWeight: "normal",
 			color: "#f8fafc",
-			stroke: { color: "#111827", width: 2 },
-			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 5 },
+			shadow: { color: "rgba(0,0,0,0.45)", offsetX: 0, offsetY: 2, blur: 6 },
 			backgroundColor: "transparent",
 			boxWidth,
 			transform,
@@ -323,7 +339,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "minimal-reel") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_SMILEY_SANS_FONT_FAMILY,
 			fontSize: 4.6,
 			fontWeight: "normal",
 			color: "#f8fafc",

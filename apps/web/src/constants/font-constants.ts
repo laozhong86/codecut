@@ -1,3 +1,9 @@
+import {
+	CODECUT_SMILEY_SANS_FONT_FAMILY,
+	CODECUT_WEN_KAI_FONT_FAMILY,
+	CODECUT_YAN_BO_SONG_FONT_FAMILY,
+} from "@/lib/codecut-fonts";
+
 export interface FontOption {
 	value: string;
 	label: string;
@@ -86,6 +92,30 @@ export const FONT_OPTIONS: FontOption[] = [
 		hasClassName: false,
 	},
 	{
+		value: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+		label: "CodeCut YanBo Song",
+		category: "custom",
+		weights: [400],
+		hasClassName: false,
+		supportsCjk: true,
+	},
+	{
+		value: CODECUT_WEN_KAI_FONT_FAMILY,
+		label: "CodeCut WenKai",
+		category: "custom",
+		weights: [400],
+		hasClassName: false,
+		supportsCjk: true,
+	},
+	{
+		value: CODECUT_SMILEY_SANS_FONT_FAMILY,
+		label: "CodeCut Smiley Sans",
+		category: "custom",
+		weights: [400],
+		hasClassName: false,
+		supportsCjk: true,
+	},
+	{
 		value: "Noto Sans SC",
 		label: "Noto Sans SC",
 		category: "google",
@@ -149,6 +179,9 @@ const CJK_FALLBACK_STACK =
 	'"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
 const FONT_FALLBACKS: Partial<Record<FontFamily, string>> = {
+	[CODECUT_YAN_BO_SONG_FONT_FAMILY]: `"${CODECUT_YAN_BO_SONG_FONT_FAMILY}", "Songti SC", "STSong", SimSun, serif`,
+	[CODECUT_WEN_KAI_FONT_FAMILY]: `"${CODECUT_WEN_KAI_FONT_FAMILY}", "Kaiti SC", STKaiti, KaiTi, cursive`,
+	[CODECUT_SMILEY_SANS_FONT_FAMILY]: `"${CODECUT_SMILEY_SANS_FONT_FAMILY}", ${CJK_FALLBACK_STACK}`,
 	"Noto Sans SC": `"Noto Sans SC", ${CJK_FALLBACK_STACK}`,
 	"Noto Serif SC": '"Noto Serif SC", "Songti SC", "STSong", SimSun, serif',
 	"LXGW WenKai": '"LXGW WenKai", "Kaiti SC", STKaiti, KaiTi, cursive',

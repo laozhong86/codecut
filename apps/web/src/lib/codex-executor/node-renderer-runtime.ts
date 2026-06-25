@@ -12,8 +12,8 @@ import type {
 	RendererVideoFrame,
 } from "@/services/renderer/runtime";
 import {
-	CODECUT_CJK_FONT_FAMILY,
-	registerCodecutCjkFont,
+	isCodecutRendererFontFamily,
+	registerCodecutFontFamily,
 } from "./codecut-cjk-font";
 
 async function fileToBuffer({ file }: { file: File }): Promise<Buffer> {
@@ -392,8 +392,8 @@ export function createNodeRendererRuntime(): RendererRuntime {
 		createCanvas: ({ width, height }) =>
 			createCanvas(width, height) as unknown as RendererCanvas,
 		ensureFontFamily: ({ fontFamily }) => {
-			if (fontFamily === CODECUT_CJK_FONT_FAMILY) {
-				registerCodecutCjkFont();
+			if (isCodecutRendererFontFamily(fontFamily)) {
+				registerCodecutFontFamily({ fontFamily });
 			}
 		},
 		loadImage: async ({ file, url }) => {

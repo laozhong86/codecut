@@ -315,6 +315,7 @@ Codex sends exactly one editing plan format to Codecut:
   }>,
   captionStyle?: {
     preset:
+      | "creator-clean"
       | "short-form-bold"
       | "black-bar"
       | "talking-head-pop"
@@ -385,14 +386,22 @@ cannot inspect them as timeline text captions.
 When `captions` contains one or more items, Codex must include
 `captionStyle`. When `captions` is empty or omitted, `captionStyle` must be
 omitted. Caption styling is intentionally limited to top-level local presets:
-`short-form-bold`, `black-bar`, `talking-head-pop`, `tutorial-clean`,
-`documentary-soft`, `product-punch`, `lifestyle-warm`, and
+`creator-clean`, `short-form-bold`, `black-bar`, `talking-head-pop`,
+`tutorial-clean`, `documentary-soft`, `product-punch`, `lifestyle-warm`, and
 `cinematic-serif`, `social-highlight`, `comment-bubble`, and `minimal-reel`.
 Codecut does not accept arbitrary CSS, per-caption style
 objects, arbitrary `fontFamily`, `fontSize`, or `color` fields,
 `bold_caption`, `keyword_caption`, or `keyword-highlight` in this contract.
-Caption presets resolve to controlled local renderer styles; the current
-implementation uses the deterministic CJK renderer font.
+Caption presets resolve to controlled local renderer styles and curated local
+CJK renderer fonts.
+
+The default creator-caption standard is `creator-clean`: local serif font,
+white text, no heavy black stroke, subtle shadow, and balanced lower-safe
+one- or two-line captions. Use font choice and line breaking for perceived
+quality before adding motion or high-contrast effects. Use `richSpans` for at
+most one key phrase per sentence; do not turn every caption into a decorative
+style effect. Commercial fonts from source references are style references
+only unless redistribution rights are provided.
 
 Caption quality is part of validation, post-cut caption generation,
 `add_captions`, and the read-only video quality report. Captions must not
@@ -414,6 +423,8 @@ burn-in. The final proof must be text elements in the Codecut timeline.
 
 Caption preset routing:
 
+- `creator-clean`: default Chinese creator-caption route, especially polished
+  talking-head or Xiaohongshu-style edits.
 - `talking-head-pop`: vertical opinion or creator talking-head clips.
 - `tutorial-clean`: screen recording, tutorial, product walkthrough, or demo.
 - `documentary-soft`: calmer narrative, interview, essay, or YouTube-style edit.
@@ -423,7 +434,7 @@ Caption preset routing:
 - `social-highlight`: TikTok/Reels keyword-highlight style for fast social hooks.
 - `comment-bubble`: comment, testimonial, reaction, or social proof clips.
 - `minimal-reel`: visual-heavy reels where captions should support the footage.
-- `short-form-bold`: generic short-form fallback.
+- `short-form-bold`: legacy bold short-form look only when explicitly requested.
 - `black-bar`: explicit boxed subtitle look only; not a mask for old burned-in captions.
 
 `title.stylePreset` is optional. If omitted, Codecut keeps the existing default
