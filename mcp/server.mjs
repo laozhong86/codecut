@@ -132,6 +132,7 @@ const captionStylePresetValues = [
 	"comment-bubble",
 	"minimal-reel",
 ];
+const captionMotionPresetValues = ["slam-in", "soft-reveal", "pop-bounce"];
 const transitionTypeValues = [
 	"fade",
 	"dissolve",
@@ -151,6 +152,7 @@ const transitionTypeSchema = z.enum(transitionTypeValues);
 const captionFontSchema = z.enum(captionFontValues);
 const captionSizeSchema = z.enum(captionSizeValues);
 const captionStylePresetSchema = z.enum(captionStylePresetValues);
+const captionMotionPresetSchema = z.enum(captionMotionPresetValues);
 const transitionPreferenceSchema = z.enum(transitionPreferenceValues);
 const durationGoalModeSchema = z.enum(["auto", "custom"]);
 const durationGoalRangeSecondsSchema = z
@@ -372,23 +374,9 @@ const textEntrySchema = z
 
 const captionStyleSchema = z
 	.object({
-		preset: z
-			.enum([
-				"creator-clean",
-				"short-form-bold",
-				"black-bar",
-				"talking-head-pop",
-				"tutorial-clean",
-				"documentary-soft",
-				"product-punch",
-				"lifestyle-warm",
-				"cinematic-serif",
-				"social-highlight",
-				"comment-bubble",
-				"minimal-reel",
-			])
-			.optional(),
-		position: z.enum(["lower-safe", "center"]).optional(),
+		preset: captionStylePresetSchema,
+		position: z.enum(["lower-safe", "center"]),
+		motionPreset: captionMotionPresetSchema.optional(),
 	})
 	.strict();
 const protectedTermsSchema = z.array(z.string().trim().min(1)).optional();
@@ -436,6 +424,10 @@ const codecutToolGovernanceCategoryByName = new Map([
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
 	],
 	["get_transcript", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	[
+		"build_caption_diagnostics",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
+	],
 	["build_post_cut_captions", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
@@ -639,6 +631,19 @@ export const CODECUT_MCP_TOOLS = [
 		description:
 			"Read segment-level or word-level transcript mapped onto the currently edited timeline. Use word granularity for filler, dead-air, retake, and repeated-word cleanup. Word mode requires real word timestamps and fails instead of falling back to segment estimates.",
 		inputSchema: transcriptInputSchema,
+		readOnly: true,
+	},
+	{
+		name: "build_caption_diagnostics",
+		title: "Build Codecut Caption Diagnostics",
+		description:
+			"Build a read-only caption diagnostics report before caption generation. Reports transcription failures, skipped timeline clips, caption readability issues, confidence availability or low-confidence items, existing editable subtitles, and burned-subtitle risk as unverified visual evidence.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			language: languageSchema,
+			modelId: modelIdSchema,
+			captionStyle: captionStyleSchema,
+		},
 		readOnly: true,
 	},
 	{
@@ -2379,6 +2384,34 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--model-id",
 				requireStringArg(args, "modelId"),
 			];
+		case "build_caption_diagnostics": {
+			const captionStyle = args.captionStyle;
+			if (!captionStyle || typeof captionStyle !== "object") {
+				throw new Error("captionStyle is required");
+			}
+			const captionStyleRecord = captionStyle;
+			const command = [
+				"scripts/codex-bridge.mjs",
+				"build-caption-diagnostics",
+				"--project-id",
+				projectId,
+				"--language",
+				requireStringArg(args, "language"),
+				"--model-id",
+				requireStringArg(args, "modelId"),
+				"--caption-style-preset",
+				requireStringArg(captionStyleRecord, "preset"),
+				"--caption-position",
+				requireStringArg(captionStyleRecord, "position"),
+			];
+			if (captionStyleRecord.motionPreset !== undefined) {
+				command.push(
+					"--caption-motion-preset",
+					requireStringArg(captionStyleRecord, "motionPreset"),
+				);
+			}
+			return command;
+		}
 		case "list_models":
 			return buildSendArgs({
 				projectId,

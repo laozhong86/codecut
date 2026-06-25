@@ -65,6 +65,7 @@ function envelope({
 		| "inspect_timeline"
 		| "get_transcript"
 		| "inspect_video_range"
+		| "build_caption_diagnostics"
 		| "build_post_cut_captions"
 		| "add_texts"
 		| "add_captions"
@@ -3894,6 +3895,130 @@ describe("codex executor", () => {
 						sourceEnd: 35,
 						captionCount: 1,
 					},
+				],
+			},
+		});
+	});
+
+	test("builds read-only caption diagnostics before caption generation", async () => {
+		await createExecutorProject({ projectId, name: "Caption diagnostics" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 30,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 6, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 3,
+								sourceEnd: 9,
+								timelineStart: 0,
+								reason: "Hook",
+							},
+						],
+						rationale: "Caption diagnostics proof",
+					},
+				},
+			}),
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const diagnosticsResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_caption_diagnostics",
+				args: {
+					language: "zh",
+					modelId: "whisper-base",
+					captionStyle: {
+						preset: "creator-clean",
+						position: "lower-safe",
+					},
+				},
+			}),
+			transcribeMediaRange: async ({ language, modelId }) => ({
+				text: "diagnostic caption",
+				language,
+				modelId,
+				segments: [{ text: "诊断字幕", start: 0.5, end: 2, confidence: 0.42 }],
+				...asrContractFields(),
+				quality: {
+					confidence: 0.42,
+					warnings: [],
+				},
+				capabilities: {
+					segments: true,
+					words: false,
+					timestamps: { segments: true, words: false },
+					confidence: true,
+				},
+			}),
+		});
+
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		expect(diagnosticsResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "build_caption_diagnostics",
+			success: true,
+			message:
+				"Caption diagnostics warning: 1 candidate caption(s), 1 low-confidence item(s).",
+			data: {
+				status: "warning",
+				revision: before.revision,
+				sourceCoverage: {
+					eligibleClipCount: 1,
+					skippedClipCount: 0,
+					eligibleClips: [
+							{
+							clipId: expect.any(String),
+							mediaId,
+							timelineStart: 0,
+							sourceStart: 3,
+							sourceEnd: 9,
+						},
+					],
+				},
+				transcription: {
+					attemptedClipCount: 1,
+					successfulClipCount: 1,
+					errorCount: 0,
+				},
+				confidence: {
+					confidenceAvailable: true,
+					averageConfidence: 0.42,
+					lowConfidenceItems: [
+						{
+							clipId: expect.any(String),
+							mediaId,
+							text: "诊断字幕",
+							confidence: 0.42,
+						},
+					],
+				},
+				candidateCaptions: [
+					{ text: "诊断字幕", startTime: 0.5, duration: 1.5 },
 				],
 			},
 		});

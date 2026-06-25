@@ -33,6 +33,7 @@ import { buildVisualContextWithInspector } from "@/lib/codex-executor/visual-con
 import { inspectVideoRange as inspectVideoRangeWithNodeRuntime } from "@/lib/codex-executor/video-range-inspection";
 import { inspectTimelineWithNodeRenderer } from "@/lib/codex-executor/timeline-inspection";
 import { buildVideoQualityReport } from "@/lib/codex-executor/video-quality-report";
+import { buildCaptionDiagnosticsReport } from "@/lib/caption-diagnostics/caption-diagnostics";
 import {
 	addTextElements,
 	insertClips,
@@ -129,6 +130,7 @@ type ExecutorToolName =
 	| "inspect_timeline"
 	| "build_video_quality_report"
 	| "get_transcript"
+	| "build_caption_diagnostics"
 	| "build_post_cut_captions"
 	| "add_texts"
 	| "add_captions"
@@ -244,6 +246,7 @@ const commandSchema = z
 			"inspect_timeline",
 			"build_video_quality_report",
 			"get_transcript",
+			"build_caption_diagnostics",
 			"build_post_cut_captions",
 			"add_texts",
 			"add_captions",
@@ -448,6 +451,14 @@ const buildPostCutCaptionsArgsSchema = z
 		language: z.unknown(),
 		modelId: z.unknown(),
 		captionStyle: EditPlanCaptionStyleSchema.optional(),
+	})
+	.strict();
+
+const buildCaptionDiagnosticsArgsSchema = z
+	.object({
+		language: z.unknown(),
+		modelId: z.unknown(),
+		captionStyle: EditPlanCaptionStyleSchema,
 	})
 	.strict();
 
@@ -3679,6 +3690,61 @@ async function runBuildPostCutCaptions({
 	};
 }
 
+async function runBuildCaptionDiagnostics({
+	state,
+	args,
+	transcribeMediaRange,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	transcribeMediaRange: ExecutorTranscribeMediaRange;
+}) {
+	const parsed = buildCaptionDiagnosticsArgsSchema.parse(args);
+	const language = parseExecutorTranscriptionLanguage(parsed.language);
+	const modelId = parseExecutorTranscriptionModelId(parsed.modelId);
+	const report = await buildCaptionDiagnosticsReport({
+		revision: state.revision,
+		tracks: state.tracks,
+		mediaAssets: state.mediaAssets,
+		language,
+		modelId,
+		captionStyle: parsed.captionStyle,
+		aspectRatio: aspectRatioForState(state),
+		canvasSize: state.project.settings.canvasSize,
+		timelineDuration: calculateTotalDuration({ tracks: state.tracks }),
+		transcribeMediaRange: async ({
+			mediaAsset,
+			language: rangeLanguage,
+			modelId: rangeModelId,
+			range,
+		}) => {
+			if (!mediaAsset.path) {
+				throw new Error(`Media asset '${mediaAsset.id}' has no local path.`);
+			}
+			return transcribeMediaRange({
+				mediaAsset: {
+					id: mediaAsset.id,
+					name: mediaAsset.name,
+					path: mediaAsset.path,
+					duration: mediaAsset.duration,
+				},
+				language: rangeLanguage,
+				modelId: rangeModelId,
+				range,
+			});
+		},
+	});
+	const lowConfidenceCount = report.confidence.lowConfidenceItems.length;
+	return {
+		success: true,
+		message:
+			`Caption diagnostics ${report.status}: ` +
+			`${report.summary.candidateCaptionCount} candidate caption(s), ` +
+			`${lowConfidenceCount} low-confidence item(s).`,
+		data: report,
+	};
+}
+
 function normalizeSpokenScriptCaptionTexts({
 	spokenScript,
 	mediaName,
@@ -4796,6 +4862,13 @@ async function executeCommand({
 	}
 	if (command.tool === "get_transcript") {
 		return runGetTranscript({
+			state,
+			args: command.args,
+			transcribeMediaRange,
+		});
+	}
+	if (command.tool === "build_caption_diagnostics") {
+		return runBuildCaptionDiagnostics({
 			state,
 			args: command.args,
 			transcribeMediaRange,
