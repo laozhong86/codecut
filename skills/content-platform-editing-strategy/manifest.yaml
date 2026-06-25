@@ -1,0 +1,60 @@
+name: content-platform-editing-strategy
+version: 1
+type: strategy
+primary_dimension: planning
+
+intent:
+  one_line: Convert platform distribution signals into evidence-backed short-form editing strategy before CodeCut planning.
+  target_user: Codex planning platform-native short-form edits without pretending to know private recommendation systems.
+  success_looks_like:
+    - Platform assumptions are labeled as dated hypotheses with confidence and source freshness.
+    - Output includes a ContentCreationStrategy and PlatformStrategyBrief before any EditingDecisionLedger or EditPlan work.
+    - Platform advice names evidence gaps instead of inventing transcript, visual proof, or ranking weights.
+    - The skill stays upstream of CodeCut execution and does not mutate the timeline.
+
+known_failure_modes:
+  - mode: Platform lore is presented as algorithm truth.
+    severity: high
+    example: The agent claims exact Douyin or TikTok traffic-pool weights without a current-source check.
+  - mode: TikTok pacing is applied to every platform.
+    severity: high
+    example: A Xiaohongshu recommendation video is cut into hard-sell product-ad beats with no search/save value.
+  - mode: Strategy jumps straight into executor mutation.
+    severity: high
+    example: The agent calls timeline tools before producing a PlatformStrategyBrief and normal CodeCut intake.
+  - mode: Recommendation signals skip content strategy and become raw cut instructions.
+    severity: high
+    example: The agent says to cut faster for retention without defining audience intent, content angle, script promise, proof asset, or interaction design.
+  - mode: Missing evidence is hidden.
+    severity: medium
+    example: The agent recommends proof-shot placement without inspecting available visuals or transcript.
+
+style_constraints:
+  must_have:
+    - Dated hypothesis language for platform algorithm guidance.
+    - Current-source check when the user asks for latest or numeric platform rules.
+    - ContentCreationStrategy before editing recommendations.
+    - Platform-specific editing bias and avoid list.
+    - Explicit CodeCut planning handoff fields.
+  must_not_have:
+    - Secret ranking-weight claims.
+    - Guaranteed viral outcomes.
+    - Executor tool calls from this skill.
+    - Silent downgrade to generic TikTok advice.
+
+arena_config:
+  noise_band: 0.2
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/content-platform-editing-strategy/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/content-platform-editing-strategy/retrospective.jsonl
+  log_entry_note: Record platform, source freshness, evidence gaps, PlatformStrategyBrief summary, and user correction. Do not fabricate performance data.
+
+cold_start_mode: true
