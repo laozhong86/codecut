@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import WaveSurfer from "wavesurfer.js";
 
 interface AudioWaveformProps {
@@ -51,6 +52,7 @@ export function AudioWaveform({
 	volume = 1,
 	className = "",
 }: AudioWaveformProps) {
+	const { t } = useTranslation();
 	const waveformRef = useRef<HTMLDivElement>(null);
 	const wavesurfer = useRef<WaveSurfer | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
@@ -139,7 +141,9 @@ export function AudioWaveform({
 				className={`flex items-center justify-center ${className}`}
 				style={{ height }}
 			>
-				<span className="text-foreground/60 text-xs">Audio unavailable</span>
+				<span className="text-foreground/60 text-xs">
+					{t("Audio unavailable")}
+				</span>
 			</div>
 		);
 	}
@@ -150,7 +154,7 @@ export function AudioWaveform({
 		<div className={`relative overflow-hidden ${className}`} style={{ height }}>
 			{isLoading && (
 				<div className="absolute inset-0 flex items-center justify-center">
-					<span className="text-foreground/60 text-xs">Loading...</span>
+					<span className="text-foreground/60 text-xs">{t("Loading...")}</span>
 				</div>
 			)}
 			<div

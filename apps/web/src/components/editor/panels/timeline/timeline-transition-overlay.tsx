@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { TIMELINE_CONSTANTS } from "@/constants/timeline-constants";
 import {
 	TRANSITION_PRESETS,
@@ -82,6 +83,7 @@ function TransitionJunctionOverlay({
 	zoomLevel: number;
 }) {
 	const editor = useEditor();
+	const { t } = useTranslation();
 	const [isOpen, setIsOpen] = useState(false);
 	const [isDragging, setIsDragging] = useState(false);
 	const [dragDuration, setDragDuration] = useState<number | null>(null);
@@ -203,9 +205,9 @@ function TransitionJunctionOverlay({
 						<button
 							type="button"
 							className="bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground flex size-6 items-center justify-center rounded-sm transition-colors"
-							title="Add transition"
+							title={t("Add transition")}
 						>
-							<PlusIcon />
+							<PlusIcon label={t("Add transition")} />
 						</button>
 					</PopoverTrigger>
 					<PopoverContent
@@ -249,7 +251,7 @@ function TransitionJunctionOverlay({
 				aria-valuemin={MIN_TRANSITION_DURATION}
 				aria-valuemax={maxDuration}
 				aria-orientation="horizontal"
-				aria-label="Resize transition left"
+				aria-label={t("Resize transition left")}
 				tabIndex={0}
 				onKeyDown={() => {}}
 			/>
@@ -274,7 +276,9 @@ function TransitionJunctionOverlay({
 						<TransitionDiamondIcon />
 						{overlayWidthPx > 50 && (
 							<span className="text-foreground ml-1 text-[10px] tabular-nums">
-								{displayDuration.toFixed(1)}s
+								{t("{{seconds}}s", {
+									seconds: displayDuration.toFixed(1),
+								})}
 							</span>
 						)}
 					</button>
@@ -305,7 +309,7 @@ function TransitionJunctionOverlay({
 				aria-valuemin={MIN_TRANSITION_DURATION}
 				aria-valuemax={maxDuration}
 				aria-orientation="horizontal"
-				aria-label="Resize transition right"
+				aria-label={t("Resize transition right")}
 				tabIndex={0}
 				onKeyDown={() => {}}
 			/>
@@ -322,10 +326,12 @@ function TransitionPicker({
 	onSelect: ({ type }: { type: TransitionType }) => void;
 	onRemove?: () => void;
 }) {
+	const { t } = useTranslation();
+
 	return (
 		<div className="flex flex-col">
 			<div className="border-b px-3 py-2">
-				<span className="text-xs font-medium">Transitions</span>
+				<span className="text-xs font-medium">{t("Transitions")}</span>
 			</div>
 			<ScrollArea className="max-h-48">
 				<div className="grid grid-cols-2 gap-1 p-2">
@@ -353,7 +359,7 @@ function TransitionPicker({
 						className="hover:bg-destructive/10 text-destructive w-full rounded-sm px-2 py-1.5 text-xs"
 						onClick={onRemove}
 					>
-						Remove transition
+						{t("Remove transition")}
 					</button>
 				</div>
 			)}
@@ -362,18 +368,20 @@ function TransitionPicker({
 }
 
 function TransitionDiamondIcon() {
+	const { t } = useTranslation();
+
 	return (
 		<svg viewBox="0 0 12 12" className="size-3">
-			<title>Transition</title>
+			<title>{t("Transition")}</title>
 			<path d="M6 1 L11 6 L6 11 L1 6 Z" fill="currentColor" opacity="0.9" />
 		</svg>
 	);
 }
 
-function PlusIcon() {
+function PlusIcon({ label }: { label: string }) {
 	return (
 		<svg viewBox="0 0 12 12" className="size-3">
-			<title>Add transition</title>
+			<title>{label}</title>
 			<path
 				d="M6 2 V10 M2 6 H10"
 				stroke="currentColor"

@@ -56,6 +56,8 @@ import { StorageIndicator } from "./storage-indicator";
 import { createProjectFromName } from "./create-project";
 import { TemplateScriptsDialog } from "@/components/editor/template-scripts/template-scripts-dialog";
 
+type TranslateFn = (key: string) => string;
+
 const formatProjectDuration = ({
 	duration,
 }: {
@@ -70,9 +72,38 @@ const formatProjectDuration = ({
 };
 
 const VIEW_MODE_OPTIONS = [
-	{ mode: "grid" as const, icon: GridViewIcon, label: "Grid view" },
-	{ mode: "list" as const, icon: LeftToRightListDashIcon, label: "List view" },
+	{ mode: "grid" as const, icon: GridViewIcon },
+	{ mode: "list" as const, icon: LeftToRightListDashIcon },
 ];
+
+function getViewModeLabel({
+	mode,
+	t,
+}: {
+	mode: "grid" | "list";
+	t: TranslateFn;
+}) {
+	return mode === "grid" ? t("Grid view") : t("List view");
+}
+
+function getSortKeyLabel({
+	sortKey,
+	t,
+}: {
+	sortKey: TProjectSortOption extends `${infer K}-${string}` ? K : never;
+	t: TranslateFn;
+}) {
+	switch (sortKey) {
+		case "createdAt":
+			return t("Created");
+		case "updatedAt":
+			return t("Modified");
+		case "name":
+			return t("Name");
+		case "duration":
+			return t("Duration");
+	}
+}
 
 export default function ProjectsPage() {
 	const { searchQuery, sortKey, sortOrder, viewMode } = useProjectsStore();
@@ -144,7 +175,7 @@ function ProjectsHeader() {
 					</Breadcrumb>
 
 					<div className="hidden md:flex items-center rounded-md border p-1 px-1.5 h-10">
-						{VIEW_MODE_OPTIONS.map(({ mode, icon, label }) => (
+						{VIEW_MODE_OPTIONS.map(({ mode, icon }) => (
 							<Button
 								key={mode}
 								variant="ghost"
@@ -154,7 +185,7 @@ function ProjectsHeader() {
 									isHydrated && viewMode === mode && "!bg-accent",
 								)}
 								onClick={() => setViewMode({ viewMode: mode })}
-								aria-label={t(label)}
+								aria-label={getViewModeLabel({ mode, t })}
 								aria-pressed={isHydrated && viewMode === mode}
 							>
 								<HugeiconsIcon icon={icon} className="size-4" />
@@ -234,15 +265,7 @@ function ProjectsToolbar({ projectIds }: { projectIds: string[] }) {
 
 				<SortDropdown>
 					<Button variant="text" className="text-muted-foreground pl-2">
-						{t(
-							sortKey === "createdAt"
-								? "Created"
-								: sortKey === "updatedAt"
-									? "Modified"
-									: sortKey === "name"
-										? "Name"
-										: "Duration",
-						)}
+						{getSortKeyLabel({ sortKey, t })}
 					</Button>
 				</SortDropdown>
 				<Button
@@ -274,12 +297,12 @@ function ProjectsToolbar({ projectIds }: { projectIds: string[] }) {
 				<div className="h-4 w-px bg-border/50 block md:hidden" />
 
 				<div className="flex md:hidden items-center gap-4">
-					{VIEW_MODE_OPTIONS.map(({ mode, icon, label }) => (
+					{VIEW_MODE_OPTIONS.map(({ mode, icon }) => (
 						<Button
 							key={mode}
 							variant="text"
 							onClick={() => setViewMode({ viewMode: mode })}
-							aria-label={t(label)}
+							aria-label={getViewModeLabel({ mode, t })}
 						>
 							<HugeiconsIcon
 								icon={icon}

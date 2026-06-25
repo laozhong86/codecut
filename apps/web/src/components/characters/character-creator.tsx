@@ -207,9 +207,10 @@ export function CharacterCreatorDialog({
 			});
 
 			const imageId = generateUUID();
+			const characterPortraitLabel = t("Character Portrait");
 			const characterImage: CharacterImage = {
 				id: imageId,
-				label: "Character Portrait",
+				label: characterPortraitLabel,
 				prompt: result.prompt,
 				blobKey,
 				thumbnailDataUrl,
@@ -222,7 +223,7 @@ export function CharacterCreatorDialog({
 				{
 					id: imageId,
 					thumbnailDataUrl,
-					label: "Character Portrait",
+					label: characterPortraitLabel,
 					blobKey,
 					isNew: true,
 				},

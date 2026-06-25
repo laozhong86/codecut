@@ -1,4 +1,5 @@
 import { type JSX, useLayoutEffect, useRef } from "react";
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { TIMELINE_CONSTANTS } from "@/constants/timeline-constants";
 import { DEFAULT_FPS } from "@/constants/project-constants";
 import { useEditor } from "@/hooks/use-editor";
@@ -27,6 +28,7 @@ export function TimelineRuler({
 	handleRulerTrackingMouseDown,
 	handleRulerMouseDown,
 }: TimelineRulerProps) {
+	const { t } = useTranslation();
 	const editor = useEditor();
 	const duration = editor.timeline.getTotalDuration();
 	const pixelsPerSecond = TIMELINE_CONSTANTS.PIXELS_PER_SECOND * zoomLevel;
@@ -100,7 +102,7 @@ export function TimelineRuler({
 		<div
 			role="slider"
 			tabIndex={0}
-			aria-label="Timeline ruler"
+			aria-label={t("Timeline ruler")}
 			aria-valuemin={0}
 			aria-valuemax={effectiveDuration}
 			aria-valuenow={0}

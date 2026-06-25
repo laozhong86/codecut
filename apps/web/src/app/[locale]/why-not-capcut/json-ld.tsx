@@ -60,9 +60,10 @@ export async function ComparisonJsonLd({ locale }: { locale: string }) {
 	const articleSchema = {
 		"@context": "https://schema.org",
 		"@type": "Article",
-		headline: "Why Not CapCut? Codecut vs CapCut — Side-by-Side Comparison",
-		description:
+		headline: t("Why Not CapCut? Codecut vs CapCut — Side-by-Side Comparison"),
+		description: t(
 			"Compare Codecut and CapCut side by side. Codecut is a free, open-source, privacy-first browser video editor — no uploads, no account, no watermarks.",
+		),
 		url: `${SITE_URL}/why-not-capcut`,
 		author: {
 			"@type": "Organization",
@@ -100,8 +101,9 @@ export async function ComparisonJsonLd({ locale }: { locale: string }) {
 		"@context": "https://schema.org",
 		"@type": "ItemList",
 		name: "Codecut vs CapCut Comparison",
-		description:
+		description: t(
 			"Side-by-side feature comparison between Codecut and CapCut video editors",
+		),
 		itemListElement: [
 			{
 				"@type": "ListItem",
@@ -116,8 +118,9 @@ export async function ComparisonJsonLd({ locale }: { locale: string }) {
 						price: "0",
 						priceCurrency: "USD",
 					},
-					description:
+					description: t(
 						"AI-native, open-source, privacy-first video editor that runs in your browser",
+					),
 				},
 			},
 			{
@@ -127,7 +130,7 @@ export async function ComparisonJsonLd({ locale }: { locale: string }) {
 					"@type": "SoftwareApplication",
 					name: "CapCut",
 					applicationCategory: "MultimediaApplication",
-					description: "Popular video editor by ByteDance",
+					description: t("Popular video editor by ByteDance"),
 				},
 			},
 		],

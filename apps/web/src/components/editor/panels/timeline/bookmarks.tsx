@@ -1,4 +1,5 @@
 import { useEditor } from "@/hooks/use-editor";
+import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { TIMELINE_CONSTANTS } from "@/constants/timeline-constants";
 import { getSnappedSeekTime } from "@/lib/time";
 import { Bookmark02Icon } from "@hugeicons/core-free-icons";
@@ -22,6 +23,7 @@ export function TimelineBookmarksRow({
 	handleRulerMouseDown,
 }: TimelineBookmarksRowProps) {
 	const editor = useEditor();
+	const { t } = useTranslation();
 	const activeScene = editor.scenes.getActiveScene();
 
 	return (
@@ -31,7 +33,7 @@ export function TimelineBookmarksRow({
 				style={{
 					width: `${dynamicTimelineWidth}px`,
 				}}
-				aria-label="Timeline ruler"
+				aria-label={t("Timeline ruler")}
 				type="button"
 				onWheel={handleWheel}
 				onClick={handleTimelineContentClick}

@@ -88,7 +88,7 @@ export function Header() {
 					<div className="relative h-full">
 						<button
 							type="button"
-							aria-label="Close menu"
+							aria-label={t("Close menu")}
 							className="absolute inset-0"
 							onClick={closeMenu}
 							onKeyDown={(event) => {

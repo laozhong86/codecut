@@ -11,6 +11,7 @@ import {
 	type FontFamily,
 } from "@/constants/font-constants";
 import { cn } from "@/utils/ui";
+import { i18next } from "@/lib/i18n";
 
 interface FontPickerProps {
 	value?: string;
@@ -32,7 +33,7 @@ export function FontPicker({
 			<SelectTrigger
 				className={cn("w-full", className)}
 			>
-				<SelectValue placeholder="Select a font" />
+				<SelectValue placeholder={i18next.t("Select a font")} />
 			</SelectTrigger>
 			<SelectContent>
 				{fontOptions.map((font) => (

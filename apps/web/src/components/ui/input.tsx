@@ -3,6 +3,7 @@
 import { Eye, EyeOff, X } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/utils/ui";
+import { i18next } from "@/lib/i18n";
 import { Button } from "./button";
 import { forwardRef, type ComponentProps } from "react";
 import { useState } from "react";
@@ -110,7 +111,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 							onClear?.();
 						}}
 						className="text-muted-foreground absolute top-0 right-0 h-full px-3 !opacity-100"
-						aria-label="Clear input"
+						aria-label={i18next.t("Clear input")}
 					>
 						<X className="!size-[0.85]" />
 					</Button>
