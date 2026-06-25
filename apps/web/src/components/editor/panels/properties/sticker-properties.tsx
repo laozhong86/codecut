@@ -146,7 +146,7 @@ export function StickerProperties({
 						<PropertyItem>
 							<PropertyItemLabel className="flex items-center gap-1.5">
 								<KeyframeToggle
-									label="Toggle position keyframe"
+									label={t("Toggle position keyframe")}
 									pressed={keyframeEditor.isActive("transform.position")}
 									disabled={!keyframeEditor.canEditAtPlayhead}
 									onClick={() => keyframeEditor.toggle("transform.position")}
@@ -155,7 +155,7 @@ export function StickerProperties({
 							</PropertyItemLabel>
 							<PropertyItemValue>
 								<Input
-									aria-label="Position X"
+									aria-label={t("Position X")}
 									type="number"
 									value={posXDisplay}
 									disabled={keyframeEditor.isDisabled("transform.position")}
@@ -255,7 +255,7 @@ export function StickerProperties({
 							<PropertyItemLabel>{t("Position Y")}</PropertyItemLabel>
 							<PropertyItemValue>
 								<Input
-									aria-label="Position Y"
+									aria-label={t("Position Y")}
 									type="number"
 									value={posYDisplay}
 									disabled={keyframeEditor.isDisabled("transform.position")}
@@ -354,7 +354,7 @@ export function StickerProperties({
 						<PropertyItem direction="column">
 							<PropertyItemLabel className="flex items-center gap-1.5">
 								<KeyframeToggle
-									label="Toggle scale keyframe"
+									label={t("Toggle scale keyframe")}
 									pressed={keyframeEditor.isActive("transform.scale")}
 									disabled={!keyframeEditor.canEditAtPlayhead}
 									onClick={() => keyframeEditor.toggle("transform.scale")}
@@ -422,7 +422,7 @@ export function StickerProperties({
 										value={scaleDisplay}
 										min={10}
 										max={500}
-										aria-label="Scale percentage"
+										aria-label={t("Scale percentage")}
 										disabled={keyframeEditor.isDisabled("transform.scale")}
 										onFocus={() => {
 											isEditingScale.current = true;
@@ -515,7 +515,7 @@ export function StickerProperties({
 						<PropertyItem direction="column">
 							<PropertyItemLabel className="flex items-center gap-1.5">
 								<KeyframeToggle
-									label="Toggle rotation keyframe"
+									label={t("Toggle rotation keyframe")}
 									pressed={keyframeEditor.isActive("transform.rotate")}
 									disabled={!keyframeEditor.canEditAtPlayhead}
 									onClick={() => keyframeEditor.toggle("transform.rotate")}
@@ -585,7 +585,7 @@ export function StickerProperties({
 										value={rotationDisplay}
 										min={-360}
 										max={360}
-										aria-label="Rotation degrees"
+										aria-label={t("Rotation degrees")}
 										disabled={keyframeEditor.isDisabled("transform.rotate")}
 										onFocus={() => {
 											isEditingRotation.current = true;
@@ -676,7 +676,7 @@ export function StickerProperties({
 						<PropertyItem direction="column">
 							<PropertyItemLabel className="flex items-center gap-1.5">
 								<KeyframeToggle
-									label="Toggle opacity keyframe"
+									label={t("Toggle opacity keyframe")}
 									pressed={keyframeEditor.isActive("opacity")}
 									disabled={!keyframeEditor.canEditAtPlayhead}
 									onClick={() => keyframeEditor.toggle("opacity")}
@@ -746,7 +746,7 @@ export function StickerProperties({
 										value={opacityDisplay}
 										min={0}
 										max={100}
-										aria-label="Opacity percentage"
+										aria-label={t("Opacity percentage")}
 										disabled={keyframeEditor.isDisabled("opacity")}
 										onFocus={() => {
 											isEditingOpacity.current = true;

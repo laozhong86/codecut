@@ -16,6 +16,13 @@ import { GET as getStatus } from "../status/route";
 const origin = "http://localhost:4100";
 const token = "local-dev-bridge";
 
+function expectedEditorBaseUrl() {
+	return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:4100").replace(
+		/\/$/,
+		"",
+	);
+}
+
 function request({
 	url,
 	method = "GET",
@@ -91,12 +98,15 @@ describe("codex executor API routes", () => {
 		);
 
 		expect(createResponse.status).toBe(200);
-		expect(await createResponse.json()).toMatchObject({
+		const createdProject = await createResponse.json();
+		expect(createdProject).toMatchObject({
 			projectId: "project-1",
-			editorUrl: expect.stringMatching(
-				/^http:\/\/127\.0\.0\.1:4100\/en\/editor\/project-1#bridgeToken=.+/,
-			),
 		});
+		const editorUrl = new URL(createdProject.editorUrl);
+		expect(`${editorUrl.origin}${editorUrl.pathname}`).toBe(
+			`${expectedEditorBaseUrl()}/en/editor/project-1`,
+		);
+		expect(editorUrl.hash).toMatch(/^#bridgeToken=.+/);
 		expect(commandResponse.status).toBe(200);
 		expect(await commandResponse.json()).toMatchObject({
 			status: "completed",
