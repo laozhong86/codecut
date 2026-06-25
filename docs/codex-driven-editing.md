@@ -754,14 +754,24 @@ After application, Codex must verify `get_timeline_state` proof fields:
     contact sheet. It must report OCR, face detection, subject-safe crop, and
     burned-caption detection as unavailable or conservative unknown unless a
     later tool returns those facts explicitly.
-28. Codex writes verification notes under `06-verification/`.
-29. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
-30. Before any long render or MP4 export, Codex reruns `doctor-install` and
+28. Codex inspects the timeline contact sheet and records a visual QA verdict
+    under `.codecut-workspace/projects/<projectId>/06-verification/visual-qa/<runId>/`.
+    `inspect_timeline` and `build-video-quality-report` generate evidence only;
+    they are not a visual pass by themselves.
+29. Codex writes verification notes under `06-verification/`.
+30. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
+31. Before any long render or MP4 export, Codex reruns `doctor-install` and
     `doctor` so source, installed plugin cache, bridge env, and executor
     readiness are fresh before expensive work begins.
-31. If export is requested, Codex calls `export` with explicit output path and
+32. If export is requested, Codex calls `export` with explicit output path and
     overwrite policy. If the local renderer runtime is unavailable, report that
     runtime gap.
+33. After MP4 export, Codex samples the final exported MP4 with
+    `codecut-workspace extract-export-frames`, inspects the export contact
+    sheet, compares it against the timeline contact sheet, and records the
+    final visual QA verdict with `codecut-workspace record-visual-qa`.
+    Timeline frames prove editor state; exported MP4 frames prove the delivered
+    file. They cannot substitute for each other.
 
 ```bash
 node scripts/codex-bridge.mjs build-visual-context \
@@ -1058,6 +1068,52 @@ rubric file such as `{"platform":"youtube","primaryKeyword":"retention"}`.
 Export probe runs only when Codex provides `--output-file`, `--format`, and
 `--include-audio` for an already exported local file.
 
+Record visual QA after inspecting the timeline contact sheet:
+
+```bash
+node scripts/codecut-workspace.mjs record-visual-qa \
+  --project-id <id> \
+  --run-id qa-YYYYMMDD-HHMMSS \
+  --verdict-json-file /absolute/path/visual-qa-verdict.json \
+  --confirmation-token <token>
+```
+
+`record-visual-qa` validates `visual-qa-verdict.json`, copies the timeline
+contact sheet to
+`.codecut-workspace/projects/<projectId>/06-verification/visual-qa/<runId>/timeline-contact-sheet.png`,
+and writes both `visual-qa-verdict.json` and `visual-qa-verdict.md`. The verdict
+must include:
+
+- timeline contact sheet path, frame count, sampled timestamps, and pass/fail;
+- issues found and whether each issue was fixed;
+- all required checks: `first_frame_not_black`, `title_not_clipped`,
+  `text_layers_not_overlapping`, `subject_not_cropped_by_cover`,
+  `bottom_safe_area_clear`, `ending_normal`, and
+  `export_matches_timeline_preview`.
+  `export_matches_timeline_preview` may be `not_applicable` only when no MP4
+  export was requested; the final report must then state that no MP4 was
+  produced.
+
+After MP4 export, sample the final delivered file:
+
+```bash
+node scripts/codecut-workspace.mjs extract-export-frames \
+  --project-id <id> \
+  --run-id qa-YYYYMMDD-HHMMSS \
+  --export-file /absolute/path/final.mp4 \
+  --start-time 0 \
+  --end-time <duration-seconds> \
+  --frame-count 8 \
+  --confirmation-token <token>
+```
+
+`extract-export-frames` writes `export-contact-sheet.png`,
+`export-frames-manifest.json`, and individual exported MP4 frames under the
+same `06-verification/visual-qa/<runId>/` directory. Codex must inspect this
+contact sheet before recording the final MP4 verdict. A timeline contact sheet
+cannot prove the exported file, and an exported-file contact sheet cannot prove
+current editor state.
+
 Create a text-background masked effect from an existing person-mask derived asset:
 
 ```bash
@@ -1089,7 +1145,7 @@ node scripts/codex-bridge.mjs rename-project --project-id <id> --name "<business
 node scripts/codex-bridge.mjs delete-project --project-id <id>
 ```
 
-Export after review:
+Export after timeline visual QA passes:
 
 ```bash
 node scripts/codex-bridge.mjs export \
@@ -1104,6 +1160,9 @@ node scripts/codex-bridge.mjs export \
 `export` is executor-native and writes only to the local `--output-file`. It
 does not trigger browser download. If the current server runtime lacks a
 Node-compatible renderer, the command fails fast and reports that runtime gap.
+Export success is not final delivery success. After export, run
+`codecut-workspace extract-export-frames`, inspect the final MP4 contact sheet,
+and update the visual QA verdict before reporting completion.
 
 Before running this command for a long render, rerun:
 
