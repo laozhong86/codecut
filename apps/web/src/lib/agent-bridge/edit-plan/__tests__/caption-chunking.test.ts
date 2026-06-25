@@ -13,7 +13,7 @@ describe("buildPostCutCaptionEntries", () => {
 		});
 
 		expect(captions.map((caption) => caption.text)).toEqual([
-			"先讲。",
+			"先讲",
 			"然后展示关键证据",
 		]);
 	});
@@ -29,8 +29,8 @@ describe("buildPostCutCaptionEntries", () => {
 		});
 
 		expect(captions.map((caption) => caption.text)).toEqual([
-			"U.S. sales hit $2.34,",
-			"then orders doubled.",
+			"U.S. sales hit $2.34",
+			"then orders doubled",
 		]);
 	});
 
@@ -45,8 +45,26 @@ describe("buildPostCutCaptionEntries", () => {
 		});
 
 		expect(captions.map((caption) => caption.text)).toEqual([
-			"Dr. Lee used e.g. product evidence,",
-			"then closed.",
+			"Dr. Lee used e.g. product evidence",
+			"then closed",
+		]);
+	});
+
+	test("cleans display punctuation while preserving real-estate numbers and tone marks", () => {
+		const captions = buildPostCutCaptionEntries({
+			text: "建面117.55平，套三双卫！约来看一哈？预算1,000万以内。",
+			startTime: 0,
+			endTime: 8,
+			captionStyle: { preset: "talking-head-pop", position: "lower-safe" },
+			aspectRatio: "9:16",
+			canvasSize: { width: 1080, height: 1920 },
+		});
+
+		expect(captions.map((caption) => caption.text)).toEqual([
+			"建面117.55平",
+			"套三双卫！",
+			"约来看一哈？",
+			"预算1,000万以内",
 		]);
 	});
 

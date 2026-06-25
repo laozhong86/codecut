@@ -38,6 +38,21 @@ describe("auditCaptions", () => {
 		});
 	});
 
+	test("passes mixed Chinese real-estate captions with decimal values", () => {
+		const report = auditCaptions({
+			...layout,
+			captions: [
+				{ text: "建面117.55平", startTime: 0, duration: 1.2 },
+				{ text: "预算1,000万以内", startTime: 1.3, duration: 1.2 },
+			],
+		});
+
+		expect(report).toMatchObject({
+			ok: true,
+			issueCount: 0,
+		});
+	});
+
 	test("fails captions below the minimum readable duration", () => {
 		const report = auditCaptions({
 			...layout,

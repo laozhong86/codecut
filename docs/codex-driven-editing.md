@@ -409,6 +409,11 @@ overlap, each caption duration must be `0.5s..4s`, and the selected
 `captionStyle` must render each item as no more than two lines with no
 1-2 character orphan final line. Codecut rejects invalid caption plans instead
 of repairing text, changing timing, or switching presets.
+Post-cut caption text uses punctuation as a phrase boundary, not as automatic
+display text. For short-form generated captions, strip trailing full stops,
+commas, colons, semicolons, and enumeration punctuation after chunking; keep
+question marks and exclamation marks, and preserve punctuation inside numeric
+values such as decimals and thousands separators.
 
 Caption timing must declare a post-cut caption source. Prefer edited audio transcription
 from edited clip ranges through `build-post-cut-captions`: apply a clip-only

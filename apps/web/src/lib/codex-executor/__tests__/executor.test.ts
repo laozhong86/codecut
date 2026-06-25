@@ -4009,10 +4009,10 @@ describe("codex executor", () => {
 					protectedTermCount: 3,
 				},
 				captions: [
-					{ text: "These texts already sound like a song.", startTime: 0 },
-					{ text: "A pizza portion costs $2.34.", startTime: 2 },
-					{ text: "The reveal is the last line.", startTime: 5 },
-					{ text: "Venmo that ASAP.", startTime: 7 },
+					{ text: "These texts already sound like a song", startTime: 0 },
+					{ text: "A pizza portion costs $2.34", startTime: 2 },
+					{ text: "The reveal is the last line", startTime: 5 },
+					{ text: "Venmo that ASAP", startTime: 7 },
 				],
 			},
 		});
@@ -4107,9 +4107,9 @@ describe("codex executor", () => {
 		expect(data.source).toBe("scripted_tts_audio");
 		expect(captionText).toContain("$2.34");
 		expect(captionText).toContain("Venmo that ASAP");
-		expect(captionText).toContain("The reveal is the last line.");
+		expect(captionText).toContain("The reveal is the last line");
 		expect(captionText).not.toContain("$2.30");
-		expect(captionText).not.toContain("The review is the last line.");
+		expect(captionText).not.toContain("The review is the last line");
 		expect(captionText).not.toContain("The AMO that ASAP");
 	});
 
