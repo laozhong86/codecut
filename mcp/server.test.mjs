@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runInNewContext } from "node:vm";
 
 import {
 	CODECUT_MCP_TOOLS,
@@ -31,8 +32,8 @@ function setupIntent(overrides = {}) {
 			captionStylePreset: "creator-clean",
 		},
 		generateIntroCover: true,
-		brief: "Cut a high-retention short for a product launch.",
-		successCriteria: "Show a hook, proof, and CTA with readable captions.",
+		requirements:
+			"Cut a high-retention short for a product launch.\nShow a hook, proof, and CTA with readable captions.",
 		...overrides,
 	};
 }
@@ -62,6 +63,25 @@ function readStyleDeclarations(html, selector) {
 		);
 	}
 	return declarations;
+}
+
+function evaluateWorkspaceRecommendedChoices(
+	html,
+	{ options, recommendedValues },
+) {
+	const start = html.indexOf("function recommendedChoiceSet");
+	const end = html.indexOf("function collectChoiceText", start);
+	if (start === -1 || end === -1) {
+		throw new Error("Missing workspace choice selection functions");
+	}
+	const context = { options, recommendedValues, result: null };
+	runInNewContext(
+		`${html.slice(start, end)}
+		const normalizedOptions = normalizeChoiceOptions(options);
+		result = Array.from(recommendedChoiceSet(normalizedOptions, recommendedValues));`,
+		context,
+	);
+	return context.result;
 }
 
 describe("Codecut MCP server contract", () => {
@@ -389,17 +409,14 @@ describe("Codecut MCP server contract", () => {
 			'id="caption-size"',
 			'id="caption-style-preset"',
 			'id="transition-preference"',
-			'id="brief-options"',
-			'id="brief-label"',
-			'aria-labelledby="brief-label"',
+			'id="requirement-options"',
+			'id="requirements-label"',
+			'aria-labelledby="requirements-label"',
 			'id="generate-intro-cover"',
 			'type="checkbox"',
 			"introCoverRecommended",
 			"collectIntroCoverChoice",
-			'id="success-criteria-options"',
-			'id="success-criteria-label"',
-			'aria-labelledby="success-criteria-label"',
-			'id="success-criteria"',
+			'id="requirements"',
 			"renderMediaSources",
 			"renderChoiceOptions",
 			"appendCustomChoiceOption",
@@ -452,8 +469,7 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain("fields.mediaSources.children.length > 1");
 		for (const marker of [
 			'data-i18n-placeholder="projectNamePlaceholder"',
-			'data-i18n-placeholder="briefCustomPlaceholder"',
-			'data-i18n-placeholder="successCriteriaCustomPlaceholder"',
+			'data-i18n-placeholder="requirementsCustomPlaceholder"',
 			"durationGoalRange",
 			"durationGoalAuto",
 			"durationRange15To30",
@@ -501,6 +517,10 @@ describe("Codecut MCP server contract", () => {
 		]) {
 			expect(html).toContain(marker);
 		}
+		expect(html).not.toContain('id="brief-options"');
+		expect(html).not.toContain('id="success-criteria-options"');
+		expect(html).not.toContain('id="brief"');
+		expect(html).not.toContain('id="success-criteria"');
 		expect(html).toContain("durationGoalMode");
 		expect(html).toContain("durationGoalRangeSeconds");
 		expect(html).toContain('introCoverRecommended: "用AI 生成新的封面"');
@@ -722,15 +742,12 @@ describe("Codecut MCP server contract", () => {
 		);
 	});
 
-	test("workspace widget selects recommended choice options only by default", async () => {
+	test("workspace widget selects recommended requirement options only by default", async () => {
 		const html = await serverModule.readCodecutWorkspaceHtml();
 		const compactHtml = html.replace(/\s+/g, " ");
 
 		expect(compactHtml).toContain(
-			'renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t("briefPlaceholder")], defaults.brief, fields.brief)',
-		);
-		expect(compactHtml).toContain(
-			'renderChoiceOptions( fields.successCriteriaOptions, defaults.successCriteriaOptions || [defaults.successCriteria || t("successCriteriaPlaceholder")], defaults.successCriteria, fields.successCriteria',
+			'renderChoiceOptions(fields.requirementOptions, defaults.requirementOptions || [defaults.requirements || t("requirementsPlaceholder")], defaults.recommendedRequirementOptions || [], fields.requirements)',
 		);
 		expect(html).toContain(
 			'button.className = isRecommendedChoice ? "choice-option is-active" : "choice-option"',
@@ -746,20 +763,61 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain('button.setAttribute("aria-pressed", "true");');
 		expect(html).not.toContain('customButton.setAttribute("aria-pressed"');
 		expect(html).not.toContain("customButton.dataset.choiceOption");
-		expect(html).not.toContain("fields.briefCustomToggle.addEventListener");
-		expect(html).not.toContain(
-			"fields.successCriteriaCustomToggle.addEventListener",
-		);
+		expect(html).not.toContain("fields.requirementsCustomToggle.addEventListener");
+		expect(html).not.toContain("optionKey.includes(recommendedKey)");
+		expect(html).not.toContain("recommendedKey.includes(optionKey)");
+	});
+
+	test("workspace widget choice logic selects exact recommended requirements", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+		const result = evaluateWorkspaceRecommendedChoices(html, {
+			options: [
+				"新增字幕避开已有标题",
+				"新增字幕避开已有标题和字幕区域",
+				"不能重叠",
+				"语气自然",
+			],
+			recommendedValues: ["新增字幕避开已有标题和字幕区域"],
+		});
+
+		expect(result).toEqual(["新增字幕避开已有标题和字幕区域"]);
+	});
+
+	test("workspace widget choice logic leaves options unselected without explicit recommendations", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+		const workspace = serverModule.openCodecutWorkspace({
+			locale: "zh-CN",
+			requirements: "新增字幕避开已有标题和字幕区域",
+			requirementOptions: [
+				"新增字幕避开已有标题和字幕区域",
+				"新增字幕避开已有标题",
+			],
+		});
+
+		const result = evaluateWorkspaceRecommendedChoices(html, {
+			options: workspace.structuredContent.intentDefaults.requirementOptions,
+			recommendedValues:
+				workspace.structuredContent.intentDefaults.recommendedRequirementOptions ||
+				[],
+		});
+
+		expect(result).toEqual([]);
 	});
 
 	test("opens the workspace with structured defaults and widget metadata", () => {
 		const result = serverModule.openCodecutWorkspace({
 			projectName: "Creator Launch",
-			brief: "Make a concise vertical launch cut.",
-			briefOptions: ["Keep the launch hook", "Remove repeated setup"],
-			successCriteriaOptions: [
+			requirements:
+				"Make a concise vertical launch cut.\nHook appears before 3s.",
+			requirementOptions: [
+				"Keep the launch hook",
+				"Remove repeated setup",
 				"Hook appears before 3s",
 				"Captions remain readable",
+			],
+			recommendedRequirementOptions: [
+				"Keep the launch hook",
+				"Hook appears before 3s",
 			],
 			mediaSources: [
 				{ kind: "filePath", filePath: "/tmp/creator-launch-a.mp4" },
@@ -775,11 +833,17 @@ describe("Codecut MCP server contract", () => {
 		expect(result.structuredContent.intentDefaults).toMatchObject({
 			projectName: "Creator Launch",
 			generateIntroCover: true,
-			brief: "Make a concise vertical launch cut.",
-			briefOptions: ["Keep the launch hook", "Remove repeated setup"],
-			successCriteriaOptions: [
+			requirements:
+				"Make a concise vertical launch cut.\nHook appears before 3s.",
+			requirementOptions: [
+				"Keep the launch hook",
+				"Remove repeated setup",
 				"Hook appears before 3s",
 				"Captions remain readable",
+			],
+			recommendedRequirementOptions: [
+				"Keep the launch hook",
+				"Hook appears before 3s",
 			],
 			mediaSources: [
 				{ kind: "filePath", filePath: "/tmp/creator-launch-a.mp4" },
@@ -856,19 +920,24 @@ describe("Codecut MCP server contract", () => {
 			/^codecut-[a-z0-9]+$/,
 		);
 		expect(chinese.structuredContent.intentDefaults).toMatchObject({
-			brief: "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
-			briefOptions: [
+			requirements:
+				"剪成节奏清晰的短视频；开头有明确信息点；主体节奏紧凑；字幕清晰可读；自然音频；结尾适合继续编辑或导出。",
+			requirementOptions: [
 				"剪成节奏清晰",
 				"保留核心信息",
-				"字幕清晰可读",
-				"自然音频",
-			],
-			successCriteria:
-				"开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
-			successCriteriaOptions: [
 				"开头有明确信息点",
 				"主体节奏紧凑",
-				"字幕清晰",
+				"字幕清晰可读",
+				"自然音频",
+				"结尾适合继续编辑或导出",
+			],
+			recommendedRequirementOptions: [
+				"剪成节奏清晰",
+				"保留核心信息",
+				"开头有明确信息点",
+				"主体节奏紧凑",
+				"字幕清晰可读",
+				"自然音频",
 				"结尾适合继续编辑或导出",
 			],
 			captionLanguage: "auto",
@@ -882,6 +951,55 @@ describe("Codecut MCP server contract", () => {
 				captionSize: "medium",
 				captionStylePreset: "creator-clean",
 			},
+		});
+	});
+
+	test("opens the workspace with Codex-generated requirement options and selected recommendations", () => {
+		const result = serverModule.openCodecutWorkspace({
+			locale: "zh-CN",
+			requirements:
+				"保留片头和片尾源视频原音\n配音要四川话，中年女性，语速较快\n新增字幕避开已有标题和字幕区域",
+			requirementOptions: [
+				"保留片头和片尾源视频原音",
+				"不用新配音覆盖片头片尾",
+				"中段使用四川话口气的房地产卖点口播",
+				"语气自然",
+				"销售转化导向",
+				"新增字幕避开已有标题和字幕区域",
+				"不能重叠",
+				"时间线 readback 能看到片头",
+				"片尾三段结构",
+			],
+			recommendedRequirementOptions: [
+				"保留片头和片尾源视频原音",
+				"不用新配音覆盖片头片尾",
+				"中段使用四川话口气的房地产卖点口播",
+				"新增字幕避开已有标题和字幕区域",
+				"不能重叠",
+			],
+		});
+
+		expect(result.structuredContent.intentDefaults).toMatchObject({
+			requirements:
+				"保留片头和片尾源视频原音\n配音要四川话，中年女性，语速较快\n新增字幕避开已有标题和字幕区域",
+			requirementOptions: [
+				"保留片头和片尾源视频原音",
+				"不用新配音覆盖片头片尾",
+				"中段使用四川话口气的房地产卖点口播",
+				"语气自然",
+				"销售转化导向",
+				"新增字幕避开已有标题和字幕区域",
+				"不能重叠",
+				"时间线 readback 能看到片头",
+				"片尾三段结构",
+			],
+			recommendedRequirementOptions: [
+				"保留片头和片尾源视频原音",
+				"不用新配音覆盖片头片尾",
+				"中段使用四川话口气的房地产卖点口播",
+				"新增字幕避开已有标题和字幕区域",
+				"不能重叠",
+			],
 		});
 	});
 
@@ -1029,6 +1147,16 @@ describe("Codecut MCP server contract", () => {
 		).toThrow("filePath and mediaPath must match");
 	});
 
+	test("rejects stale workspace open intent fields instead of dropping them", () => {
+		expect(() =>
+			serverModule.openCodecutWorkspace({
+				projectName: "Creator Launch",
+				brief: "保留片头片尾原音",
+				successCriteria: "新增字幕不能重叠",
+			}),
+		).toThrow("stale CodeCut workspace schema");
+	});
+
 	test("inspects setup inputs without bridge preflight and reports local blockers", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
 		const filePath = join(directory, "source.mp4");
@@ -1086,7 +1214,7 @@ describe("Codecut MCP server contract", () => {
 			for (const [label, intent] of [
 				["invalid project id", setupIntent({ projectId: "../bad" })],
 				["missing project name", setupIntent({ projectName: " " })],
-				["missing brief", setupIntent({ brief: "" })],
+				["missing requirements", setupIntent({ requirements: "" })],
 				[
 					"non-https url",
 					setupIntent({

@@ -195,14 +195,12 @@ const workspaceIntentInputSchema = {
 	transitionPreference: transitionPreferenceSchema,
 	output: workspaceOutputSchema,
 	generateIntroCover: z.boolean(),
-	brief: z.string(),
-	successCriteria: z.string(),
+	requirements: z.string(),
 };
 
 const workspaceOpenInputSchema = {
 	projectName: z.string().trim().optional(),
-	brief: z.string().optional(),
-	successCriteria: z.string().optional(),
+	requirements: z.string().optional(),
 	filePath: z.string().trim().optional(),
 	mediaPath: z.string().trim().optional(),
 	mediaPaths: z.array(z.string().trim().min(1)).optional(),
@@ -211,8 +209,8 @@ const workspaceOpenInputSchema = {
 	url: z.string().trim().optional(),
 	mimeType: z.string().trim().optional(),
 	mediaSources: workspaceMediaSourcesSchema.optional(),
-	briefOptions: z.array(z.string().trim().min(1)).optional(),
-	successCriteriaOptions: z.array(z.string().trim().min(1)).optional(),
+	requirementOptions: z.array(z.string().trim().min(1)).optional(),
+	recommendedRequirementOptions: z.array(z.string().trim().min(1)).optional(),
 	targetAspectRatio: targetAspectRatioSchema.optional(),
 	durationGoalMode: durationGoalModeSchema.optional(),
 	durationGoalRangeSeconds: durationGoalRangeSecondsSchema.optional(),
@@ -1154,7 +1152,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Keep durationGoalMode auto unless the user explicitly asked for one of the fixed duration ranges. Keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. Keep durationGoalMode auto unless the user explicitly asked for one of the fixed duration ranges. Keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1190,6 +1188,7 @@ export async function readCodecutWorkspaceHtml() {
 }
 
 export function openCodecutWorkspace(input = {}) {
+	assertNoLegacyWorkspaceOpenFields(input);
 	const intentDefaults = buildWorkspaceIntentDefaults(input);
 	const pendingConfirmationId = createPendingCodecutConfirmation();
 	return {
@@ -1210,6 +1209,20 @@ export function openCodecutWorkspace(input = {}) {
 			widgetData: { pendingConfirmationId, intentDefaults },
 		},
 	};
+}
+
+function assertNoLegacyWorkspaceOpenFields(input = {}) {
+	const staleFields = [
+		"brief",
+		"briefOptions",
+		"successCriteria",
+		"successCriteriaOptions",
+	].filter((field) => Object.prototype.hasOwnProperty.call(input, field));
+	if (staleFields.length) {
+		throw new Error(
+			`stale CodeCut workspace schema: ${staleFields.join(", ")} were removed. Use requirements, requirementOptions, and recommendedRequirementOptions from a fresh Codex session.`,
+		);
+	}
 }
 
 function buildCodecutServiceBlockedResult({ readinessUrl, error }) {
@@ -1292,10 +1305,10 @@ async function validateCodecutSetupIntent(intent) {
 	);
 	pushCheck(
 		checks,
-		"brief",
-		"Brief",
-		normalized.brief.length > 0,
-		"Brief is required.",
+		"requirements",
+		"Requirements",
+		normalized.requirements.length > 0,
+		"Editing requirements are required.",
 	);
 
 	const mediaSourceCheck = validateWorkspaceMediaSources(
@@ -1546,11 +1559,17 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		String(input.projectName || "").trim() ||
 		defaultWorkspaceProjectName(uiLanguage);
 	const mediaSources = buildWorkspaceOpenMediaSources(input);
-	const brief =
-		String(input.brief || "").trim() || defaultWorkspaceBrief(uiLanguage);
-	const successCriteria =
-		String(input.successCriteria || "").trim() ||
-		defaultWorkspaceSuccessCriteria(uiLanguage);
+	const requirements =
+		String(input.requirements || "").trim() ||
+		defaultWorkspaceRequirements(uiLanguage);
+	const requirementOptions = normalizeWorkspaceOptionList(
+		input.requirementOptions,
+		defaultWorkspaceRequirementOptions(uiLanguage),
+	);
+	const recommendedRequirementOptions = normalizeWorkspaceOptionList(
+		input.recommendedRequirementOptions,
+		[],
+	);
 	const defaults = {
 		projectId:
 			String(input.projectId || "").trim() ||
@@ -1580,17 +1599,14 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		transitionPreference: normalizeWorkspaceTransitionPreference(
 			input.transitionPreference,
 		),
-		brief,
-		briefOptions: normalizeWorkspaceOptionList(
-			input.briefOptions,
-			defaultWorkspaceBriefOptions(uiLanguage),
-		),
-		successCriteria,
-		successCriteriaOptions: normalizeWorkspaceOptionList(
-			input.successCriteriaOptions,
-			defaultWorkspaceSuccessCriteriaOptions(uiLanguage),
-		),
+		requirements,
+		requirementOptions,
 	};
+	if (recommendedRequirementOptions.length) {
+		defaults.recommendedRequirementOptions = recommendedRequirementOptions;
+	} else if (!input.requirements && !input.requirementOptions) {
+		defaults.recommendedRequirementOptions = requirementOptions;
+	}
 	const durationGoalRangeSeconds = normalizeDurationGoalRangeSeconds(
 		input.durationGoalRangeSeconds,
 	);
@@ -1681,36 +1697,30 @@ function defaultWorkspaceProjectName(uiLanguage) {
 	return uiLanguage === "zh-CN" ? "CodeCut 项目" : "CodeCut Project";
 }
 
-function defaultWorkspaceBrief(uiLanguage) {
+function defaultWorkspaceRequirements(uiLanguage) {
 	return uiLanguage === "zh-CN"
-		? "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。"
-		: "Cut a clear short with the key message, readable captions, and natural audio.";
+		? "剪成节奏清晰的短视频；开头有明确信息点；主体节奏紧凑；字幕清晰可读；自然音频；结尾适合继续编辑或导出。"
+		: "Cut a clear short; clear hook; tight pacing; keep the key message; readable captions; natural audio; export-ready ending.";
 }
 
-function defaultWorkspaceBriefOptions(uiLanguage) {
+function defaultWorkspaceRequirementOptions(uiLanguage) {
 	return uiLanguage === "zh-CN"
-		? ["剪成节奏清晰", "保留核心信息", "字幕清晰可读", "自然音频"]
+		? [
+				"剪成节奏清晰",
+				"保留核心信息",
+				"开头有明确信息点",
+				"主体节奏紧凑",
+				"字幕清晰可读",
+				"自然音频",
+				"结尾适合继续编辑或导出",
+			]
 		: [
 				"Clear pacing",
 				"Keep the key message",
-				"Readable captions",
-				"Natural audio",
-			];
-}
-
-function defaultWorkspaceSuccessCriteria(uiLanguage) {
-	return uiLanguage === "zh-CN"
-		? "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。"
-		: "Clear hook; tight pacing; readable captions; ending is ready for more edits or export.";
-}
-
-function defaultWorkspaceSuccessCriteriaOptions(uiLanguage) {
-	return uiLanguage === "zh-CN"
-		? ["开头有明确信息点", "主体节奏紧凑", "字幕清晰", "结尾适合继续编辑或导出"]
-		: [
 				"Clear hook",
 				"Tight pacing",
 				"Readable captions",
+				"Natural audio",
 				"Export-ready ending",
 			];
 }
@@ -1796,8 +1806,7 @@ function normalizeWorkspaceIntent(intent) {
 			captionStylePreset: String(intent.output?.captionStylePreset || ""),
 		},
 		generateIntroCover: intent.generateIntroCover,
-		brief: String(intent.brief || "").trim(),
-		successCriteria: String(intent.successCriteria || "").trim(),
+		requirements: String(intent.requirements || "").trim(),
 	};
 }
 
