@@ -4,7 +4,7 @@ Use this recipe when the user wants B-roll mixed with narration, a voiceover exp
 
 ## Current Capability Boundary
 
-This recipe is executable only through the implemented `NarratedRemixPlan v1` path. P0 supports existing narration audio, imported video B-roll, and captions. It does not support TTS, BGM, SFX, image B-roll, effects, or append mode.
+This recipe is executable only through the implemented `NarratedRemixPlan v1` path. P0 supports existing narration audio, imported video or image B-roll, optional independent text overlays, and captions. It does not support TTS, BGM, SFX, effects, or append mode.
 
 ## Success Criteria
 
@@ -18,7 +18,7 @@ This recipe is executable only through the implemented `NarratedRemixPlan v1` pa
 
 ## Required Context
 
-- Visual media assets with known duration.
+- Visual media assets: video assets with known duration, or image assets with known dimensions and explicit planned beat durations.
 - Existing narration audio asset with known duration. A RunningHub-generated
   voice asset is valid only after it has already been saved as a media asset
   with sanitized `spokenScript` metadata.
@@ -29,14 +29,14 @@ This recipe is executable only through the implemented `NarratedRemixPlan v1` pa
 
 1. Inspect media assets and target duration.
 2. Confirm one existing audio asset will be used as narration.
-3. Draft a continuous muted video beat list with no gaps or overlaps.
+3. Draft a continuous muted visual beat list with no gaps or overlaps.
 4. Keep visual beat total duration equal to `target.durationSec`.
 5. Write captions and choose an explicit implemented `captionStyle` preset.
 
 ## Execution Path When Supported
 
 1. Import or reference existing narration audio through an approved path.
-2. Import or reference video B-roll assets.
+2. Import or reference video or image B-roll assets.
 3. Generate strict NarratedRemixPlan v1.
 4. Call `apply_narrated_remix_plan` with `replaceExisting=true` only when replacement is intentional.
 5. Verify video, audio, and text tracks separately through canonical
@@ -45,7 +45,6 @@ This recipe is executable only through the implemented `NarratedRemixPlan v1` pa
 ## Stop Conditions
 
 - No approved path can provide a narration audio asset.
-- The requested B-roll includes images instead of videos.
 - The requested edit requires TTS fields inside `NarratedRemixPlan`, BGM, SFX,
   effects, or append mode.
 - Captions cannot be aligned to narration timing.

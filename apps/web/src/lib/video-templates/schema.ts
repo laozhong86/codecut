@@ -19,7 +19,7 @@ export const VideoTemplateRequiredEvidenceSchema = z.enum([
 	"visual-proof",
 	"product-facts",
 	"existing-narration-audio",
-	"video-broll",
+	"visual-broll",
 ]);
 
 export const VideoTemplateManifestSchema = z

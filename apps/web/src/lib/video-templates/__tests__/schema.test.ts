@@ -75,7 +75,7 @@ describe("VideoTemplateManifestSchema", () => {
 			...validTemplate(),
 			id: "narrated-broll",
 			label: "Narrated B-roll",
-			requiredEvidence: ["existing-narration-audio", "video-broll"],
+			requiredEvidence: ["existing-narration-audio", "visual-broll"],
 			captionPreset: "documentary-soft",
 			executionPath: "edit-plan-v1",
 		});

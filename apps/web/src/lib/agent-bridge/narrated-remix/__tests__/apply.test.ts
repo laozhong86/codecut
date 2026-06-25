@@ -189,7 +189,7 @@ describe("applyNarratedRemixPlanToEditor", () => {
 		]);
 	});
 
-	test("projects image card beats into image elements and editable card text track", () => {
+	test("projects visual beats with independent text overlays", () => {
 		const updates: TimelineTrack[][] = [];
 		const result = applyNarratedRemixPlanToEditor({
 			plan: {
@@ -212,12 +212,60 @@ describe("applyNarratedRemixPlanToEditor", () => {
 						timelineStart: 10,
 						duration: 20,
 						fit: "cover",
-						cardText: {
-							title: "天府新区双华麓港",
-							info: "117.55㎡ 套三双卫 总价186万",
-							bottomText: "地铁口商圈边",
-						},
-						reason: "Editable property qualification card.",
+						reason: "Property image with explicit editable overlays.",
+					},
+				],
+				textOverlays: [
+					{
+						name: "Property title",
+						text: "天府新区双华麓港",
+						startTime: 10,
+						duration: 20,
+						fontSize: 5.6,
+						color: "#ffffff",
+						backgroundColor: "#000000",
+						backgroundOpacity: 0.86,
+						backgroundPaddingX: 22,
+						backgroundPaddingY: 10,
+						backgroundBorderRadius: 8,
+						boxWidth: 52,
+						position: { x: 0, y: -780 },
+						textAlign: "center",
+						fontWeight: "bold",
+					},
+					{
+						name: "Property info",
+						text: "117.55㎡ 套三双卫 总价186万",
+						startTime: 10,
+						duration: 20,
+						fontSize: 4.8,
+						color: "#141414",
+						backgroundColor: "#ffca21",
+						backgroundOpacity: 0.92,
+						backgroundPaddingX: 20,
+						backgroundPaddingY: 9,
+						backgroundBorderRadius: 8,
+						boxWidth: 52,
+						position: { x: 0, y: -710 },
+						textAlign: "center",
+						fontWeight: "bold",
+					},
+					{
+						name: "Property selling point",
+						text: "地铁口商圈边",
+						startTime: 10,
+						duration: 20,
+						fontSize: 5.2,
+						color: "#ffffff",
+						backgroundColor: "#000000",
+						backgroundOpacity: 0.84,
+						backgroundPaddingX: 22,
+						backgroundPaddingY: 12,
+						backgroundBorderRadius: 10,
+						boxWidth: 52,
+						position: { x: 0, y: 430 },
+						textAlign: "center",
+						fontWeight: "bold",
 					},
 				],
 				captions: [{ text: "Voiceover caption", startTime: 24, duration: 3 }],
@@ -239,7 +287,7 @@ describe("applyNarratedRemixPlanToEditor", () => {
 			summary: {
 				visualBeatCount: 2,
 				imageBeatCount: 1,
-				cardTextElementCount: 3,
+				textOverlayElementCount: 3,
 				captionCount: 1,
 				totalDuration: 30,
 			},
@@ -259,25 +307,25 @@ describe("applyNarratedRemixPlanToEditor", () => {
 			},
 			{
 				type: "text",
-				name: "Card Text",
+				name: "Text Overlays",
 				elements: [
 					{
 						type: "text",
-						name: "Card title",
+						name: "Property title",
 						content: "天府新区双华麓港",
 						startTime: 10,
 						duration: 20,
 					},
 					{
 						type: "text",
-						name: "Card info",
+						name: "Property info",
 						content: "117.55㎡ 套三双卫 总价186万",
 						startTime: 10,
 						duration: 20,
 					},
 					{
 						type: "text",
-						name: "Card bottomText",
+						name: "Property selling point",
 						content: "地铁口商圈边",
 						startTime: 10,
 						duration: 20,
@@ -295,6 +343,267 @@ describe("applyNarratedRemixPlanToEditor", () => {
 						duration: 3,
 					},
 				],
+			},
+		]);
+	});
+
+	test("projects text overlays during video beats independently from images", () => {
+		const updates: TimelineTrack[][] = [];
+		const result = applyNarratedRemixPlanToEditor({
+			plan: {
+				...validPlan(),
+				textOverlays: [
+					{
+						name: "Video callout",
+						text: "这段文字不绑定图片",
+						startTime: 12,
+						duration: 4,
+						fontSize: 4.8,
+						color: "#ffffff",
+						backgroundColor: "#000000",
+						backgroundOpacity: 0.8,
+						backgroundPaddingX: 18,
+						backgroundPaddingY: 8,
+						backgroundBorderRadius: 6,
+						boxWidth: 52,
+						position: { x: 0, y: -240 },
+						textAlign: "center",
+						fontWeight: "bold",
+					},
+				],
+			},
+			projectId: "project-1",
+			replaceExisting: true,
+			editor: editorWithMedia({
+				mediaAssets: [
+					mediaAsset(),
+					mediaAsset({ id: "video-2", name: "B-roll 2.mp4" }),
+					audioAsset(),
+				],
+				onUpdate: (tracks) => updates.push(tracks),
+			}),
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			summary: {
+				visualBeatCount: 2,
+				imageBeatCount: 0,
+				textOverlayElementCount: 1,
+			},
+		});
+		const textOverlayTrack = updates[0].find(
+			(track) => track.name === "Text Overlays",
+		);
+		expect(textOverlayTrack).toMatchObject({
+			type: "text",
+			elements: [
+				{
+					type: "text",
+					name: "Video callout",
+					content: "这段文字不绑定图片",
+					startTime: 12,
+					duration: 4,
+				},
+			],
+		});
+	});
+
+	test("projects plain image beats without creating a text overlay track", () => {
+		const updates: TimelineTrack[][] = [];
+		const result = applyNarratedRemixPlanToEditor({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 30, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "opening-video",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 10,
+						timelineStart: 0,
+						muted: true,
+						reason: "Opening b-roll.",
+					},
+					{
+						mediaType: "image",
+						id: "plain-image",
+						mediaId: "image-1",
+						timelineStart: 10,
+						duration: 20,
+						fit: "cover",
+						reason: "Plain image B-roll with no extra on-screen text.",
+					},
+				],
+				captions: [{ text: "Voiceover caption", startTime: 24, duration: 3 }],
+				captionStyle: {
+					preset: "talking-head-pop",
+					position: "lower-safe",
+				},
+			},
+			projectId: "project-1",
+			replaceExisting: true,
+			editor: editorWithMedia({
+				mediaAssets: [mediaAsset(), imageAsset(), audioAsset()],
+				onUpdate: (tracks) => updates.push(tracks),
+			}),
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			summary: {
+				visualBeatCount: 2,
+				imageBeatCount: 1,
+				textOverlayElementCount: 0,
+				captionCount: 1,
+				totalDuration: 30,
+			},
+		});
+		expect(updates).toHaveLength(1);
+		expect(updates[0]).toMatchObject([
+			{
+				type: "video",
+				elements: [
+					{ type: "video", mediaId: "video-1", startTime: 0, duration: 10 },
+					{ type: "image", mediaId: "image-1", startTime: 10, duration: 20 },
+				],
+			},
+			{
+				type: "audio",
+				elements: [{ type: "audio", mediaId: "narration-1" }],
+			},
+			{
+				type: "text",
+				name: "Captions",
+				elements: [
+					{
+						type: "text",
+						content: "Voiceover caption",
+						startTime: 24,
+						duration: 3,
+					},
+				],
+			},
+		]);
+		expect(
+			updates[0].some((track) => track.name === "Text Overlays"),
+		).toBe(false);
+	});
+
+	test("projects text overlays as editable text elements", () => {
+		const updates: TimelineTrack[][] = [];
+		const result = applyNarratedRemixPlanToEditor({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 30, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "opening-video",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 10,
+						timelineStart: 0,
+						muted: true,
+						reason: "Opening b-roll.",
+					},
+					{
+						mediaType: "image",
+						id: "property-image",
+						mediaId: "image-1",
+						timelineStart: 10,
+						duration: 20,
+						fit: "cover",
+						reason: "Image B-roll with explicit editable text overlay.",
+					},
+				],
+				textOverlays: [
+					{
+						name: "Property price",
+						text: "117.55㎡ 套三双卫 总价186万",
+						startTime: 10,
+						duration: 20,
+						fontSize: 4.8,
+						color: "#141414",
+						backgroundColor: "#ffca21",
+						backgroundOpacity: 0.92,
+						backgroundPaddingX: 20,
+						backgroundPaddingY: 9,
+						backgroundBorderRadius: 8,
+						boxWidth: 52,
+						position: { x: 0, y: -710 },
+						textAlign: "center",
+						fontWeight: "bold",
+					},
+				],
+				captions: [{ text: "Voiceover caption", startTime: 24, duration: 3 }],
+				captionStyle: {
+					preset: "talking-head-pop",
+					position: "lower-safe",
+				},
+			},
+			projectId: "project-1",
+			replaceExisting: true,
+			editor: editorWithMedia({
+				mediaAssets: [mediaAsset(), imageAsset(), audioAsset()],
+				onUpdate: (tracks) => updates.push(tracks),
+			}),
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			summary: {
+				visualBeatCount: 2,
+				imageBeatCount: 1,
+				textOverlayElementCount: 1,
+				captionCount: 1,
+				totalDuration: 30,
+			},
+		});
+		expect(updates).toHaveLength(1);
+		expect(updates[0]).toMatchObject([
+			{
+				type: "video",
+				elements: [
+					{ type: "video", mediaId: "video-1", startTime: 0, duration: 10 },
+					{ type: "image", mediaId: "image-1", startTime: 10, duration: 20 },
+				],
+			},
+			{
+				type: "audio",
+				elements: [{ type: "audio", mediaId: "narration-1" }],
+			},
+			{
+				type: "text",
+				name: "Text Overlays",
+				elements: [
+					{
+						type: "text",
+						name: "Property price",
+						content: "117.55㎡ 套三双卫 总价186万",
+						startTime: 10,
+						duration: 20,
+						fontSize: 4.8,
+						color: "#141414",
+						backgroundColor: "#ffca21",
+						backgroundOpacity: 0.92,
+						backgroundPaddingX: 20,
+						backgroundPaddingY: 9,
+						backgroundBorderRadius: 8,
+						boxWidth: 52,
+						textAlign: "center",
+						fontWeight: "bold",
+						transform: {
+							scale: 1,
+							position: { x: 0, y: -710 },
+							rotate: 0,
+						},
+					},
+				],
+			},
+			{
+				type: "text",
+				name: "Captions",
+				elements: [{ type: "text", content: "Voiceover caption" }],
 			},
 		]);
 	});

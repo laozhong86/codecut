@@ -19,7 +19,7 @@ P0 template ids:
 - `talking-head-short`: transcript-backed talking-head cleanup or short-form polish.
 - `tutorial-demo`: transcript plus visible step evidence for tutorial or software demo.
 - `product-proof-ad`: product facts plus visual proof for UGC/product conversion.
-- `narrated-broll`: existing narration audio plus imported video B-roll through NarratedRemixPlan v1 only.
+- `narrated-broll`: existing narration audio plus imported visual B-roll through NarratedRemixPlan v1 only.
 
 ## Clip Selection Quality Rule
 
@@ -52,7 +52,7 @@ choosing a generic highlight edit.
 | UGC/product ad | `product-proof-ad` | "商品短视频", "带货", "广告", "转化", "转化型短视频" | Proof and conversion | visual proof, transcript claims, product context | [long-to-short](workflow-recipes/long-to-short.md) plus claim guardrails | Requires EditingDecisionLedger; gated when proof or offer facts are missing |
 | AI video re-edit | None in P0 | "AI 视频二创", "AI 成片修一下" | Remove artifacts and tighten story | keyframes/contact sheet, transcript if any | [timeline-inspection](workflow-recipes/timeline-inspection.md) before any edit | Gated until visual context exists |
 | Subtitle/caption pass | None in P0 | "加字幕", "字幕好看点", "翻译字幕" | Readability | transcript or supplied captions | [subtitle-pass](workflow-recipes/subtitle-pass.md) | Implemented within EditPlan v1 caption limits |
-| Voiceover/narration | `narrated-broll` when existing narration and video B-roll exist | "配音", "旁白", "讲解" | Narrative clarity | script, existing audio path, target duration | [voiceover-remix](workflow-recipes/voiceover-remix.md) | Existing audio insertion is implemented; bridge-exposed speech generation and multi-source remix are gated |
+| Voiceover/narration | `narrated-broll` when existing narration and visual B-roll exist | "配音", "旁白", "讲解" | Narrative clarity | script, existing audio path, target duration | [voiceover-remix](workflow-recipes/voiceover-remix.md) | Existing audio insertion with video/image B-roll is implemented; bridge-exposed speech generation and multi-source remix are gated |
 | Timeline inspection | None in P0 | "看看项目里有什么", "验证剪辑结果", "能导出吗" | Confidence before mutation/export | active editor project, timeline state | [timeline-inspection](workflow-recipes/timeline-inspection.md) | Implemented read-only |
 | Template/style application | Only if expressible as a P0 manifest or Codecut system template script | "套模板", "像这个风格", "统一样式", "复刻这个剪辑手法" | Reusable visual language | system template, style reference, existing timeline or accessible finished reference videos | Use `codecut-reference-template` for reference-derived drafts/imports, then [timeline-inspection](workflow-recipes/timeline-inspection.md) before mutation | Gated unless expressible in system template script guidance plus current EditPlan v1/NarratedRemixPlan v1 |
 | Batch variants | Resolve per variant | "批量剪", "多个版本", "不同角度" | Scale | shared assets, variant goals | [long-to-short](workflow-recipes/long-to-short.md) per variant | Gated; run one verified variant before scaling |
@@ -160,7 +160,7 @@ Acceptance: captions are readable, timed, and verified through timeline state.
 
 ### Voiceover/narration
 
-P0 template: `narrated-broll` only when existing narration audio and imported video B-roll are both available.
+P0 template: `narrated-broll` only when existing narration audio and imported visual B-roll are both available.
 
 Read [voiceover-remix](workflow-recipes/voiceover-remix.md) before planning or executing.
 

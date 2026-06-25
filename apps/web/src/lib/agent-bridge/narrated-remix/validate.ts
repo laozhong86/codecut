@@ -158,13 +158,6 @@ export function validateNarratedRemixPlan({
 		const beatPath = `visualBeats[${index}]`;
 
 		if (isImageBeat(visualBeat)) {
-			if (normalizedPlan.target.aspectRatio !== "9:16") {
-				return {
-					success: false,
-					message: "NarratedRemixPlan image cards only support 9:16 target.",
-					path: beatPath,
-				};
-			}
 			if (!visualAsset) {
 				return {
 					success: false,
@@ -260,6 +253,23 @@ export function validateNarratedRemixPlan({
 				"NarratedRemixPlan visualBeats total duration must equal target duration.",
 			path: "target.durationSec",
 		};
+	}
+
+	for (const [index, textOverlay] of (
+		normalizedPlan.textOverlays ?? []
+	).entries()) {
+		if (
+			exceeds({
+				end: textOverlay.startTime + textOverlay.duration,
+				limit: normalizedPlan.target.durationSec,
+			})
+		) {
+			return {
+				success: false,
+				message: "NarratedRemixPlan textOverlay exceeds target duration.",
+				path: `textOverlays[${index}]`,
+			};
+		}
 	}
 
 	for (const [index, caption] of normalizedPlan.captions.entries()) {

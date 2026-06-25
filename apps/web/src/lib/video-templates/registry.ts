@@ -78,14 +78,14 @@ const templates = [
 		id: "narrated-broll",
 		label: "Narrated B-roll",
 		intent:
-			"Combine existing narration audio with imported muted video B-roll and captions.",
-		requiredEvidence: ["existing-narration-audio", "video-broll"],
+			"Combine existing narration audio with imported muted video or image B-roll and captions.",
+		requiredEvidence: ["existing-narration-audio", "visual-broll"],
 		defaultStructure: ["intro beat", "supporting visual beats", "closing beat"],
 		executionPath: "narrated-remix-v1",
 		stopConditions: [
 			"Existing narration audio is missing.",
-			"Video B-roll is missing.",
-			"The request requires TTS, BGM, SFX, effects, image B-roll, or append mode.",
+			"Visual B-roll is missing.",
+			"The request requires TTS, BGM, SFX, effects, or append mode.",
 		],
 		verification: [
 			"apply_narrated_remix_plan succeeds.",
