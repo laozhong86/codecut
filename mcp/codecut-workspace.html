@@ -454,6 +454,7 @@
             <label>
               <span data-i18n="captionStylePreset">Preset style</span>
               <select id="caption-style-preset" name="captionStylePreset">
+                <option value="creator-clean" data-i18n="captionStyleCreatorClean">Creator clean</option>
                 <option value="short-form-bold" data-i18n="captionStyleShortFormBold">Short-form bold</option>
                 <option value="black-bar" data-i18n="captionStyleBlackBar">Black bar</option>
                 <option value="talking-head-pop" data-i18n="captionStyleTalkingHeadPop">Talking head pop</option>
@@ -588,6 +589,7 @@
             captionSizeMedium: "Medium",
             captionSizeLarge: "Large",
             captionStylePreset: "Preset style",
+            captionStyleCreatorClean: "Creator clean",
             captionStyleShortFormBold: "Short-form bold",
             captionStyleBlackBar: "Black bar",
             captionStyleTalkingHeadPop: "Talking head pop",
@@ -692,6 +694,7 @@
             captionSizeMedium: "中",
             captionSizeLarge: "大",
             captionStylePreset: "预设样式",
+            captionStyleCreatorClean: "创作者清爽",
             captionStyleShortFormBold: "短视频加粗",
             captionStyleBlackBar: "黑底字幕",
             captionStyleTalkingHeadPop: "口播醒目",
@@ -860,7 +863,7 @@
           setSelectValue(fields.captionLanguage, defaults.captionLanguage || "auto");
           setSelectValue(fields.captionFont, defaults.output?.captionFont || "auto");
           setSelectValue(fields.captionSize, defaults.output?.captionSize || "medium");
-          setSelectValue(fields.captionStylePreset, defaults.output?.captionStylePreset || "short-form-bold");
+          setSelectValue(fields.captionStylePreset, defaults.output?.captionStylePreset || "creator-clean");
           setSelectValue(fields.transitionPreference, defaults.transitionPreference || "auto");
           setSelectValue(fields.outputFormat, defaults.output?.format || "mp4");
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");

@@ -1,8 +1,17 @@
 import { GlobalFonts } from "@napi-rs/canvas";
 import { existsSync as fileExistsSync } from "node:fs";
-import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
+import { join } from "node:path";
+import {
+	CODECUT_CJK_FONT_FAMILY,
+	getCodecutLocalFontByFamily,
+	isCodecutRendererFontFamily,
+	type CodecutRendererFontFamily,
+} from "@/lib/codecut-fonts";
 
-export { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
+export {
+	CODECUT_CJK_FONT_FAMILY,
+	isCodecutRendererFontFamily,
+} from "@/lib/codecut-fonts";
 
 export const CODECUT_CJK_FONT_PATH_ENV = "CODECUT_CJK_FONT_PATH";
 
@@ -29,6 +38,30 @@ export function resolveCodecutCjkFontPaths({
 	return CODECUT_CJK_SYSTEM_FONT_PATHS;
 }
 
+export function resolveCodecutFontFamilyPaths({
+	fontFamily,
+	cwd = process.cwd(),
+	env = process.env,
+}: {
+	fontFamily: string;
+	cwd?: string;
+	env?: Record<string, string | undefined>;
+}): readonly string[] {
+	if (fontFamily === CODECUT_CJK_FONT_FAMILY) {
+		return resolveCodecutCjkFontPaths({ env });
+	}
+
+	const localFont = getCodecutLocalFontByFamily(fontFamily);
+	if (!localFont) {
+		throw new Error(`Unsupported Codecut caption font family: ${fontFamily}.`);
+	}
+
+	return [
+		join(cwd, "apps/web/public/fonts/codecut-cjk", localFont.fileName),
+		join(cwd, "public/fonts/codecut-cjk", localFont.fileName),
+	];
+}
+
 type CodecutFontRegistry = {
 	has(familyName: string): boolean;
 	registerFromPath(fontPath: string, familyName: string): unknown;
@@ -36,15 +69,54 @@ type CodecutFontRegistry = {
 
 export type RegisterCodecutCjkFontResult =
 	| {
-			family: typeof CODECUT_CJK_FONT_FAMILY;
+			family: CodecutRendererFontFamily;
 			fontPath: string;
 			registered: true;
 	  }
 	| {
-			family: typeof CODECUT_CJK_FONT_FAMILY;
+			family: CodecutRendererFontFamily;
 			registered: false;
 			reason: "already_registered";
 	  };
+
+export function registerCodecutFontFamily({
+	fontFamily,
+	fontPaths = resolveCodecutFontFamilyPaths({ fontFamily }),
+	existsSync = fileExistsSync,
+	globalFonts = GlobalFonts,
+}: {
+	fontFamily: CodecutRendererFontFamily | string;
+	fontPaths?: readonly string[];
+	existsSync?: (path: string) => boolean;
+	globalFonts?: CodecutFontRegistry;
+}): RegisterCodecutCjkFontResult {
+	if (!isCodecutRendererFontFamily(fontFamily)) {
+		throw new Error(`Unsupported Codecut caption font family: ${fontFamily}.`);
+	}
+
+	const family = fontFamily as CodecutRendererFontFamily;
+	if (globalFonts.has(family)) {
+		return {
+			family,
+			registered: false,
+			reason: "already_registered",
+		};
+	}
+
+	const fontPath = fontPaths.find((candidate) => existsSync(candidate));
+	if (!fontPath) {
+		throw new Error(
+			`Codecut node renderer requires a CJK font for ${family}. Install one of: ${fontPaths.join(", ")}`,
+		);
+	}
+
+	globalFonts.registerFromPath(fontPath, family);
+	return {
+		family,
+		fontPath,
+		registered: true,
+	};
+}
 
 export function registerCodecutCjkFont({
 	fontPaths = resolveCodecutCjkFontPaths(),
@@ -55,25 +127,10 @@ export function registerCodecutCjkFont({
 	existsSync?: (path: string) => boolean;
 	globalFonts?: CodecutFontRegistry;
 } = {}): RegisterCodecutCjkFontResult {
-	if (globalFonts.has(CODECUT_CJK_FONT_FAMILY)) {
-		return {
-			family: CODECUT_CJK_FONT_FAMILY,
-			registered: false,
-			reason: "already_registered",
-		};
-	}
-
-	const fontPath = fontPaths.find((candidate) => existsSync(candidate));
-	if (!fontPath) {
-		throw new Error(
-			`Codecut node renderer requires a CJK font for ${CODECUT_CJK_FONT_FAMILY}. Install one of: ${fontPaths.join(", ")}`,
-		);
-	}
-
-	globalFonts.registerFromPath(fontPath, CODECUT_CJK_FONT_FAMILY);
-	return {
-		family: CODECUT_CJK_FONT_FAMILY,
-		fontPath,
-		registered: true,
-	};
+	return registerCodecutFontFamily({
+		fontFamily: CODECUT_CJK_FONT_FAMILY,
+		fontPaths,
+		existsSync,
+		globalFonts,
+	});
 }

@@ -674,6 +674,7 @@ describe("validateEditPlan", () => {
 	test("accepts implemented caption style presets for different video types", () => {
 		const presets = [
 			"short-form-bold",
+			"creator-clean",
 			"black-bar",
 			"talking-head-pop",
 			"tutorial-clean",
@@ -686,7 +687,7 @@ describe("validateEditPlan", () => {
 			"minimal-reel",
 		];
 
-		expect(presets).toHaveLength(11);
+		expect(presets).toHaveLength(12);
 
 		for (const preset of presets) {
 			const result = validateEditPlan({

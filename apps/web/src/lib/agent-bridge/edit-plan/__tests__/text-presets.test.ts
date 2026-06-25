@@ -19,7 +19,12 @@ const horizontalCanvas = {
 	height: 1080,
 };
 
+const CODECUT_YAN_BO_SONG_FONT_FAMILY = "CodecutYanBoSong";
+const CODECUT_WEN_KAI_FONT_FAMILY = "CodecutWenKai";
+const CODECUT_SMILEY_SANS_FONT_FAMILY = "CodecutSmileySans";
+
 const implementedCaptionPresets: EditPlanCaptionStyle["preset"][] = [
+	"creator-clean" as EditPlanCaptionStyle["preset"],
 	"short-form-bold",
 	"black-bar",
 	"talking-head-pop",
@@ -150,7 +155,7 @@ describe("caption style presets", () => {
 	});
 
 	test("all caption presets keep Chinese subtitles in a conventional lower-third layout", () => {
-		expect(implementedCaptionPresets).toHaveLength(11);
+		expect(implementedCaptionPresets).toHaveLength(12);
 
 		for (const preset of implementedCaptionPresets) {
 			const { raw, scaledFontSize, layout } = layoutPresetCaption({
@@ -183,15 +188,50 @@ describe("caption style presets", () => {
 		}
 	});
 
-	test("all caption presets use the deterministic CJK renderer font", () => {
+	test("all caption presets use controlled local renderer font families", () => {
+		const controlledFontFamilies = new Set([
+			CODECUT_CJK_FONT_FAMILY,
+			CODECUT_SMILEY_SANS_FONT_FAMILY,
+			CODECUT_WEN_KAI_FONT_FAMILY,
+			CODECUT_YAN_BO_SONG_FONT_FAMILY,
+		]);
+
 		for (const preset of implementedCaptionPresets) {
 			const raw = resolveCaptionStylePreset({
 				captionStyle: { preset, position: "lower-safe" },
 				aspectRatio: "9:16",
 			});
 
-			expect(raw.fontFamily, preset).toBe(CODECUT_CJK_FONT_FAMILY);
+			expect(controlledFontFamilies.has(raw.fontFamily ?? ""), preset).toBe(
+				true,
+			);
 		}
+	});
+
+	test("creator-clean is the default polished Chinese caption treatment", () => {
+		const creatorClean = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "creator-clean" as EditPlanCaptionStyle["preset"],
+				position: "lower-safe",
+			},
+			aspectRatio: "9:16",
+		});
+
+		expect(creatorClean).toMatchObject({
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+			fontSize: 5.2,
+			fontWeight: "normal",
+			color: "#ffffff",
+			backgroundColor: "transparent",
+			shadow: { color: "rgba(0,0,0,0.42)", offsetX: 0, offsetY: 2, blur: 6 },
+			boxWidth: 44,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: 520 },
+				rotate: 0,
+			},
+		});
+		expect(creatorClean.stroke).toBeUndefined();
 	});
 
 	test("talking-head-pop lower-safe captions stay inside a horizontal 1080p canvas", () => {
@@ -250,7 +290,7 @@ describe("caption style presets", () => {
 			backgroundBorderRadius: 12,
 		});
 		expect(minimalReel).toMatchObject({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_SMILEY_SANS_FONT_FAMILY,
 			fontSize: 4.6,
 			fontWeight: "normal",
 			color: "#f8fafc",

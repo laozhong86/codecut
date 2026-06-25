@@ -3,6 +3,7 @@ import { z } from "zod";
 export const EditPlanAspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 
 export const EditPlanCaptionStylePresetSchema = z.enum([
+	"creator-clean",
 	"short-form-bold",
 	"black-bar",
 	"talking-head-pop",

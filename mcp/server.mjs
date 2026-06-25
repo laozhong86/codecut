@@ -115,6 +115,7 @@ const outputQualitySchema = z.enum(["low", "medium", "high", "very_high"]);
 const captionFontValues = ["auto", "sans", "serif", "handwriting"];
 const captionSizeValues = ["small", "medium", "large"];
 const captionStylePresetValues = [
+	"creator-clean",
 	"short-form-bold",
 	"black-bar",
 	"talking-head-pop",
@@ -371,6 +372,7 @@ const captionStyleSchema = z
 	.object({
 		preset: z
 			.enum([
+				"creator-clean",
 				"short-form-bold",
 				"black-bar",
 				"talking-head-pop",
@@ -1472,7 +1474,7 @@ function buildWorkspaceIntentDefaults(input = {}) {
 					: true,
 			captionFont: input.output?.captionFont || "auto",
 			captionSize: input.output?.captionSize || "medium",
-			captionStylePreset: input.output?.captionStylePreset || "short-form-bold",
+			captionStylePreset: input.output?.captionStylePreset || "creator-clean",
 		},
 		generateIntroCover:
 			typeof input.generateIntroCover === "boolean"

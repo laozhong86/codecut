@@ -8,7 +8,12 @@ import type {
 	TrackTransition,
 	TransitionType,
 } from "@/types/timeline";
-import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
+import {
+	CODECUT_CJK_FONT_FAMILY,
+	CODECUT_SMILEY_SANS_FONT_FAMILY,
+	CODECUT_WEN_KAI_FONT_FAMILY,
+	CODECUT_YAN_BO_SONG_FONT_FAMILY,
+} from "@/lib/codecut-fonts";
 import { applyEditPlanToEditor } from "../apply";
 import type { EditPlan } from "../schema";
 
@@ -686,6 +691,23 @@ describe("applyEditPlanToEditor", () => {
 	test("applies expanded social caption presets with matching font treatments", () => {
 		const cases = [
 			{
+				preset: "creator-clean",
+				expected: {
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+					fontSize: 5.2,
+					fontWeight: "normal",
+					color: "#ffffff",
+					backgroundColor: "transparent",
+					shadow: {
+						color: "rgba(0,0,0,0.42)",
+						offsetX: 0,
+						offsetY: 2,
+						blur: 6,
+					},
+					stroke: undefined,
+				},
+			},
+			{
 				preset: "short-form-bold",
 				expected: {
 					fontFamily: CODECUT_CJK_FONT_FAMILY,
@@ -754,23 +776,28 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "lifestyle-warm",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
-					fontSize: 6,
-					fontWeight: "bold",
+					fontFamily: CODECUT_WEN_KAI_FONT_FAMILY,
+					fontSize: 5.4,
+					fontWeight: "normal",
 					color: "#fff7ed",
 					backgroundColor: "#7c2d12",
-					backgroundOpacity: 0.62,
+					backgroundOpacity: 0.54,
 				},
 			},
 			{
 				preset: "cinematic-serif",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
-					fontSize: 5,
-					fontWeight: "bold",
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+					fontSize: 5.1,
+					fontWeight: "normal",
 					color: "#f8fafc",
-					stroke: { color: "#111827", width: 2 },
-					fontStyle: "italic",
+					shadow: {
+						color: "rgba(0,0,0,0.45)",
+						offsetX: 0,
+						offsetY: 2,
+						blur: 6,
+					},
+					stroke: undefined,
 					backgroundColor: "transparent",
 				},
 			},
@@ -800,7 +827,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "minimal-reel",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_SMILEY_SANS_FONT_FAMILY,
 					fontSize: 4.6,
 					fontWeight: "normal",
 					color: "#f8fafc",
@@ -809,7 +836,7 @@ describe("applyEditPlanToEditor", () => {
 			},
 		];
 
-		expect(cases).toHaveLength(11);
+		expect(cases).toHaveLength(12);
 
 		for (const captionCase of cases) {
 			const editor = fakeEditor();
