@@ -72,6 +72,28 @@ function validPlan() {
 		captionStyle: {
 			preset: "talking-head-pop",
 			position: "lower-safe",
+			size: "medium",
+		},
+		captionSource: {
+			type: "post-cut-audio",
+			tool: "build-post-cut-captions",
+			source: "scripted_tts_audio",
+			trace: [
+				{
+					mediaId: "narration-1",
+					timelineStart: 0,
+					sourceStart: 0,
+					sourceEnd: 30,
+					captionCount: 2,
+				},
+			],
+			voiceConsistency: {
+				provider: "runninghub-voice-clone",
+				providerTaskId: "voice-task-1",
+				alignmentMethod: "scripted_captions_to_asr_segments",
+				scriptCaptionLineCount: 2,
+				protectedTermCount: 0,
+			},
 		},
 		rationale: "Uses existing narration over muted B-roll.",
 	};
@@ -149,6 +171,27 @@ describe("validateNarratedRemixPlan", () => {
 		});
 	});
 
+	test("accepts a first-pass narrated remix plan without captions or caption source", () => {
+		const {
+			captionStyle: _captionStyle,
+			captionSource: _captionSource,
+			...plan
+		} = validPlan();
+
+		const result = validateNarratedRemixPlan({
+			plan: { ...plan, captions: [] },
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			normalizedPlan: {
+				captions: [],
+			},
+		});
+	});
+
 	test("rejects captions without an explicit captionStyle", () => {
 		const { captionStyle: _captionStyle, ...plan } = validPlan();
 
@@ -162,6 +205,51 @@ describe("validateNarratedRemixPlan", () => {
 			success: false,
 			message: "NarratedRemixPlan captions require captionStyle.",
 			path: "captionStyle",
+		});
+	});
+
+	test("rejects captions without post-cut audio caption source proof", () => {
+		const { captionSource: _captionSource, ...plan } = validPlan();
+
+		const result = validateNarratedRemixPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "NarratedRemixPlan captions require post-cut captionSource.",
+			path: "captionSource",
+		});
+	});
+
+	test("rejects caption source traces that do not cover every caption", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				captionSource: {
+					...validPlan().captionSource,
+					trace: [
+						{
+							mediaId: "narration-1",
+							timelineStart: 0,
+							sourceStart: 0,
+							sourceEnd: 30,
+							captionCount: 1,
+						},
+					],
+				},
+			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message:
+				"NarratedRemixPlan captionSource trace count must match captions.",
+			path: "captionSource.trace",
 		});
 	});
 

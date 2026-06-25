@@ -9,6 +9,7 @@ export const EditPlanCaptionStylePresetSchema = z.enum([
 	"talking-head-pop",
 	"tutorial-clean",
 	"documentary-soft",
+	"property-clean-yellow",
 	"product-punch",
 	"lifestyle-warm",
 	"cinematic-serif",
@@ -18,6 +19,7 @@ export const EditPlanCaptionStylePresetSchema = z.enum([
 ]);
 
 export const EditPlanCaptionPositionSchema = z.enum(["lower-safe", "center"]);
+export const EditPlanCaptionSizeSchema = z.enum(["small", "medium", "large"]);
 
 export const EditPlanTextStylePresetSchema = z.enum([
 	"hook_title",
@@ -97,6 +99,7 @@ export const EditPlanCaptionStyleSchema = z
 	.object({
 		preset: EditPlanCaptionStylePresetSchema,
 		position: EditPlanCaptionPositionSchema,
+		size: EditPlanCaptionSizeSchema,
 		motionPreset: EditPlanTextMotionPresetSchema.optional(),
 	})
 	.strict();
@@ -200,10 +203,6 @@ export type EditPlanAudio = z.infer<typeof EditPlanAudioSchema>;
 export type EditPlanTransition = z.infer<typeof EditPlanTransitionSchema>;
 export type EditPlanTextRichSpan = z.infer<typeof EditPlanTextRichSpanSchema>;
 export type EditPlanClipFit = z.infer<typeof EditPlanClipFitSchema>;
-export type EditPlanIntroCoverFit = z.infer<
-	typeof EditPlanIntroCoverFitSchema
->;
+export type EditPlanIntroCoverFit = z.infer<typeof EditPlanIntroCoverFitSchema>;
 export type EditPlanSourceCrop = z.infer<typeof EditPlanSourceCropSchema>;
-export type EditPlanSourceCropFit = z.infer<
-	typeof EditPlanSourceCropFitSchema
->;
+export type EditPlanSourceCropFit = z.infer<typeof EditPlanSourceCropFitSchema>;

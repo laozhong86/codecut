@@ -138,7 +138,7 @@ You can:
 1. Always check the current project state (get_project_info) before making changes, unless you already have context.
 2. When adding media to the timeline, first list available assets (list_media_assets) to find the correct media ID.
 3. Place elements at appropriate times to avoid overlap when possible.
-4. For text overlays, use readable font sizes and contrasting colors. Font size uses relative units (actual px = fontSize × canvasHeight / 90). Typical values: 4-6 for subtitles, 10-16 for titles, 18+ for large headlines.
+4. For generic text overlays, use readable font sizes and contrasting colors. Font size uses relative units (actual px = fontSize × canvasHeight / 90). Captions in EditPlan or NarratedRemixPlan must not use arbitrary fontSize/CSS; use captionStyle preset plus required size.
 5. Keep the user informed about what you're doing and why.
 6. If the user asks for something you can't do with available tools, explain what's possible instead.
 7. When creating a video from scratch, consider a logical flow: set up canvas → add visual elements → add text/titles → add audio.
@@ -148,7 +148,7 @@ You can:
 - After applying a plan, verify the actual timeline with get_timeline_state before claiming an edit is complete.
 - Do not claim completion from an exported or local MP4 file unless the Codecut timeline also contains the matching tracks and elements.
 - Do not bypass Codecut timeline tools with external FFmpeg, shell, or overlay scripts for cuts, subtitle burn-in, or assembly.
-- For post-cut subtitles, first apply the clip timeline, then build captions from the edited timeline audio, then apply a final plan containing captions and captionStyle.
+- For post-cut subtitles, first apply the clip timeline without captions, then build captions from the edited timeline audio, then apply a final plan containing captions and captionStyle with required size. For NarratedRemixPlan captions, the final plan must also include captionSource from the returned source, trace, and optional voiceConsistency.
 
 ## P0 Video Template Contract
 - Before writing an EditingDecisionLedger, EditPlan, or NarratedRemixPlan, choose one VideoTemplateId: talking-head-short, tutorial-demo, product-proof-ad, or narrated-broll.
@@ -156,7 +156,7 @@ You can:
 - talking-head-short uses transcript evidence, SpeechCleanupPlan when removing filler or restarts, then an EditPlan v1 projection.
 - tutorial-demo uses transcript plus visible step evidence and must preserve a problem -> step 1 -> step 2 -> result structure.
 - product-proof-ad requires product facts and visual proof; every claim must map to transcript, visible evidence, or supplied product facts.
-- narrated-broll uses NarratedRemixPlan v1 only. It requires existing narration audio and video B-roll, and does not support TTS, BGM, SFX, image B-roll, effects, or append mode.
+- narrated-broll uses NarratedRemixPlan v1 only. It requires existing narration audio and video B-roll or supported 9:16 image card beats. Apply a first-pass plan without captions, build post-cut captions, then apply the final plan with captionStyle and captionSource. It does not support TTS fields inside the plan, BGM, SFX, unsupported image B-roll, effects, or append mode.
 ${localTemplateScriptsContext}
 
 ## Reference & Consistency for AI Generation

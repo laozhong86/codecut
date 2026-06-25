@@ -12,7 +12,8 @@ Use this recipe when the user asks for subtitles, caption cleanup, subtitle timi
 - `build_video_quality_report` passes `caption_quality` and
   `layout.captionLines`: captions do not overlap, each item is `0.5s..4s`, and
   the selected preset renders within two lines with no 1-2 character orphan
-  final line.
+  final line. For 9:16 outputs, `captionStyle.visualFootprint` must not fail;
+  a single caption over 16% canvas height or stroke over 7px is too large.
 
 ## Required Context
 
@@ -54,21 +55,22 @@ confirms a translation overlay or duplicate-language caption.
    - Do not place source transcript timestamps directly on the edited timeline.
    - If a transcript segment crosses a clip boundary, stop and either regenerate captions from edited audio or choose transcript-aligned cuts.
 5. Normalize caption text for readability:
-	   - Chinese: short phrases. For vertical talking-head captions, prefer phrase
-	     chunks that the current preset renders as one or two balanced lines; avoid
-	     three-line captions and 1-2 character orphan last lines.
-	   - English: short phrase groups, usually 3-7 words.
-	   - Use punctuation as a phrase boundary, but do not automatically display
-	     every trailing punctuation mark. For short-form captions, remove trailing
-	     full stops, commas, colons, semicolons, and enumeration punctuation after
-	     chunking; keep question marks and exclamation marks, and preserve numeric
-	     punctuation such as `117.55` and `1,000`.
-6. Select the caption preset by video type: `creator-clean` for the default Chinese creator/talking-head look, `talking-head-pop` for high-retention opinion clips that need stronger contrast, `tutorial-clean` for screen recordings or demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` only when the user explicitly asks for the older bold short-form look.
-	   - Prefer font choice, line breaking, and subtle shadow over heavy black outlines.
-	   - Use `richSpans` for one key phrase per sentence; do not style every caption as a visual effect.
-7. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`.
-8. Generate or update an implemented EditPlan v1 with `captions`.
-9. Validate, preview, apply, read back with `get_timeline_state` v2, run
+   - Chinese: short phrases. For vertical talking-head captions, prefer phrase
+     chunks that the current preset renders as one or two balanced lines; avoid
+     three-line captions and 1-2 character orphan last lines.
+   - English: short phrase groups, usually 3-7 words.
+   - Use punctuation as a phrase boundary, but do not automatically display
+     every trailing punctuation mark. For short-form captions, remove trailing
+     full stops, commas, colons, semicolons, and enumeration punctuation after
+     chunking; keep question marks and exclamation marks, and preserve numeric
+     punctuation such as `117.55` and `1,000`.
+6. Select the caption preset by video type: `creator-clean` for the default Chinese creator/talking-head look, `talking-head-pop` for high-retention opinion clips that need stronger contrast, `tutorial-clean` for screen recordings or demos, `property-clean-yellow` for real-estate listings, floor-plan explainers, home tours, and information-dense product explanation, `product-punch` only for hard promotion, deal hooks, UGC ads, comparison demos, or before/after, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` only when the user explicitly asks for the older bold short-form look.
+   - Prefer font choice, line breaking, and subtle shadow over heavy black outlines.
+   - Use `richSpans` for one key phrase per sentence; do not style every caption as a visual effect.
+7. Choose `captionStyle.size` from intake when provided. If the user did not choose a size, use `medium`. Do not write arbitrary `fontSize` or CSS.
+8. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`, including `size`.
+9. Generate or update an implemented EditPlan v1 with `captions`.
+10. Validate, preview, apply, read back with `get_timeline_state` v2, run
    `build_video_quality_report`, then export only after quality passes.
 
 ## Executor Recipe
@@ -134,7 +136,8 @@ node scripts/codex-bridge.mjs build-video-quality-report \
   --frame-count 6
 ```
 
-Stop if `caption_quality`, `voice_consistency`, or `layout.captionLines` fails.
+Stop if `caption_quality`, `voice_consistency`, `layout.captionLines`, or
+`captionStyle.visualFootprint` fails.
 Fix the caption text, timing, script binding, or selected preset, then re-apply
 the final EditPlan and re-run the report.
 
@@ -160,6 +163,8 @@ Do not route simple fixed title text, labels, badges, or stickers into this reci
 - Captions cannot be tied to edited audio transcription or source transcript remap.
 - Captions fail the quality contract: overlap, shorter than `0.5s`, longer than
   `4s`, more than two rendered lines, or a 1-2 character orphan final line.
+- 9:16 caption visual footprint fails because a caption is too tall or the
+  stroke is too thick.
 - The user requests animated subtitle templates, karaoke words, or styling not represented in current EditPlan v1.
 - Translation is requested but no translation source/tool is available in the current workflow.
 

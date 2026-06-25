@@ -82,7 +82,9 @@ function requireTool({ toolsByName, name }) {
 }
 
 function schemaProperties(tool) {
-	return tool?.inputSchema?.properties ?? tool?.inputSchema?.jsonSchema?.properties;
+	return (
+		tool?.inputSchema?.properties ?? tool?.inputSchema?.jsonSchema?.properties
+	);
 }
 
 export function assertFreshMcpToolSurface({ tools }) {
@@ -91,7 +93,9 @@ export function assertFreshMcpToolSurface({ tools }) {
 		requireTool({ toolsByName, name });
 	}
 
-	const importProperties = schemaProperties(requireTool({ toolsByName, name: "import_media" }));
+	const importProperties = schemaProperties(
+		requireTool({ toolsByName, name: "import_media" }),
+	);
 	if (!importProperties || typeof importProperties !== "object") {
 		throw new Error("import_media input schema properties were not exposed.");
 	}
@@ -178,7 +182,9 @@ export function buildAudioEditPlan({ projectId, mediaId, duration }) {
 }
 
 export function summarizeTimelineV2(data) {
-	const textTracks = (data.tracks ?? []).filter((track) => track.type === "text");
+	const textTracks = (data.tracks ?? []).filter(
+		(track) => track.type === "text",
+	);
 	const textElements = textTracks.flatMap((track) =>
 		(track.elements ?? []).filter((element) => element.type === "text"),
 	);
@@ -229,7 +235,13 @@ async function bridge(args, env) {
 async function generateSpeechWav({ workDir }) {
 	const aiffPath = join(workDir, "codecut-mcp-fresh-audio-smoke.aiff");
 	const wavPath = join(workDir, "codecut-mcp-fresh-audio-smoke.wav");
-	await execFileAsync("say", ["-v", "Samantha", "-o", aiffPath, searchablePhrase]);
+	await execFileAsync("say", [
+		"-v",
+		"Samantha",
+		"-o",
+		aiffPath,
+		searchablePhrase,
+	]);
 	await execFileAsync("ffmpeg", [
 		"-y",
 		"-hide_banner",
@@ -293,7 +305,10 @@ async function withMcpClient({ env }, callback) {
 		env,
 		stderr: "pipe",
 	});
-	const client = new Client({ name: "codecut-fresh-session-smoke", version: "1.0.0" });
+	const client = new Client({
+		name: "codecut-fresh-session-smoke",
+		version: "1.0.0",
+	});
 	await client.connect(transport);
 	try {
 		return await callback(client);
@@ -336,7 +351,13 @@ export async function runFreshSessionMcpSmoke({
 
 	await waitForRuntimeImpl({ env: runtimeEnv });
 	await bridgeImpl(
-		["create-project", "--project-id", projectId, "--name", "MCP Fresh Audio Smoke"],
+		[
+			"create-project",
+			"--project-id",
+			projectId,
+			"--name",
+			"MCP Fresh Audio Smoke",
+		],
 		runtimeEnv,
 	);
 	await bridgeImpl(["doctor-install", "--project-id", projectId], runtimeEnv);
@@ -370,7 +391,11 @@ export async function runFreshSessionMcpSmoke({
 		const planPath = join(workDir, "audio-edit-plan.json");
 		await writeFile(
 			planPath,
-			JSON.stringify(buildAudioEditPlan({ projectId, mediaId, duration }), null, 2),
+			JSON.stringify(
+				buildAudioEditPlan({ projectId, mediaId, duration }),
+				null,
+				2,
+			),
 			"utf8",
 		);
 		await callCodecutTool(client, {
@@ -387,6 +412,7 @@ export async function runFreshSessionMcpSmoke({
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),

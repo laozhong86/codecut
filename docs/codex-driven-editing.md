@@ -321,6 +321,7 @@ Codex sends exactly one editing plan format to Codecut:
       | "talking-head-pop"
       | "tutorial-clean"
       | "documentary-soft"
+      | "property-clean-yellow"
       | "product-punch"
       | "lifestyle-warm"
       | "cinematic-serif"
@@ -328,6 +329,7 @@ Codex sends exactly one editing plan format to Codecut:
       | "comment-bubble"
       | "minimal-reel",
     position: "lower-safe" | "center",
+    size: "small" | "medium" | "large",
     motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce"
   },
   audio?: {
@@ -387,8 +389,9 @@ When `captions` contains one or more items, Codex must include
 `captionStyle`. When `captions` is empty or omitted, `captionStyle` must be
 omitted. Caption styling is intentionally limited to top-level local presets:
 `creator-clean`, `short-form-bold`, `black-bar`, `talking-head-pop`,
-`tutorial-clean`, `documentary-soft`, `product-punch`, `lifestyle-warm`, and
-`cinematic-serif`, `social-highlight`, `comment-bubble`, and `minimal-reel`.
+`tutorial-clean`, `documentary-soft`, `property-clean-yellow`,
+`product-punch`, `lifestyle-warm`, `cinematic-serif`, `social-highlight`,
+`comment-bubble`, and `minimal-reel`.
 Codecut does not accept arbitrary CSS, per-caption style
 objects, arbitrary `fontFamily`, `fontSize`, or `color` fields,
 `bold_caption`, `keyword_caption`, or `keyword-highlight` in this contract.
@@ -402,6 +405,9 @@ quality before adding motion or high-contrast effects. Use `richSpans` for at
 most one key phrase per sentence; do not turn every caption into a decorative
 style effect. Commercial fonts from source references are style references
 only unless redistribution rights are provided.
+`captionStyle.size` is required and must be exactly `small`, `medium`, or
+`large`; it maps to controlled renderer multipliers instead of arbitrary pixel
+font sizes.
 
 Caption quality is part of validation, post-cut caption generation,
 `add_captions`, and the read-only video quality report. Captions must not
@@ -414,14 +420,17 @@ display text. For short-form generated captions, strip trailing full stops,
 commas, colons, semicolons, and enumeration punctuation after chunking; keep
 question marks and exclamation marks, and preserve punctuation inside numeric
 values such as decimals and thousands separators.
+`build_video_quality_report` also checks `captionStyle.visualFootprint` for
+9:16 outputs: a caption text element over 16% of canvas height or with stroke
+over 7px fails; over 13% height warns.
 
 Caption timing must declare a post-cut caption source. Prefer edited audio transcription
 from edited clip ranges through `build-post-cut-captions`: apply a clip-only
 EditPlan first, run `build-post-cut-captions`, copy the returned captions into
-the final EditPlan with `captionStyle`, then apply the final EditPlan. If that
-path is not available, use source transcript remap: convert source transcript
-segment timestamps into output timeline timestamps through the selected
-`clips[]`. Do not copy source transcript timestamps directly into
+the final EditPlan with `captionStyle` including required `size`, then apply
+the final EditPlan. If that path is not available, use source transcript remap:
+convert source transcript segment timestamps into output timeline timestamps
+through the selected `clips[]`. Do not copy source transcript timestamps directly into
 `captions[].startTime`.
 Do not replace this flow with rewritten summary captions or external subtitle
 burn-in. The final proof must be text elements in the Codecut timeline.
@@ -433,7 +442,8 @@ Caption preset routing:
 - `talking-head-pop`: vertical opinion or creator talking-head clips.
 - `tutorial-clean`: screen recording, tutorial, product walkthrough, or demo.
 - `documentary-soft`: calmer narrative, interview, essay, or YouTube-style edit.
-- `product-punch`: product proof, UGC ad, deal hook, or comparison demo.
+- `property-clean-yellow`: real-estate talking-head, property listing, floor-plan, home-tour, or information-dense product explanation.
+- `product-punch`: strong promotion, deal hook, before/after, UGC ad, or comparison demo.
 - `lifestyle-warm`: vlog, Xiaohongshu-style lifestyle, travel, food, or daily routine.
 - `cinematic-serif`: brand story, fashion, emotional montage, or premium product film.
 - `social-highlight`: TikTok/Reels keyword-highlight style for fast social hooks.
@@ -568,8 +578,8 @@ Rules:
 - After the clip-only cleanup plan is applied, call `build_post_cut_captions`
   or the equivalent `build-post-cut-captions` CLI path to rebuild captions from
   the edited timeline audio. Copy the returned `captions` and `captionStyle`
-  into the final EditPlan, then apply that final plan. Do not reuse source
-  captions when edited audio transcription is available.
+  including `size` into the final EditPlan, then apply that final plan. Do not
+  reuse source captions when edited audio transcription is available.
 
 The cleanup report is an execution artifact. It is not persisted in project
 storage in the first implementation phase.
@@ -585,7 +595,7 @@ P1 supports only:
 - already imported video B-roll assets;
 - already imported image card assets for 9:16 narrated card beats;
 - editable image card text fields for `title`, `info`, and `bottomText`;
-- captions authored by Codex;
+- captions built from the applied narration timeline through post-cut audio timing;
 - full timeline replacement after validation.
 
 P1 does not support:
@@ -642,11 +652,48 @@ must be recorded in the project verification artifact.
     mediaId: string,
     sourceStart: number
   },
-  captions: Array<{
+  captions?: Array<{
     text: string,
     startTime: number,
     duration: number
   }>,
+  captionStyle?: {
+    preset:
+      | "short-form-bold"
+      | "black-bar"
+      | "talking-head-pop"
+      | "tutorial-clean"
+      | "documentary-soft"
+      | "property-clean-yellow"
+      | "product-punch"
+      | "lifestyle-warm"
+      | "cinematic-serif"
+      | "social-highlight"
+      | "comment-bubble"
+      | "minimal-reel",
+    position: "lower-safe" | "center",
+    size: "small" | "medium" | "large",
+    motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce"
+  },
+  captionSource?: {
+    type: "post-cut-audio",
+    tool: "build-post-cut-captions",
+    source: "edited_video_clip_audio" | "edited_timeline_audio" | "scripted_tts_audio",
+    trace: Array<{
+      mediaId: string,
+      timelineStart: number,
+      sourceStart: number,
+      sourceEnd: number,
+      captionCount: number
+    }>,
+    voiceConsistency?: {
+      provider: "imported-tts" | "runninghub-voice-design" | "runninghub-voice-clone",
+      providerTaskId?: string,
+      alignmentMethod: "scripted_captions_to_asr_segments",
+      scriptCaptionLineCount: number,
+      protectedTermCount: number
+    }
+  },
   rationale: string
 }
 ```
@@ -667,6 +714,11 @@ Validation is all-or-nothing:
 - visual beats must be continuous from `0` with no gaps or overlaps.
 - total visual beat duration must equal `target.durationSec`.
 - captions must fit inside `target.durationSec`.
+- a first-pass plan may omit `captions`, `captionStyle`, and `captionSource`.
+- when `captions` are present, `captionStyle` and `captionSource` are required.
+- `captionSource.type` must be `post-cut-audio`, `captionSource.tool` must be
+  `build-post-cut-captions`, and the sum of `trace[].captionCount` must equal
+  `captions.length`.
 - unknown fields such as `generateSpeech`, `text`, or `voiceId` fail schema
   validation.
 
@@ -739,7 +791,13 @@ After application, Codex must verify `get_timeline_state` proof fields:
     is required.
 25. For EditPlan templates with captions, Codex runs
     `build-post-cut-captions`, then writes those returned captions into the
-    final EditPlan with the matching `captionStyle`.
+    final EditPlan with the matching `captionStyle`, including the selected
+    `captionStyle.size`.
+    For `narrated-broll`, apply a first-pass NarratedRemixPlan without
+    captions, run `build-post-cut-captions` from the resulting narration
+    timeline, then apply a final NarratedRemixPlan containing `captions`,
+    `captionStyle`, and `captionSource` built from the returned `source`,
+    `trace`, and optional `voiceConsistency`.
 26. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the final
     strict plan.
 27. Codex calls `verify-timeline`, `get_timeline_state`, and
@@ -946,7 +1004,8 @@ node scripts/codex-bridge.mjs build-post-cut-captions \
 ```
 
 `build_post_cut_captions` is also exposed as a Codex Agent tool with the same
-`language` and `modelId` inputs. The tool reads the current timeline,
+`language` and `modelId` inputs plus an optional full `captionStyle` containing
+`preset`, `position`, and `size`. The tool reads the current timeline,
 transcribes each unmuted edited video or uploaded-audio clip range from
 `trimStart` to `trimEnd`, and offsets the returned segments into output
 timeline time. It returns caption items, a recommended `captionStyle`,

@@ -15,7 +15,7 @@ Applies to TikTok, Reels, Shorts, and similar feeds.
 | FPS | 30 |
 | Duration | 15-45 seconds |
 | Structure | hook -> proof/demo -> value beat -> CTA or loop |
-| Captions | Resolved template caption preset, such as `talking-head-pop` or `product-punch`; no hidden fallback |
+| Captions | Resolved template caption preset, such as `talking-head-pop`, `property-clean-yellow`, or `product-punch`; no hidden fallback |
 | BGM with voice | 0.08-0.14 |
 | BGM without voice | 0.18-0.28 |
 | Decision ledger | Required before EditPlan when the request is a platform cut, highlight, or broad short-form improvement |
@@ -86,7 +86,7 @@ Rules:
 | Aspect ratio | 9:16 |
 | Duration | 15-35 seconds |
 | Structure | hook -> pain/proof -> demo/process -> CTA |
-| Captions | `product-punch`, claim-focused and short |
+| Captions | `product-punch` for hard promotion; `property-clean-yellow` for information-dense property/product explanation |
 | Visual priority | proof shots over explanation |
 | Decision ledger | Required before EditPlan |
 
@@ -146,7 +146,8 @@ Use implemented caption presets only:
 - `talking-head-pop`: vertical opinion, creator talking-head, high-retention claim clips.
 - `tutorial-clean`: screen recording, product walkthrough, step-by-step demo.
 - `documentary-soft`: calmer essay, interview, narrative explanation, horizontal YouTube-style edit.
-- `product-punch`: product proof, UGC ad, deal hook, comparison demo, before/after.
+- `property-clean-yellow`: real-estate talking-head, property listing, floor-plan, home-tour, or information-dense product explanation.
+- `product-punch`: hard promotion, product proof, UGC ad, deal hook, comparison demo, before/after.
 - `lifestyle-warm`: vlog, Xiaohongshu-style lifestyle, food, travel, daily routine, soft recommendation.
 - `cinematic-serif`: brand story, fashion, emotional montage, premium product film.
 - `short-form-bold`: legacy bold short-form route only when the user explicitly asks for that heavier look; do not use it as a hidden fallback.
@@ -160,6 +161,7 @@ If user says:
 - "YouTube", "横屏", "长视频" -> YouTube Horizontal unless the user asks for Shorts.
 - "教程", "demo", "演示" -> Tutorial / Demo.
 - "带货", "商品", "广告", "UGC" -> UGC / Product Ad.
+- "房产", "楼盘", "户型", "带看", "房源" -> property-clean-yellow caption route unless the user explicitly asks for hard promotion or a deal hook.
 - "试吃", "试喝", "探店", "vlog", "小红书", "生活方式" -> lifestyle-warm caption route unless the business goal is a hard product ad.
 - "品牌片", "情绪片", "高级感", "电影感" -> cinematic-serif caption route.
 - "口播", "去废话", "精剪" -> Talking-Head Polish.

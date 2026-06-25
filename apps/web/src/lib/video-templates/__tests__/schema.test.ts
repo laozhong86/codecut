@@ -70,7 +70,7 @@ describe("VideoTemplateManifestSchema", () => {
 		expect(result.success).toBe(false);
 	});
 
-	test("requires narrated-broll to use NarratedRemixPlan v1 without captionStyle", () => {
+	test("requires narrated-broll to use NarratedRemixPlan v1 path", () => {
 		const result = VideoTemplateManifestSchema.safeParse({
 			...validTemplate(),
 			id: "narrated-broll",

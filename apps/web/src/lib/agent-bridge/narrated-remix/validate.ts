@@ -3,10 +3,7 @@ import {
 	auditCaptions,
 	canonicalCaptionCanvasSizeForAspectRatio,
 } from "@/lib/agent-bridge/caption-quality";
-import {
-	type NarratedRemixPlan,
-	NarratedRemixPlanSchema,
-} from "./schema";
+import { type NarratedRemixPlan, NarratedRemixPlanSchema } from "./schema";
 
 type NarratedRemixVisualBeat = NarratedRemixPlan["visualBeats"][number];
 type NarratedRemixImageBeat = Extract<
@@ -54,13 +51,7 @@ function isImageBeat(
 	return visualBeat.mediaType === "image";
 }
 
-function exceeds({
-	end,
-	limit,
-}: {
-	end: number;
-	limit: number;
-}): boolean {
+function exceeds({ end, limit }: { end: number; limit: number }): boolean {
 	return end - limit > TIME_EPSILON;
 }
 
@@ -79,9 +70,7 @@ export function validateNarratedRemixPlan({
 		return {
 			success: false,
 			message: "NarratedRemixPlan schema is invalid.",
-			...(firstIssue
-				? { path: formatIssuePath(firstIssue.path) }
-				: {}),
+			...(firstIssue ? { path: formatIssuePath(firstIssue.path) } : {}),
 		};
 	}
 
@@ -99,6 +88,20 @@ export function validateNarratedRemixPlan({
 			success: false,
 			message: "NarratedRemixPlan captionStyle requires captions.",
 			path: "captionStyle",
+		};
+	}
+	if (hasCaptions && !normalizedPlan.captionSource) {
+		return {
+			success: false,
+			message: "NarratedRemixPlan captions require post-cut captionSource.",
+			path: "captionSource",
+		};
+	}
+	if (!hasCaptions && normalizedPlan.captionSource) {
+		return {
+			success: false,
+			message: "NarratedRemixPlan captionSource requires captions.",
+			path: "captionSource",
 		};
 	}
 	if (normalizedPlan.projectId !== projectId) {
@@ -273,6 +276,20 @@ export function validateNarratedRemixPlan({
 				success: false,
 				message: "NarratedRemixPlan caption exceeds target duration.",
 				path: `captions[${index}]`,
+			};
+		}
+	}
+	if (hasCaptions && normalizedPlan.captionSource) {
+		const traceCaptionCount = normalizedPlan.captionSource.trace.reduce(
+			(total, entry) => total + entry.captionCount,
+			0,
+		);
+		if (traceCaptionCount !== normalizedPlan.captions.length) {
+			return {
+				success: false,
+				message:
+					"NarratedRemixPlan captionSource trace count must match captions.",
+				path: "captionSource.trace",
 			};
 		}
 	}

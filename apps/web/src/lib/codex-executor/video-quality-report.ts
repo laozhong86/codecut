@@ -101,6 +101,9 @@ const TIME_TOLERANCE_SECONDS = 0.001;
 const BOUNDS_TOLERANCE_PX = 0.5;
 const CAPTION_MAX_LINES = 2;
 const CAPTION_MIN_LAST_LINE_CHARACTERS = 3;
+const CAPTION_VISUAL_WARNING_HEIGHT_RATIO = 0.13;
+const CAPTION_VISUAL_FAIL_HEIGHT_RATIO = 0.16;
+const CAPTION_VISUAL_FAIL_STROKE_PX = 7;
 const TITLE_RUBRIC_MAX_CHARACTERS: Record<TitleQualityPlatform, number> = {
 	youtube: 60,
 	tiktok: 80,
@@ -394,6 +397,10 @@ function lineText(line: TextLayoutLine) {
 	return line.runs.map((run) => run.text).join("");
 }
 
+function roundMetric(value: number): number {
+	return Math.round((value + Number.EPSILON) * 1000) / 1000;
+}
+
 function lineX({
 	element,
 	lineWidth,
@@ -421,7 +428,8 @@ function textLayoutForElement({
 	if (!context) {
 		throw new Error("VideoQualityReport could not create text measure canvas.");
 	}
-	const fontSize = element.fontSize * (canvasHeight / FONT_SIZE_SCALE_REFERENCE);
+	const fontSize =
+		element.fontSize * (canvasHeight / FONT_SIZE_SCALE_REFERENCE);
 	const boxWidth =
 		element.boxWidth && element.boxWidth > 0
 			? scaleBoxWidth({ boxWidth: element.boxWidth, canvasHeight })
@@ -524,7 +532,14 @@ function checkTextBounds({
 			bounds.maxX > canvasSize.width + BOUNDS_TOLERANCE_PX ||
 			bounds.maxY > canvasSize.height + BOUNDS_TOLERANCE_PX;
 		return outside
-			? [{ kind: match.kind, index: match.index, elementId: match.element.id, bounds }]
+			? [
+					{
+						kind: match.kind,
+						index: match.index,
+						elementId: match.element.id,
+						bounds,
+					},
+				]
 			: [];
 	});
 
@@ -610,6 +625,184 @@ function checkCaptionLines({
 		evidence: {
 			maxLines: CAPTION_MAX_LINES,
 			minLastLineCharacters: CAPTION_MIN_LAST_LINE_CHARACTERS,
+		},
+	};
+}
+
+function maxRunFontPx({
+	layout,
+	fontSize,
+	scale,
+}: {
+	layout: ReturnType<typeof createTextLayout>;
+	fontSize: number;
+	scale: number;
+}): number {
+	const runFontSizes = layout.lines.flatMap((line) =>
+		line.runs.map((run) => fontSize * (run.style.fontScale ?? 1)),
+	);
+	return Math.max(fontSize, ...runFontSizes) * scale;
+}
+
+function maxStrokePx({
+	element,
+	layout,
+	scale,
+}: {
+	element: TextElement;
+	layout: ReturnType<typeof createTextLayout>;
+	scale: number;
+}): number {
+	const strokeWidths = [
+		element.stroke?.width ?? 0,
+		...layout.lines.flatMap((line) =>
+			line.runs.map((run) => run.style.stroke?.width ?? 0),
+		),
+	];
+	return Math.max(0, ...strokeWidths) * 2 * scale;
+}
+
+function textBoxHeightPx({
+	element,
+	layout,
+	fontSize,
+}: {
+	element: TextElement;
+	layout: ReturnType<typeof createTextLayout>;
+	fontSize: number;
+}): number {
+	const lineCount = Math.max(1, layout.lines.length);
+	const textHeight = lineCount * fontSize * 1.3;
+	const hasBackground =
+		!!element.backgroundColor && element.backgroundColor !== "transparent";
+	const backgroundPadding = hasBackground
+		? (element.backgroundPaddingY ?? 4) * 2
+		: 0;
+	return (textHeight + backgroundPadding) * element.transform.scale;
+}
+
+function checkCaptionStyleVisualFootprint({
+	matches,
+	canvasSize,
+}: {
+	matches: MatchedText[];
+	canvasSize: { width: number; height: number };
+}): Check {
+	const captions = matches.filter((match) => match.kind === "caption");
+	if (captions.length === 0) {
+		return {
+			id: "captionStyle.visualFootprint",
+			category: "layout",
+			status: "pass",
+			severity: "info",
+			message:
+				"EditPlan has no caption text elements requiring visual footprint checks.",
+			evidence: { captionCount: 0 },
+		};
+	}
+
+	if (canvasSize.width >= canvasSize.height) {
+		return {
+			id: "captionStyle.visualFootprint",
+			category: "layout",
+			status: "pass",
+			severity: "info",
+			message:
+				"Caption visual footprint thresholds apply only to vertical 9:16 outputs.",
+			evidence: { captionCount: captions.length, canvasSize },
+		};
+	}
+
+	const measured = captions.map((match) => {
+		const { layout, fontSize } = textLayoutForElement({
+			element: match.element,
+			canvasHeight: canvasSize.height,
+		});
+		const scale = match.element.transform.scale;
+		const fontPx = maxRunFontPx({ layout, fontSize, scale });
+		const strokePx = maxStrokePx({ element: match.element, layout, scale });
+		const heightPx = textBoxHeightPx({
+			element: match.element,
+			layout,
+			fontSize,
+		});
+		const heightRatio = heightPx / canvasSize.height;
+		const reason =
+			heightRatio > CAPTION_VISUAL_FAIL_HEIGHT_RATIO
+				? "height_ratio_fail"
+				: strokePx > CAPTION_VISUAL_FAIL_STROKE_PX
+					? "stroke_px_fail"
+					: heightRatio > CAPTION_VISUAL_WARNING_HEIGHT_RATIO
+						? "height_ratio_warning"
+						: null;
+		return {
+			id: match.element.id,
+			content: match.element.content,
+			fontPx: roundMetric(fontPx),
+			strokePx: roundMetric(strokePx),
+			heightRatio: roundMetric(heightRatio),
+			reason,
+		};
+	});
+	const failed = measured.filter(
+		(caption) =>
+			caption.reason === "height_ratio_fail" ||
+			caption.reason === "stroke_px_fail",
+	);
+	const warnings = measured.filter(
+		(caption) => caption.reason === "height_ratio_warning",
+	);
+
+	if (failed.length > 0) {
+		return {
+			id: "captionStyle.visualFootprint",
+			category: "layout",
+			status: "fail",
+			severity: "critical",
+			message: `${failed.length} caption text element(s) exceed visual footprint limits.`,
+			evidence: {
+				offendingCaptions: failed,
+				warningCaptions: warnings,
+				thresholds: {
+					warningHeightRatio: CAPTION_VISUAL_WARNING_HEIGHT_RATIO,
+					failHeightRatio: CAPTION_VISUAL_FAIL_HEIGHT_RATIO,
+					failStrokePx: CAPTION_VISUAL_FAIL_STROKE_PX,
+				},
+			},
+		};
+	}
+
+	if (warnings.length > 0) {
+		return {
+			id: "captionStyle.visualFootprint",
+			category: "layout",
+			status: "warning",
+			severity: "warning",
+			message: `${warnings.length} caption text element(s) approach visual footprint limits.`,
+			evidence: {
+				offendingCaptions: warnings,
+				thresholds: {
+					warningHeightRatio: CAPTION_VISUAL_WARNING_HEIGHT_RATIO,
+					failHeightRatio: CAPTION_VISUAL_FAIL_HEIGHT_RATIO,
+					failStrokePx: CAPTION_VISUAL_FAIL_STROKE_PX,
+				},
+			},
+		};
+	}
+
+	return {
+		id: "captionStyle.visualFootprint",
+		category: "layout",
+		status: "pass",
+		severity: "info",
+		message: `All ${captions.length} caption text element(s) stay within visual footprint limits.`,
+		evidence: {
+			captions: measured.map(({ reason: _reason, ...caption }) => caption),
+			thresholds: {
+				warningHeightRatio: CAPTION_VISUAL_WARNING_HEIGHT_RATIO,
+				failHeightRatio: CAPTION_VISUAL_FAIL_HEIGHT_RATIO,
+				failStrokePx: CAPTION_VISUAL_FAIL_STROKE_PX,
+			},
 		},
 	};
 }
@@ -898,9 +1091,7 @@ function checkVoiceConsistency({
 	}
 
 	const captionText = normalizeSpokenText(
-		(plan.captions ?? [])
-			.map((caption) => caption.text)
-			.join(" "),
+		(plan.captions ?? []).map((caption) => caption.text).join(" "),
 	);
 	const mismatches = scriptedAssets.flatMap((asset) => {
 		const scriptCaptions = asset.spokenScript?.captions ?? [];
@@ -1152,6 +1343,10 @@ export async function buildVideoQualityReport({
 			canvasSize: state.project.settings.canvasSize,
 		}),
 		checkCaptionLines({
+			matches: matchedText,
+			canvasSize: state.project.settings.canvasSize,
+		}),
+		checkCaptionStyleVisualFootprint({
 			matches: matchedText,
 			canvasSize: state.project.settings.canvasSize,
 		}),

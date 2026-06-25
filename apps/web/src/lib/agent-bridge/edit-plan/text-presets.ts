@@ -43,6 +43,30 @@ function getLowerSafeCaptionY({
 	return 320;
 }
 
+function getCaptionSizeMultiplier(size: EditPlanCaptionStyle["size"]): number {
+	if (size === "small") return 0.9;
+	if (size === "medium") return 1;
+	if (size === "large") return 1.1;
+
+	const exhaustiveSize: never = size;
+	throw new Error(`Unsupported caption size: ${exhaustiveSize}`);
+}
+
+function applyCaptionSize({
+	raw,
+	size,
+}: {
+	raw: TextElementRaw;
+	size: EditPlanCaptionStyle["size"];
+}): TextElementRaw {
+	return {
+		...raw,
+		...(raw.fontSize === undefined
+			? {}
+			: { fontSize: raw.fontSize * getCaptionSizeMultiplier(size) }),
+	};
+}
+
 export function resolveTitleStylePreset({
 	preset,
 	aspectRatio,
@@ -171,9 +195,11 @@ export function resolveCaptionStylePreset({
 		rotate: 0,
 	};
 	const boxWidth = getCaptionBoxWidth({ aspectRatio });
+	const resolve = (raw: TextElementRaw) =>
+		applyCaptionSize({ raw, size: captionStyle.size });
 
 	if (captionStyle.preset === "creator-clean") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 5.2,
 			fontWeight: "normal",
@@ -182,11 +208,11 @@ export function resolveCaptionStylePreset({
 			shadow: { color: "rgba(0,0,0,0.42)", offsetX: 0, offsetY: 2, blur: 6 },
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	if (captionStyle.preset === "black-bar") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
@@ -198,11 +224,11 @@ export function resolveCaptionStylePreset({
 			backgroundBorderRadius: 8,
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	if (captionStyle.preset === "talking-head-pop") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 4.8,
 			fontWeight: "bold",
@@ -212,11 +238,11 @@ export function resolveCaptionStylePreset({
 			backgroundColor: "transparent",
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	if (captionStyle.preset === "tutorial-clean") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "normal",
@@ -228,11 +254,11 @@ export function resolveCaptionStylePreset({
 			backgroundBorderRadius: 6,
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	if (captionStyle.preset === "documentary-soft") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
@@ -242,25 +268,39 @@ export function resolveCaptionStylePreset({
 			backgroundColor: "transparent",
 			boxWidth,
 			transform,
-		};
+		});
+	}
+
+	if (captionStyle.preset === "property-clean-yellow") {
+		return resolve({
+			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontSize: 4.8,
+			fontWeight: "bold",
+			color: "#ffe45c",
+			stroke: { color: "#111111", width: 2 },
+			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
+			backgroundColor: "transparent",
+			boxWidth,
+			transform,
+		});
 	}
 
 	if (captionStyle.preset === "product-punch") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_CJK_FONT_FAMILY,
-			fontSize: 6,
+			fontSize: 5.2,
 			fontWeight: "bold",
 			color: "#ffe45c",
-			stroke: { color: "#111111", width: 4 },
+			stroke: { color: "#111111", width: 3 },
 			shadow: { color: "#000000", offsetX: 0, offsetY: 3, blur: 6 },
 			backgroundColor: "transparent",
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	if (captionStyle.preset === "lifestyle-warm") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_WEN_KAI_FONT_FAMILY,
 			fontSize: 5.4,
 			fontWeight: "normal",
@@ -272,11 +312,11 @@ export function resolveCaptionStylePreset({
 			backgroundBorderRadius: 8,
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	if (captionStyle.preset === "cinematic-serif") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 5.1,
 			fontWeight: "normal",
@@ -285,11 +325,11 @@ export function resolveCaptionStylePreset({
 			backgroundColor: "transparent",
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	if (captionStyle.preset === "short-form-bold") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 6,
 			fontWeight: "bold",
@@ -299,11 +339,11 @@ export function resolveCaptionStylePreset({
 			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 4 },
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	if (captionStyle.preset === "social-highlight") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5.6,
 			fontWeight: "bold",
@@ -317,11 +357,11 @@ export function resolveCaptionStylePreset({
 			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 5 },
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	if (captionStyle.preset === "comment-bubble") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_CJK_FONT_FAMILY,
 			fontSize: 5.2,
 			fontWeight: "bold",
@@ -334,11 +374,11 @@ export function resolveCaptionStylePreset({
 			shadow: { color: "#000000", offsetX: 0, offsetY: 3, blur: 8 },
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	if (captionStyle.preset === "minimal-reel") {
-		return {
+		return resolve({
 			fontFamily: CODECUT_SMILEY_SANS_FONT_FAMILY,
 			fontSize: 4.6,
 			fontWeight: "normal",
@@ -347,7 +387,7 @@ export function resolveCaptionStylePreset({
 			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 6 },
 			boxWidth,
 			transform,
-		};
+		});
 	}
 
 	const exhaustivePreset: never = captionStyle.preset;

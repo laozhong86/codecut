@@ -27,6 +27,7 @@ import type {
 	EditPlanCaption,
 	EditPlanCaptionStyle,
 } from "@/lib/agent-bridge/edit-plan/schema";
+import type { TextElement } from "@/types/timeline";
 import {
 	rebuildTimelineFromSpeechCleanup,
 	type SpeechCleanupPlan,
@@ -647,10 +648,7 @@ describe("codex executor", () => {
 					spokenScript: {
 						source: "tts",
 						text: "A pizza portion costs $2.34. Venmo that ASAP.",
-						captions: [
-							"A pizza portion costs $2.34.",
-							"Venmo that ASAP.",
-						],
+						captions: ["A pizza portion costs $2.34.", "Venmo that ASAP."],
 						protectedTerms: ["$2.34", "Venmo that ASAP"],
 					},
 				},
@@ -705,10 +703,7 @@ describe("codex executor", () => {
 					spokenScript: {
 						source: "tts",
 						text: "A pizza portion costs $2.34. Venmo that ASAP.",
-						captions: [
-							"A pizza portion costs $2.34.",
-							"Venmo that ASAP.",
-						],
+						captions: ["A pizza portion costs $2.34.", "Venmo that ASAP."],
 						protectedTerms: ["$2.34", "Venmo that ASAP"],
 					},
 				},
@@ -884,6 +879,7 @@ describe("codex executor", () => {
 			captionStyle: {
 				preset: "short-form-bold",
 				position: "lower-safe",
+				size: "medium",
 			},
 			transitions: [
 				{
@@ -1335,7 +1331,10 @@ describe("codex executor", () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 		const tempDir = await mkdtemp(join(tmpdir(), "voice-clone-"));
 		const referencePath = join(tempDir, "reference.wav");
-		await writeFile(referencePath, await createFixtureBareAudio({ format: "wav" }));
+		await writeFile(
+			referencePath,
+			await createFixtureBareAudio({ format: "wav" }),
+		);
 		const cloneBytes = await createFixtureBareAudio({ format: "wav" });
 
 		try {
@@ -1389,7 +1388,8 @@ describe("codex executor", () => {
 			const state = await getExecutorProjectState({ projectId });
 			const asset = state.mediaAssets.find(
 				(item) =>
-					item.id === resultData<{ mediaId: string }>(result.results[0]).mediaId,
+					item.id ===
+					resultData<{ mediaId: string }>(result.results[0]).mediaId,
 			);
 			expect(asset?.spokenScript).toMatchObject({
 				provider: "runninghub-voice-clone",
@@ -1615,6 +1615,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "medium",
 						},
 						rationale: "Timeline v2 proof",
 					},
@@ -2010,6 +2011,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "medium",
 						},
 						rationale: "Draft truth proof",
 					},
@@ -2087,7 +2089,11 @@ describe("codex executor", () => {
 				},
 			],
 			captions: [{ text: "Main claim", startTime: 0, duration: 2 }],
-			captionStyle: { preset: "black-bar", position: "lower-safe" },
+			captionStyle: {
+				preset: "black-bar",
+				position: "lower-safe",
+				size: "medium",
+			},
 			rationale: "Short cut",
 		};
 
@@ -2980,6 +2986,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "black-bar",
 							position: "lower-safe",
+							size: "medium",
 						},
 						audio: {
 							bgm: {
@@ -3792,6 +3799,7 @@ describe("codex executor", () => {
 				captionStyle: {
 					preset: "talking-head-pop",
 					position: "lower-safe",
+					size: "medium",
 				},
 				captions: [
 					{ text: "第一句", startTime: 1, duration: 1.25 },
@@ -4002,6 +4010,11 @@ describe("codex executor", () => {
 			success: true,
 			data: {
 				source: "scripted_tts_audio",
+				captionStyle: {
+					preset: "talking-head-pop",
+					position: "lower-safe",
+					size: "medium",
+				},
 				voiceConsistency: {
 					provider: "imported-tts",
 					alignmentMethod: "scripted_captions_to_asr_segments",
@@ -4016,6 +4029,106 @@ describe("codex executor", () => {
 				],
 			},
 		});
+	});
+
+	test("keeps scripted Chinese captions when accented ASR text is wrong", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "sichuan-tts-1",
+					name: "chengdu-property-tts.mp3",
+					type: "audio",
+					mimeType: "audio/mpeg",
+					duration: 8,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/chengdu-property-tts.mp3",
+					spokenScript: {
+						source: "tts",
+						text: "天府新区双华麓港，套三双卫，总价一百八十六万。",
+						captions: ["天府新区双华麓港", "套三双卫", "总价一百八十六万"],
+						protectedTerms: ["双华麓港", "套三双卫", "一百八十六万"],
+						provider: "runninghub-voice-design",
+						providerTaskId: "voice-task-cn-1",
+					},
+				},
+			],
+			tracks: [
+				{
+					id: "audio-track-1",
+					type: "audio",
+					name: "Narration",
+					muted: false,
+					elements: [
+						{
+							id: "sichuan-clip-1",
+							type: "audio",
+							name: "Narration",
+							mediaId: "sichuan-tts-1",
+							startTime: 0,
+							duration: 8,
+							trimStart: 0,
+							trimEnd: 8,
+							sourceType: "upload",
+							volume: 1,
+							muted: false,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_post_cut_captions",
+				args: {
+					language: "zh",
+					modelId: "whisper-small",
+					captionStyle: {
+						preset: "property-clean-yellow",
+						position: "lower-safe",
+						size: "medium",
+					},
+				},
+			}),
+			transcribeMediaRange: async () => ({
+				text: "天府新区双滑鹿港，套三双为，总价一百八十六嘛。",
+				language: "zh",
+				modelId: "whisper-small",
+				segments: [
+					{ text: "天府新区双滑鹿港", start: 0, end: 2.4 },
+					{ text: "套三双为", start: 2.4, end: 4.2 },
+					{ text: "总价一百八十六嘛", start: 4.2, end: 7.2 },
+				],
+				...asrContractFields(),
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				source: "scripted_tts_audio",
+				captionStyle: {
+					preset: "property-clean-yellow",
+					position: "lower-safe",
+					size: "medium",
+				},
+				voiceConsistency: {
+					provider: "runninghub-voice-design",
+					providerTaskId: "voice-task-cn-1",
+					alignmentMethod: "scripted_captions_to_asr_segments",
+					scriptCaptionLineCount: 3,
+					protectedTermCount: 3,
+				},
+				captions: [
+					{ text: "天府新区双华麓港", startTime: 0 },
+					{ text: "套三双卫", startTime: 2.4 },
+					{ text: "总价一百八十六万", startTime: 4.2 },
+				],
+			},
+		});
+		expect(JSON.stringify(result.results[0])).not.toContain("双滑鹿港");
+		expect(JSON.stringify(result.results[0])).not.toContain("套三双为");
 	});
 
 	test("aligns scripted TTS captions when ASR timing segment count differs", async () => {
@@ -4100,9 +4213,7 @@ describe("codex executor", () => {
 		const data = resultData<{ source: string; captions: EditPlanCaption[] }>(
 			result.results[0],
 		);
-		const captionText = data.captions
-			.map((caption) => caption.text)
-			.join(" ");
+		const captionText = data.captions.map((caption) => caption.text).join(" ");
 
 		expect(data.source).toBe("scripted_tts_audio");
 		expect(captionText).toContain("$2.34");
@@ -4216,23 +4327,23 @@ describe("codex executor", () => {
 			transcribeMediaRange: async ({ range, language, modelId }) => {
 				ranges.push(range);
 				if (range.start === 10) {
-						return {
-							text: "first clip",
-							language,
-							modelId,
-							segments: [{ text: "第一句", start: 0.25, end: 1.25 }],
-							...asrContractFields(),
-						};
-					}
 					return {
-						text: "second clip",
+						text: "first clip",
 						language,
 						modelId,
-						segments: [{ text: "第二句", start: 0.5, end: 1.5 }],
+						segments: [{ text: "第一句", start: 0.25, end: 1.25 }],
 						...asrContractFields(),
 					};
-				},
-			});
+				}
+				return {
+					text: "second clip",
+					language,
+					modelId,
+					segments: [{ text: "第二句", start: 0.5, end: 1.5 }],
+					...asrContractFields(),
+				};
+			},
+		});
 		const postCutCaptions = resultData<{
 			captions: EditPlanCaption[];
 			captionStyle: EditPlanCaptionStyle;
@@ -4472,6 +4583,21 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "medium",
+						},
+						captionSource: {
+							type: "post-cut-audio",
+							tool: "build-post-cut-captions",
+							source: "edited_timeline_audio",
+							trace: [
+								{
+									mediaId: narrationId,
+									timelineStart: 0,
+									sourceStart: 0,
+									sourceEnd: 30,
+									captionCount: 2,
+								},
+							],
 						},
 						rationale: "Narration-led B-roll remix",
 					},
@@ -4629,10 +4755,27 @@ describe("codex executor", () => {
 							},
 						],
 						narration: { mediaId: narrationId, sourceStart: 0 },
-						captions: [{ text: "Voiceover caption", startTime: 24, duration: 3 }],
+						captions: [
+							{ text: "Voiceover caption", startTime: 24, duration: 3 },
+						],
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "medium",
+						},
+						captionSource: {
+							type: "post-cut-audio",
+							tool: "build-post-cut-captions",
+							source: "edited_timeline_audio",
+							trace: [
+								{
+									mediaId: narrationId,
+									timelineStart: 0,
+									sourceStart: 0,
+									sourceEnd: 30,
+									captionCount: 1,
+								},
+							],
 						},
 						rationale: "Narration-led image card remix",
 					},
@@ -4699,7 +4842,9 @@ describe("codex executor", () => {
 		expect(captionTrack?.elements.map((element) => element.content)).toEqual([
 			"Voiceover caption",
 		]);
-		const referencedMediaKeys = Object.keys(timeline.referencedMedia ?? {}).sort();
+		const referencedMediaKeys = Object.keys(
+			timeline.referencedMedia ?? {},
+		).sort();
 		expect(referencedMediaKeys).toHaveLength(3);
 		const imageElement = visualTrack?.elements.find(
 			(element) => element.type === "image",
@@ -4760,12 +4905,14 @@ describe("codex executor", () => {
 		const updatedCardTextTrack = updatedTimeline.tracks.find(
 			(track) => track.name === "Card Text",
 		);
-		expect(updatedCardTextTrack?.elements.map((element) => element.content)).toEqual(
+		expect(
+			updatedCardTextTrack?.elements.map((element) => element.content),
+		).toEqual(
 			expect.arrayContaining([
 				"天府新区双华麓港",
 				"117.55㎡ 套三双卫 总价183万",
 				"地铁口商圈边",
-				]),
+			]),
 		);
 		expect(Object.keys(updatedTimeline.referencedMedia ?? {}).sort()).toEqual(
 			referencedMediaKeys,
@@ -5582,6 +5729,7 @@ describe("codex executor", () => {
 			captionStyle: {
 				preset: "talking-head-pop",
 				position: "lower-safe",
+				size: "medium",
 			},
 		};
 
@@ -5610,6 +5758,137 @@ describe("codex executor", () => {
 					}),
 				]),
 			},
+		});
+	});
+
+	test("build_video_quality_report fails for oversized caption visual footprint", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const state = await getExecutorProjectState({ projectId });
+		let captionElement: TextElement | undefined;
+		for (const track of state.tracks) {
+			if (track.type !== "text") continue;
+			captionElement = track.elements.find(
+				(element) => element.content === "Caption proof",
+			);
+			if (captionElement) break;
+		}
+		if (!captionElement) {
+			throw new Error("Expected caption text element.");
+		}
+		captionElement.fontSize = 12;
+		captionElement.stroke = { color: "#000000", width: 5 };
+		await writeDraftState(state);
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan,
+					inspection: { startTime: 0, endTime: 1, frameCount: 1 },
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: fail",
+			data: {
+				status: "fail",
+			},
+		});
+		const report = resultData<{
+			checks: Array<{
+				id: string;
+				category?: string;
+				status?: string;
+				severity?: string;
+				evidence?: {
+					offendingCaptions?: Array<{
+						id: string;
+						content: string;
+						fontPx: number;
+						strokePx: number;
+						heightRatio: number;
+					}>;
+				};
+			}>;
+		}>(result.results[0]);
+		const visualCheck = report.checks.find(
+			(check) => check.id === "captionStyle.visualFootprint",
+		);
+		expect(visualCheck).toMatchObject({
+			category: "layout",
+			status: "fail",
+			severity: "critical",
+		});
+		const offendingCaption = visualCheck?.evidence?.offendingCaptions?.[0];
+		expect(offendingCaption).toMatchObject({
+			id: captionElement.id,
+			content: "Caption proof",
+			strokePx: 10,
+		});
+		expect(offendingCaption?.fontPx).toBeGreaterThan(250);
+		expect(offendingCaption?.heightRatio).toBeGreaterThan(0.16);
+	});
+
+	test("build_video_quality_report passes property-clean-yellow medium captions", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const propertyPlan = {
+			...plan,
+			captionStyle: {
+				preset: "property-clean-yellow",
+				position: "lower-safe",
+				size: "medium",
+			},
+		};
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: propertyPlan,
+				},
+			}),
+		});
+		expect(applyResult.results[0]).toMatchObject({ success: true });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan: propertyPlan,
+					inspection: { startTime: 0, endTime: 1, frameCount: 1 },
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				status: "pass",
+			},
+		});
+		const report = resultData<{
+			checks: Array<{
+				id: string;
+				status?: string;
+				evidence?: {
+					captions?: Array<{
+						content: string;
+						fontPx: number;
+						strokePx: number;
+					}>;
+				};
+			}>;
+		}>(result.results[0]);
+		const visualCheck = report.checks.find(
+			(check) => check.id === "captionStyle.visualFootprint",
+		);
+		expect(visualCheck?.status).toBe("pass");
+		expect(visualCheck?.evidence?.captions?.[0]).toMatchObject({
+			content: "Caption proof",
+			fontPx: 102.4,
+			strokePx: 4,
 		});
 	});
 
@@ -7108,6 +7387,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),

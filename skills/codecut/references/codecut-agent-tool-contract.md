@@ -49,7 +49,7 @@ Current callable MCP tools relevant to Codex-driven editing:
 | `transcribe_media` | Transcribe one existing audio/video media asset through the local executor transcription runtime. |
 | `build_video_context` | Build local L2 transcript context for one imported audio/video asset; media longer than 300 seconds is analyzed in fixed 5-minute chunks and returned with source-video timestamps. |
 | `inspect_video_range` | Build local L3-on-demand visual/audio evidence for one video source range as a PNG contact sheet plus frame, waveform, and silence metadata. This is not OCR or scene detection. |
-| `build_post_cut_captions` | Transcribe the current edited video clip ranges and return caption items, `captionQuality`, optional `voiceConsistency`, and trace data offset into output timeline time. |
+| `build_post_cut_captions` | Transcribe the current edited video or uploaded-audio clip ranges and return caption items, `captionStyle` with required `size`, `captionQuality`, optional `voiceConsistency`, source type, and trace data offset into output timeline time. |
 | `validate_edit_plan` | Validate an implemented EditPlan v1 without mutating timeline state. |
 | `preview_edit_plan` | Return EditPlan summary, clip list, caption/audio/transition counts, and replacement warning without mutating timeline state. |
 | `apply_edit_plan` | Validate and apply the implemented EditPlan v1 to the timeline. |
@@ -78,21 +78,28 @@ Codecut validates and executes. Codex does all LLM reasoning and plan repair.
 `build_post_cut_captions` is a non-mutating Agent/executor tool. It reads
 unmuted edited video or uploaded-audio clips, transcribes each `trimStart` to
 `trimEnd` source range, and returns captions in output timeline time plus
-`captionStyle`, `captionQuality`, optional `voiceConsistency`, and a clip
-trace. For scripted TTS audio, it preserves `spokenScript.captions` text and
-uses ASR only as timing evidence. Codex must copy those captions into the final
-EditPlan and apply that plan only when `captionQuality.ok` is true.
+`captionStyle`, `captionQuality`, optional `voiceConsistency`, source type, and
+a clip trace. If the user selected a caption size in intake, pass a full
+`captionStyle` containing `preset`, `position`, and `size`; otherwise the tool
+returns `size: "medium"`. For scripted TTS audio, it preserves
+`spokenScript.captions` text and uses ASR only as timing evidence. Codex must
+copy those captions into the final EditPlan and apply that plan only when
+`captionQuality.ok` is true.
 
 Existing narration plus B-roll uses the separate deterministic path:
 
 ```text
-get_project_info -> list_media_assets -> optional import_media -> Codex writes NarratedRemixPlan -> apply_narrated_remix_plan -> get_timeline_state
+get_project_info -> list_media_assets -> optional import_media -> Codex writes first-pass NarratedRemixPlan without captions -> apply_narrated_remix_plan -> build_post_cut_captions -> Codex writes final NarratedRemixPlan with captions, captionStyle, and captionSource -> apply_narrated_remix_plan -> get_timeline_state
 ```
 
 `NarratedRemixPlan v1` only accepts existing narration audio, imported video
-B-roll, and captions. It rejects TTS fields, BGM, SFX, image B-roll, gaps,
-overlaps, missing `captionStyle`, and caption quality failures before mutating
-timeline state.
+B-roll or supported 9:16 image card beats, and post-cut captions. A first-pass
+plan may omit captions. A final plan with captions must include top-level
+`captionStyle` and `captionSource` where `type` is `post-cut-audio`, `tool` is
+`build-post-cut-captions`, and `trace[].captionCount` sums to
+`captions.length`. It rejects TTS fields, BGM, SFX, unsupported image B-roll,
+gaps, overlaps, missing `captionStyle`, missing `captionSource`, and caption
+quality failures before mutating timeline state.
 
 Masked visual effects use explicit deterministic actions outside EditPlan v1:
 
@@ -123,6 +130,7 @@ Current `apply_narrated_remix_plan` behavior:
 - replaces the timeline with one muted video B-roll track, one narration audio track, and one caption text track
 - requires continuous visual beats whose total duration equals `target.durationSec`
 - requires top-level `captionStyle` when captions are present
+- requires `captionSource` from `build-post-cut-captions` when captions are present
 - requires `narration.mediaId` to be an existing audio asset
 - requires every `visualBeats[].mediaId` to be an existing video asset
 

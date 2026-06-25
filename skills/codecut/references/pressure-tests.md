@@ -277,7 +277,7 @@ Fail signals:
 
 - Invents a voice ID, generated narration asset, BGM, or SFX.
 - Applies a visual-only remix and reports a complete narrated result.
-- Uses `captionStyle` in NarratedRemixPlan v1.
+- Adds NarratedRemixPlan captions without a post-cut `captionSource`.
 
 ## Test 11: Animated Subtitle Is Not A Template Capability
 

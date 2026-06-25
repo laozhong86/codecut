@@ -693,15 +693,15 @@ describe("Codex deterministic editing tools", () => {
 			editor,
 			transcribeMediaRange: async ({ range, language, modelId }) => {
 				ranges.push(range);
-					return {
-						text: "第一句",
-						language,
-						modelId,
-						segments: [{ text: "第一句", start: 0.5, end: 1.25 }],
-						...asrContractFields(),
-					};
-				},
-			});
+				return {
+					text: "第一句",
+					language,
+					modelId,
+					segments: [{ text: "第一句", start: 0.5, end: 1.25 }],
+					...asrContractFields(),
+				};
+			},
+		});
 
 		expect(ranges).toEqual([{ start: 10, end: 13 }]);
 		expect(result).toEqual({
@@ -714,6 +714,7 @@ describe("Codex deterministic editing tools", () => {
 				captionStyle: {
 					preset: "talking-head-pop",
 					position: "lower-safe",
+					size: "medium",
 				},
 				captions: [{ text: "第一句", startTime: 0.5, duration: 0.75 }],
 				trace: [

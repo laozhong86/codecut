@@ -53,7 +53,10 @@ type TranscribeMediaRange = ({
 }) => Promise<TranscriptionResult>;
 
 interface PostCutCaptionData extends Record<string, unknown> {
-	source: "edited_video_clip_audio" | "edited_timeline_audio";
+	source:
+		| "edited_video_clip_audio"
+		| "edited_timeline_audio"
+		| "scripted_tts_audio";
 	language: string;
 	modelId: string;
 	captionStyle: EditPlanCaptionStyle;
@@ -70,6 +73,7 @@ interface PostCutCaptionData extends Record<string, unknown> {
 const DEFAULT_POST_CUT_CAPTION_STYLE = {
 	preset: "talking-head-pop",
 	position: "lower-safe",
+	size: "medium",
 } satisfies EditPlanCaptionStyle;
 
 function roundCaptionSeconds(value: number): number {
@@ -207,9 +211,12 @@ async function buildPostCutCaptionsData({
 	modelId: TranscriptionModelId;
 	transcribeMediaRange: TranscribeMediaRange;
 }): Promise<
-	{ success: true; data: PostCutCaptionData } | { success: false; message: string }
+	| { success: true; data: PostCutCaptionData }
+	| { success: false; message: string }
 > {
-	const clips = getCaptionSourceElements({ tracks: editor.timeline.getTracks() });
+	const clips = getCaptionSourceElements({
+		tracks: editor.timeline.getTracks(),
+	});
 
 	if (clips.length === 0) {
 		return {
@@ -227,7 +234,9 @@ async function buildPostCutCaptionsData({
 	const mediaAssets = editor.media.getAssets();
 
 	for (const element of clips) {
-		const mediaAsset = mediaAssets.find((asset) => asset.id === element.mediaId);
+		const mediaAsset = mediaAssets.find(
+			(asset) => asset.id === element.mediaId,
+		);
 		if (!mediaAsset) {
 			return {
 				success: false,
@@ -366,7 +375,7 @@ export const generateCaptionsTool: AgentTool = {
 export const buildPostCutCaptionsTool: AgentTool = {
 	name: "build_post_cut_captions",
 	description:
-		"Transcribe the current edited, unmuted video or uploaded-audio clip ranges and return captions in output timeline time. This tool does not mutate the timeline; copy the returned captions and captionStyle into a final EditPlan, then apply_edit_plan.",
+		"Transcribe the current edited, unmuted video or uploaded-audio clip ranges and return captions in output timeline time with captionStyle.size, captionQuality, source, trace, and optional voiceConsistency. This tool does not mutate the timeline; copy the returned captions and captionStyle into a final EditPlan, then apply_edit_plan. For scripted TTS audio, use ASR timing only and keep spokenScript caption text.",
 	parameters: {
 		type: "object",
 		properties: {

@@ -61,6 +61,7 @@ function validPlan(): EditPlan {
 		captionStyle: {
 			preset: "short-form-bold",
 			position: "lower-safe",
+			size: "medium",
 		},
 		rationale: "Combines setup and proof into a short clip.",
 	};
@@ -166,11 +167,13 @@ describe("validateEditPlan", () => {
 			timelineStart: clip.timelineStart + 1.2,
 		}));
 
-		expect(validateEditPlan({
-			plan,
-			projectId: "project-1",
-			mediaAssets: [mediaAsset()],
-		})).toEqual({
+		expect(
+			validateEditPlan({
+				plan,
+				projectId: "project-1",
+				mediaAssets: [mediaAsset()],
+			}),
+		).toEqual({
 			success: false,
 			message:
 				"EditPlan introCover mediaId was not found in the project media library.",
@@ -192,11 +195,13 @@ describe("validateEditPlan", () => {
 			timelineStart: clip.timelineStart + 1.2,
 		}));
 
-		expect(validateEditPlan({
-			plan,
-			projectId: "project-1",
-			mediaAssets: [mediaAsset()],
-		})).toEqual({
+		expect(
+			validateEditPlan({
+				plan,
+				projectId: "project-1",
+				mediaAssets: [mediaAsset()],
+			}),
+		).toEqual({
 			success: false,
 			message: "EditPlan introCover media asset must be image.",
 			path: "introCover.mediaId",
@@ -217,11 +222,13 @@ describe("validateEditPlan", () => {
 			timelineStart: clip.timelineStart + 1.2,
 		}));
 
-		expect(validateEditPlan({
-			plan,
-			projectId: "project-1",
-			mediaAssets: [mediaAsset(), imageAsset({ width: undefined })],
-		})).toEqual({
+		expect(
+			validateEditPlan({
+				plan,
+				projectId: "project-1",
+				mediaAssets: [mediaAsset(), imageAsset({ width: undefined })],
+			}),
+		).toEqual({
 			success: false,
 			message: "EditPlan introCover image dimensions are required.",
 			path: "introCover.mediaId",
@@ -238,11 +245,13 @@ describe("validateEditPlan", () => {
 			reason: "Generated cover should lead the edit.",
 		};
 
-		expect(validateEditPlan({
-			plan,
-			projectId: "project-1",
-			mediaAssets: [mediaAsset(), imageAsset()],
-		})).toEqual({
+		expect(
+			validateEditPlan({
+				plan,
+				projectId: "project-1",
+				mediaAssets: [mediaAsset(), imageAsset()],
+			}),
+		).toEqual({
 			success: false,
 			message:
 				"EditPlan first clip must start exactly after introCover duration.",
@@ -263,11 +272,13 @@ describe("validateEditPlan", () => {
 			timelineStart: clip.timelineStart + 8,
 		}));
 
-		expect(validateEditPlan({
-			plan,
-			projectId: "project-1",
-			mediaAssets: [mediaAsset(), imageAsset()],
-		})).toEqual({
+		expect(
+			validateEditPlan({
+				plan,
+				projectId: "project-1",
+				mediaAssets: [mediaAsset(), imageAsset()],
+			}),
+		).toEqual({
 			success: false,
 			message: "EditPlan clip duration total is outside the target tolerance.",
 			path: "target.durationSec",
@@ -387,7 +398,8 @@ describe("validateEditPlan", () => {
 
 		expect(result).toEqual({
 			success: false,
-			message: "EditPlan sourceCrop rectangle must stay within source media dimensions.",
+			message:
+				"EditPlan sourceCrop rectangle must stay within source media dimensions.",
 			path: "clips[0].sourceCrop",
 		});
 	});
@@ -623,6 +635,7 @@ describe("validateEditPlan", () => {
 				captionStyle: {
 					preset: "short-form-bold",
 					position: "lower-safe",
+					size: "medium",
 				},
 			},
 		});
@@ -679,6 +692,7 @@ describe("validateEditPlan", () => {
 			"talking-head-pop",
 			"tutorial-clean",
 			"documentary-soft",
+			"property-clean-yellow",
 			"product-punch",
 			"lifestyle-warm",
 			"cinematic-serif",
@@ -687,7 +701,7 @@ describe("validateEditPlan", () => {
 			"minimal-reel",
 		];
 
-		expect(presets).toHaveLength(12);
+		expect(presets).toHaveLength(13);
 
 		for (const preset of presets) {
 			const result = validateEditPlan({
@@ -696,6 +710,7 @@ describe("validateEditPlan", () => {
 					captionStyle: {
 						preset,
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 				projectId: "project-1",
@@ -774,6 +789,7 @@ describe("validateEditPlan", () => {
 			captionStyle: {
 				preset: "keyword-highlight",
 				position: "lower-safe",
+				size: "medium",
 			},
 		};
 
@@ -798,6 +814,7 @@ describe("validateEditPlan", () => {
 			captionStyle: {
 				preset: "bold_caption",
 				position: "lower-safe",
+				size: "medium",
 			},
 		};
 
@@ -821,6 +838,7 @@ describe("validateEditPlan", () => {
 			captionStyle: {
 				preset: "keyword_caption",
 				position: "lower-safe",
+				size: "medium",
 			},
 		};
 
@@ -838,12 +856,59 @@ describe("validateEditPlan", () => {
 		expect(failure.message).toContain("keyword_caption");
 	});
 
+	test("rejects captionStyle without explicit size", () => {
+		const plan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "short-form-bold",
+				position: "lower-safe",
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		const failure = expectValidationFailure(result);
+		expect(failure).toMatchObject({
+			success: false,
+			path: "captionStyle.size",
+		});
+	});
+
+	test("rejects unsupported captionStyle size", () => {
+		const plan = {
+			...validPlan(),
+			captionStyle: {
+				preset: "short-form-bold",
+				position: "lower-safe",
+				size: "x-large",
+			},
+		};
+
+		const result = validateEditPlan({
+			plan,
+			projectId: "project-1",
+			mediaAssets: [mediaAsset()],
+		});
+
+		const failure = expectValidationFailure(result);
+		expect(failure).toMatchObject({
+			success: false,
+			path: "captionStyle.size",
+		});
+		expect(failure.message).toContain("x-large");
+	});
+
 	test("rejects arbitrary caption style fields", () => {
 		const plan = {
 			...validPlan(),
 			captionStyle: {
 				preset: "short-form-bold",
 				position: "lower-safe",
+				size: "medium",
 				css: "color: red",
 			},
 		};
@@ -868,6 +933,7 @@ describe("validateEditPlan", () => {
 			captionStyle: {
 				preset: "short-form-bold",
 				position: "lower-safe",
+				size: "medium",
 				fontFamily: "Inter",
 			},
 		};
@@ -1327,6 +1393,7 @@ describe("validateEditPlan", () => {
 		plan.captionStyle = {
 			preset: "product-punch",
 			position: "lower-safe",
+			size: "medium",
 			motionPreset: "pop-bounce",
 		};
 
@@ -1377,14 +1444,17 @@ describe("validateEditPlan", () => {
 		plan.captionStyle = {
 			preset: "product-punch",
 			position: "lower-safe",
+			size: "medium",
 			motionPreset: "pop-bounce",
 		};
 
-		expect(validateEditPlan({
-			plan,
-			projectId: "project-1",
-			mediaAssets: [mediaAsset()],
-		})).toEqual({
+		expect(
+			validateEditPlan({
+				plan,
+				projectId: "project-1",
+				mediaAssets: [mediaAsset()],
+			}),
+		).toEqual({
 			success: false,
 			message: "EditPlan captionStyle requires captions.",
 			path: "captionStyle",
@@ -1400,11 +1470,13 @@ describe("validateEditPlan", () => {
 			motionPreset: "slam-in",
 		};
 
-		expect(validateEditPlan({
-			plan,
-			projectId: "project-1",
-			mediaAssets: [mediaAsset()],
-		})).toEqual({
+		expect(
+			validateEditPlan({
+				plan,
+				projectId: "project-1",
+				mediaAssets: [mediaAsset()],
+			}),
+		).toEqual({
 			success: false,
 			message: "EditPlan text motion requires at least 0.5s duration.",
 			path: "title.motionPreset",
