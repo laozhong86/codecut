@@ -614,7 +614,8 @@ describe("Codecut plugin startup guidance", () => {
 		expect(tiktokDownloaderScript).toContain("download_manifest.json");
 		expect(tiktokDownloaderScript).toContain("tikwm");
 
-		const pySyntaxCheck = spawnSync("python3", [
+		const pythonCommand = process.platform === "win32" ? "python" : "python3";
+		const pySyntaxCheck = spawnSync(pythonCommand, [
 			"-c",
 			"import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text())",
 			join(
