@@ -54,13 +54,18 @@ confirms a translation overlay or duplicate-language caption.
    - Do not place source transcript timestamps directly on the edited timeline.
    - If a transcript segment crosses a clip boundary, stop and either regenerate captions from edited audio or choose transcript-aligned cuts.
 5. Normalize caption text for readability:
-   - Chinese: short phrases. For vertical talking-head captions, prefer phrase
-     chunks that the current preset renders as one or two balanced lines; avoid
-     three-line captions and 1-2 character orphan last lines.
-   - English: short phrase groups, usually 3-7 words.
+	   - Chinese: short phrases. For vertical talking-head captions, prefer phrase
+	     chunks that the current preset renders as one or two balanced lines; avoid
+	     three-line captions and 1-2 character orphan last lines.
+	   - English: short phrase groups, usually 3-7 words.
+	   - Use punctuation as a phrase boundary, but do not automatically display
+	     every trailing punctuation mark. For short-form captions, remove trailing
+	     full stops, commas, colons, semicolons, and enumeration punctuation after
+	     chunking; keep question marks and exclamation marks, and preserve numeric
+	     punctuation such as `117.55` and `1,000`.
 6. Select the caption preset by video type: `creator-clean` for the default Chinese creator/talking-head look, `talking-head-pop` for high-retention opinion clips that need stronger contrast, `tutorial-clean` for screen recordings or demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` only when the user explicitly asks for the older bold short-form look.
-   - Prefer font choice, line breaking, and subtle shadow over heavy black outlines.
-   - Use `richSpans` for one key phrase per sentence; do not style every caption as a visual effect.
+	   - Prefer font choice, line breaking, and subtle shadow over heavy black outlines.
+	   - Use `richSpans` for one key phrase per sentence; do not style every caption as a visual effect.
 7. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`.
 8. Generate or update an implemented EditPlan v1 with `captions`.
 9. Validate, preview, apply, read back with `get_timeline_state` v2, run
