@@ -68,7 +68,7 @@ confirms a translation overlay or duplicate-language caption.
 	   - Use `richSpans` for one key phrase per sentence; do not style every caption as a visual effect.
 7. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`.
 8. Generate or update an implemented EditPlan v1 with `captions`.
-9. Validate, preview, apply, read back with `get_timeline_state` v2, run
+9. Validate, preview, apply, read back with canonical `get_timeline_state`, run
    `build_video_quality_report`, then export only after quality passes.
 
 ## Executor Recipe

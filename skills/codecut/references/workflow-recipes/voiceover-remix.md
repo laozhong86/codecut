@@ -39,8 +39,8 @@ This recipe is executable only through the implemented `NarratedRemixPlan v1` pa
 2. Import or reference video B-roll assets.
 3. Generate strict NarratedRemixPlan v1.
 4. Call `apply_narrated_remix_plan` with `replaceExisting=true` only when replacement is intentional.
-5. Verify video, audio, and text tracks separately through `get_timeline_state`
-   v2, then run `build_video_quality_report` before export.
+5. Verify video, audio, and text tracks separately through canonical
+   `get_timeline_state`, then run `build_video_quality_report` before export.
 
 ## Stop Conditions
 

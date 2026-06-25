@@ -144,7 +144,7 @@ export.
   blocker. `set_keyframes` is only for motion effects such as push, pull, fade,
   zoom, or opacity animation and must not be reported as a transition.
 - Before completing a transition task, read back
-  `get_timeline_state_v2.summary.transitionCount` and the target video
+  `get_timeline_state.summary.transitionCount` and the target video
   track's `transitions[]`. For `verify_timeline`, include `transitionCount` in
   the verification JSON when a transition was requested.
 - Do not use FFmpeg, shell scripts, or overlay rendering as the Codecut editing
@@ -244,7 +244,7 @@ Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview
 - Local video import through `import-media --file-path` must produce
   `duration`, `width`, and `height`; local image import used as project cover
   must produce `width` and `height`; local audio import must produce `duration`.
-  Verify with `list_media_assets` or `get_timeline_state` v2
+  Verify with `list_media_assets` or `get_timeline_state`
   `includeReferencedMedia` before authoring project cover, intro cover,
   sourceCrop, or export-sensitive plans.
 

@@ -525,9 +525,8 @@ const getTranscriptArgsSchema = z
 	})
 	.strict();
 
-const getTimelineStateV2ArgsSchema = z
+const getTimelineStateArgsSchema = z
 	.object({
-		format: z.literal("v2"),
 		startTime: z.number().nonnegative().optional(),
 		endTime: z.number().nonnegative().optional(),
 		includeFrames: z.boolean().optional(),
@@ -1062,30 +1061,6 @@ async function toMediaAssets(
 	return Promise.all(assets.map(toMediaAsset));
 }
 
-function serializeTrack(track: TimelineTrack) {
-	return {
-		id: track.id,
-		type: track.type,
-		name: track.name,
-		isMain: "isMain" in track ? track.isMain : false,
-		...("muted" in track ? { muted: track.muted } : {}),
-		...("hidden" in track ? { hidden: track.hidden } : {}),
-		elements: track.elements.map((element) => ({
-			id: element.id,
-			type: element.type,
-			name: element.name,
-			startTime: element.startTime,
-			duration: element.duration,
-			trimStart: element.trimStart,
-			trimEnd: element.trimEnd,
-			...("content" in element ? { content: element.content } : {}),
-			...("mediaId" in element ? { mediaId: element.mediaId } : {}),
-			...serializeElementVisualProperties(element),
-		})),
-		...(track.type === "video" ? { transitions: track.transitions ?? [] } : {}),
-	};
-}
-
 function secondsToFrame(seconds: number, fps: number) {
 	return Math.round(seconds * fps);
 }
@@ -1137,7 +1112,7 @@ function frameFieldsForElement({
 	};
 }
 
-function serializeElementV2({
+function serializeTimelineReadbackElement({
 	element,
 	track,
 	trackIndex,
@@ -1172,7 +1147,7 @@ function serializeElementV2({
 	};
 }
 
-function serializeTrackV2({
+function serializeTimelineReadbackTrack({
 	track,
 	trackIndex,
 	startTime,
@@ -1194,8 +1169,8 @@ function serializeTrackV2({
 		}))
 		.filter(({ element }) =>
 			elementOverlapsWindow({ element, startTime, endTime }),
-		);
-	return {
+			);
+		return {
 		id: track.id,
 		type: track.type,
 		name: track.name,
@@ -1207,7 +1182,7 @@ function serializeTrackV2({
 		elementCount: track.elements.length,
 		returnedElementCount: returnedElements.length,
 		elements: returnedElements.map(({ element, elementIndex }) =>
-			serializeElementV2({
+			serializeTimelineReadbackElement({
 				element,
 				track,
 				trackIndex,
@@ -4185,25 +4160,26 @@ async function runAddCaptions({
 	};
 }
 
-function runGetTimelineStateV2({
+function runGetTimelineState({
 	state,
 	args,
 }: {
 	state: ExecutorProjectState;
-	args: z.infer<typeof getTimelineStateV2ArgsSchema>;
+	args: Record<string, unknown>;
 }) {
+	const parsed = getTimelineStateArgsSchema.parse(args);
 	const duration = calculateTotalDuration({ tracks: state.tracks });
-	const startTime = args.startTime ?? 0;
-	const endTime = args.endTime ?? duration;
+	const startTime = parsed.startTime ?? 0;
+	const endTime = parsed.endTime ?? duration;
 	if (endTime < startTime) {
 		throw new Error(
-			"get_timeline_state v2 endTime must be greater than or equal to startTime.",
+			"get_timeline_state endTime must be greater than or equal to startTime.",
 		);
 	}
-	const includeFrames = args.includeFrames ?? false;
+	const includeFrames = parsed.includeFrames ?? false;
 	const fps = state.project.settings.fps;
 	const tracks = state.tracks.map((track, trackIndex) =>
-		serializeTrackV2({
+		serializeTimelineReadbackTrack({
 			track,
 			trackIndex,
 			startTime,
@@ -4218,7 +4194,7 @@ function runGetTimelineStateV2({
 	);
 	return {
 		success: true,
-		message: `Timeline v2 has ${state.tracks.length} track(s), ${returnedElementCount} returned element(s)`,
+		message: `Timeline has ${state.tracks.length} track(s), ${returnedElementCount} returned element(s)`,
 		data: {
 			schemaVersion: 2,
 			project: {
@@ -4249,36 +4225,9 @@ function runGetTimelineStateV2({
 			},
 			summary: timelineSummary({ state, returnedElementCount }),
 			tracks,
-			...(args.includeReferencedMedia
+			...(parsed.includeReferencedMedia
 				? { referencedMedia: serializeReferencedMedia(state) }
 				: {}),
-			derivedAssets: state.derivedAssets,
-		},
-	};
-}
-
-function runGetTimelineState({
-	state,
-	args,
-}: {
-	state: ExecutorProjectState;
-	args: Record<string, unknown>;
-}) {
-	if (Object.keys(args).length > 0) {
-		return runGetTimelineStateV2({
-			state,
-			args: getTimelineStateV2ArgsSchema.parse(args),
-		});
-	}
-	const duration = calculateTotalDuration({ tracks: state.tracks });
-	return {
-		success: true,
-		message: `Timeline has ${state.tracks.length} track(s), total duration: ${duration.toFixed(2)}s`,
-		data: {
-			revision: state.revision,
-			tracks: state.tracks.map(serializeTrack),
-			totalDuration: duration,
-			cover: state.cover,
 			derivedAssets: state.derivedAssets,
 		},
 	};

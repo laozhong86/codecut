@@ -505,7 +505,7 @@ describe("codex executor", () => {
 		const timelineResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2" },
+				args: {},
 			}),
 		});
 		const projectInfoResult = await executeCodexExecutorEnvelope({
@@ -752,7 +752,7 @@ describe("codex executor", () => {
 		const timelineResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2", includeReferencedMedia: true },
+				args: { includeReferencedMedia: true },
 			}),
 		});
 
@@ -1504,8 +1504,11 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				revision: state.revision,
-				totalDuration: 12,
+				schemaVersion: 2,
+				project: {
+					revision: state.revision,
+					totalDuration: 12,
+				},
 				tracks: [
 					{
 						type: "text",
@@ -1543,14 +1546,14 @@ describe("codex executor", () => {
 			projectId,
 			status: "succeeded",
 			tool: "get_timeline_state",
-			message: "Timeline has 2 track(s), total duration: 12.00s",
+			message: "Timeline has 2 track(s), 2 returned element(s)",
 			revision: state.revision,
 		});
 		expect(state.revision).toBeGreaterThan(1);
 	});
 
-	test("keeps get_timeline_state v1 default and exposes explicit v2 orientation data", async () => {
-		await createExecutorProject({ projectId, name: "Timeline v2 proof" });
+	test("returns canonical rich get_timeline_state readback by default", async () => {
+		await createExecutorProject({ projectId, name: "Timeline readback proof" });
 		const importVideoResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "import_media_file",
@@ -1617,52 +1620,74 @@ describe("codex executor", () => {
 							preset: "talking-head-pop",
 							position: "lower-safe",
 						},
-						rationale: "Timeline v2 proof",
+						rationale: "Timeline readback proof",
 					},
 				},
 			}),
 		});
 		const state = await getExecutorProjectState({ projectId });
 
-		const v1Result = await executeCodexExecutorEnvelope({
+		const defaultResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({ tool: "get_timeline_state", args: {} }),
 		});
-		const v1Data = resultData<Record<string, unknown>>(v1Result.results[0]);
-		expect("schemaVersion" in v1Data).toBe(false);
-		expect(v1Result.results[0]).toMatchObject({
+		const defaultData = resultData<{
+			tracks: Array<{
+				type: string;
+				elements: Array<Record<string, unknown>>;
+			}>;
+		}>(defaultResult.results[0]);
+		expect(defaultResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				revision: state.revision,
-				totalDuration: 10,
+				schemaVersion: 2,
+				project: {
+					id: projectId,
+					name: "Timeline readback proof",
+					revision: state.revision,
+					settings: {
+						fps: 30,
+						canvasSize: { width: 1080, height: 1920 },
+						background: { type: "color", color: "#000000" },
+					},
+				},
+				window: {
+					startTime: 0,
+					endTime: 10,
+					totalElementCount: 4,
+					returnedElementCount: 4,
+				},
+				summary: {
+					trackCount: 2,
+					elementCount: 4,
+					returnedElementCount: 4,
+					transitionCount: 0,
+					derivedAssetCount: 0,
+					trackTypeCounts: {
+						video: 1,
+						text: 1,
+						audio: 0,
+						sticker: 0,
+					},
+				},
 				derivedAssets: [],
 			},
 		});
-		expect(v1Data.tracks).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					type: "text",
-					elements: expect.arrayContaining([
-						expect.objectContaining({ content: "Opening claim" }),
-					]),
-				}),
-				expect.objectContaining({
-					type: "video",
-					elements: expect.arrayContaining([
-						expect.objectContaining({ mediaId }),
-					]),
-				}),
-			]),
+		expect(
+			"revision" in
+				resultData<Record<string, unknown>>(defaultResult.results[0]),
+		).toBe(false);
+		expect(
+			"totalDuration" in
+				resultData<Record<string, unknown>>(defaultResult.results[0]),
+		).toBe(false);
+		const defaultTextTrack = defaultData.tracks.find(
+			(track) => track.type === "text",
 		);
-		const v1TextTrack = (
-			v1Data.tracks as Array<{
-				type?: string;
-				elements?: Array<Record<string, unknown>>;
-			}>
-		).find((track) => track.type === "text");
-		expect(v1TextTrack?.elements?.[0]).toMatchObject({
+		expect(defaultTextTrack?.elements[0]).toMatchObject({
 			content: "Opening claim",
 			startTime: 1,
 			duration: 2,
+			endTime: 3,
 			style: {
 				fontFamily: "CodecutCJK",
 				fontSize: 4.8,
@@ -1674,11 +1699,10 @@ describe("codex executor", () => {
 			},
 		});
 
-		const v2Result = await executeCodexExecutorEnvelope({
+		const windowResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
 				args: {
-					format: "v2",
 					startTime: 3,
 					endTime: 7,
 					includeFrames: true,
@@ -1687,19 +1711,14 @@ describe("codex executor", () => {
 			}),
 		});
 
-		expect(v2Result.results[0]).toMatchObject({
+		expect(windowResult.results[0]).toMatchObject({
 			success: true,
 			data: {
 				schemaVersion: 2,
 				project: {
 					id: projectId,
-					name: "Timeline v2 proof",
+					name: "Timeline readback proof",
 					revision: state.revision,
-					settings: {
-						fps: 30,
-						canvasSize: { width: 1080, height: 1920 },
-						background: { type: "color", color: "#000000" },
-					},
 					totalDuration: 10,
 					totalFrames: 300,
 				},
@@ -1710,19 +1729,6 @@ describe("codex executor", () => {
 					endFrame: 210,
 					totalElementCount: 4,
 					returnedElementCount: 3,
-				},
-				summary: {
-					trackCount: 2,
-					elementCount: 4,
-					returnedElementCount: 3,
-					transitionCount: 0,
-					derivedAssetCount: 0,
-					trackTypeCounts: {
-						video: 1,
-						text: 1,
-						audio: 0,
-						sticker: 0,
-					},
 				},
 				tracks: [
 					{
@@ -1795,18 +1801,19 @@ describe("codex executor", () => {
 						height: 1080,
 					},
 				},
-				derivedAssets: [],
 			},
 		});
-		const v2Data = resultData<{
+		const windowData = resultData<{
 			tracks: Array<{
 				type: string;
 				elements: Array<Record<string, unknown>>;
 			}>;
 			referencedMedia?: Record<string, { name: string }>;
-		}>(v2Result.results[0]);
-		const v2TextTrack = v2Data.tracks.find((track) => track.type === "text");
-		expect(v2TextTrack?.elements[0]).toMatchObject({
+		}>(windowResult.results[0]);
+		const windowTextTrack = windowData.tracks.find(
+			(track) => track.type === "text",
+		);
+		expect(windowTextTrack?.elements[0]).toMatchObject({
 			content: "Proof point",
 			startTime: 5,
 			duration: 2,
@@ -1821,12 +1828,17 @@ describe("codex executor", () => {
 			},
 		});
 		expect(
-			Object.values(v2Data.referencedMedia ?? {}).map((asset) => asset.name),
+			Object.values(windowData.referencedMedia ?? {}).map(
+				(asset) => asset.name,
+			),
 		).toEqual(["source.mp4"]);
 	});
 
-	test("omits derived frame fields from get_timeline_state v2 unless requested", async () => {
-		await createExecutorProject({ projectId, name: "Timeline v2 seconds" });
+	test("omits derived frame fields from canonical get_timeline_state unless requested", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Timeline readback seconds",
+		});
 		const now = "2026-06-22T00:00:00.000Z";
 		await writeFile(
 			join(stateDir, "projects", projectId, "project.json"),
@@ -1836,7 +1848,7 @@ describe("codex executor", () => {
 					revision: 2,
 					project: {
 						id: projectId,
-						name: "Timeline v2 seconds",
+						name: "Timeline readback seconds",
 						settings: {
 							canvasSize: { width: 1080, height: 1920 },
 							fps: 30,
@@ -1892,7 +1904,7 @@ describe("codex executor", () => {
 		const result = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2" },
+				args: {},
 			}),
 		});
 		const data = resultData<{
@@ -1938,16 +1950,16 @@ describe("codex executor", () => {
 		expect(element.trimEndFrame).toBeUndefined();
 	});
 
-	test("rejects get_timeline_state v2 windows where endTime is before startTime", async () => {
+	test("rejects get_timeline_state windows where endTime is before startTime", async () => {
 		await createExecutorProject({
 			projectId,
-			name: "Timeline v2 invalid window",
+			name: "Timeline readback invalid window",
 		});
 
 		const result = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2", startTime: 5, endTime: 4 },
+				args: { startTime: 5, endTime: 4 },
 			}),
 		});
 		const state = await getExecutorProjectState({ projectId });
@@ -1957,8 +1969,34 @@ describe("codex executor", () => {
 			tool: "get_timeline_state",
 			success: false,
 			message:
-				"get_timeline_state v2 endTime must be greater than or equal to startTime.",
+				"get_timeline_state endTime must be greater than or equal to startTime.",
 		});
+		expect(state.revision).toBe(1);
+	});
+
+	test("rejects the removed get_timeline_state format selector", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Timeline readback rejects format",
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2" },
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(result.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "get_timeline_state",
+			success: false,
+		});
+		const message =
+			"message" in result.results[0] ? result.results[0].message : "";
+		expect(message).toContain("Unrecognized key");
+		expect(message).toContain("format");
 		expect(state.revision).toBe(1);
 	});
 
@@ -3021,7 +3059,13 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				totalDuration: 10,
+				schemaVersion: 2,
+				project: {
+					totalDuration: 10,
+				},
+				summary: {
+					transitionCount: 1,
+				},
 				tracks: [
 					{
 						type: "text",
@@ -4275,7 +4319,10 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				totalDuration: 5,
+				schemaVersion: 2,
+				project: {
+					totalDuration: 5,
+				},
 				tracks: [
 					{
 						type: "text",
@@ -4372,7 +4419,10 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				totalDuration: 12,
+				schemaVersion: 2,
+				project: {
+					totalDuration: 12,
+				},
 				tracks: [
 					{
 						type: "video",
@@ -4498,7 +4548,10 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				totalDuration: 30,
+				schemaVersion: 2,
+				project: {
+					totalDuration: 30,
+				},
 			},
 		});
 		const timeline = resultData<{
@@ -4645,7 +4698,7 @@ describe("codex executor", () => {
 		const timelineResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2", includeReferencedMedia: true },
+				args: { includeReferencedMedia: true },
 			}),
 		});
 
@@ -4738,7 +4791,7 @@ describe("codex executor", () => {
 		const updatedTimelineResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2", includeReferencedMedia: true },
+				args: { includeReferencedMedia: true },
 			}),
 		});
 		const updatedTimeline = resultData<{
@@ -7348,7 +7401,7 @@ describe("codex executor", () => {
 		expect(await getExecutorProjectState({ projectId })).toEqual(before);
 	});
 
-	test("set_keyframes writes visual keyframes and exposes them in timeline state v2", async () => {
+	test("set_keyframes writes visual keyframes and exposes them in canonical timeline state", async () => {
 		await seedDraftState({
 			tracks: [
 				{
@@ -7401,7 +7454,7 @@ describe("codex executor", () => {
 		const readback = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2" },
+				args: {},
 			}),
 		});
 
@@ -7496,7 +7549,7 @@ describe("codex executor", () => {
 		const readback = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2" },
+				args: {},
 			}),
 		});
 
@@ -7678,7 +7731,7 @@ describe("codex executor", () => {
 		const readback = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2" },
+				args: {},
 			}),
 		});
 

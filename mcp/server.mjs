@@ -440,7 +440,6 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["get_timeline_state", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
-	["get_timeline_state_v2", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["validate_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["preview_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["apply_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
@@ -1078,15 +1077,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "get_timeline_state",
 		title: "Get Codecut Timeline State",
 		description:
-			"Read the current timeline state from one explicit Codecut executor project.",
-		inputSchema: projectOnlyInputSchema,
-		readOnly: true,
-	},
-	{
-		name: "get_timeline_state_v2",
-		title: "Get Codecut Timeline State V2",
-		description:
-			"Read the current timeline state v2 from one explicit Codecut executor project.",
+			"Read the canonical current timeline state from one explicit Codecut executor project.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			...timelineWindowInputSchema,
@@ -2075,7 +2066,7 @@ function buildContinuePrompt({
 		`Use $codecut to continue the real CodeCut editing chain for project "${projectName}" (${projectId}).`,
 		`Use --confirmation-token ${confirmationToken} for any CodeCut side-effect command that creates projects, imports media, initializes workspaces, adds assets, generates media, mutates timelines, or exports files.`,
 		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. Click this host-rendered link if manual preview is needed: [Open CodeCut editor](${editorUrl}). If the selected tab is already on that URL, do not reload it.`,
-		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state_v2 with projectId "${projectId}".`,
+		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state with projectId "${projectId}".`,
 		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
 		`Deferred media sources: ${JSON.stringify(deferredMediaSources)}.`,
 		`Confirmed intent: ${JSON.stringify(intent)}.`,
@@ -2180,6 +2171,15 @@ function appendOptionalCliArgs(command, args, mappings) {
 	return command;
 }
 
+function assertOnlyToolArgs(args, allowedKeys, toolName) {
+	const unexpected = Object.keys(args ?? {}).filter((key) => !allowedKeys.has(key));
+	if (unexpected.length > 0) {
+		throw new Error(
+			`${toolName} does not accept argument(s): ${unexpected.join(", ")}`,
+		);
+	}
+}
+
 function countImportSources(args) {
 	return ["filePath", "url", "bytes"].filter((key) => args?.[key]).length;
 }
@@ -2211,7 +2211,6 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 	switch (toolName) {
 		case "get_project_info":
 		case "list_media_assets":
-		case "get_timeline_state":
 			return [
 				"scripts/codex-bridge.mjs",
 				"send",
@@ -2222,12 +2221,22 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--args-json",
 				"{}",
 			];
-		case "get_timeline_state_v2":
+		case "get_timeline_state":
+			assertOnlyToolArgs(
+				args,
+				new Set([
+					"projectId",
+					"startTime",
+					"endTime",
+					"includeFrames",
+					"includeReferencedMedia",
+				]),
+				toolName,
+			);
 			return buildSendArgs({
 				projectId,
 				toolName: "get_timeline_state",
 				args: {
-					format: "v2",
 					...(optionalNumberArg(args, "startTime") === undefined
 						? {}
 						: { startTime: optionalNumberArg(args, "startTime") }),

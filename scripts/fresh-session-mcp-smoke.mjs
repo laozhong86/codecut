@@ -31,7 +31,7 @@ export const REQUIRED_MCP_TOOLS = [
 	"update_system_template_script",
 	"delete_system_template_script",
 	"apply_edit_plan",
-	"get_timeline_state_v2",
+	"get_timeline_state",
 ];
 
 const searchablePhrase =
@@ -184,7 +184,7 @@ export function buildAudioEditPlan({ projectId, mediaId, duration }) {
 	};
 }
 
-export function summarizeTimelineV2(data) {
+export function summarizeTimelineReadback(data) {
 	const textTracks = (data.tracks ?? []).filter(
 		(track) => track.type === "text",
 	);
@@ -420,9 +420,9 @@ export async function runFreshSessionMcpSmoke({
 			}),
 		);
 		const timeline = firstBridgeResult(
-			await callCodecutTool(client, {
-				name: "get_timeline_state_v2",
-				arguments: {
+				await callCodecutTool(client, {
+					name: "get_timeline_state",
+					arguments: {
 					projectId,
 					includeReferencedMedia: true,
 					includeFrames: false,
@@ -462,7 +462,7 @@ export async function runFreshSessionMcpSmoke({
 			mediaId,
 			captionCount: captions.data.captionCount,
 			createdElementIds: captions.data.createdElementIds,
-			timeline: summarizeTimelineV2(timeline.data),
+				timeline: summarizeTimelineReadback(timeline.data),
 			search: {
 				searchable: searchable.data,
 				transcript: transcript.data,

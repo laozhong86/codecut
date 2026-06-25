@@ -85,7 +85,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-visual-context --project-id <id> --media-id <id> --target-aspect-ratio <9:16|16:9|1:1>",
 		"  node scripts/codex-bridge.mjs inspect-video-range --project-id <id> --media-id <id> --start-seconds <seconds> --end-seconds <seconds> [--frame-count <1..16>]",
-		"  node scripts/codex-bridge.mjs get-timeline-state-v2 --project-id <id> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>] [--include-referenced-media <true|false>]",
+		"  node scripts/codex-bridge.mjs get-timeline-state --project-id <id> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>] [--include-referenced-media <true|false>]",
 		"  node scripts/codex-bridge.mjs inspect-timeline --project-id <id> --start-time <seconds> [--end-time <seconds>] [--frame-count <1..16>]",
 		"  node scripts/codex-bridge.mjs build-video-quality-report --project-id <id> --plan-json-file /absolute/path/edit-plan.json --start-time <seconds> --end-time <seconds> --frame-count <1..16> [--title-rubric-json-file /absolute/path/title-rubric.json] [--output-file /absolute/path/export.mp4 --format <mp4|webm> --include-audio <true|false>]",
 		"  node scripts/codex-bridge.mjs get-transcript --project-id <id> --granularity <segment|word> --language <auto|code> --model-id <model> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>]",
@@ -153,6 +153,30 @@ function parseFlags(argv) {
 		index += 1;
 	}
 	return flags;
+}
+
+function formatCliFlagName(key) {
+	return `--${key.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`)}`;
+}
+
+function assertOnlyFlags(flags, allowedKeys, command) {
+	const unexpected = Object.keys(flags).filter((key) => !allowedKeys.has(key));
+	if (unexpected.length > 0) {
+		throw new Error(
+			`${command} does not accept flag(s): ${unexpected
+				.map(formatCliFlagName)
+				.join(", ")}`,
+		);
+	}
+}
+
+function assertOnlyOptions(options, allowedKeys, context) {
+	const unexpected = Object.keys(options).filter((key) => !allowedKeys.has(key));
+	if (unexpected.length > 0) {
+		throw new Error(
+			`${context} does not accept option(s): ${unexpected.join(", ")}`,
+		);
+	}
 }
 
 function assertNoTokenFlags(flags) {
@@ -1291,15 +1315,16 @@ function optionalTimelineWindow({ startTime, endTime, frameCount }) {
 	return args;
 }
 
-export function buildGetTimelineStateV2Envelope({
+export function buildGetTimelineStateEnvelope({
 	projectId,
 	startTime,
 	endTime,
 	includeFrames,
 	includeReferencedMedia,
+	...options
 }) {
+	assertOnlyOptions(options, new Set(), "get_timeline_state");
 	const args = {
-		format: "v2",
 		...optionalTimelineWindow({ startTime, endTime }),
 		...(includeFrames === undefined ? {} : { includeFrames }),
 		...(includeReferencedMedia === undefined ? {} : { includeReferencedMedia }),
@@ -1467,11 +1492,11 @@ export function buildFreshSessionSmokeReport({
 	const timelineOk =
 		timelineData.ok === true && timelineData.data?.schemaVersion === 2;
 	checks.push({
-		id: "timeline_v2",
+		id: "timeline_readback",
 		ok: timelineOk,
 		message: timelineOk
-			? "Timeline v2 readback returned structured state"
-			: "Timeline v2 readback did not return schemaVersion 2",
+			? "Timeline readback returned structured state"
+			: "Timeline readback did not return schemaVersion 2",
 		data: {
 			schemaVersion: timelineData.data?.schemaVersion,
 			revision:
@@ -1495,7 +1520,7 @@ export function buildFreshSessionSmokeReport({
 					expectedCaptionLineCount,
 					expectedProtectedTermCount,
 				})
-			: "Timeline v2 or scripted media asset check did not pass";
+			: "Timeline readback or scripted media asset check did not pass";
 	checks.push({
 		id: "referenced_scripted_media",
 		ok: !referencedScriptedAssetError,
@@ -2993,14 +3018,14 @@ export async function runCli({
 			}),
 			fetchImpl,
 		});
-		const timelineResult = await postEnvelope({
-			config,
-			envelope: buildGetTimelineStateV2Envelope({
-				projectId: flags.projectId,
-				includeReferencedMedia: true,
-			}),
-			fetchImpl,
-		});
+			const timelineResult = await postEnvelope({
+				config,
+				envelope: buildGetTimelineStateEnvelope({
+					projectId: flags.projectId,
+					includeReferencedMedia: true,
+				}),
+				fetchImpl,
+			});
 		const report = buildFreshSessionSmokeReport({
 			projectId: flags.projectId,
 			installDoctorResult,
@@ -3084,33 +3109,44 @@ export async function runCli({
 			mediaId: flags.mediaId,
 			targetAspectRatio: flags.targetAspectRatio,
 		});
-	} else if (command === "inspect-video-range") {
-		envelope = buildInspectVideoRangeEnvelope({
-			projectId: flags.projectId,
-			mediaId: flags.mediaId,
-			startSeconds: Number(flags.startSeconds),
-			endSeconds: Number(flags.endSeconds),
-			frameCount:
-				flags.frameCount === undefined ? undefined : Number(flags.frameCount),
-		});
-	} else if (command === "get-timeline-state-v2") {
-		envelope = buildGetTimelineStateV2Envelope({
-			projectId: flags.projectId,
-			startTime:
-				flags.startTime === undefined ? undefined : Number(flags.startTime),
-			endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
-			includeFrames:
-				flags.includeFrames === undefined
-					? undefined
-					: parseBoolean(flags.includeFrames, "includeFrames"),
-			includeReferencedMedia:
-				flags.includeReferencedMedia === undefined
-					? undefined
-					: parseBoolean(
-							flags.includeReferencedMedia,
-							"includeReferencedMedia",
-						),
-		});
+		} else if (command === "inspect-video-range") {
+			envelope = buildInspectVideoRangeEnvelope({
+				projectId: flags.projectId,
+				mediaId: flags.mediaId,
+				startSeconds: Number(flags.startSeconds),
+				endSeconds: Number(flags.endSeconds),
+				frameCount:
+					flags.frameCount === undefined ? undefined : Number(flags.frameCount),
+			});
+		} else if (command === "get-timeline-state") {
+			assertOnlyFlags(
+				flags,
+				new Set([
+					"projectId",
+					"startTime",
+					"endTime",
+					"includeFrames",
+					"includeReferencedMedia",
+				]),
+				command,
+			);
+			envelope = buildGetTimelineStateEnvelope({
+				projectId: flags.projectId,
+				startTime:
+					flags.startTime === undefined ? undefined : Number(flags.startTime),
+				endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
+				includeFrames:
+					flags.includeFrames === undefined
+						? undefined
+						: parseBoolean(flags.includeFrames, "includeFrames"),
+				includeReferencedMedia:
+					flags.includeReferencedMedia === undefined
+						? undefined
+						: parseBoolean(
+								flags.includeReferencedMedia,
+								"includeReferencedMedia",
+							),
+			});
 	} else if (command === "inspect-timeline") {
 		envelope = buildInspectTimelineEnvelope({
 			projectId: flags.projectId,

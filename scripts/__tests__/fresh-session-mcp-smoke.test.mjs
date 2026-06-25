@@ -7,7 +7,7 @@ import {
 	loadBridgeEnv,
 	parseFreshSessionFlags,
 	runFreshSessionMcpSmoke,
-	summarizeTimelineV2,
+	summarizeTimelineReadback,
 } from "../fresh-session-mcp-smoke.mjs";
 
 describe("fresh-session MCP smoke helpers", () => {
@@ -185,8 +185,8 @@ describe("fresh-session MCP smoke helpers", () => {
 		expect(JSON.stringify(plan)).not.toContain("mp4");
 	});
 
-	test("summarizes text tracks and captions from timeline v2 readback", () => {
-		const summary = summarizeTimelineV2({
+	test("summarizes text tracks and captions from canonical timeline readback", () => {
+		const summary = summarizeTimelineReadback({
 			project: { revision: 6 },
 			summary: { trackTypeCounts: { text: 1 }, elementCount: 2 },
 			tracks: [
