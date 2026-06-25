@@ -1,0 +1,4 @@
+interface:
+  display_name: "Content Platform Editing Strategy"
+  short_description: "Plan platform-native short-form edits from distribution signals."
+  default_prompt: "Use $content-platform-editing-strategy when a user asks how Douyin, WeChat Channels, Xiaohongshu, TikTok, or Instagram Reels recommendation algorithm behavior should influence content creation strategy, hook, retention, search, save, share, comment, caption, proof, CTA, or CodeCut editing strategy. Produce a ContentCreationStrategy and PlatformStrategyBrief first, label platform claims as dated hypotheses, run a current-source check for latest or numeric claims, and do not call executor tools from this skill."
