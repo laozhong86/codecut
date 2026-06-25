@@ -21,6 +21,7 @@ function setupIntent(overrides = {}) {
 		targetAspectRatio: "9:16",
 		durationGoalMode: "auto",
 		captionLanguage: "auto",
+		transitionPreference: "auto",
 		output: {
 			format: "mp4",
 			quality: "high",
@@ -277,6 +278,16 @@ describe("Codecut MCP server contract", () => {
 		expect(submitTool?.inputSchema.mediaSources.safeParse([]).success).toBe(
 			true,
 		);
+		expect(
+			openTool.inputSchema.transitionPreference.safeParse("auto").success,
+		).toBe(true);
+		expect(
+			submitTool?.inputSchema.transitionPreference.safeParse("dissolve")
+				.success,
+		).toBe(true);
+		expect(
+			submitTool?.inputSchema.transitionPreference.safeParse("spin").success,
+		).toBe(false);
 		expect(openTool.description).toContain("uiLanguage");
 		expect(openTool.description).toContain("mediaPaths");
 		expect(openTool.description).toContain("directoryPaths");
@@ -336,6 +347,7 @@ describe("Codecut MCP server contract", () => {
 			'id="caption-font"',
 			'id="caption-size"',
 			'id="caption-style-preset"',
+			'id="transition-preference"',
 			'id="brief-options"',
 			'id="brief-label"',
 			'aria-labelledby="brief-label"',
@@ -406,9 +418,13 @@ describe("Codecut MCP server contract", () => {
 			'<select id="caption-font"',
 			'<select id="caption-size"',
 			'<select id="caption-style-preset"',
+			'<select id="transition-preference"',
 			'value="zh-CN"',
 			'value="en"',
 			'value="auto"',
+			'value="dissolve"',
+			'value="slide-left"',
+			'value="zoom-in"',
 			'value="medium"',
 			'value="large"',
 			'value="small"',
@@ -419,6 +435,11 @@ describe("Codecut MCP server contract", () => {
 			"captionFont",
 			"captionSize",
 			"captionStylePreset",
+			"transitionPreference",
+			"transitionPreferenceAuto",
+			"transitionPreferenceDissolve",
+			"transitionPreferenceSlideLeft",
+			"transitionPreferenceZoomIn",
 			"captionFontAuto",
 			"captionSizeMedium",
 			"captionStyleShortFormBold",
@@ -698,6 +719,7 @@ describe("Codecut MCP server contract", () => {
 			targetAspectRatio: "9:16",
 			durationGoalMode: "auto",
 			captionLanguage: "auto",
+			transitionPreference: "auto",
 			output: { format: "mp4", quality: "high", includeAudio: true },
 		});
 		expect(result.structuredContent).toMatchObject({
@@ -714,6 +736,30 @@ describe("Codecut MCP server contract", () => {
 		expect(result._meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
+		});
+	});
+
+	test("defaults transition preference only when opening the workspace", async () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "Creator Launch",
+		});
+		expect(result.structuredContent.intentDefaults.transitionPreference).toBe(
+			"auto",
+		);
+		expect(result._meta.widgetData.intentDefaults.transitionPreference).toBe(
+			"auto",
+		);
+
+		const confirmedIntent = setupIntent();
+		delete confirmedIntent.transitionPreference;
+		const inspection = await serverModule.inspectCodecutSetup(confirmedIntent);
+		expect(inspection.status).toBe("blocked");
+		expect(inspection.checks).toContainEqual({
+			id: "transition-preference",
+			label: "Transition animation",
+			ok: false,
+			detail:
+				"Transition animation must be auto, none, or a supported CodeCut transition type.",
 		});
 	});
 
@@ -753,6 +799,7 @@ describe("Codecut MCP server contract", () => {
 				"结尾适合继续编辑或导出",
 			],
 			captionLanguage: "auto",
+			transitionPreference: "auto",
 			generateIntroCover: true,
 			output: {
 				format: "mp4",
@@ -802,6 +849,21 @@ describe("Codecut MCP server contract", () => {
 		});
 		expect(result._meta.widgetData.intentDefaults).toMatchObject({
 			generateIntroCover: false,
+		});
+	});
+
+	test("opens the workspace with a manual transition animation preference", () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "Transition Cut",
+			transitionPreference: "dissolve",
+		});
+
+		expect(result.structuredContent.intentDefaults).toMatchObject({
+			projectName: "Transition Cut",
+			transitionPreference: "dissolve",
+		});
+		expect(result._meta.widgetData.intentDefaults).toMatchObject({
+			transitionPreference: "dissolve",
 		});
 	});
 
@@ -941,6 +1003,13 @@ describe("Codecut MCP server contract", () => {
 				maxSeconds: 30,
 			});
 
+			const manualTransition = await serverModule.inspectCodecutSetup(
+				setupIntent({ transitionPreference: "slide-left" }),
+				{ bridgeToolImpl },
+			);
+			expect(manualTransition.status).toBe("ready");
+			expect(manualTransition.intent.transitionPreference).toBe("slide-left");
+
 			for (const [label, intent] of [
 				["invalid project id", setupIntent({ projectId: "../bad" })],
 				["missing project name", setupIntent({ projectName: " " })],
@@ -952,6 +1021,10 @@ describe("Codecut MCP server contract", () => {
 					}),
 				],
 				["bad aspect ratio", setupIntent({ targetAspectRatio: "4:5" })],
+				[
+					"bad transition preference",
+					setupIntent({ transitionPreference: "spin" }),
+				],
 				[
 					"bad duration range",
 					setupIntent({
@@ -1122,6 +1195,7 @@ describe("Codecut MCP server contract", () => {
 			const result = await serverModule.submitCodecutSetup(
 				setupIntent({
 					pendingConfirmationId,
+					transitionPreference: "dissolve",
 					mediaSources: [
 						{ kind: "filePath", filePath },
 						{ kind: "filePath", filePath: secondFilePath },
@@ -1173,6 +1247,7 @@ describe("Codecut MCP server contract", () => {
 				intent: {
 					projectId: "launch-cut-canonical",
 					generateIntroCover: true,
+					transitionPreference: "dissolve",
 					output: {
 						captionFont: "auto",
 						captionSize: "medium",
@@ -1230,6 +1305,9 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				'"captionStylePreset":"short-form-bold"',
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				'"transitionPreference":"dissolve"',
 			);
 			expect(result.structuredContent.continuePrompt).not.toContain(
 				"launch-cut-001",

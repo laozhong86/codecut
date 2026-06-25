@@ -468,6 +468,25 @@
               </select>
             </label>
             <label>
+              <span data-i18n="transitionPreference">Transition animation</span>
+              <select id="transition-preference" name="transitionPreference">
+                <option value="auto" data-i18n="transitionPreferenceAuto">Auto - Agent decides</option>
+                <option value="none" data-i18n="transitionPreferenceNone">None</option>
+                <option value="fade" data-i18n="transitionPreferenceFade">Fade</option>
+                <option value="dissolve" data-i18n="transitionPreferenceDissolve">Dissolve</option>
+                <option value="wipe-left" data-i18n="transitionPreferenceWipeLeft">Wipe left</option>
+                <option value="wipe-right" data-i18n="transitionPreferenceWipeRight">Wipe right</option>
+                <option value="wipe-up" data-i18n="transitionPreferenceWipeUp">Wipe up</option>
+                <option value="wipe-down" data-i18n="transitionPreferenceWipeDown">Wipe down</option>
+                <option value="slide-left" data-i18n="transitionPreferenceSlideLeft">Slide left</option>
+                <option value="slide-right" data-i18n="transitionPreferenceSlideRight">Slide right</option>
+                <option value="slide-up" data-i18n="transitionPreferenceSlideUp">Slide up</option>
+                <option value="slide-down" data-i18n="transitionPreferenceSlideDown">Slide down</option>
+                <option value="zoom-in" data-i18n="transitionPreferenceZoomIn">Zoom in</option>
+                <option value="zoom-out" data-i18n="transitionPreferenceZoomOut">Zoom out</option>
+              </select>
+            </label>
+            <label>
               <span data-i18n="format">Format</span>
               <select id="output-format" name="outputFormat">
                 <option value="mp4">mp4</option>
@@ -580,6 +599,21 @@
             captionStyleSocialHighlight: "Social highlight",
             captionStyleCommentBubble: "Comment bubble",
             captionStyleMinimalReel: "Minimal reel",
+            transitionPreference: "Transition animation",
+            transitionPreferenceAuto: "Auto - Agent decides",
+            transitionPreferenceNone: "None",
+            transitionPreferenceFade: "Fade",
+            transitionPreferenceDissolve: "Dissolve",
+            transitionPreferenceWipeLeft: "Wipe left",
+            transitionPreferenceWipeRight: "Wipe right",
+            transitionPreferenceWipeUp: "Wipe up",
+            transitionPreferenceWipeDown: "Wipe down",
+            transitionPreferenceSlideLeft: "Slide left",
+            transitionPreferenceSlideRight: "Slide right",
+            transitionPreferenceSlideUp: "Slide up",
+            transitionPreferenceSlideDown: "Slide down",
+            transitionPreferenceZoomIn: "Zoom in",
+            transitionPreferenceZoomOut: "Zoom out",
             format: "Format",
             quality: "Quality",
             qualityLow: "low",
@@ -669,6 +703,21 @@
             captionStyleSocialHighlight: "社媒高亮",
             captionStyleCommentBubble: "评论气泡",
             captionStyleMinimalReel: "极简短片",
+            transitionPreference: "转场动画",
+            transitionPreferenceAuto: "自动 - Agent 自主决策编排",
+            transitionPreferenceNone: "不使用转场",
+            transitionPreferenceFade: "淡入淡出",
+            transitionPreferenceDissolve: "叠化",
+            transitionPreferenceWipeLeft: "向左擦除",
+            transitionPreferenceWipeRight: "向右擦除",
+            transitionPreferenceWipeUp: "向上擦除",
+            transitionPreferenceWipeDown: "向下擦除",
+            transitionPreferenceSlideLeft: "向左滑动",
+            transitionPreferenceSlideRight: "向右滑动",
+            transitionPreferenceSlideUp: "向上滑动",
+            transitionPreferenceSlideDown: "向下滑动",
+            transitionPreferenceZoomIn: "推近",
+            transitionPreferenceZoomOut: "拉远",
             format: "格式",
             quality: "质量",
             qualityLow: "低",
@@ -722,6 +771,7 @@
           captionFont: document.getElementById("caption-font"),
           captionSize: document.getElementById("caption-size"),
           captionStylePreset: document.getElementById("caption-style-preset"),
+          transitionPreference: document.getElementById("transition-preference"),
           outputFormat: document.getElementById("output-format"),
           outputQuality: document.getElementById("output-quality"),
           includeAudio: document.getElementById("include-audio"),
@@ -811,6 +861,7 @@
           setSelectValue(fields.captionFont, defaults.output?.captionFont || "auto");
           setSelectValue(fields.captionSize, defaults.output?.captionSize || "medium");
           setSelectValue(fields.captionStylePreset, defaults.output?.captionStylePreset || "short-form-bold");
+          setSelectValue(fields.transitionPreference, defaults.transitionPreference || "auto");
           setSelectValue(fields.outputFormat, defaults.output?.format || "mp4");
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
@@ -1332,6 +1383,7 @@
             targetAspectRatio: fields.targetAspectRatio.value,
             ...durationGoal,
             captionLanguage: fields.captionLanguage.value.trim() || "auto",
+            transitionPreference: fields.transitionPreference.value,
             output: {
               format: fields.outputFormat.value,
               quality: fields.outputQuality.value,
