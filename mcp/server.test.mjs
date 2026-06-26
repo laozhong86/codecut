@@ -355,12 +355,15 @@ describe("Codecut MCP server contract", () => {
 		).toBe(true);
 	});
 
-	test("defines a versioned workspace widget resource and tools", async () => {
+	test("defines a stable workspace widget resource and tools", async () => {
 		expect(serverModule.CODECUT_WORKSPACE_RESOURCE_URI).toMatch(
-			/^ui:\/\/codecut\/.+\/workspace-[a-f0-9]{12}\.html$/,
+			/^ui:\/\/codecut\/.+\/workspace\.html$/,
 		);
 		expect(serverModule.CODECUT_WORKSPACE_LEGACY_RESOURCE_URI).toMatch(
 			/^ui:\/\/codecut\/.+\/workspace\.html$/,
+		);
+		expect(serverModule.CODECUT_WORKSPACE_HASHED_RESOURCE_URI_TEMPLATE).toMatch(
+			/^ui:\/\/codecut\/.+\/workspace-\{contentVersion\}\.html$/,
 		);
 		expect(
 			serverModule.CODECUT_WORKSPACE_TOOLS.map((tool) => tool.name),
@@ -665,6 +668,39 @@ describe("Codecut MCP server contract", () => {
 			expect(result.contents?.[0]?.uri).toBe(
 				serverModule.CODECUT_WORKSPACE_LEGACY_RESOURCE_URI,
 			);
+			expect(result.contents?.[0]?.mimeType).toBe(
+				"text/html;profile=mcp-app",
+			);
+			expect(result.contents?.[0]?.text).toContain("WORKSPACE_I18N");
+		} finally {
+			await client.close();
+		}
+	});
+
+	test("serves the workspace widget for stale hashed resource URIs", async () => {
+		const staleResourceUri =
+			serverModule.CODECUT_WORKSPACE_LEGACY_RESOURCE_URI.replace(
+				"/workspace.html",
+				"/workspace-c5b8fafcecb0.html",
+			);
+		const transport = new StdioClientTransport({
+			command: "node",
+			args: ["mcp/server.mjs"],
+			cwd: process.cwd(),
+			stderr: "pipe",
+		});
+		const client = new Client({
+			name: "codecut-stale-workspace-resource-test",
+			version: "1.0.0",
+		});
+
+		await client.connect(transport);
+		try {
+			const result = await client.readResource({
+				uri: staleResourceUri,
+			});
+
+			expect(result.contents?.[0]?.uri).toBe(staleResourceUri);
 			expect(result.contents?.[0]?.mimeType).toBe(
 				"text/html;profile=mcp-app",
 			);
