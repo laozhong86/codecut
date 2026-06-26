@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,7 +8,10 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+	McpServer,
+	ResourceTemplate,
+} from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import {
@@ -1112,15 +1114,9 @@ export const CODECUT_MCP_TOOLS = [
 	};
 });
 
-function workspaceResourceContentVersion() {
-	return createHash("sha256")
-		.update(readFileSync(resolve(pluginRoot, "mcp", "codecut-workspace.html"), "utf8"))
-		.digest("hex")
-		.slice(0, 12);
-}
-
-export const CODECUT_WORKSPACE_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace-${workspaceResourceContentVersion()}.html`;
+export const CODECUT_WORKSPACE_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace.html`;
 export const CODECUT_WORKSPACE_LEGACY_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace.html`;
+export const CODECUT_WORKSPACE_HASHED_RESOURCE_URI_TEMPLATE = `ui://codecut/${pluginVersion()}/workspace-{contentVersion}.html`;
 
 const codecutWorkspaceResourceMeta = {
 	ui: {
@@ -3097,12 +3093,8 @@ export function createCodecutMcpServer() {
 		},
 	);
 
-	for (const resourceUri of [
-		CODECUT_WORKSPACE_RESOURCE_URI,
-		CODECUT_WORKSPACE_LEGACY_RESOURCE_URI,
-	]) {
-		registerCodecutWorkspaceResource(server, resourceUri);
-	}
+	registerCodecutWorkspaceResource(server, CODECUT_WORKSPACE_RESOURCE_URI);
+	registerCodecutWorkspaceHashedResourceTemplate(server);
 
 	for (const tool of CODECUT_WORKSPACE_TOOLS) {
 		server.registerTool(
@@ -3162,6 +3154,32 @@ function registerCodecutWorkspaceResource(server, resourceUri) {
 			contents: [
 				{
 					uri: resourceUri,
+					mimeType: workspaceResourceMimeType,
+					text: await readCodecutWorkspaceHtml(),
+					_meta: codecutWorkspaceResourceMeta,
+				},
+			],
+		}),
+	);
+}
+
+function registerCodecutWorkspaceHashedResourceTemplate(server) {
+	server.registerResource(
+		"codecut_workspace_hashed",
+		new ResourceTemplate(CODECUT_WORKSPACE_HASHED_RESOURCE_URI_TEMPLATE, {
+			list: undefined,
+		}),
+		{
+			title: "CodeCut Workspace Setup",
+			description:
+				"Compatibility MCP App widget resource for previously returned hashed setup URIs.",
+			mimeType: workspaceResourceMimeType,
+			_meta: codecutWorkspaceResourceMeta,
+		},
+		async (uri) => ({
+			contents: [
+				{
+					uri: uri.toString(),
 					mimeType: workspaceResourceMimeType,
 					text: await readCodecutWorkspaceHtml(),
 					_meta: codecutWorkspaceResourceMeta,
