@@ -1,0 +1,27 @@
+{
+	"cjkFontFamily": "CodecutCJK",
+	"localFonts": [
+		{
+			"family": "CodecutYanBoSong",
+			"label": "CodeCut YanBo Song",
+			"fileName": "MaoKenWangYanBoSong-M.ttf",
+			"licenseFileName": "MaoKenWangYanBoSong-OFL.txt",
+			"sourceUrl": "https://www.maoken.com/freefonts/7911.html"
+		},
+		{
+			"family": "CodecutWenKai",
+			"label": "CodeCut WenKai",
+			"fileName": "LXGWWenKai-Regular.ttf",
+			"licenseFileName": "LXGWWenKai-OFL.txt",
+			"sourceUrl": "https://github.com/lxgw/LxgwWenKai"
+		},
+		{
+			"family": "CodecutSmileySans",
+			"label": "CodeCut Smiley Sans",
+			"fileName": "SmileySans-Oblique.ttf",
+			"licenseFileName": "SmileySans-OFL.txt",
+			"sourceUrl": "https://github.com/atelier-anchor/smiley-sans"
+		}
+	],
+	"publicDirectory": "/fonts/codecut-cjk"
+}
