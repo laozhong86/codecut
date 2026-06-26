@@ -340,7 +340,7 @@ describe("Codecut MCP server contract", () => {
 
 	test("defines a versioned workspace widget resource and tools", async () => {
 		expect(serverModule.CODECUT_WORKSPACE_RESOURCE_URI).toMatch(
-			/^ui:\/\/codecut\/.+\/workspace\.html$/,
+			/^ui:\/\/codecut\/.+\/workspace-[a-f0-9]{12}\.html$/,
 		);
 		expect(
 			serverModule.CODECUT_WORKSPACE_TOOLS.map((tool) => tool.name),

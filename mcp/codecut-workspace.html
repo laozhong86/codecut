@@ -1375,7 +1375,7 @@
           };
         }
 
-        const hostToolTimeoutMs = 12000;
+        const hostToolTimeoutMs = 180000;
 
         async function withTimeout(operation, timeoutMs, timeoutMessage) {
           let timeoutId;
@@ -1397,16 +1397,16 @@
         async function callTool(name, args) {
           const api = window.openai;
           if (!api) throw new Error(t("openaiUnavailable"));
-          if (typeof api.callTool === "function") {
+          if (typeof api.callServerTool === "function") {
             return withTimeout(
-              () => api.callTool(name, args),
+              () => api.callServerTool({ name, arguments: args }),
               hostToolTimeoutMs,
               t("hostToolTimeout"),
             );
           }
-          if (typeof api.callServerTool === "function") {
+          if (typeof api.callTool === "function") {
             return withTimeout(
-              () => api.callServerTool({ name, arguments: args }),
+              () => api.callTool(name, args),
               hostToolTimeoutMs,
               t("hostToolTimeout"),
             );

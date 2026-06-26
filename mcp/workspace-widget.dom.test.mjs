@@ -31,7 +31,7 @@ function buildToolHarness(html, timeoutMs) {
 		"const hostToolTimeoutMs =",
 		"\n\n        function structuredContent",
 	).replace(
-		"const hostToolTimeoutMs = 12000;",
+		"const hostToolTimeoutMs = 180000;",
 		`const hostToolTimeoutMs = ${timeoutMs};`,
 	);
 	const context = vm.createContext({
@@ -80,6 +80,26 @@ test("workspace widget host tool calls still pass through successful host respon
 	const html = await readFile("mcp/codecut-workspace.html", "utf8");
 	const harness = buildToolHarness(html, 50);
 
+	harness.window.openai.callServerTool = (payload) => ({
+		receivedName: payload.name,
+		receivedArguments: payload.arguments,
+	});
+
+	const result = await harness.callWorkspaceTool("submit_codecut_setup", {
+		projectName: "demo",
+	});
+
+	expect(result).toEqual({
+		receivedName: "submit_codecut_setup",
+		receivedArguments: { projectName: "demo" },
+	});
+});
+
+test("workspace widget prefers callServerTool when both host APIs are present", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const harness = buildToolHarness(html, 50);
+
+	harness.window.openai.callTool = () => new Promise(() => {});
 	harness.window.openai.callServerTool = (payload) => ({
 		receivedName: payload.name,
 		receivedArguments: payload.arguments,

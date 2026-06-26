@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -1104,7 +1105,14 @@ export const CODECUT_MCP_TOOLS = [
 	};
 });
 
-export const CODECUT_WORKSPACE_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace.html`;
+function workspaceResourceContentVersion() {
+	return createHash("sha256")
+		.update(readFileSync(resolve(pluginRoot, "mcp", "codecut-workspace.html"), "utf8"))
+		.digest("hex")
+		.slice(0, 12);
+}
+
+export const CODECUT_WORKSPACE_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace-${workspaceResourceContentVersion()}.html`;
 
 const codecutWorkspaceResourceMeta = {
 	ui: {
