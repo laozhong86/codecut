@@ -815,6 +815,9 @@ When the request includes one absolute local media file and a concrete target su
 1. Reserve a readable `projectId` and business project name.
 2. Call `open_codecut_workspace` with the known setup fields and wait for
    `submit_codecut_setup` to return the confirmed setup token.
+   If the widget created the project but the Codex thread did not receive the
+   follow-up prompt, call `recover_codecut_setup` with that `projectId` and the
+   original `pendingConfirmationId` before opening another setup widget.
 3. Initialize `.codecut-workspace/projects/<projectId>` with
    `--confirmation-token <token>`.
 4. Add the local file with `codecut-workspace add-assets
@@ -850,6 +853,13 @@ Do not spend the first turn auditing all skill references. Read only the workflo
 
 After `open_codecut_workspace` and `submit_codecut_setup` return a confirmed
 setup token, initialize the local pre-edit workspace before editing execution:
+
+If the widget submit path consumed the pending confirmation but the follow-up
+message did not reach the Codex thread, recover the same confirmed setup first:
+
+```text
+recover_codecut_setup(projectId: "<id>", pendingConfirmationId: "ccpending_...")
+```
 
 ```bash
 node scripts/codecut-workspace.mjs init \

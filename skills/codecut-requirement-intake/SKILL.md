@@ -122,6 +122,14 @@ token, sends the follow-up prompt that opens the Codex in-app browser, and
 unlocks material ingest, doctor checks, project creation, import, generated
 media, timeline mutation, and export.
 
+If the user reports that clicking the widget create button did not continue the
+Codex thread, first check whether the project was created and the pending
+confirmation was consumed. When the project exists but the follow-up message did
+not reach the thread, call `recover_codecut_setup` with the `projectId` and
+`pendingConfirmationId` from the original `open_codecut_workspace` result. Do
+not open a second setup widget until recovery proves there is no confirmed
+setup result.
+
 If the workspace widget tool is unavailable after tool discovery, report that
 widget intake is unavailable, then ask the required text-only questions with
 choices. Do not run shell commands, write planning/audit files, initialize a

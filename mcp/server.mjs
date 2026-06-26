@@ -18,6 +18,8 @@ import { z } from "zod";
 import {
 	createPendingCodecutConfirmation,
 	mintCodecutConfirmationToken,
+	persistCodecutSetupResult,
+	readCodecutSetupResult,
 	resolveCodecutConfirmationRoot,
 } from "../scripts/codecut-confirmation-gate.mjs";
 
@@ -211,6 +213,15 @@ const workspaceIntentInputSchema = {
 	output: workspaceOutputSchema,
 	generateIntroCover: z.boolean(),
 	requirements: z.string(),
+};
+
+const workspaceRecoverInputSchema = {
+	projectId: projectIdSchema,
+	pendingConfirmationId: z
+		.string()
+		.trim()
+		.min(1)
+		.describe("Pending confirmation ID returned by open_codecut_workspace."),
 };
 
 const workspaceOpenInputSchema = {
@@ -1180,6 +1191,15 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		meta: codecutWorkspaceAppOnlyMeta,
 	},
 	{
+		name: "recover_codecut_setup",
+		title: "Recover CodeCut Workspace Setup",
+		description:
+			"Recover a confirmed CodeCut setup result when the workspace app created the project but could not send the follow-up message back to Codex. Requires the projectId and pendingConfirmationId shown by open_codecut_workspace, then returns the confirmed setup token and continue prompt produced by submit_codecut_setup.",
+		inputSchema: workspaceRecoverInputSchema,
+		readOnly: true,
+		modelVisible: true,
+	},
+	{
 		name: "submit_codecut_setup",
 		title: "Submit CodeCut Workspace Setup",
 		description:
@@ -1784,6 +1804,12 @@ export async function submitCodecutSetup(
 			deferredMediaSources,
 		}),
 	};
+	await persistCodecutSetupResult({
+		root: confirmationRoot,
+		...structuredContent,
+		requestedProjectId: normalized.projectId,
+		pendingConfirmationId: normalized.pendingConfirmationId,
+	});
 
 	return {
 		content: [
@@ -1794,6 +1820,41 @@ export async function submitCodecutSetup(
 		],
 		structuredContent,
 	};
+}
+
+export async function recoverCodecutSetup(
+	input,
+	{ confirmationRoot } = {},
+) {
+	const projectId = String(input?.projectId || "").trim();
+	const pendingConfirmationId = String(input?.pendingConfirmationId || "").trim();
+	try {
+		const recovered = await readCodecutSetupResult({
+			root: confirmationRoot,
+			projectId,
+			pendingConfirmationId,
+		});
+		return {
+			content: [
+				{
+					type: "text",
+					text: `Recovered CodeCut project ${recovered.projectId} at revision ${recovered.revision}.\n\n[Open CodeCut editor](${recovered.editorUrl})`,
+				},
+			],
+			structuredContent: {
+				status: "recovered",
+				...recovered,
+			},
+		};
+	} catch (error) {
+		return buildSetupErrorResult({
+			status: "recovery_unavailable",
+			nextAction: "open_codecut_workspace",
+			projectId,
+			pendingConfirmationId,
+			error: extractErrorMessage(error),
+		});
+	}
 }
 
 function buildWorkspaceIntentDefaults(input = {}) {
@@ -3389,6 +3450,9 @@ export async function callCodecutWorkspaceTool(
 			],
 			structuredContent,
 		};
+	}
+	if (toolName === "recover_codecut_setup") {
+		return recoverCodecutSetup(input, { confirmationRoot });
 	}
 	if (toolName === "submit_codecut_setup") {
 		return submitCodecutSetup(input, { confirmationRoot });
