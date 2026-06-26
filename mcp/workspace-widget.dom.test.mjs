@@ -56,6 +56,77 @@ globalThis.callWorkspaceTool = callTool;
 	return context;
 }
 
+function createFakeElement() {
+	return {
+		children: [],
+		classList: {
+			add() {},
+			remove() {},
+		},
+		innerHTML: "",
+		textContent: "",
+		type: "",
+		addEventListener() {},
+		append(...children) {
+			this.children.push(...children);
+			this.innerHTML += children
+				.map((child) => child?.innerHTML || child?.textContent || "")
+				.join("");
+		},
+	};
+}
+
+function buildFollowUpHarness(html) {
+	const normalizedHtml = html.replace(/\r\n?/g, "\n");
+	const i18n = extractBetween(
+		normalizedHtml,
+		"const WORKSPACE_I18N =",
+		"\n\n        const fields =",
+	);
+	const translation = extractBetween(
+		normalizedHtml,
+		"function normalizeUiLanguage",
+		"\n\n        function applyLanguage",
+	);
+	const followUp = extractBetween(
+		normalizedHtml,
+		"async function sendFollowUp",
+		"\n\n        function escapeAttribute",
+	);
+	const followUpElement = createFakeElement();
+	const context = vm.createContext({
+		Error,
+		String,
+		document: {
+			createElement: createFakeElement,
+		},
+		fields: {
+			followUp: followUpElement,
+		},
+		window: {
+			openai: {
+				sendFollowUpMessage: async () => ({}),
+			},
+		},
+	});
+
+	vm.runInContext(
+		`
+${i18n}
+let activeLanguage = "en";
+${translation}
+${followUp}
+globalThis.setLanguage = (value) => {
+	activeLanguage = normalizeUiLanguage(value);
+};
+globalThis.sendWidgetFollowUp = sendFollowUp;
+globalThis.followUpHtml = () => fields.followUp.innerHTML;
+`,
+		context,
+	);
+	return context;
+}
+
 function buildMediaHarness(html) {
 	const normalizedHtml = html.replace(/\r\n?/g, "\n");
 	const mediaNormalization = extractBetween(
@@ -121,6 +192,24 @@ test("workspace widget preserves URL media sources through normalization and col
 			},
 		]),
 	).toEqual([{ kind: "url", url }]);
+});
+
+test("workspace widget does not claim follow-up delivery without showing recovery identifiers", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const harness = buildFollowUpHarness(html);
+
+	harness.setLanguage("zh-CN");
+	await harness.sendWidgetFollowUp("Continue editing prompt", {
+		projectId: "project-123",
+		intent: { pendingConfirmationId: "ccpending_123" },
+	});
+
+	const rendered = harness.followUpHtml();
+	expect(rendered).toContain("已请求 Codex 继续");
+	expect(rendered).toContain("recover_codecut_setup");
+	expect(rendered).toContain("project-123");
+	expect(rendered).toContain("ccpending_123");
+	expect(rendered).not.toContain("已发送后续任务给 Codex");
 });
 
 test("workspace widget host tool calls fail fast when the host bridge never returns", async () => {
