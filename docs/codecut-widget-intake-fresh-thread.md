@@ -133,6 +133,13 @@ as `直接回复` or `C/A/A/A/A`.
 node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId>
 ```
 
+After clicking the setup widget's create-project button, require a visible
+continuation message in the thread:
+
+```bash
+node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId> --require-follow-up true
+```
+
 If the local session file is not discoverable by thread id, export the
 `read_thread` JSON or use the session JSONL directly:
 

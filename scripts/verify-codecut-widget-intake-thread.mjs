@@ -13,6 +13,7 @@ function usage() {
 		"Usage:",
 		"  node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <id>",
 		"  node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <id> --session-file <path>",
+		"  node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <id> --require-follow-up true",
 		"",
 		"Pass only after a fresh @codecut validation thread has rendered the Codecut workspace widget.",
 	].join("\n");
@@ -141,12 +142,26 @@ function isTextFallback(item) {
 	return /直接回复|C\/A\/A\/A\/A|剪辑前请确认|text-only questions/i.test(text);
 }
 
-export function assertWidgetIntakeThread({ threadId, records }) {
+function isSetupFollowUpMessage(item) {
+	const text = textFromMessage(item);
+	if (!text) return false;
+	return (
+		text.includes("Use $codecut to continue the real CodeCut editing chain") &&
+		text.includes("--confirmation-token")
+	);
+}
+
+function flagEnabled(value) {
+	return value === true || value === "true" || value === "1";
+}
+
+export function assertWidgetIntakeThread({ threadId, records, requireFollowUp = false }) {
 	const items = records.flatMap((record) => collectItems(record, []));
 	const widgetCallCount = items.filter(isWidgetCall).length;
 	const disallowedShellCallCount = items.filter(isShellCall).length;
 	const disallowedFileChangeCount = items.filter(isFileChange).length;
 	const textFallbackCount = items.filter(isTextFallback).length;
+	const followUpMessageCount = items.filter(isSetupFollowUpMessage).length;
 
 	if (disallowedShellCallCount > 0) {
 		throw new Error("Fresh widget validation thread must not run shell commands.");
@@ -171,6 +186,11 @@ export function assertWidgetIntakeThread({ threadId, records }) {
 			"Codecut widget intake regressed: found text fallback prompt after widget validation.",
 		);
 	}
+	if (flagEnabled(requireFollowUp) && followUpMessageCount === 0) {
+		throw new Error(
+			"Codecut setup follow-up was not proven: missing visible continuation user message.",
+		);
+	}
 
 	return {
 		status: "passed",
@@ -179,12 +199,14 @@ export function assertWidgetIntakeThread({ threadId, records }) {
 		disallowedShellCallCount,
 		disallowedFileChangeCount,
 		textFallbackCount,
+		followUpMessageCount,
 	};
 }
 
 export async function runWidgetIntakeVerification({
 	threadId,
 	sessionFile,
+	requireFollowUp,
 	sessionsRoot = join(process.env.CODEX_HOME ?? join(homedir(), ".codex"), "sessions"),
 }) {
 	if (!threadId) {
@@ -195,7 +217,11 @@ export async function runWidgetIntakeVerification({
 		: await findThreadSessionFile({ sessionsRoot, threadId });
 	await stat(filePath);
 	const records = await readThreadRecordFile({ filePath });
-	const report = assertWidgetIntakeThread({ threadId, records });
+	const report = assertWidgetIntakeThread({
+		threadId,
+		records,
+		requireFollowUp: flagEnabled(requireFollowUp),
+	});
 	return { ...report, sessionFile: filePath };
 }
 
@@ -210,6 +236,7 @@ if (isCli) {
 			threadId: flags.threadId,
 			sessionFile: flags.sessionFile,
 			sessionsRoot: flags.sessionsRoot,
+			requireFollowUp: flags.requireFollowUp,
 		});
 		console.log(JSON.stringify(result, null, 2));
 	} catch (error) {

@@ -632,8 +632,10 @@
             openEditor: "Open editor",
             openEditorFailed: "Could not open the editor from this widget.",
             continuing: "Continuing in Codex...",
-            followUpSent: "Follow-up sent to Codex.",
+            followUpRequested: "Asked Codex to continue.",
+            followUpRecoveryHint: "If the thread does not continue, recover the setup with these identifiers.",
             followUpUnavailable: "window.openai.sendFollowUpMessage is unavailable.",
+            recoverSetupLabel: "Recover with recover_codecut_setup",
             retryFollowUp: "Retry follow-up",
             openaiUnavailable: "window.openai is unavailable.",
             callToolUnavailable: "window.openai.callTool is unavailable.",
@@ -733,8 +735,10 @@
             openEditor: "打开编辑器",
             openEditorFailed: "无法从当前 widget 打开编辑器。",
             continuing: "正在继续交给 Codex...",
-            followUpSent: "已发送后续任务给 Codex。",
+            followUpRequested: "已请求 Codex 继续。",
+            followUpRecoveryHint: "如果会话没有自动出现下一条消息，请用这些信息恢复创建结果。",
             followUpUnavailable: "window.openai.sendFollowUpMessage 不可用。",
+            recoverSetupLabel: "使用 recover_codecut_setup 恢复",
             retryFollowUp: "重试发送后续任务",
             openaiUnavailable: "window.openai 不可用。",
             callToolUnavailable: "window.openai.callTool 不可用。",
@@ -1518,7 +1522,7 @@
             } catch (error) {
               renderEditorOpenError(error);
             }
-            await sendFollowUp(payload.continuePrompt);
+            await sendFollowUp(payload.continuePrompt, payload);
           } catch (error) {
             renderBlocked({
               error: error instanceof Error ? error.message : String(error),
@@ -1587,7 +1591,7 @@
           fields.result.appendChild(errorText);
         }
 
-        async function sendFollowUp(prompt) {
+        async function sendFollowUp(prompt, payload = {}) {
           fields.followUp.classList.remove("hidden");
           fields.followUp.innerHTML = `<strong>${escapeHtml(t("continuing"))}</strong>`;
           try {
@@ -1596,7 +1600,7 @@
               throw new Error(t("followUpUnavailable"));
             }
             await api.sendFollowUpMessage({ prompt });
-            fields.followUp.innerHTML = `<strong class="ok">${escapeHtml(t("followUpSent"))}</strong>`;
+            renderFollowUpRequested(payload);
           } catch (error) {
             fields.followUp.innerHTML = "";
             const title = document.createElement("strong");
@@ -1607,9 +1611,26 @@
             const retry = document.createElement("button");
             retry.type = "button";
             retry.textContent = t("retryFollowUp");
-            retry.addEventListener("click", () => sendFollowUp(prompt));
+            retry.addEventListener("click", () => sendFollowUp(prompt, payload));
             fields.followUp.append(title, pre, retry);
           }
+        }
+
+        function renderFollowUpRequested(payload = {}) {
+          const projectId = payload.projectId || payload.intent?.projectId || "";
+          const pendingConfirmationId = payload.pendingConfirmationId || payload.intent?.pendingConfirmationId || "";
+          const recovery = projectId && pendingConfirmationId
+            ? `
+              <p class="muted">${escapeHtml(t("followUpRecoveryHint"))}</p>
+              <p><strong>${escapeHtml(t("recoverSetupLabel"))}:</strong></p>
+              <p><strong>projectId:</strong> <code>${escapeHtml(projectId)}</code></p>
+              <p><strong>pendingConfirmationId:</strong> <code>${escapeHtml(pendingConfirmationId)}</code></p>
+            `
+            : "";
+          fields.followUp.innerHTML = `
+            <strong class="ok">${escapeHtml(t("followUpRequested"))}</strong>
+            ${recovery}
+          `;
         }
 
         function escapeHtml(value) {
