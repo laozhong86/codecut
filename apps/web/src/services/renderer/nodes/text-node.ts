@@ -471,12 +471,11 @@ export class TextNode extends BaseNode<TextNodeParams> {
 			context.strokeText(run.text, x, y);
 		}
 
+		context.fillStyle = run.style.color ?? this.params.color;
+		context.fillText(run.text, x, y);
 		if (shadow) {
 			resetShadow({ context });
 		}
-
-		context.fillStyle = run.style.color ?? this.params.color;
-		context.fillText(run.text, x, y);
 		return width;
 	}
 

@@ -71,6 +71,32 @@ function measureCjkGlyphs({
 	return Array.from(text).length * fontSize;
 }
 
+function countRedShadowPixels({
+	context,
+	width,
+	height,
+}: {
+	context: CanvasRenderingContext2D;
+	width: number;
+	height: number;
+}): number {
+	const { data } = context.getImageData(0, 0, width, height);
+	let count = 0;
+
+	for (let index = 0; index < data.length; index += 4) {
+		const red = data[index];
+		const green = data[index + 1];
+		const blue = data[index + 2];
+		const alpha = data[index + 3];
+
+		if (alpha > 40 && red > 120 && green < 80 && blue < 80) {
+			count += 1;
+		}
+	}
+
+	return count;
+}
+
 describe("buildCanvasFont", () => {
 	test("quotes font families with spaces for canvas rendering", () => {
 		expect(
@@ -157,5 +183,31 @@ describe("buildCanvasFont", () => {
 		expect(bounds.width).toBeCloseTo(47.2);
 		expect(bounds.height).toBeCloseTo(39.2);
 		expect(bounds.leftOffset).toBeCloseTo(-23.6);
+	});
+
+	test("renders configured shadow for filled text without requiring stroke", async () => {
+		const renderer = createTextRenderer({ onEnsureFontFamily: () => {} });
+		const node = new TextNode({
+			...textElement({
+				content: "A",
+				fontSize: 180,
+				fontFamily: "Arial",
+				color: "#ffffff",
+				shadow: { color: "#ff0000", offsetX: 24, offsetY: 0, blur: 0 },
+				transform: { scale: 1, position: { x: -10, y: 0 }, rotate: 0 },
+			}),
+			canvasCenter: { x: 100, y: 100 },
+			canvasHeight: 200,
+		});
+
+		await node.render({ renderer, time: 0 });
+
+		expect(
+			countRedShadowPixels({
+				context: renderer.context as CanvasRenderingContext2D,
+				width: renderer.canvas.width,
+				height: renderer.canvas.height,
+			}),
+		).toBeGreaterThan(0);
 	});
 });
