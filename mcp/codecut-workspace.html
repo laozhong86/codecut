@@ -388,6 +388,15 @@
             <span data-i18n="projectName">Project name</span>
             <input id="project-name" name="projectName" autocomplete="off" data-i18n-placeholder="projectNamePlaceholder">
           </label>
+          <label>
+            <span data-i18n="taskType">Task type</span>
+            <select id="task-type" name="taskType">
+              <option value="template_draft" data-i18n="taskTypeTemplateDraft">Template draft</option>
+              <option value="template_import" data-i18n="taskTypeTemplateImport">Template import</option>
+              <option value="template_apply_sample" data-i18n="taskTypeTemplateApplySample">Apply template sample</option>
+              <option value="edit_execution" data-i18n="taskTypeEditExecution">Edit execution</option>
+            </select>
+          </label>
         </fieldset>
 
         <fieldset aria-labelledby="source-section-title">
@@ -545,6 +554,11 @@
             project: "Project",
             projectName: "Project name",
             projectNamePlaceholder: "CodeCut Project",
+            taskType: "Delivery / task type",
+            taskTypeTemplateDraft: "Template draft",
+            taskTypeTemplateImport: "Template import",
+            taskTypeTemplateApplySample: "Apply template sample",
+            taskTypeEditExecution: "Edit execution",
             source: "Source",
             addMediaSource: "Add files",
             addMediaFolder: "Add folder",
@@ -648,6 +662,11 @@
             project: "项目",
             projectName: "项目名称",
             projectNamePlaceholder: "CodeCut 项目",
+            taskType: "交付类型/任务类型",
+            taskTypeTemplateDraft: "创建模板草稿",
+            taskTypeTemplateImport: "导入模板",
+            taskTypeTemplateApplySample: "用模板做样片",
+            taskTypeEditExecution: "直接剪辑执行",
             source: "素材",
             addMediaSource: "添加素材",
             addMediaFolder: "添加文件夹",
@@ -750,6 +769,7 @@
         const fields = {
           form: document.getElementById("workspace-form"),
           projectName: document.getElementById("project-name"),
+          taskType: document.getElementById("task-type"),
           mediaSources: document.getElementById("media-sources"),
           mediaFilePicker: document.getElementById("media-file-picker"),
           mediaFolderPicker: document.getElementById("media-folder-picker"),
@@ -843,6 +863,7 @@
         function applyDefaults(defaults) {
           fields.projectName.value = defaults.projectName || "";
           currentProjectId = defaults.projectId || slugify(fields.projectName.value);
+          setSelectValue(fields.taskType, defaults.taskType || "edit_execution");
           renderMediaSources(defaults.mediaSources || defaults.mediaSource || []);
           setSelectValue(fields.targetAspectRatio, defaults.targetAspectRatio || "9:16");
           setDurationGoalSelection(defaults);
@@ -1369,6 +1390,7 @@
             pendingConfirmationId: currentPendingConfirmationId,
             projectId: currentProjectId || slugify(fields.projectName.value),
             projectName: fields.projectName.value.trim(),
+            taskType: fields.taskType.value,
             mediaSource: mediaSources[0],
             mediaSources,
             targetAspectRatio: fields.targetAspectRatio.value,

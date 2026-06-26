@@ -20,6 +20,7 @@ function setupIntent(overrides = {}) {
 	return {
 		projectId: "launch-cut-001",
 		projectName: "Launch Cut",
+		taskType: "edit_execution",
 		mediaSources: [{ kind: "filePath", filePath: "/tmp/source.mp4" }],
 		targetAspectRatio: "9:16",
 		durationGoalMode: "auto",
@@ -415,8 +416,42 @@ describe("Codecut MCP server contract", () => {
 			true,
 		);
 		expect(
+			submitTool?.inputSchema.mediaSources.safeParse([
+				{
+					kind: "filePath",
+					filePath: "/tmp/source.mp4",
+					mimeType: "video/mp4",
+				},
+			]).success,
+		).toBe(true);
+		expect(
+			submitTool?.inputSchema.mediaSources.safeParse([
+				{
+					kind: "filePath",
+					filePath: "/tmp/result.json",
+					mimeType: "application/json",
+				},
+			]).success,
+		).toBe(false);
+		expect(
 			openTool.inputSchema.transitionPreference.safeParse("auto").success,
 		).toBe(true);
+		for (const taskType of [
+			"template_draft",
+			"template_import",
+			"template_apply_sample",
+			"edit_execution",
+		]) {
+			expect(openTool.inputSchema.taskType.safeParse(taskType).success).toBe(
+				true,
+			);
+			expect(submitTool.inputSchema.taskType.safeParse(taskType).success).toBe(
+				true,
+			);
+		}
+		expect(
+			openTool.inputSchema.taskType.safeParse("three_video_template").success,
+		).toBe(false);
 		expect(
 			submitTool?.inputSchema.transitionPreference.safeParse("dissolve")
 				.success,
@@ -482,6 +517,7 @@ describe("Codecut MCP server contract", () => {
 			"dataset.filePath",
 			"dataset.directoryPath",
 			'id="target-aspect-ratio"',
+			'id="task-type"',
 			'id="duration-goal-range"',
 			"setDurationGoalSelection",
 			"collectDurationGoal",
@@ -1233,7 +1269,25 @@ describe("Codecut MCP server contract", () => {
 			ok: false,
 			detail:
 				"Transition animation must be auto, none, or a supported CodeCut transition type.",
+			});
+	});
+
+	test("defaults task type from the user request without treating template ids as intent", () => {
+		const templateDraft = serverModule.openCodecutWorkspace({
+			projectName: "口播剪辑模板",
+			requirements: "创建模板，提炼文案结构模板，不要直接剪辑。",
 		});
+		expect(templateDraft.structuredContent.intentDefaults.taskType).toBe(
+			"template_draft",
+		);
+
+		const plainEdit = serverModule.openCodecutWorkspace({
+			projectName: "Three Video Cut",
+			requirements: "Use three_video_template assets for a normal edit.",
+		});
+		expect(plainEdit.structuredContent.intentDefaults.taskType).toBe(
+			"edit_execution",
+		);
 	});
 
 	test("opens the workspace with localized default reference intent", () => {
@@ -1550,11 +1604,41 @@ describe("Codecut MCP server contract", () => {
 			for (const [label, intent] of [
 				["invalid project id", setupIntent({ projectId: "../bad" })],
 				["missing project name", setupIntent({ projectName: " " })],
+				["missing task type", setupIntent({ taskType: undefined })],
+				["bad task type", setupIntent({ taskType: "three_video_template" })],
 				["missing requirements", setupIntent({ requirements: "" })],
 				[
 					"non-https url",
 					setupIntent({
 						mediaSources: [{ kind: "url", url: "http://example.com/a.mp4" }],
+					}),
+				],
+				[
+					"non-media mime type",
+					setupIntent({
+						mediaSources: [
+							{
+								kind: "filePath",
+								filePath: "/tmp/result.json",
+								mimeType: "application/json",
+							},
+						],
+					}),
+				],
+				[
+					"non-media local extension",
+					setupIntent({
+						mediaSources: [
+							{ kind: "filePath", filePath: "/tmp/result.json" },
+						],
+					}),
+				],
+				[
+					"non-media url extension",
+					setupIntent({
+						mediaSources: [
+							{ kind: "url", url: "https://cdn.example.com/result.json" },
+						],
 					}),
 				],
 				["bad aspect ratio", setupIntent({ targetAspectRatio: "4:5" })],
@@ -1858,6 +1942,7 @@ describe("Codecut MCP server contract", () => {
 				confirmationToken: result.structuredContent.confirmationToken,
 				confirmedSetup: {
 					version: 1,
+					taskType: "edit_execution",
 					confirmedAt: expect.any(String),
 					source: "codecut_setup_confirmation",
 					timelinePreferences: {
@@ -1895,6 +1980,7 @@ describe("Codecut MCP server contract", () => {
 				editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
 				intent: {
 					projectId: "launch-cut-canonical",
+					taskType: "edit_execution",
 					generateIntroCover: true,
 					transitionPreference: "dissolve",
 					output: {
@@ -1914,6 +2000,9 @@ describe("Codecut MCP server contract", () => {
 			const confirmationToken = result.structuredContent.confirmationToken;
 			expect(confirmationToken).toMatch(/^ccconfirmed_[a-f0-9]{32}$/);
 			expect(result.structuredContent.continuePrompt).toContain("$codecut");
+			expect(result.structuredContent.continuePrompt).toContain(
+				"real CodeCut editing chain",
+			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				"$browser:control-in-app-browser",
 			);
@@ -1959,6 +2048,9 @@ describe("Codecut MCP server contract", () => {
 			expect(result.structuredContent.continuePrompt).toContain(
 				'"transitionPreference":"dissolve"',
 			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				'"taskType":"edit_execution"',
+			);
 			expect(result.structuredContent.continuePrompt).not.toContain(
 				"launch-cut-001",
 			);
@@ -2000,6 +2092,155 @@ describe("Codecut MCP server contract", () => {
 				recursive: true,
 				force: true,
 			});
+		}
+	});
+
+	test("routes template draft setup to the reference-template skill and stops before editing", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const opened = serverModule.openCodecutWorkspace(
+			{
+				projectName: "Template Draft",
+				requirements: "创建模板，学习参考视频结构。",
+				taskType: "template_draft",
+				mediaSources: [
+					{ kind: "url", url: "https://cdn.example.com/reference.mp4" },
+				],
+			},
+			{ confirmationRoot: directory },
+		);
+		const bridgeToolImpl = async (toolName) => {
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "template-draft",
+						name: "Template Draft",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/template-draft",
+					},
+				};
+			}
+			if (toolName === "get_project_info") {
+				return {
+					structuredContent: {
+						results: [{ success: true, data: { revision: 1 } }],
+					},
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+
+		try {
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({
+					pendingConfirmationId:
+						opened.structuredContent.pendingConfirmationId,
+					projectId: "template-draft",
+					projectName: "Template Draft",
+					taskType: "template_draft",
+					mediaSources: [
+						{ kind: "url", url: "https://cdn.example.com/reference.mp4" },
+					],
+					requirements: "创建模板，学习参考视频结构。",
+				}),
+				{ bridgeToolImpl, confirmationRoot: directory },
+			);
+
+			const prompt = result.structuredContent.continuePrompt;
+			expect(prompt).toContain(
+				"Use $codecut-reference-template to derive a reusable template draft",
+			);
+			expect(prompt).toContain("reference-analysis.md");
+			expect(prompt).toContain("local-template-script.json");
+			expect(prompt).toContain("template-fields.md");
+			expect(prompt).toContain("Stop after presenting those draft artifacts");
+			expect(prompt).not.toContain("real CodeCut editing chain");
+			expect(prompt).not.toContain("apply_narrated_remix_plan");
+			expect(prompt).not.toContain("generate_runninghub_voice");
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("routes template import setup to import-only work and sample/template editing to the existing edit chain", async () => {
+		async function submitForTaskType(taskType) {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+			const safeProjectId = `${taskType.replaceAll("_", "-")}-project`;
+			const opened = serverModule.openCodecutWorkspace(
+				{
+					projectName: `${taskType} project`,
+					taskType,
+					requirements: "Confirm this task.",
+					mediaSources: [
+						{ kind: "url", url: "https://cdn.example.com/source.mp4" },
+					],
+				},
+				{ confirmationRoot: directory },
+			);
+			const bridgeToolImpl = async (toolName) => {
+				if (toolName === "create_project") {
+					return {
+						structuredContent: {
+							projectId: safeProjectId,
+							name: `${taskType} project`,
+							revision: 1,
+							editorUrl: `http://127.0.0.1:4100/en/editor/${safeProjectId}`,
+						},
+					};
+				}
+				if (toolName === "get_project_info") {
+					return {
+						structuredContent: {
+							results: [{ success: true, data: { revision: 1 } }],
+						},
+					};
+				}
+				throw new Error(`Unexpected tool ${toolName}`);
+			};
+			try {
+				return await serverModule.submitCodecutSetup(
+					setupIntent({
+						pendingConfirmationId:
+							opened.structuredContent.pendingConfirmationId,
+						projectId: safeProjectId,
+						projectName: `${taskType} project`,
+						taskType,
+						mediaSources: [
+							{ kind: "url", url: "https://cdn.example.com/source.mp4" },
+						],
+						requirements: "Confirm this task.",
+					}),
+					{ bridgeToolImpl, confirmationRoot: directory },
+				);
+			} finally {
+				await rm(directory, {
+					recursive: true,
+					force: true,
+				});
+			}
+		}
+
+		const importResult = await submitForTaskType("template_import");
+		expect(importResult.structuredContent.continuePrompt).toContain(
+			"Use $codecut-reference-template to import the confirmed template draft",
+		);
+		expect(importResult.structuredContent.continuePrompt).not.toContain(
+			"real CodeCut editing chain",
+		);
+		expect(importResult.structuredContent.continuePrompt).not.toContain(
+			"get_timeline_state",
+		);
+
+		for (const taskType of ["template_apply_sample", "edit_execution"]) {
+			const result = await submitForTaskType(taskType);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"real CodeCut editing chain",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				`"taskType":"${taskType}"`,
+			);
 		}
 	});
 
