@@ -623,6 +623,7 @@
             createProject: "Create project",
             blocked: "Blocked",
             ok: "OK",
+            submittingSetup: "Submitting setup to Codex...",
             setupBlocked: "Resolve the failed fields before creating a project.",
             creating: "Creating",
             creatingDetail: "Creating project and importing media.",
@@ -723,6 +724,7 @@
             createProject: "创建项目",
             blocked: "已阻塞",
             ok: "通过",
+            submittingSetup: "正在提交给 Codex...",
             setupBlocked: "请先解决失败项，再创建项目。",
             creating: "创建中",
             creatingDetail: "正在创建项目并导入素材。",
@@ -899,11 +901,18 @@
           const directoryPath = String(
             mediaSource.directoryPath || mediaSource.folderPath || "",
           ).trim();
-          if (!filePath && !directoryPath) return null;
+          const url = String(mediaSource.url || "").trim();
+          if (!filePath && !directoryPath && !url) return null;
           if (directoryPath) {
             return {
               kind: "directoryPath",
               directoryPath,
+            };
+          }
+          if (url) {
+            return {
+              kind: "url",
+              url,
             };
           }
           return {
@@ -923,9 +932,10 @@
           row.dataset.kind = mediaSource.kind || "filePath";
           row.dataset.filePath = mediaSource.filePath || "";
           row.dataset.directoryPath = mediaSource.directoryPath || "";
+          row.dataset.url = mediaSource.url || "";
           row.dataset.previewUrl = mediaSource.previewUrl || "";
           row.dataset.previewObjectUrl = mediaSource.previewObjectUrl === true ? "true" : "false";
-          const sourcePath = row.dataset.directoryPath || row.dataset.filePath;
+          const sourcePath = row.dataset.directoryPath || row.dataset.filePath || row.dataset.url;
           row.innerHTML = `
             <div class="media-source-thumbnail" data-role="thumbnail" aria-hidden="true"></div>
             <div class="media-source-path" title="${escapeAttribute(sourcePath)}">
@@ -950,7 +960,7 @@
           const thumbnail = row.querySelector('[data-role="thumbnail"]');
           thumbnail.innerHTML = "";
           const previewUrl = row.dataset.previewUrl || "";
-          const pathValue = row.dataset.directoryPath || row.dataset.filePath || "";
+          const pathValue = row.dataset.directoryPath || row.dataset.filePath || row.dataset.url || "";
           const mediaType = String(mediaSource.previewMimeType || "").toLowerCase();
           const previewKind = mediaPreviewKind(previewUrl, mediaType);
           if (previewKind === "image") {
@@ -984,6 +994,7 @@
         function mediaThumbnailLabel(value) {
           const source = String(value || "").trim();
           if (!source) return "FILE";
+          if (/^https?:\/\//i.test(source)) return "URL";
           if (!source.split(/[\\/]/).filter(Boolean).pop()?.includes(".")) return "DIR";
           const fileName = source.split(/[\\/]/).filter(Boolean).pop() || "";
           const extension = fileName.includes(".") ? fileName.split(".").pop() : "";
@@ -1031,12 +1042,18 @@
                   directoryPath: String(row.dataset.directoryPath || "").trim(),
                 };
               }
+              if (row.dataset.kind === "url") {
+                return {
+                  kind: "url",
+                  url: String(row.dataset.url || "").trim(),
+                };
+              }
               return {
                 kind: "filePath",
                 filePath: String(row.dataset.filePath || "").trim(),
               };
             })
-            .filter((mediaSource) => mediaSource.filePath || mediaSource.directoryPath);
+            .filter((mediaSource) => mediaSource.filePath || mediaSource.directoryPath || mediaSource.url);
         }
 
         function appendPickedFileRows(files) {
@@ -1367,7 +1384,7 @@
           };
         }
 
-        const hostToolTimeoutMs = 180000;
+        const hostToolTimeoutMs = 12000;
 
         async function withTimeout(operation, timeoutMs, timeoutMessage) {
           let timeoutId;
@@ -1468,6 +1485,17 @@
           fields.setupUnavailable.classList.remove("hidden");
         }
 
+        function renderSubmitting() {
+          fields.result.classList.remove("hidden");
+          fields.result.innerHTML = "";
+          const title = document.createElement("strong");
+          title.textContent = t("creating");
+          const message = document.createElement("p");
+          message.className = "muted";
+          message.textContent = t("submittingSetup");
+          fields.result.append(title, message);
+        }
+
         async function submit(event) {
           event.preventDefault();
           if (!currentPendingConfirmationId) {
@@ -1476,6 +1504,7 @@
           }
           fields.submitButton.disabled = true;
           fields.submitButton.textContent = t("creating");
+          renderSubmitting();
           try {
             const result = await callTool("submit_codecut_setup", collectIntent());
             const payload = structuredContent(result);

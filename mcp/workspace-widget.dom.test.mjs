@@ -30,10 +30,7 @@ function buildToolHarness(html, timeoutMs) {
 		normalizedHtml,
 		"const hostToolTimeoutMs =",
 		"\n\n        function structuredContent",
-	).replace(
-		"const hostToolTimeoutMs = 180000;",
-		`const hostToolTimeoutMs = ${timeoutMs};`,
-	);
+	).replace(/const hostToolTimeoutMs = \d+;/, `const hostToolTimeoutMs = ${timeoutMs};`);
 	const context = vm.createContext({
 		clearTimeout,
 		Error,
@@ -58,6 +55,73 @@ globalThis.callWorkspaceTool = callTool;
 	);
 	return context;
 }
+
+function buildMediaHarness(html) {
+	const normalizedHtml = html.replace(/\r\n?/g, "\n");
+	const mediaNormalization = extractBetween(
+		normalizedHtml,
+		"function normalizeMediaFileSources",
+		"\n\n        function appendMediaFileRow",
+	);
+	const mediaCollection = extractBetween(
+		normalizedHtml,
+		"function collectMediaSources",
+		"\n\n        function appendPickedFileRows",
+	);
+	const context = vm.createContext({
+		Array,
+		Boolean,
+		String,
+		fields: {
+			mediaSources: {
+				querySelectorAll() {
+					return [];
+				},
+			},
+		},
+	});
+
+	vm.runInContext(
+		`
+${mediaNormalization}
+${mediaCollection}
+globalThis.normalizeWidgetMediaSources = normalizeMediaFileSources;
+globalThis.collectWidgetMediaSources = (rows) => {
+	fields.mediaSources = {
+		querySelectorAll() {
+			return rows;
+		},
+	};
+	return collectMediaSources();
+};
+`,
+		context,
+	);
+	return context;
+}
+
+test("workspace widget preserves URL media sources through normalization and collection", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const harness = buildMediaHarness(html);
+	const url =
+		"https://www.tiktok.com/@ayusbangga2/video/7638536445577235732";
+
+	expect(
+		harness.normalizeWidgetMediaSources([
+			{ kind: "url", url },
+		]),
+	).toEqual([{ kind: "url", url }]);
+	expect(
+		harness.collectWidgetMediaSources([
+			{
+				dataset: {
+					kind: "url",
+					url,
+				},
+			},
+		]),
+	).toEqual([{ kind: "url", url }]);
+});
 
 test("workspace widget host tool calls fail fast when the host bridge never returns", async () => {
 	const html = await readFile("mcp/codecut-workspace.html", "utf8");
