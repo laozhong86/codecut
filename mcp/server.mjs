@@ -200,6 +200,45 @@ const workspaceOutputSchema = z
 	})
 	.strict();
 
+const confirmedSetupDurationGoalSchema = z
+	.object({
+		mode: durationGoalModeSchema,
+		rangeSeconds: durationGoalRangeSecondsSchema.optional(),
+	})
+	.strict();
+
+const confirmedSetupPatchSchema = z
+	.object({
+		timelinePreferences: z
+			.object({
+				aspectRatio: targetAspectRatioSchema.optional(),
+				durationGoal: confirmedSetupDurationGoalSchema.optional(),
+				transitionPreference: transitionPreferenceSchema.optional(),
+				generateIntroCover: z.boolean().optional(),
+				requirements: z.string().trim().min(1).optional(),
+			})
+			.strict()
+			.optional(),
+		captionPreferences: z
+			.object({
+				language: z.string().trim().min(1).optional(),
+				font: captionFontSchema.optional(),
+				size: captionSizeSchema.optional(),
+				stylePreset: captionStylePresetSchema.optional(),
+			})
+			.strict()
+			.optional(),
+		exportPreferences: z
+			.object({
+				format: outputFormatSchema.optional(),
+				quality: outputQualitySchema.optional(),
+				includeAudio: z.boolean().optional(),
+			})
+			.strict()
+			.optional(),
+	})
+	.strict();
+
 const workspaceIntentInputSchema = {
 	pendingConfirmationId: z.string().trim().optional(),
 	projectId: z.string().trim(),
@@ -467,6 +506,10 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["verify_timeline", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["add_texts", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
 	["add_captions", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	[
+		"update_project_preferences",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR,
+	],
 	["insert_clips", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
 	["move_clips", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
 	["remove_clips", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
@@ -523,6 +566,7 @@ export const DESTRUCTIVE_MCP_TOOL_NAMES = new Set([
 	"delete_system_template_script",
 	"create_text_background_effect",
 	"create_human_pip_effect",
+	"update_project_preferences",
 	"generate_digital_human",
 	"generate_runninghub_voice_design",
 	"generate_runninghub_voice_clone",
@@ -678,7 +722,7 @@ export const CODECUT_MCP_TOOLS = [
 			"Build caption data from the currently edited timeline without mutating the timeline.",
 		inputSchema: {
 			projectId: projectIdSchema,
-			language: languageSchema,
+			language: languageSchema.optional(),
 			modelId: modelIdSchema,
 		},
 		readOnly: true,
@@ -823,9 +867,23 @@ export const CODECUT_MCP_TOOLS = [
 		inputSchema: {
 			projectId: projectIdSchema,
 			...confirmationTokenInputSchema,
-			language: languageSchema,
+			language: languageSchema.optional(),
 			modelId: modelIdSchema,
 			captionStyle: captionStyleSchema.optional(),
+		},
+		readOnly: false,
+	},
+	{
+		name: "update_project_preferences",
+		title: "Update Codecut Project Preferences",
+		description:
+			"Update the confirmed project setup contract with an explicit base revision and user confirmation. Caption preference changes update existing generated caption text elements; structural timeline preference changes return requiresReplan.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
+			baseRevision: z.number().int().positive(),
+			patch: confirmedSetupPatchSchema,
+			reason: z.string().trim().min(1).optional(),
 		},
 		readOnly: false,
 	},
@@ -1095,9 +1153,9 @@ export const CODECUT_MCP_TOOLS = [
 		inputSchema: {
 			projectId: projectIdSchema,
 			...confirmationTokenInputSchema,
-			format: z.enum(["mp4", "webm"]),
-			quality: z.enum(["low", "medium", "high", "very_high"]),
-			includeAudio: z.boolean(),
+			format: z.enum(["mp4", "webm"]).optional(),
+			quality: z.enum(["low", "medium", "high", "very_high"]).optional(),
+			includeAudio: z.boolean().optional(),
 			outputFile: z.string().trim().min(1),
 			overwrite: z.boolean(),
 		},
@@ -1707,6 +1765,7 @@ export async function submitCodecutSetup(
 		projectId: normalized.projectId,
 		name: normalized.projectName,
 		confirmationToken,
+		confirmedSetup: buildConfirmedSetupFromWorkspaceIntent(normalized),
 	});
 	if (createdResult?.isError) {
 		return buildSetupErrorResult({
@@ -1839,6 +1898,39 @@ export async function submitCodecutSetup(
 			},
 		],
 		structuredContent,
+	};
+}
+
+function buildConfirmedSetupFromWorkspaceIntent(normalized) {
+	return {
+		version: 1,
+		confirmedAt: new Date().toISOString(),
+		source: "codecut_setup_confirmation",
+		timelinePreferences: {
+			aspectRatio: normalized.targetAspectRatio,
+			durationGoal:
+				normalized.durationGoalMode === "custom"
+					? {
+							mode: "custom",
+							rangeSeconds: normalized.durationGoalRangeSeconds,
+						}
+					: { mode: "auto" },
+			transitionPreference: normalized.transitionPreference,
+			generateIntroCover: normalized.generateIntroCover,
+			requirements: normalized.requirements,
+		},
+		captionPreferences: {
+			language: normalized.captionLanguage,
+			font: normalized.output.captionFont,
+			size: normalized.output.captionSize,
+			stylePreset: normalized.output.captionStylePreset,
+		},
+		exportPreferences: {
+			format: normalized.output.format,
+			quality: normalized.output.quality,
+			includeAudio: normalized.output.includeAudio,
+		},
+		changes: [],
 	};
 }
 
@@ -2551,12 +2643,19 @@ function writeBytesImportFile(bytes) {
 	return filePath;
 }
 
+function writeJsonArgumentFile(value) {
+	const directory = mkdtempSync(join(tmpdir(), "codecut-mcp-json-"));
+	const filePath = join(directory, "payload.json");
+	writeFileSync(filePath, JSON.stringify(value), "utf8");
+	return filePath;
+}
+
 export function buildBridgeCliArgs(toolName, args = {}) {
 	if (toolName === "list_projects") {
 		return ["scripts/codex-bridge.mjs", "list-projects"];
 	}
 	if (toolName === "create_project") {
-		return [
+		const command = [
 			"scripts/codex-bridge.mjs",
 			"create-project",
 			"--project-id",
@@ -2566,6 +2665,13 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			"--confirmation-token",
 			requireConfirmationTokenArg(args),
 		];
+		if (args.confirmedSetup !== undefined) {
+			command.push(
+				"--confirmed-setup-json-file",
+				writeJsonArgumentFile(args.confirmedSetup),
+			);
+		}
+		return command;
 	}
 	const projectId = requireProjectId(args);
 	switch (toolName) {
@@ -2729,16 +2835,16 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				},
 			});
 		case "build_post_cut_captions":
-			return [
-				"scripts/codex-bridge.mjs",
-				"build-post-cut-captions",
-				"--project-id",
-				projectId,
-				"--language",
-				requireStringArg(args, "language"),
-				"--model-id",
-				requireStringArg(args, "modelId"),
-			];
+			return appendOptionalCliArgs(
+				[
+					"scripts/codex-bridge.mjs",
+					"build-post-cut-captions",
+					"--project-id",
+					projectId,
+				],
+				args,
+				[["language", "--language"]],
+			).concat(["--model-id", requireStringArg(args, "modelId")]);
 		case "build_caption_diagnostics": {
 			const captionStyle = args.captionStyle;
 			if (!captionStyle || typeof captionStyle !== "object") {
@@ -2999,11 +3105,28 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				toolName,
 				confirmationToken: requireConfirmationTokenArg(args),
 				args: {
-					language: requireStringArg(args, "language"),
+					...(args.language === undefined
+						? {}
+						: { language: requireStringArg(args, "language") }),
 					modelId: requireStringArg(args, "modelId"),
 					...(args.captionStyle === undefined
 						? {}
 						: { captionStyle: args.captionStyle }),
+				},
+			});
+		case "update_project_preferences":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				confirmationToken: requireConfirmationTokenArg(args),
+				args: {
+					projectId,
+					baseRevision: Number(requireNumberArg(args, "baseRevision")),
+					confirmationToken: requireConfirmationTokenArg(args),
+					patch: args.patch,
+					...(args.reason === undefined
+						? {}
+						: { reason: requireStringArg(args, "reason") }),
 				},
 			});
 		case "insert_clips":
@@ -3205,12 +3328,15 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"export",
 				"--project-id",
 				projectId,
-				"--format",
-				requireStringArg(args, "format"),
-				"--quality",
-				requireStringArg(args, "quality"),
-				"--include-audio",
-				requireBooleanArg(args, "includeAudio"),
+				...(args.format === undefined
+					? []
+					: ["--format", requireStringArg(args, "format")]),
+				...(args.quality === undefined
+					? []
+					: ["--quality", requireStringArg(args, "quality")]),
+				...(args.includeAudio === undefined
+					? []
+					: ["--include-audio", String(requireBooleanArg(args, "includeAudio"))]),
 				"--output-file",
 				requireStringArg(args, "outputFile"),
 				"--overwrite",

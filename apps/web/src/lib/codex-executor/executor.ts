@@ -53,6 +53,16 @@ import {
 	transcribeMediaRangeWithNodeRuntime,
 	transcribeMediaWithNodeRuntime,
 } from "@/lib/codex-executor/transcription";
+import {
+	ConfirmedSetupSchema,
+	UpdateProjectPreferencesArgsSchema,
+	applyCaptionPreferencesToTextRaw,
+	applyConfirmedSetupPatch,
+	resolveCaptionLanguageForContract,
+	resolveCaptionStyleForContract,
+	resolveExportPreferencesForContract,
+	type ConfirmedSetup,
+} from "@/lib/codex-executor/setup-contract";
 import { assertAsrProviderResult } from "@/lib/transcription/asr-provider-contract";
 import {
 	type RunningHubExecutorMediaAsset,
@@ -103,6 +113,7 @@ import type {
 	ImageElement,
 	PositionKeyframe,
 	ScalarKeyframe,
+	TextElement,
 	TimelineElement,
 	TimelineElementKeyframes,
 	TimelineTrack,
@@ -119,6 +130,7 @@ const execFileAsync = promisify(execFile);
 type ExecutorToolName =
 	| "get_project_info"
 	| "update_project_settings"
+	| "update_project_preferences"
 	| "list_media_assets"
 	| "import_media_file"
 	| "set_project_cover"
@@ -205,6 +217,7 @@ export interface ExecutorProjectState {
 	derivedAssets: DerivedAsset[];
 	cover?: ProjectCover;
 	tracks: TimelineTrack[];
+	confirmedSetup?: ConfirmedSetup;
 }
 
 export type CodecutDraftV1 = ExecutorProjectState;
@@ -235,6 +248,7 @@ const commandSchema = z
 		tool: z.enum([
 			"get_project_info",
 			"update_project_settings",
+			"update_project_preferences",
 			"list_media_assets",
 			"import_media_file",
 			"set_project_cover",
@@ -801,9 +815,9 @@ const generateVoiceCloneArgsSchema = z
 
 const exportProjectArgsSchema = z
 	.object({
-		format: z.string().min(1),
-		quality: z.string().min(1),
-		includeAudio: z.boolean(),
+		format: z.string().min(1).optional(),
+		quality: z.string().min(1).optional(),
+		includeAudio: z.boolean().optional(),
 		outputFile: z.string().min(1),
 		overwrite: z.boolean(),
 	})
@@ -1511,9 +1525,11 @@ async function loadProjectState({
 export async function createExecutorProject({
 	projectId,
 	name,
+	confirmedSetup,
 }: {
 	projectId: string;
 	name: string;
+	confirmedSetup?: ConfirmedSetup;
 }): Promise<ExecutorProjectState> {
 	const now = new Date().toISOString();
 	const state: ExecutorProjectState = {
@@ -1534,6 +1550,9 @@ export async function createExecutorProject({
 		mediaAssets: [],
 		derivedAssets: [],
 		tracks: [],
+		...(confirmedSetup
+			? { confirmedSetup: ConfirmedSetupSchema.parse(confirmedSetup) }
+			: {}),
 	};
 	await mkdir(mediaDirectory({ projectId }), { recursive: true });
 	await writeJson({ path: projectStatePath({ projectId }), value: state });
@@ -1580,6 +1599,7 @@ export async function getExecutorProjectSnapshot({
 		revision: state.revision,
 		duration,
 		cover: state.cover,
+		confirmedSetup: state.confirmedSetup,
 		tracks: state.tracks,
 		mediaAssets: state.mediaAssets.map((asset) => ({
 			id: asset.id,
@@ -1854,6 +1874,7 @@ async function runGetProjectInfo({
 			background: state.project.settings.background,
 			duration,
 			cover: state.cover,
+			confirmedSetup: state.confirmedSetup,
 			draft: {
 				version: state.version,
 				revision: state.revision,
@@ -1965,6 +1986,117 @@ async function runUpdateProjectSettings({
 	return {
 		success: true,
 		message: `Project settings updated: ${updated.join(", ")}`,
+	};
+}
+
+function isCaptionTextElement(element: TextElement) {
+	return element.name.startsWith("Caption ");
+}
+
+function applyCaptionSetupToExistingCaptions({
+	state,
+	confirmedSetup,
+}: {
+	state: ExecutorProjectState;
+	confirmedSetup: ConfirmedSetup;
+}) {
+	const raw = applyCaptionPreferencesToTextRaw({
+		raw: resolveCaptionStylePreset({
+			captionStyle: resolveCaptionStyleForContract({ confirmedSetup }),
+			aspectRatio: aspectRatioForState(state),
+		}),
+		captionPreferences: confirmedSetup.captionPreferences,
+	});
+	const updatedElementIds: string[] = [];
+	for (const track of state.tracks) {
+		if (track.type !== "text") continue;
+		for (const element of track.elements) {
+			if (!isCaptionTextElement(element)) continue;
+			element.fontSize =
+				typeof raw.fontSize === "number" ? raw.fontSize : element.fontSize;
+			element.fontFamily = raw.fontFamily ?? element.fontFamily;
+			element.color = raw.color ?? element.color;
+			element.backgroundColor = raw.backgroundColor ?? element.backgroundColor;
+			element.textAlign = raw.textAlign ?? element.textAlign;
+			element.fontWeight = raw.fontWeight ?? element.fontWeight;
+			element.fontStyle = raw.fontStyle ?? element.fontStyle;
+			element.textDecoration = raw.textDecoration ?? element.textDecoration;
+			element.transform = raw.transform ?? element.transform;
+			element.opacity = raw.opacity ?? element.opacity;
+			element.stroke = raw.stroke;
+			element.shadow = raw.shadow;
+			element.boxWidth = raw.boxWidth;
+			element.backgroundOpacity = raw.backgroundOpacity;
+			element.backgroundPaddingX = raw.backgroundPaddingX;
+			element.backgroundPaddingY = raw.backgroundPaddingY;
+			element.backgroundBorderRadius = raw.backgroundBorderRadius;
+			updatedElementIds.push(element.id);
+		}
+	}
+	return updatedElementIds;
+}
+
+async function runUpdateProjectPreferences({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = UpdateProjectPreferencesArgsSchema.parse(args);
+	if (parsed.projectId !== state.project.id) {
+		throw new Error(
+			`projectId conflicts with executor envelope project: expected ${state.project.id}.`,
+		);
+	}
+	if (parsed.baseRevision !== state.revision) {
+		throw new Error(
+			`baseRevision is stale: expected ${state.revision}, received ${parsed.baseRevision}.`,
+		);
+	}
+	if (!state.confirmedSetup) {
+		throw new Error(
+			"confirmedSetup is required before project preferences can be updated.",
+		);
+	}
+
+	const applied = applyConfirmedSetupPatch({
+		confirmedSetup: state.confirmedSetup,
+		patch: parsed.patch,
+		reason: parsed.reason ?? "user_confirmed_preference_update",
+	});
+	if (applied.changedFields.length === 0) {
+		return {
+			success: true,
+			message: "Project preferences already match the requested patch.",
+			data: {
+				revision: state.revision,
+				confirmedSetup: state.confirmedSetup,
+				updatedCaptionElementIds: [],
+				requiresReplan: false,
+			},
+		};
+	}
+
+	state.confirmedSetup = applied.confirmedSetup;
+	const updatedCaptionElementIds = parsed.patch.captionPreferences
+		? applyCaptionSetupToExistingCaptions({
+				state,
+				confirmedSetup: state.confirmedSetup,
+			})
+		: [];
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: applied.requiresReplan
+			? "Project preferences updated. Timeline structure requires a new edit plan."
+			: "Project preferences updated.",
+		data: {
+			revision: state.revision,
+			confirmedSetup: state.confirmedSetup,
+			updatedCaptionElementIds,
+			requiresReplan: applied.requiresReplan,
+		},
 	};
 }
 
@@ -2198,8 +2330,14 @@ async function runExportProject({
 	probeExportedFile: ExecutorProbeExportedFile;
 }) {
 	const parsed = exportProjectArgsSchema.parse(args);
-	const format = requireExportFormat(parsed.format);
-	const quality = requireExportQuality(parsed.quality);
+	const exportPreferences = resolveExportPreferencesForContract({
+		confirmedSetup: state.confirmedSetup,
+		explicitFormat: parsed.format,
+		explicitQuality: parsed.quality,
+		explicitIncludeAudio: parsed.includeAudio,
+	});
+	const format = requireExportFormat(exportPreferences.format);
+	const quality = requireExportQuality(exportPreferences.quality);
 	if (!isAbsolute(parsed.outputFile)) {
 		throw new Error("--output-file must be an absolute path");
 	}
@@ -2218,7 +2356,7 @@ async function runExportProject({
 		state,
 		format,
 		quality,
-		includeAudio: parsed.includeAudio,
+		includeAudio: exportPreferences.includeAudio,
 	});
 	const bytes = exportBytesToBuffer(exported);
 	if (bytes.byteLength <= 0) {
@@ -2239,7 +2377,7 @@ async function runExportProject({
 			outputFile: parsed.outputFile,
 			byteLength: bytes.byteLength,
 			format,
-			includeAudio: parsed.includeAudio,
+			includeAudio: exportPreferences.includeAudio,
 			revision: state.revision,
 			totalDuration,
 			outputProbe,
@@ -3675,11 +3813,20 @@ async function runBuildPostCutCaptions({
 	transcribeMediaRange: ExecutorTranscribeMediaRange;
 }) {
 	const parsed = buildPostCutCaptionsArgsSchema.parse(args);
+	const captionStyle = resolveCaptionStyleForContract({
+		confirmedSetup: state.confirmedSetup,
+		explicitCaptionStyle: parsed.captionStyle,
+	});
 	const result = await buildPostCutCaptionsData({
 		state,
-		language: parseExecutorTranscriptionLanguage(parsed.language),
+		language: parseExecutorTranscriptionLanguage(
+			resolveCaptionLanguageForContract({
+				confirmedSetup: state.confirmedSetup,
+				explicitLanguage: parsed.language,
+			}),
+		),
 		modelId: parseExecutorTranscriptionModelId(parsed.modelId),
-		captionStyle: parsed.captionStyle ?? DEFAULT_POST_CUT_CAPTION_STYLE,
+		captionStyle,
 		transcribeMediaRange,
 	});
 	if (!result.success) return result;
@@ -4180,10 +4327,18 @@ async function runAddCaptions({
 	transcribeMediaRange: ExecutorTranscribeMediaRange;
 }) {
 	const parsed = addCaptionsArgsSchema.parse(args);
-	const captionStyle = parsed.captionStyle ?? DEFAULT_POST_CUT_CAPTION_STYLE;
+	const captionStyle = resolveCaptionStyleForContract({
+		confirmedSetup: state.confirmedSetup,
+		explicitCaptionStyle: parsed.captionStyle,
+	});
 	const captions = await buildPostCutCaptionsData({
 		state,
-		language: parseExecutorTranscriptionLanguage(parsed.language),
+		language: parseExecutorTranscriptionLanguage(
+			resolveCaptionLanguageForContract({
+				confirmedSetup: state.confirmedSetup,
+				explicitLanguage: parsed.language,
+			}),
+		),
 		modelId: parseExecutorTranscriptionModelId(parsed.modelId),
 		captionStyle,
 		transcribeMediaRange,
@@ -4200,11 +4355,17 @@ async function runAddCaptions({
 		captionStyle,
 		aspectRatio: aspectRatioForState(state),
 	});
+	const captionRaw = state.confirmedSetup
+		? applyCaptionPreferencesToTextRaw({
+				raw,
+				captionPreferences: state.confirmedSetup.captionPreferences,
+			})
+		: raw;
 	const summary = addTextElements({
 		state,
 		args: {
 			entries: captions.data.captions.map((caption, index) => ({
-				...raw,
+				...captionRaw,
 				name: `Caption ${index + 1}`,
 				content: caption.text,
 				startTime: caption.startTime,
@@ -4808,6 +4969,9 @@ async function executeCommand({
 	}
 	if (command.tool === "update_project_settings") {
 		return runUpdateProjectSettings({ state, args: command.args });
+	}
+	if (command.tool === "update_project_preferences") {
+		return runUpdateProjectPreferences({ state, args: command.args });
 	}
 	if (command.tool === "list_media_assets") {
 		return runListMediaAssets({ state });

@@ -5,11 +5,13 @@ import {
 	createExecutorProject,
 	listExecutorProjects,
 } from "@/lib/codex-executor/executor";
+import { ConfirmedSetupSchema } from "@/lib/codex-executor/setup-contract";
 
 const createProjectBodySchema = z
 	.object({
 		projectId: z.string().min(1),
 		name: z.string().min(1),
+		confirmedSetup: ConfirmedSetupSchema.optional(),
 	})
 	.strict();
 

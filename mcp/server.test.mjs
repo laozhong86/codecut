@@ -145,6 +145,7 @@ describe("Codecut MCP server contract", () => {
 			"apply_narrated_remix_plan",
 			"add_texts",
 			"add_captions",
+			"update_project_preferences",
 			"insert_clips",
 			"move_clips",
 			"remove_clips",
@@ -1814,6 +1815,11 @@ describe("Codecut MCP server contract", () => {
 				setupIntent({
 					pendingConfirmationId,
 					transitionPreference: "dissolve",
+					output: {
+						...setupIntent().output,
+						captionSize: "large",
+						captionStylePreset: "product-punch",
+					},
 					mediaSources: [
 						{ kind: "filePath", filePath },
 						{ kind: "filePath", filePath: secondFilePath },
@@ -1846,10 +1852,35 @@ describe("Codecut MCP server contract", () => {
 			]);
 			expect(
 				calls.find((call) => call.toolName === "create_project")?.args,
-			).toEqual({
+			).toMatchObject({
 				projectId: "launch-cut-001",
 				name: "Launch Cut",
 				confirmationToken: result.structuredContent.confirmationToken,
+				confirmedSetup: {
+					version: 1,
+					confirmedAt: expect.any(String),
+					source: "codecut_setup_confirmation",
+					timelinePreferences: {
+						aspectRatio: "9:16",
+						durationGoal: { mode: "auto" },
+						transitionPreference: "dissolve",
+						generateIntroCover: true,
+						requirements:
+							"Cut a high-retention short for a product launch.\nShow a hook, proof, and CTA with readable captions.",
+					},
+					captionPreferences: {
+						language: "auto",
+						font: "auto",
+						size: "large",
+						stylePreset: "product-punch",
+					},
+					exportPreferences: {
+						format: "mp4",
+						quality: "high",
+						includeAudio: true,
+					},
+					changes: [],
+				},
 			});
 			expect(
 				calls.find((call) => call.toolName === "get_project_info")?.args,
@@ -1868,8 +1899,8 @@ describe("Codecut MCP server contract", () => {
 					transitionPreference: "dissolve",
 					output: {
 						captionFont: "auto",
-						captionSize: "medium",
-						captionStylePreset: "creator-clean",
+						captionSize: "large",
+						captionStylePreset: "product-punch",
 					},
 				},
 				importedMedia: [
@@ -1923,7 +1954,7 @@ describe("Codecut MCP server contract", () => {
 				'"generateIntroCover":true',
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
-				'"captionStylePreset":"creator-clean"',
+				'"captionStylePreset":"product-punch"',
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				'"transitionPreference":"dissolve"',
