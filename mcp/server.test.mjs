@@ -514,6 +514,9 @@ describe("Codecut MCP server contract", () => {
 			'value="zh-CN"',
 			'value="en"',
 			'value="auto"',
+			'value="CodecutYanBoSong"',
+			'value="CodecutWenKai"',
+			'value="CodecutSmileySans"',
 			'value="dissolve"',
 			'value="slide-left"',
 			'value="zoom-in"',
@@ -541,6 +544,8 @@ describe("Codecut MCP server contract", () => {
 		]) {
 			expect(html).toContain(marker);
 		}
+		expect(html).not.toContain('value="serif"');
+		expect(html).not.toContain('value="handwriting"');
 		expect(html).not.toContain('id="brief-options"');
 		expect(html).not.toContain('id="success-criteria-options"');
 		expect(html).not.toContain('id="brief"');
@@ -1036,7 +1041,7 @@ describe("Codecut MCP server contract", () => {
 		const result = serverModule.openCodecutWorkspace({
 			projectName: "Caption Controls",
 			output: {
-				captionFont: "serif",
+				captionFont: "CodecutYanBoSong",
 				captionSize: "large",
 				captionStylePreset: "product-punch",
 			},
@@ -1046,12 +1051,12 @@ describe("Codecut MCP server contract", () => {
 			format: "mp4",
 			quality: "high",
 			includeAudio: true,
-			captionFont: "serif",
+			captionFont: "CodecutYanBoSong",
 			captionSize: "large",
 			captionStylePreset: "product-punch",
 		});
 		expect(result._meta.widgetData.intentDefaults.output).toMatchObject({
-			captionFont: "serif",
+			captionFont: "CodecutYanBoSong",
 			captionSize: "large",
 			captionStylePreset: "product-punch",
 		});
@@ -1266,7 +1271,7 @@ describe("Codecut MCP server contract", () => {
 					"bad caption font",
 					setupIntent({
 						mediaSources: [{ kind: "filePath", filePath }],
-						output: { ...setupIntent().output, captionFont: "papyrus" },
+						output: { ...setupIntent().output, captionFont: "serif" },
 					}),
 				],
 				[

@@ -24,6 +24,7 @@ const bridgeAllowedEnvKeys = new Set(["RUNNINGHUB_API_KEY"]);
 const workspaceResourceMimeType = "text/html;profile=mcp-app";
 const codecutServiceStartCommand = "bun run dev:web";
 const defaultCodecutReadinessUrl = "http://127.0.0.1:4100/en/projects";
+const captionFontOptionsToken = "<!-- CODECUT_CAPTION_FONT_OPTIONS -->";
 
 const projectIdSchema = z
 	.string()
@@ -116,7 +117,12 @@ const secondsSchema = z.number().nonnegative();
 const targetAspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 const outputFormatSchema = z.enum(["mp4", "webm"]);
 const outputQualitySchema = z.enum(["low", "medium", "high", "very_high"]);
-const captionFontValues = ["auto", "sans", "serif", "handwriting"];
+const codecutFontManifest = readCodecutFontManifest();
+const codecutCaptionFonts = codecutFontManifest.localFonts;
+const captionFontValues = [
+	"auto",
+	...codecutCaptionFonts.map((font) => font.family),
+];
 const captionSizeValues = ["small", "medium", "large"];
 const captionStylePresetValues = [
 	"creator-clean",
@@ -1176,11 +1182,61 @@ export const CODECUT_WORKSPACE_TOOLS = [
 	},
 ];
 
+function readCodecutFontManifest() {
+	const manifestPath = resolve(
+		pluginRoot,
+		"apps/web/src/lib/codecut-fonts.json",
+	);
+	const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+	if (!manifest || typeof manifest !== "object") {
+		throw new Error("CodeCut font manifest must be an object.");
+	}
+	if (!Array.isArray(manifest.localFonts) || manifest.localFonts.length === 0) {
+		throw new Error("CodeCut font manifest must define localFonts.");
+	}
+	for (const font of manifest.localFonts) {
+		if (!font || typeof font !== "object") {
+			throw new Error("CodeCut font manifest contains an invalid font.");
+		}
+		if (typeof font.family !== "string" || font.family.trim() === "") {
+			throw new Error("CodeCut font manifest font.family is required.");
+		}
+		if (typeof font.label !== "string" || font.label.trim() === "") {
+			throw new Error("CodeCut font manifest font.label is required.");
+		}
+	}
+	return manifest;
+}
+
+function escapeHtmlText(value) {
+	return String(value)
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+}
+
+function escapeHtmlAttribute(value) {
+	return escapeHtmlText(value).replaceAll('"', "&quot;");
+}
+
+function renderCaptionFontOptionsHtml() {
+	return codecutCaptionFonts
+		.map(
+			(font) =>
+				`                <option value="${escapeHtmlAttribute(font.family)}">${escapeHtmlText(font.label)}</option>`,
+		)
+		.join("\n");
+}
+
 export async function readCodecutWorkspaceHtml() {
-	return readFileSync(
+	const html = readFileSync(
 		resolve(pluginRoot, "mcp", "codecut-workspace.html"),
 		"utf8",
 	);
+	if (!html.includes(captionFontOptionsToken)) {
+		throw new Error("CodeCut workspace font option token is missing.");
+	}
+	return html.replace(captionFontOptionsToken, renderCaptionFontOptionsHtml());
 }
 
 export function openCodecutWorkspace(input = {}) {
@@ -1353,7 +1409,7 @@ async function validateCodecutSetupIntent(intent) {
 		"caption-font",
 		"Caption font",
 		captionFontValues.includes(normalized.output.captionFont),
-		"Caption font must be auto, sans, serif, or handwriting.",
+		"Caption font must be auto or a CodeCut local font.",
 	);
 	pushCheck(
 		checks,
