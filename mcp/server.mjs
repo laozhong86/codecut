@@ -2254,7 +2254,15 @@ async function getDeferredSetupMediaSource(mediaSource, index, statImpl) {
 			reason: "missing_file_path",
 		};
 	}
-	if (url) return null;
+	if (mediaSource.kind === "url" && url) {
+		return {
+			index,
+			kind: "url",
+			url,
+			...(mediaSource.mimeType ? { mimeType: mediaSource.mimeType } : {}),
+			reason: "remote_url_requires_material_ingest",
+		};
+	}
 	if (mediaSource.kind !== "filePath") return null;
 	if (!isAbsolute(filePath)) {
 		return {
