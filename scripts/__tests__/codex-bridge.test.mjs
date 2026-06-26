@@ -63,6 +63,38 @@ async function createTestConfirmationToken(root, projectId = "project-123") {
 }
 
 describe("codex bridge CLI helpers", () => {
+	test("requires setup confirmation ids minted by the workspace widget", async () => {
+		const root = await mkdtemp(join(tmpdir(), "codecut-confirmation-"));
+		const pendingConfirmationId = createPendingCodecutConfirmation();
+
+		try {
+			await expect(
+				mintCodecutConfirmationToken({
+					root,
+					projectId: "project-123",
+					pendingConfirmationId: "ccpending_111111111111111111111111",
+				}),
+			).rejects.toThrow("pendingConfirmationId from open_codecut_workspace");
+
+			await expect(
+				mintCodecutConfirmationToken({
+					root,
+					projectId: "project-123",
+					pendingConfirmationId,
+				}),
+			).resolves.toMatch(/^ccconfirmed_[a-f0-9]{32}$/);
+			await expect(
+				mintCodecutConfirmationToken({
+					root,
+					projectId: "project-123",
+					pendingConfirmationId,
+				}),
+			).rejects.toThrow("pendingConfirmationId from open_codecut_workspace");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("prints usage when invoked through the executable entrypoint", async () => {
 		const process = Bun.spawn(["node", "scripts/codex-bridge.mjs", "help"], {
 			stdout: "pipe",

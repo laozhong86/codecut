@@ -8,6 +8,7 @@ const CONFIRMATION_FILE = "tokens.json";
 const CONFIRMATION_ROOT_ENV = "CODECUT_CONFIRMATION_ROOT";
 const pendingPrefix = "ccpending_";
 const confirmedPrefix = "ccconfirmed_";
+const activePendingConfirmationIds = new Set();
 
 function nowIso() {
 	return new Date().toISOString();
@@ -54,11 +55,20 @@ async function writeConfirmationState(root, state) {
 }
 
 export function createPendingCodecutConfirmation() {
-	return `${pendingPrefix}${randomBytes(12).toString("hex")}`;
+	const pendingConfirmationId = `${pendingPrefix}${randomBytes(12).toString("hex")}`;
+	activePendingConfirmationIds.add(pendingConfirmationId);
+	return pendingConfirmationId;
 }
 
 export function isPendingCodecutConfirmation(value) {
 	return typeof value === "string" && /^ccpending_[a-f0-9]{24}$/.test(value);
+}
+
+function consumePendingCodecutConfirmation(value) {
+	if (!isPendingCodecutConfirmation(value)) return false;
+	if (!activePendingConfirmationIds.has(value)) return false;
+	activePendingConfirmationIds.delete(value);
+	return true;
 }
 
 export async function mintCodecutConfirmationToken({
@@ -69,7 +79,7 @@ export async function mintCodecutConfirmationToken({
 	if (!projectId) {
 		throw new Error("projectId is required for CodeCut setup confirmation");
 	}
-	if (!isPendingCodecutConfirmation(pendingConfirmationId)) {
+	if (!consumePendingCodecutConfirmation(pendingConfirmationId)) {
 		throw new Error(
 			"pendingConfirmationId from open_codecut_workspace is required before setup submission",
 		);
