@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -342,6 +344,9 @@ describe("Codecut MCP server contract", () => {
 		expect(serverModule.CODECUT_WORKSPACE_RESOURCE_URI).toMatch(
 			/^ui:\/\/codecut\/.+\/workspace-[a-f0-9]{12}\.html$/,
 		);
+		expect(serverModule.CODECUT_WORKSPACE_LEGACY_RESOURCE_URI).toMatch(
+			/^ui:\/\/codecut\/.+\/workspace\.html$/,
+		);
 		expect(
 			serverModule.CODECUT_WORKSPACE_TOOLS.map((tool) => tool.name),
 		).toEqual([
@@ -622,6 +627,36 @@ describe("Codecut MCP server contract", () => {
 		);
 		expect(html).toContain(".create-project-cta");
 		expect(html).toContain("--cc-create-cta-background");
+	});
+
+	test("serves the workspace widget at the legacy resource URI", async () => {
+		const transport = new StdioClientTransport({
+			command: "node",
+			args: ["mcp/server.mjs"],
+			cwd: process.cwd(),
+			stderr: "pipe",
+		});
+		const client = new Client({
+			name: "codecut-legacy-workspace-resource-test",
+			version: "1.0.0",
+		});
+
+		await client.connect(transport);
+		try {
+			const result = await client.readResource({
+				uri: serverModule.CODECUT_WORKSPACE_LEGACY_RESOURCE_URI,
+			});
+
+			expect(result.contents?.[0]?.uri).toBe(
+				serverModule.CODECUT_WORKSPACE_LEGACY_RESOURCE_URI,
+			);
+			expect(result.contents?.[0]?.mimeType).toBe(
+				"text/html;profile=mcp-app",
+			);
+			expect(result.contents?.[0]?.text).toContain("WORKSPACE_I18N");
+		} finally {
+			await client.close();
+		}
 	});
 
 	test("workspace media source list keeps only a maximum-height scroll constraint", async () => {
