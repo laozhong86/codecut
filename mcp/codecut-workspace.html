@@ -641,6 +641,7 @@
             retryFollowUp: "Retry follow-up",
             openaiUnavailable: "window.openai is unavailable.",
             callToolUnavailable: "window.openai.callTool is unavailable.",
+            hostToolTimeout: "Host tool did not return a result.",
             setupUnavailable: "This setup widget is missing a confirmation id. Reopen CodeCut setup from Codex.",
           },
           "zh-CN": {
@@ -743,6 +744,7 @@
             retryFollowUp: "重试发送后续任务",
             openaiUnavailable: "window.openai 不可用。",
             callToolUnavailable: "window.openai.callTool 不可用。",
+            hostToolTimeout: "宿主工具没有返回结果。",
             setupUnavailable: "当前设置组件缺少确认 ID。请从 Codex 重新打开 CodeCut 设置。",
           },
         };
@@ -1373,14 +1375,41 @@
           };
         }
 
+        const hostToolTimeoutMs = 12000;
+
+        async function withTimeout(operation, timeoutMs, timeoutMessage) {
+          let timeoutId;
+          try {
+            return await Promise.race([
+              Promise.resolve().then(operation),
+              new Promise((_, reject) => {
+                timeoutId = setTimeout(
+                  () => reject(new Error(timeoutMessage)),
+                  timeoutMs,
+                );
+              }),
+            ]);
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        }
+
         async function callTool(name, args) {
           const api = window.openai;
           if (!api) throw new Error(t("openaiUnavailable"));
           if (typeof api.callTool === "function") {
-            return api.callTool(name, args);
+            return withTimeout(
+              () => api.callTool(name, args),
+              hostToolTimeoutMs,
+              t("hostToolTimeout"),
+            );
           }
           if (typeof api.callServerTool === "function") {
-            return api.callServerTool({ name, arguments: args });
+            return withTimeout(
+              () => api.callServerTool({ name, arguments: args }),
+              hostToolTimeoutMs,
+              t("hostToolTimeout"),
+            );
           }
           throw new Error(t("callToolUnavailable"));
         }
