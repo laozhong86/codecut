@@ -376,6 +376,7 @@ describe("Codecut MCP server contract", () => {
 		).toEqual([
 			"open_codecut_workspace",
 			"inspect_codecut_setup",
+			"recover_codecut_setup",
 			"submit_codecut_setup",
 		]);
 
@@ -385,8 +386,17 @@ describe("Codecut MCP server contract", () => {
 		const submitTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
 			(tool) => tool.name === "submit_codecut_setup",
 		);
+		const recoverTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
+			(tool) => tool.name === "recover_codecut_setup",
+		);
 		expect(openTool.readOnly).toBe(true);
 		expect(openTool.modelVisible).toBe(true);
+		expect(recoverTool.readOnly).toBe(true);
+		expect(recoverTool.modelVisible).toBe(true);
+		expect(recoverTool.meta).toBeUndefined();
+		expect(recoverTool.inputSchema.pendingConfirmationId.safeParse("").success).toBe(
+			false,
+		);
 		expect(submitTool?.inputSchema.mediaSources.safeParse([]).success).toBe(
 			true,
 		);
@@ -1760,6 +1770,69 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(result.structuredContent.continuePrompt).not.toContain(
 				"launch-cut-001",
+			);
+			const recovered = await serverModule.recoverCodecutSetup(
+				{
+					projectId: "launch-cut-canonical",
+					pendingConfirmationId,
+				},
+				{ confirmationRoot: directory },
+			);
+			expect(recovered.structuredContent).toMatchObject({
+				status: "recovered",
+				projectId: "launch-cut-canonical",
+				projectName: "Launch Cut",
+				pendingConfirmationId,
+				confirmationToken,
+				continuePrompt: result.structuredContent.continuePrompt,
+				editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+			});
+			expect(recovered.content[0].text).toContain(
+				"Recovered CodeCut project launch-cut-canonical",
+			);
+			const recoveredByRequestedId = await serverModule.recoverCodecutSetup(
+				{
+					projectId: "launch-cut-001",
+					pendingConfirmationId,
+				},
+				{ confirmationRoot: directory },
+			);
+			expect(recoveredByRequestedId.structuredContent).toMatchObject({
+				status: "recovered",
+				projectId: "launch-cut-canonical",
+				requestedProjectId: "launch-cut-001",
+				pendingConfirmationId,
+				confirmationToken,
+			});
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("reports a clear error when setup recovery has no confirmed result", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+
+		try {
+			const result = await serverModule.recoverCodecutSetup(
+				{
+					projectId: "missing-cut",
+					pendingConfirmationId: "ccpending_000000000000000000000000",
+				},
+				{ confirmationRoot: directory },
+			);
+
+			expect(result.isError).toBe(true);
+			expect(result.structuredContent).toMatchObject({
+				status: "recovery_unavailable",
+				nextAction: "open_codecut_workspace",
+				projectId: "missing-cut",
+				pendingConfirmationId: "ccpending_000000000000000000000000",
+			});
+			expect(result.structuredContent.error).toContain(
+				"No confirmed CodeCut setup result found",
 			);
 		} finally {
 			await rm(directory, {

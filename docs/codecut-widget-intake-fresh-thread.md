@@ -24,6 +24,10 @@ fallback questions.
 confirmation ID for the setup widget.
 Only `submit_codecut_setup` can exchange that pending ID for a confirmed setup
 token. Side-effect tools must not run until that confirmed token exists.
+If a confirmed project exists but the app follow-up message does not appear in
+the Codex thread, `recover_codecut_setup` is the recovery path. It requires the
+same `projectId` and `pendingConfirmationId` and returns the confirmed setup
+token that `submit_codecut_setup` already produced.
 
 For missing setup fields, the expected first Codecut action is the widget MCP
 call itself. Reading local skill files first is a failure because it means
