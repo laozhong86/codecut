@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { stat } from "node:fs/promises";
@@ -1128,9 +1129,20 @@ export const CODECUT_MCP_TOOLS = [
 	};
 });
 
-export const CODECUT_WORKSPACE_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace.html`;
 export const CODECUT_WORKSPACE_LEGACY_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace.html`;
 export const CODECUT_WORKSPACE_HASHED_RESOURCE_URI_TEMPLATE = `ui://codecut/${pluginVersion()}/workspace-{contentVersion}.html`;
+export const CODECUT_WORKSPACE_CONTENT_VERSION = codecutWorkspaceContentVersion();
+export const CODECUT_WORKSPACE_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace-${CODECUT_WORKSPACE_CONTENT_VERSION}.html`;
+
+function codecutWorkspaceContentVersion() {
+	const hash = createHash("sha256");
+	hash.update(readFileSync(fileURLToPath(import.meta.url), "utf8"));
+	hash.update("\n---CODECUT_WORKSPACE_HTML---\n");
+	hash.update(
+		readFileSync(resolve(pluginRoot, "mcp", "codecut-workspace.html"), "utf8"),
+	);
+	return hash.digest("hex").slice(0, 12);
+}
 
 const codecutWorkspaceResourceMeta = {
 	ui: {
@@ -1374,58 +1386,66 @@ function codecutMcpHostBridgeScript() {
     return mcpApp;
   }
 
-  api.callServerTool = async (request) => {
-    if (!request || typeof request !== "object") throw new Error("Missing tool request.");
-    if (!request.name) throw new Error("Missing tool name.");
-    const app = await getApp();
-    if (typeof app.callServerTool !== "function") {
-      throw new Error("Host bridge callServerTool is unavailable.");
-    }
-    const result = await withTimeout(app.callServerTool({
-      name: String(request.name),
-      arguments: request.arguments && typeof request.arguments === "object" ? request.arguments : {},
-    }), 12000, "Host did not return the server tool result.");
-    if (result?.isError) throw new Error("Host returned an error from the server tool.");
-    return result || {};
-  };
+  if (typeof api.callServerTool !== "function") {
+    api.callServerTool = async (request) => {
+      if (!request || typeof request !== "object") throw new Error("Missing tool request.");
+      if (!request.name) throw new Error("Missing tool name.");
+      const app = await getApp();
+      if (typeof app.callServerTool !== "function") {
+        throw new Error("Host bridge callServerTool is unavailable.");
+      }
+      const result = await withTimeout(app.callServerTool({
+        name: String(request.name),
+        arguments: request.arguments && typeof request.arguments === "object" ? request.arguments : {},
+      }), 12000, "Host did not return the server tool result.");
+      if (result?.isError) throw new Error("Host returned an error from the server tool.");
+      return result || {};
+    };
+  }
 
-  api.callTool = async (name, args) => {
-    return api.callServerTool({
-      name: String(name || ""),
-      arguments: args && typeof args === "object" ? args : {},
-    });
-  };
+  if (typeof api.callTool !== "function") {
+    api.callTool = async (name, args) => {
+      return api.callServerTool({
+        name: String(name || ""),
+        arguments: args && typeof args === "object" ? args : {},
+      });
+    };
+  }
 
-  api.sendFollowUpMessage = async (message) => {
-    const prompt = promptFromMessage(message);
-    if (!prompt) throw new Error("Missing follow-up prompt.");
-    const app = await getApp();
-    if (typeof app.sendMessage !== "function") {
-      throw new Error("Host bridge sendMessage is unavailable.");
-    }
-    const result = await withTimeout(app.sendMessage({
-      role: "user",
-      content: contentFromMessage(message, prompt),
-    }), 8000, "Host did not accept the follow-up message.");
-    if (result?.isError) throw new Error("Host rejected the follow-up message.");
-    return result || {};
-  };
+  if (typeof api.sendFollowUpMessage !== "function") {
+    api.sendFollowUpMessage = async (message) => {
+      const prompt = promptFromMessage(message);
+      if (!prompt) throw new Error("Missing follow-up prompt.");
+      const app = await getApp();
+      if (typeof app.sendMessage !== "function") {
+        throw new Error("Host bridge sendMessage is unavailable.");
+      }
+      const result = await withTimeout(app.sendMessage({
+        role: "user",
+        content: contentFromMessage(message, prompt),
+      }), 8000, "Host did not accept the follow-up message.");
+      if (result?.isError) throw new Error("Host rejected the follow-up message.");
+      return result || {};
+    };
+  }
 
-  api.openExternal = async (request) => {
-    const url = String(request?.href || request?.url || "");
-    if (!url) throw new Error("Missing URL.");
-    const app = await getApp();
-    if (typeof app.openLink !== "function") {
-      throw new Error("Host bridge openLink is unavailable.");
-    }
-    const result = await withTimeout(
-      app.openLink({ url }),
-      8000,
-      "Host did not open the URL.",
-    );
-    if (result?.isError) throw new Error("Host rejected the URL.");
-    return result || {};
-  };
+  if (typeof api.openExternal !== "function") {
+    api.openExternal = async (request) => {
+      const url = String(request?.href || request?.url || "");
+      if (!url) throw new Error("Missing URL.");
+      const app = await getApp();
+      if (typeof app.openLink !== "function") {
+        throw new Error("Host bridge openLink is unavailable.");
+      }
+      const result = await withTimeout(
+        app.openLink({ url }),
+        8000,
+        "Host did not open the URL.",
+      );
+      if (result?.isError) throw new Error("Host rejected the URL.");
+      return result || {};
+    };
+  }
 
   try {
     mcpApp = new apps.App(
@@ -3337,7 +3357,16 @@ export function createCodecutMcpServer() {
 		},
 	);
 
-	registerCodecutWorkspaceResource(server, CODECUT_WORKSPACE_RESOURCE_URI);
+	registerCodecutWorkspaceResource(
+		server,
+		"codecut_workspace",
+		CODECUT_WORKSPACE_RESOURCE_URI,
+	);
+	registerCodecutWorkspaceResource(
+		server,
+		"codecut_workspace_legacy",
+		CODECUT_WORKSPACE_LEGACY_RESOURCE_URI,
+	);
 	registerCodecutWorkspaceHashedResourceTemplate(server);
 
 	for (const tool of CODECUT_WORKSPACE_TOOLS) {
@@ -3383,9 +3412,9 @@ export function createCodecutMcpServer() {
 	return server;
 }
 
-function registerCodecutWorkspaceResource(server, resourceUri) {
+function registerCodecutWorkspaceResource(server, name, resourceUri) {
 	server.registerResource(
-		"codecut_workspace",
+		name,
 		resourceUri,
 		{
 			title: "CodeCut Workspace Setup",
