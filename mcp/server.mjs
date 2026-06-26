@@ -2,6 +2,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
@@ -21,6 +22,7 @@ import {
 } from "../scripts/codecut-confirmation-gate.mjs";
 
 const execFileAsync = promisify(execFile);
+const require = createRequire(import.meta.url);
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
@@ -29,6 +31,7 @@ const workspaceResourceMimeType = "text/html;profile=mcp-app";
 const codecutServiceStartCommand = "bun run dev:web";
 const defaultCodecutReadinessUrl = "http://127.0.0.1:4100/en/projects";
 const captionFontOptionsToken = "<!-- CODECUT_CAPTION_FONT_OPTIONS -->";
+let cachedCodecutMcpAppsGlobalScript = "";
 
 const projectIdSchema = z
 	.string()
@@ -1242,7 +1245,179 @@ export async function readCodecutWorkspaceHtml() {
 	if (!html.includes(captionFontOptionsToken)) {
 		throw new Error("CodeCut workspace font option token is missing.");
 	}
-	return html.replace(captionFontOptionsToken, renderCaptionFontOptionsHtml());
+	return injectCodecutMcpHostBridge(
+		html.replace(captionFontOptionsToken, renderCaptionFontOptionsHtml()),
+	);
+}
+
+function injectCodecutMcpHostBridge(html) {
+	const bridge = [
+		'<script id="codecutMcpAppsBundle">',
+		escapeInlineScript(codecutMcpAppsGlobalScript()),
+		"</script>",
+		'<script id="codecutMcpHostBridge">',
+		codecutMcpHostBridgeScript(),
+		"</script>",
+	].join("\n");
+
+	if (html.includes("</head>")) {
+		return html.replace("</head>", () => `${bridge}\n</head>`);
+	}
+	return `${bridge}\n${html}`;
+}
+
+function codecutMcpAppsGlobalScript() {
+	if (cachedCodecutMcpAppsGlobalScript) return cachedCodecutMcpAppsGlobalScript;
+
+	const source = readFileSync(
+		require.resolve("@modelcontextprotocol/ext-apps/app-with-deps"),
+		"utf8",
+	);
+	const exportStart = source.lastIndexOf("export{");
+	if (exportStart === -1) {
+		throw new Error("Could not find ext-apps browser export block.");
+	}
+	const exportBlock = source.slice(exportStart).match(/^export\{([^}]+)\};?\s*$/s);
+	if (!exportBlock) {
+		throw new Error("Could not parse ext-apps browser export block.");
+	}
+	const exportMap = parseExportMap(exportBlock[1]);
+	const appExport = exportMap.get("App");
+	if (!appExport) {
+		throw new Error("Missing ext-apps browser App export.");
+	}
+
+	cachedCodecutMcpAppsGlobalScript = [
+		source.slice(0, exportStart),
+		";globalThis.__CODECUT_MCP_APPS__={",
+		`${JSON.stringify("App")}:${appExport}`,
+		"};",
+	].join("");
+	return cachedCodecutMcpAppsGlobalScript;
+}
+
+function parseExportMap(body) {
+	const exportMap = new Map();
+	for (const rawEntry of body.split(",")) {
+		const entry = rawEntry.trim();
+		if (!entry) continue;
+		const parts = entry.split(/\s+as\s+/);
+		const local = parts[0]?.trim();
+		const exported = (parts[1] || parts[0])?.trim();
+		if (local && exported) exportMap.set(exported, local);
+	}
+	return exportMap;
+}
+
+function escapeInlineScript(source) {
+	return source
+		.replaceAll("</script", "<\\/script")
+		.replaceAll("</SCRIPT", "<\\/SCRIPT");
+}
+
+function codecutMcpHostBridgeScript() {
+	return `(() => {
+  "use strict";
+
+  const apps = globalThis.__CODECUT_MCP_APPS__;
+  if (!apps || typeof apps.App !== "function") return;
+
+  const api = window.openai || {};
+  window.openai = api;
+  let mcpApp = null;
+  let ready = null;
+
+  function promptFromMessage(message) {
+    if (typeof message === "string") return message;
+    if (message?.prompt) return String(message.prompt);
+    if (typeof message?.content === "string") return message.content;
+    return "";
+  }
+
+  function contentFromMessage(message, prompt) {
+    if (message && Array.isArray(message.content)) return message.content;
+    return [{ type: "text", text: prompt }];
+  }
+
+  function withTimeout(promise, ms, label) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(label)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  }
+
+  async function getApp() {
+    if (!ready) throw new Error("Host bridge is unavailable.");
+    await withTimeout(ready, 4000, "Host bridge did not become ready.");
+    if (!mcpApp) throw new Error("Host bridge is unavailable.");
+    return mcpApp;
+  }
+
+  api.callServerTool = async (request) => {
+    if (!request || typeof request !== "object") throw new Error("Missing tool request.");
+    if (!request.name) throw new Error("Missing tool name.");
+    const app = await getApp();
+    if (typeof app.callServerTool !== "function") {
+      throw new Error("Host bridge callServerTool is unavailable.");
+    }
+    const result = await withTimeout(app.callServerTool({
+      name: String(request.name),
+      arguments: request.arguments && typeof request.arguments === "object" ? request.arguments : {},
+    }), 12000, "Host did not return the server tool result.");
+    if (result?.isError) throw new Error("Host returned an error from the server tool.");
+    return result || {};
+  };
+
+  api.callTool = async (name, args) => {
+    return api.callServerTool({
+      name: String(name || ""),
+      arguments: args && typeof args === "object" ? args : {},
+    });
+  };
+
+  api.sendFollowUpMessage = async (message) => {
+    const prompt = promptFromMessage(message);
+    if (!prompt) throw new Error("Missing follow-up prompt.");
+    const app = await getApp();
+    if (typeof app.sendMessage !== "function") {
+      throw new Error("Host bridge sendMessage is unavailable.");
+    }
+    const result = await withTimeout(app.sendMessage({
+      role: "user",
+      content: contentFromMessage(message, prompt),
+    }), 8000, "Host did not accept the follow-up message.");
+    if (result?.isError) throw new Error("Host rejected the follow-up message.");
+    return result || {};
+  };
+
+  api.openExternal = async (request) => {
+    const url = String(request?.href || request?.url || "");
+    if (!url) throw new Error("Missing URL.");
+    const app = await getApp();
+    if (typeof app.openLink !== "function") {
+      throw new Error("Host bridge openLink is unavailable.");
+    }
+    const result = await withTimeout(
+      app.openLink({ url }),
+      8000,
+      "Host did not open the URL.",
+    );
+    if (result?.isError) throw new Error("Host rejected the URL.");
+    return result || {};
+  };
+
+  try {
+    mcpApp = new apps.App(
+      { name: "codecut", version: ${JSON.stringify(pluginVersion())} },
+      { availableDisplayModes: ["inline"] },
+      { autoResize: true },
+    );
+    ready = mcpApp.connect();
+  } catch (error) {
+    ready = Promise.reject(error);
+  }
+})();`;
 }
 
 export function openCodecutWorkspace(input = {}, { confirmationRoot } = {}) {

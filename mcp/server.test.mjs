@@ -67,6 +67,12 @@ function readStyleDeclarations(html, selector) {
 	return declarations;
 }
 
+function stripCodecutInjectedBridge(html) {
+	return html
+		.replace(/<script id="codecutMcpAppsBundle">[\s\S]*?<\/script>\n?/g, "")
+		.replace(/<script id="codecutMcpHostBridge">[\s\S]*?<\/script>\n?/g, "");
+}
+
 function evaluateWorkspaceRecommendedChoices(
 	html,
 	{ options, recommendedValues },
@@ -408,6 +414,10 @@ describe("Codecut MCP server contract", () => {
 		});
 
 		const html = await serverModule.readCodecutWorkspaceHtml();
+		const widgetHtml = stripCodecutInjectedBridge(html);
+		expect(html).toContain('id="codecutMcpAppsBundle"');
+		expect(html).toContain('id="codecutMcpHostBridge"');
+		expect(html).toContain("api.callServerTool");
 		for (const marker of [
 			"WORKSPACE_I18N",
 			"--cc-foreground",
@@ -611,10 +621,10 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain("localFilePath");
 		expect(html).not.toContain("httpsUrl");
 		expect(html).not.toContain("urlPlaceholder");
-		expect(html).not.toContain("mimeType");
+		expect(widgetHtml).not.toContain("mimeType");
 		expect(html).not.toContain('data-field="kind"');
 		expect(html).not.toContain('data-field="url"');
-		expect(html).not.toContain('data-field="mimeType"');
+		expect(widgetHtml).not.toContain('data-field="mimeType"');
 		expect(html).not.toContain('data-role="url"');
 		expect(html).not.toContain("updateMediaSourceRow");
 		expect(html).not.toContain("getFileDownloadUrl");
