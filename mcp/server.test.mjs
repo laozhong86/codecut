@@ -2032,6 +2032,87 @@ describe("Codecut MCP server contract", () => {
 		}
 	});
 
+	test("creates project without importing remote URL sources during setup", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const sourceUrl =
+			"https://www.tiktok.com/@ayusbangga2/video/7638536445577235732";
+		const pendingConfirmationId = serverModule.openCodecutWorkspace(
+			setupIntent({
+				mediaSources: [{ kind: "url", url: sourceUrl }],
+			}),
+			{ confirmationRoot: directory },
+		).structuredContent.pendingConfirmationId;
+		const calls = [];
+		const bridgeToolImpl = async (toolName, args) => {
+			calls.push({ toolName, args });
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "launch-cut-canonical",
+						name: "Launch Cut",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+					},
+				};
+			}
+			if (toolName === "get_project_info") {
+				return {
+					structuredContent: {
+						results: [{ success: true, data: { revision: 1 } }],
+					},
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+
+		try {
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({
+					pendingConfirmationId,
+					mediaSources: [{ kind: "url", url: sourceUrl }],
+				}),
+				{ bridgeToolImpl, confirmationRoot: directory },
+			);
+
+			expect(calls.map((call) => call.toolName)).toEqual([
+				"create_project",
+				"get_project_info",
+			]);
+			expect(result.structuredContent).toMatchObject({
+				status: "created",
+				projectId: "launch-cut-canonical",
+				importedMedia: [],
+				deferredMediaSources: [
+					{
+						index: 0,
+						kind: "url",
+						url: sourceUrl,
+						reason: "remote_url_requires_material_ingest",
+					},
+				],
+			});
+			expect(result.structuredContent.continuePrompt).toContain(sourceUrl);
+			const recovered = await serverModule.recoverCodecutSetup(
+				{
+					projectId: "launch-cut-canonical",
+					pendingConfirmationId,
+				},
+				{ confirmationRoot: directory },
+			);
+			expect(recovered.structuredContent).toMatchObject({
+				status: "recovered",
+				projectId: "launch-cut-canonical",
+				pendingConfirmationId,
+				continuePrompt: result.structuredContent.continuePrompt,
+			});
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
 	test("blocks setup submission without the pending confirmation id from the widget", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
 		const filePath = join(directory, "source.mp4");
