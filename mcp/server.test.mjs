@@ -73,6 +73,16 @@ function stripCodecutInjectedBridge(html) {
 		.replace(/<script id="codecutMcpHostBridge">[\s\S]*?<\/script>\n?/g, "");
 }
 
+function extractScriptContentById(html, id) {
+	const match = html.match(
+		new RegExp(`<script id="${id}">([\\s\\S]*?)<\\/script>`),
+	);
+	if (!match) {
+		throw new Error(`Missing script: ${id}`);
+	}
+	return match[1];
+}
+
 function evaluateWorkspaceRecommendedChoices(
 	html,
 	{ options, recommendedValues },
@@ -363,10 +373,13 @@ describe("Codecut MCP server contract", () => {
 
 	test("defines a stable workspace widget resource and tools", async () => {
 		expect(serverModule.CODECUT_WORKSPACE_RESOURCE_URI).toMatch(
-			/^ui:\/\/codecut\/.+\/workspace\.html$/,
+			/^ui:\/\/codecut\/.+\/workspace-[a-f0-9]{12}\.html$/,
 		);
 		expect(serverModule.CODECUT_WORKSPACE_LEGACY_RESOURCE_URI).toMatch(
 			/^ui:\/\/codecut\/.+\/workspace\.html$/,
+		);
+		expect(serverModule.CODECUT_WORKSPACE_RESOURCE_URI).not.toBe(
+			serverModule.CODECUT_WORKSPACE_LEGACY_RESOURCE_URI,
 		);
 		expect(serverModule.CODECUT_WORKSPACE_HASHED_RESOURCE_URI_TEMPLATE).toMatch(
 			/^ui:\/\/codecut\/.+\/workspace-\{contentVersion\}\.html$/,
@@ -866,6 +879,153 @@ describe("Codecut MCP server contract", () => {
 		expect(html).toContain(
 			"pendingConfirmationId: currentPendingConfirmationId",
 		);
+	});
+
+	test("workspace host bridge preserves native follow-up confirmation when available", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+		const bridgeScript = extractScriptContentById(
+			html,
+			"codecutMcpHostBridge",
+		);
+		const nativeSendFollowUpMessage = () => ({ status: "native" });
+		const context = {
+			Error,
+			Promise,
+			clearTimeout,
+			setTimeout,
+			window: {
+				openai: {
+					sendFollowUpMessage: nativeSendFollowUpMessage,
+				},
+			},
+		};
+		context.globalThis = context;
+		context.__CODECUT_MCP_APPS__ = {
+			App: class {
+				connect() {
+					return Promise.resolve();
+				}
+				sendMessage() {
+					throw new Error("Fallback sendMessage should not replace native follow-up.");
+				}
+			},
+		};
+
+		runInNewContext(bridgeScript, context);
+
+		expect(context.window.openai.sendFollowUpMessage).toBe(
+			nativeSendFollowUpMessage,
+		);
+	});
+
+	test("workspace host bridge preserves native server tool proxy when available", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+		const bridgeScript = extractScriptContentById(
+			html,
+			"codecutMcpHostBridge",
+		);
+		const nativeCallServerTool = () => ({ status: "native" });
+		const context = {
+			Error,
+			Promise,
+			clearTimeout,
+			setTimeout,
+			window: {
+				openai: {
+					callServerTool: nativeCallServerTool,
+				},
+			},
+		};
+		context.globalThis = context;
+		context.__CODECUT_MCP_APPS__ = {
+			App: class {
+				connect() {
+					return Promise.resolve();
+				}
+				callServerTool() {
+					throw new Error("Fallback callServerTool should not replace native proxy.");
+				}
+			},
+		};
+
+		runInNewContext(bridgeScript, context);
+
+		expect(context.window.openai.callServerTool).toBe(nativeCallServerTool);
+	});
+
+	test("workspace host bridge installs follow-up fallback only when native confirmation is missing", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+		const bridgeScript = extractScriptContentById(
+			html,
+			"codecutMcpHostBridge",
+		);
+		const sentMessages = [];
+		const context = {
+			Error,
+			Promise,
+			clearTimeout,
+			setTimeout,
+			window: {
+				openai: {},
+			},
+		};
+		context.globalThis = context;
+		context.__CODECUT_MCP_APPS__ = {
+			App: class {
+				connect() {
+					return Promise.resolve();
+				}
+				sendMessage(message) {
+					sentMessages.push(message);
+					return Promise.resolve({ status: "fallback" });
+				}
+			},
+		};
+
+		runInNewContext(bridgeScript, context);
+		await context.window.openai.sendFollowUpMessage({ prompt: "Continue now." });
+
+		expect(sentMessages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: "Continue now." }],
+			},
+		]);
+	});
+
+	test("workspace host bridge preserves native external opener when available", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+		const bridgeScript = extractScriptContentById(
+			html,
+			"codecutMcpHostBridge",
+		);
+		const nativeOpenExternal = () => ({ status: "native" });
+		const context = {
+			Error,
+			Promise,
+			clearTimeout,
+			setTimeout,
+			window: {
+				openai: {
+					openExternal: nativeOpenExternal,
+				},
+			},
+		};
+		context.globalThis = context;
+		context.__CODECUT_MCP_APPS__ = {
+			App: class {
+				connect() {
+					return Promise.resolve();
+				}
+				openLink() {
+					throw new Error("Fallback openExternal should not replace native opener.");
+				}
+			},
+		};
+
+		runInNewContext(bridgeScript, context);
+
+		expect(context.window.openai.openExternal).toBe(nativeOpenExternal);
 	});
 
 	test("workspace widget blocks the setup form without a pending confirmation id", async () => {
