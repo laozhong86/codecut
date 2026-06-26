@@ -1119,6 +1119,7 @@ function workspaceResourceContentVersion() {
 }
 
 export const CODECUT_WORKSPACE_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace-${workspaceResourceContentVersion()}.html`;
+export const CODECUT_WORKSPACE_LEGACY_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace.html`;
 
 const codecutWorkspaceResourceMeta = {
 	ui: {
@@ -3066,27 +3067,12 @@ export function createCodecutMcpServer() {
 		},
 	);
 
-	server.registerResource(
-		"codecut_workspace",
+	for (const resourceUri of [
 		CODECUT_WORKSPACE_RESOURCE_URI,
-		{
-			title: "CodeCut Workspace Setup",
-			description:
-				"Static MCP App widget for confirming CodeCut project setup before editing.",
-			mimeType: workspaceResourceMimeType,
-			_meta: codecutWorkspaceResourceMeta,
-		},
-		async () => ({
-			contents: [
-				{
-					uri: CODECUT_WORKSPACE_RESOURCE_URI,
-					mimeType: workspaceResourceMimeType,
-					text: await readCodecutWorkspaceHtml(),
-					_meta: codecutWorkspaceResourceMeta,
-				},
-			],
-		}),
-	);
+		CODECUT_WORKSPACE_LEGACY_RESOURCE_URI,
+	]) {
+		registerCodecutWorkspaceResource(server, resourceUri);
+	}
 
 	for (const tool of CODECUT_WORKSPACE_TOOLS) {
 		server.registerTool(
@@ -3129,6 +3115,30 @@ export function createCodecutMcpServer() {
 	}
 
 	return server;
+}
+
+function registerCodecutWorkspaceResource(server, resourceUri) {
+	server.registerResource(
+		"codecut_workspace",
+		resourceUri,
+		{
+			title: "CodeCut Workspace Setup",
+			description:
+				"Static MCP App widget for confirming CodeCut project setup before editing.",
+			mimeType: workspaceResourceMimeType,
+			_meta: codecutWorkspaceResourceMeta,
+		},
+		async () => ({
+			contents: [
+				{
+					uri: resourceUri,
+					mimeType: workspaceResourceMimeType,
+					text: await readCodecutWorkspaceHtml(),
+					_meta: codecutWorkspaceResourceMeta,
+				},
+			],
+		}),
+	);
 }
 
 export async function callCodecutWorkspaceTool(
