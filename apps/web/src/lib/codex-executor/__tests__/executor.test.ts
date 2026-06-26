@@ -44,6 +44,7 @@ import {
 	getExecutorProjectState,
 	getExecutorStatus,
 } from "../executor";
+import type { ConfirmedSetup } from "../setup-contract";
 
 const projectId = "project-1";
 
@@ -54,6 +55,7 @@ function envelope({
 	tool:
 		| "get_project_info"
 		| "update_project_settings"
+		| "update_project_preferences"
 		| "list_media_assets"
 		| "import_media_file"
 		| "set_project_cover"
@@ -129,6 +131,61 @@ function wordAsrContractFields() {
 			confidence: null,
 			warnings: [],
 		},
+	};
+}
+
+function confirmedSetupFixture({
+	captionLanguage = "auto",
+	captionFont = "auto",
+	captionSize = "medium",
+	captionStylePreset = "creator-clean",
+	exportFormat = "mp4",
+	exportQuality = "high",
+	includeAudio = true,
+}: {
+	captionLanguage?: string;
+	captionFont?: string;
+	captionSize?: "small" | "medium" | "large";
+	captionStylePreset?:
+		| "creator-clean"
+		| "short-form-bold"
+		| "black-bar"
+		| "talking-head-pop"
+		| "tutorial-clean"
+		| "documentary-soft"
+		| "product-punch"
+		| "lifestyle-warm"
+		| "cinematic-serif"
+		| "social-highlight"
+		| "comment-bubble"
+		| "minimal-reel";
+	exportFormat?: "mp4" | "webm";
+	exportQuality?: "low" | "medium" | "high" | "very_high";
+	includeAudio?: boolean;
+} = {}): ConfirmedSetup {
+	return {
+		version: 1,
+		confirmedAt: "2026-06-26T00:00:00.000Z",
+		source: "codecut_setup_confirmation",
+		timelinePreferences: {
+			aspectRatio: "9:16",
+			durationGoal: { mode: "auto" },
+			transitionPreference: "auto",
+			generateIntroCover: true,
+			requirements: "Create a clear short video.",
+		},
+		captionPreferences: {
+			language: captionLanguage,
+			font: captionFont,
+			size: captionSize,
+			stylePreset: captionStylePreset,
+		},
+		exportPreferences: {
+			format: exportFormat,
+			quality: exportQuality,
+			includeAudio,
+		},
+		changes: [],
 	};
 }
 
@@ -448,6 +505,273 @@ describe("codex executor", () => {
 					},
 				],
 			},
+		});
+	});
+
+	test("creates a project with confirmedSetup and reads it back from project info and snapshot", async () => {
+		const confirmedSetup = confirmedSetupFixture({
+			captionSize: "large",
+			captionStylePreset: "product-punch",
+			exportFormat: "mp4",
+			exportQuality: "high",
+		});
+		await createExecutorProject({
+			projectId,
+			name: "Confirmed setup cut",
+			confirmedSetup,
+		});
+
+		const infoResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_project_info", args: {} }),
+		});
+		const info = resultData<{ confirmedSetup: unknown }>(infoResult.results[0]);
+		const snapshot = await getExecutorProjectSnapshot({ projectId });
+
+		expect(info.confirmedSetup).toEqual(confirmedSetup);
+		expect(snapshot.confirmedSetup).toEqual(confirmedSetup);
+	});
+
+	test("add_captions reads caption preferences from confirmedSetup and writes scaled font size", async () => {
+		await seedDraftState({
+			confirmedSetup: confirmedSetupFixture({
+				captionLanguage: "zh",
+				captionSize: "large",
+				captionStylePreset: "product-punch",
+			}),
+			mediaAssets: [
+				{
+					id: "video-1",
+					name: "source.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 8,
+					width: 1080,
+					height: 1920,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/source.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Main",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Source",
+							mediaId: "video-1",
+							startTime: 0,
+							duration: 8,
+							trimStart: 0,
+							trimEnd: 8,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_captions",
+				args: { modelId: "whisper-tiny" },
+			}),
+			transcribeMediaRange: async ({ language }) => ({
+				text: "字幕合同字号验证",
+				segments: [{ text: "字幕合同字号验证", start: 0.5, end: 3.5 }],
+				language,
+				modelId: "whisper-tiny",
+				...asrContractFields(),
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+		const timeline = resultData<{
+			tracks: Array<{ elements: Array<Record<string, unknown>> }>;
+		}>(timelineResult.results[0]);
+		const caption = timeline.tracks
+			.flatMap((track) => track.elements)
+			.find((element) => element.type === "text");
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				captionStyle: { preset: "product-punch", position: "lower-safe" },
+			},
+		});
+		expect(caption).toMatchObject({
+			content: "字幕合同",
+			style: { fontSize: 6.9 },
+		});
+	});
+
+	test("add_captions rejects explicit caption style that conflicts with confirmedSetup", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Confirmed setup conflict",
+			confirmedSetup: confirmedSetupFixture({
+				captionStylePreset: "product-punch",
+			}),
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_captions",
+				args: {
+					language: "auto",
+					modelId: "whisper-tiny",
+					captionStyle: { preset: "creator-clean", position: "lower-safe" },
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: false,
+			message:
+				"captionStyle.preset conflicts with confirmedSetup.captionPreferences.stylePreset: expected product-punch.",
+		});
+	});
+
+	test("update_project_preferences rejects stale revisions", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Confirmed setup stale revision",
+			confirmedSetup: confirmedSetupFixture(),
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_project_preferences",
+				args: {
+					projectId,
+					baseRevision: 2,
+					confirmationToken: "ccconfirmed_test",
+					patch: {
+						captionPreferences: { size: "large" },
+					},
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: false,
+			message: "baseRevision is stale: expected 1, received 2.",
+		});
+	});
+
+	test("update_project_preferences updates existing caption elements and confirmedSetup", async () => {
+		await seedDraftState({
+			confirmedSetup: confirmedSetupFixture({
+				captionLanguage: "zh",
+				captionSize: "medium",
+				captionStylePreset: "product-punch",
+			}),
+			mediaAssets: [
+				{
+					id: "video-1",
+					name: "source.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 8,
+					width: 1080,
+					height: 1920,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/source.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Main",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Source",
+							mediaId: "video-1",
+							startTime: 0,
+							duration: 8,
+							trimStart: 0,
+							trimEnd: 8,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_captions",
+				args: { modelId: "whisper-tiny" },
+			}),
+			transcribeMediaRange: async ({ language }) => ({
+				text: "字幕偏好修改验证",
+				segments: [{ text: "字幕偏好修改验证", start: 0.5, end: 3.5 }],
+				language,
+				modelId: "whisper-tiny",
+				...asrContractFields(),
+			}),
+		});
+		const beforeUpdate = await getExecutorProjectState({ projectId });
+
+		const updateResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_project_preferences",
+				args: {
+					projectId,
+					baseRevision: beforeUpdate.revision,
+					confirmationToken: "ccconfirmed_test",
+					patch: {
+						captionPreferences: { size: "small" },
+					},
+					reason: "user_requested_smaller_captions",
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+		const timeline = resultData<{
+			tracks: Array<{ elements: Array<Record<string, unknown>> }>;
+		}>(timelineResult.results[0]);
+		const caption = timeline.tracks
+			.flatMap((track) => track.elements)
+			.find((element) => element.type === "text");
+
+		expect(updateResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				confirmedSetup: {
+					captionPreferences: { size: "small" },
+					changes: [
+						expect.objectContaining({
+							field: "captionPreferences.size",
+							oldValue: "medium",
+							newValue: "small",
+							reason: "user_requested_smaller_captions",
+						}),
+					],
+				},
+				requiresReplan: false,
+			},
+		});
+		expect(caption).toMatchObject({
+			content: "字幕偏好",
+			style: { fontSize: 5.4 },
 		});
 	});
 
@@ -826,9 +1150,11 @@ describe("codex executor", () => {
 	async function seedDraftState({
 		tracks,
 		mediaAssets = [],
+		confirmedSetup,
 	}: {
 		tracks: Array<Record<string, unknown>>;
 		mediaAssets?: Array<Record<string, unknown>>;
+		confirmedSetup?: ReturnType<typeof confirmedSetupFixture>;
 	}) {
 		await createExecutorProject({ projectId, name: "Verifiable edit loop" });
 		const now = "2026-06-22T00:00:00.000Z";
@@ -852,6 +1178,7 @@ describe("codex executor", () => {
 					mediaAssets,
 					derivedAssets: [],
 					tracks,
+					...(confirmedSetup ? { confirmedSetup } : {}),
 				},
 				null,
 				2,
@@ -3821,6 +4148,10 @@ describe("codex executor", () => {
 				args: {
 					language: "zh",
 					modelId: "whisper-base",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
 				},
 			}),
 			transcribeMediaRange: async ({ range, language, modelId }) => {
@@ -4075,6 +4406,10 @@ describe("codex executor", () => {
 				args: {
 					language: "en",
 					modelId: "whisper-base",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
 				},
 			}),
 			transcribeMediaRange: async ({ language, modelId }) => ({
@@ -4170,6 +4505,10 @@ describe("codex executor", () => {
 				args: {
 					language: "en",
 					modelId: "whisper-small",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
 				},
 			}),
 			transcribeMediaRange: async ({ mediaAsset, range }) => {
@@ -4270,6 +4609,10 @@ describe("codex executor", () => {
 				args: {
 					language: "en",
 					modelId: "whisper-small",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
 				},
 			}),
 			transcribeMediaRange: async () => ({
@@ -4405,6 +4748,10 @@ describe("codex executor", () => {
 				args: {
 					language: "zh",
 					modelId: "whisper-base",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
 				},
 			}),
 			transcribeMediaRange: async ({ range, language, modelId }) => {
@@ -6170,6 +6517,10 @@ describe("codex executor", () => {
 				args: {
 					language: "auto",
 					modelId: "whisper-tiny",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
 				},
 			}),
 		});
@@ -7454,6 +7805,10 @@ describe("codex executor", () => {
 				args: {
 					language: "auto",
 					modelId: "whisper-tiny",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
 				},
 			}),
 			transcribeMediaRange: async () => ({
@@ -7528,6 +7883,10 @@ describe("codex executor", () => {
 				args: {
 					language: "auto",
 					modelId: "whisper-tiny",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
 				},
 			}),
 			transcribeMediaRange: async ({ mediaAsset, range }) => {

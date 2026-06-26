@@ -70,6 +70,7 @@ const confirmationGatedCommands = new Set([
 const confirmationGatedSendTools = new Set([
 	"set_project_cover",
 	"clear_project_cover",
+	"update_project_preferences",
 	"add_texts",
 	"add_captions",
 	"insert_clips",
@@ -89,7 +90,7 @@ const confirmationGatedSendTools = new Set([
 function usage() {
 	return [
 		"Usage:",
-		"  node scripts/codex-bridge.mjs create-project --project-id <id> --name <name> --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs create-project --project-id <id> --name <name> --confirmation-token <token> [--confirmed-setup-json-file <file>]",
 		"  node scripts/codex-bridge.mjs plugin:freshness",
 		"  node scripts/codex-bridge.mjs doctor-install --project-id <id>",
 		"  node scripts/codex-bridge.mjs doctor --project-id <id>",
@@ -2056,15 +2057,6 @@ export function buildExportEnvelope({
 	outputFile,
 	overwrite,
 }) {
-	if (!format) {
-		throw new Error("--format is required");
-	}
-	if (!quality) {
-		throw new Error("--quality is required");
-	}
-	if (typeof includeAudio !== "boolean") {
-		throw new Error("--include-audio is required");
-	}
 	if (!outputFile) {
 		throw new Error("--output-file is required");
 	}
@@ -2079,9 +2071,9 @@ export function buildExportEnvelope({
 		projectId,
 		tool: "export_project",
 		args: {
-			format,
-			quality,
-			includeAudio,
+			...(format === undefined ? {} : { format }),
+			...(quality === undefined ? {} : { quality }),
+			...(includeAudio === undefined ? {} : { includeAudio }),
 			outputFile,
 			overwrite,
 		},
@@ -2206,9 +2198,6 @@ export function buildInspectVideoRangeEnvelope({
 }
 
 export function buildPostCutCaptionsEnvelope({ projectId, language, modelId }) {
-	if (!language) {
-		throw new Error("--language is required");
-	}
 	if (!modelId) {
 		throw new Error("--model-id is required");
 	}
@@ -2217,7 +2206,7 @@ export function buildPostCutCaptionsEnvelope({ projectId, language, modelId }) {
 		projectId,
 		tool: "build_post_cut_captions",
 		args: {
-			language,
+			...(language === undefined ? {} : { language }),
 			modelId,
 		},
 	});
@@ -2825,7 +2814,13 @@ async function postAgentBridgeEnvelopeAndWait({ config, envelope, fetchImpl }) {
 	return waitForAgentBridgeResult({ config, id: item.id, fetchImpl });
 }
 
-async function postExecutorProject({ config, projectId, name, fetchImpl }) {
+async function postExecutorProject({
+	config,
+	projectId,
+	name,
+	confirmedSetup,
+	fetchImpl,
+}) {
 	const response = await fetchImpl(
 		`${config.baseUrl}/api/codex-executor/projects`,
 		{
@@ -2834,7 +2829,11 @@ async function postExecutorProject({ config, projectId, name, fetchImpl }) {
 				Authorization: `Bearer ${config.token}`,
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({ projectId, name }),
+			body: JSON.stringify({
+				projectId,
+				name,
+				...(confirmedSetup === undefined ? {} : { confirmedSetup }),
+			}),
 		},
 	);
 	const text = await response.text();
@@ -2989,6 +2988,12 @@ export async function runCli({
 			config,
 			projectId: flags.projectId,
 			name: flags.name,
+			confirmedSetup: flags.confirmedSetupJsonFile
+				? await readJsonObjectFile({
+						filePath: flags.confirmedSetupJsonFile,
+						flagName: "confirmed-setup-json-file",
+					})
+				: undefined,
 			fetchImpl,
 		});
 		stdout(JSON.stringify(result, null, 2));
@@ -3126,7 +3131,10 @@ export async function runCli({
 			projectId: flags.projectId,
 			format: flags.format,
 			quality: flags.quality,
-			includeAudio: parseBoolean(flags.includeAudio, "includeAudio"),
+			includeAudio:
+				flags.includeAudio === undefined
+					? undefined
+					: parseBoolean(flags.includeAudio, "includeAudio"),
 			outputFile: flags.outputFile,
 			overwrite: parseBoolean(flags.overwrite, "overwrite"),
 		});

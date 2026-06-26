@@ -3277,6 +3277,36 @@ try {
 		);
 		const requests = [];
 		const output = [];
+		const confirmedSetup = {
+			version: 1,
+			confirmedAt: "2026-06-26T00:00:00.000Z",
+			source: "codecut_setup_confirmation",
+			timelinePreferences: {
+				aspectRatio: "9:16",
+				durationGoal: { mode: "auto" },
+				transitionPreference: "auto",
+				generateIntroCover: true,
+				requirements: "Create a clear short video.",
+			},
+			captionPreferences: {
+				language: "auto",
+				font: "auto",
+				size: "large",
+				stylePreset: "product-punch",
+			},
+			exportPreferences: {
+				format: "mp4",
+				quality: "high",
+				includeAudio: true,
+			},
+			changes: [],
+		};
+		const confirmedSetupJsonFile = join(cwdRoot, "confirmed-setup.json");
+		await writeFile(
+			confirmedSetupJsonFile,
+			JSON.stringify(confirmedSetup),
+			"utf8",
+		);
 		const confirmationToken = await createTestConfirmationToken(
 			confirmationRoot,
 			"project-123",
@@ -3290,6 +3320,8 @@ try {
 				"Codex cut",
 				"--confirmation-token",
 				confirmationToken,
+				"--confirmed-setup-json-file",
+				confirmedSetupJsonFile,
 			],
 			cwd: cwdRoot,
 			env: {
@@ -3320,6 +3352,7 @@ try {
 			expect(JSON.parse(requests[0].init.body)).toEqual({
 				projectId: "project-123",
 				name: "Codex cut",
+				confirmedSetup,
 			});
 			expect(JSON.parse(output[0])).toMatchObject({
 				projectId: "project-123",

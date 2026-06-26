@@ -625,7 +625,12 @@ describe("Codecut plugin startup guidance", () => {
 				"scripts",
 				"download_tiktok.py",
 			),
-		]);
+		], {
+			encoding: "utf8",
+			timeout: 20_000,
+		});
+		expect(pySyntaxCheck.error).toBeUndefined();
+		expect(pySyntaxCheck.stderr).toBe("");
 		expect(pySyntaxCheck.status).toBe(0);
 
 		for (const content of [
@@ -638,7 +643,7 @@ describe("Codecut plugin startup guidance", () => {
 		}
 
 		expect(startupPrompt).not.toContain("$codecut-tiktok-downloader");
-	});
+	}, 30_000);
 
 	test("requires visual preflight for horizontal sources converted to vertical shorts", async () => {
 		const skillRoot = join(pluginRoot, "skills", "codecut");
