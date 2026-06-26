@@ -1,4 +1,5 @@
 import { randomBytes, createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -54,9 +55,49 @@ async function writeConfirmationState(root, state) {
 	await writeFile(filePath, JSON.stringify(state, null, 2), "utf8");
 }
 
-export function createPendingCodecutConfirmation() {
+function readConfirmationStateSync(root) {
+	try {
+		return JSON.parse(readFileSync(confirmationFilePath(root), "utf8"));
+	} catch (error) {
+		if (error?.code === "ENOENT") {
+			return { version: 1, confirmations: [] };
+		}
+		throw error;
+	}
+}
+
+function writeConfirmationStateSync(root, state) {
+	const filePath = confirmationFilePath(root);
+	mkdirSync(join(resolveCodecutConfirmationRoot({ root }), CONFIRMATION_DIRECTORY), {
+		recursive: true,
+	});
+	writeFileSync(filePath, JSON.stringify(state, null, 2), "utf8");
+}
+
+function persistPendingCodecutConfirmation({ root, pendingConfirmationId }) {
+	const state = readConfirmationStateSync(root);
+	const pendingConfirmations = Array.isArray(state.pendingConfirmations)
+		? state.pendingConfirmations
+		: [];
+	state.pendingConfirmations = [
+		...pendingConfirmations.filter(
+			(record) => record?.pendingConfirmationId !== pendingConfirmationId,
+		),
+		{
+			pendingConfirmationId,
+			createdAt: nowIso(),
+		},
+	];
+	writeConfirmationStateSync(root, state);
+}
+
+export function createPendingCodecutConfirmation({ root } = {}) {
 	const pendingConfirmationId = `${pendingPrefix}${randomBytes(12).toString("hex")}`;
-	activePendingConfirmationIds.add(pendingConfirmationId);
+	if (root) {
+		persistPendingCodecutConfirmation({ root, pendingConfirmationId });
+	} else {
+		activePendingConfirmationIds.add(pendingConfirmationId);
+	}
 	return pendingConfirmationId;
 }
 
@@ -64,11 +105,23 @@ export function isPendingCodecutConfirmation(value) {
 	return typeof value === "string" && /^ccpending_[a-f0-9]{24}$/.test(value);
 }
 
-function consumePendingCodecutConfirmation(value) {
+async function consumePendingCodecutConfirmation(value, { root } = {}) {
 	if (!isPendingCodecutConfirmation(value)) return false;
-	if (!activePendingConfirmationIds.has(value)) return false;
-	activePendingConfirmationIds.delete(value);
-	return true;
+	const consumedFromMemory = activePendingConfirmationIds.delete(value);
+	const state = await readConfirmationState(root);
+	const pendingConfirmations = Array.isArray(state.pendingConfirmations)
+		? state.pendingConfirmations
+		: [];
+	const remainingPendingConfirmations = pendingConfirmations.filter(
+		(record) => record?.pendingConfirmationId !== value,
+	);
+	const consumedFromDisk =
+		remainingPendingConfirmations.length !== pendingConfirmations.length;
+	if (consumedFromDisk) {
+		state.pendingConfirmations = remainingPendingConfirmations;
+		await writeConfirmationState(root, state);
+	}
+	return consumedFromMemory || consumedFromDisk;
 }
 
 export async function mintCodecutConfirmationToken({
@@ -79,7 +132,9 @@ export async function mintCodecutConfirmationToken({
 	if (!projectId) {
 		throw new Error("projectId is required for CodeCut setup confirmation");
 	}
-	if (!consumePendingCodecutConfirmation(pendingConfirmationId)) {
+	if (
+		!(await consumePendingCodecutConfirmation(pendingConfirmationId, { root }))
+	) {
 		throw new Error(
 			"pendingConfirmationId from open_codecut_workspace is required before setup submission",
 		);
