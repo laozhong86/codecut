@@ -135,6 +135,7 @@ function wordAsrContractFields() {
 }
 
 function confirmedSetupFixture({
+	taskType = "edit_execution",
 	captionLanguage = "auto",
 	captionFont = "auto",
 	captionSize = "medium",
@@ -143,6 +144,11 @@ function confirmedSetupFixture({
 	exportQuality = "high",
 	includeAudio = true,
 }: {
+	taskType?:
+		| "template_draft"
+		| "template_import"
+		| "template_apply_sample"
+		| "edit_execution";
 	captionLanguage?: string;
 	captionFont?: string;
 	captionSize?: "small" | "medium" | "large";
@@ -165,6 +171,7 @@ function confirmedSetupFixture({
 } = {}): ConfirmedSetup {
 	return {
 		version: 1,
+		taskType,
 		confirmedAt: "2026-06-26T00:00:00.000Z",
 		source: "codecut_setup_confirmation",
 		timelinePreferences: {
@@ -510,6 +517,7 @@ describe("codex executor", () => {
 
 	test("creates a project with confirmedSetup and reads it back from project info and snapshot", async () => {
 		const confirmedSetup = confirmedSetupFixture({
+			taskType: "template_draft",
 			captionSize: "large",
 			captionStylePreset: "product-punch",
 			exportFormat: "mp4",
@@ -528,6 +536,9 @@ describe("codex executor", () => {
 		const snapshot = await getExecutorProjectSnapshot({ projectId });
 
 		expect(info.confirmedSetup).toEqual(confirmedSetup);
+		expect(
+			(info.confirmedSetup as ConfirmedSetup).taskType,
+		).toBe("template_draft");
 		expect(snapshot.confirmedSetup).toEqual(confirmedSetup);
 	});
 

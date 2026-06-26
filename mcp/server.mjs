@@ -6,7 +6,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -164,12 +164,47 @@ const transitionTypeValues = [
 	"zoom-out",
 ];
 const transitionPreferenceValues = ["auto", "none", ...transitionTypeValues];
+const workspaceTaskTypeValues = [
+	"template_draft",
+	"template_import",
+	"template_apply_sample",
+	"edit_execution",
+];
+const workspaceMediaMimeTypePrefixes = ["video/", "audio/", "image/"];
+const workspaceMediaFileExtensions = new Set([
+	".3g2",
+	".3gp",
+	".aac",
+	".aif",
+	".aiff",
+	".avif",
+	".avi",
+	".flac",
+	".gif",
+	".heic",
+	".heif",
+	".jpeg",
+	".jpg",
+	".m4a",
+	".m4v",
+	".mkv",
+	".mov",
+	".mp3",
+	".mp4",
+	".ogg",
+	".ogv",
+	".png",
+	".wav",
+	".webm",
+	".webp",
+]);
 const transitionTypeSchema = z.enum(transitionTypeValues);
 const captionFontSchema = z.enum(captionFontValues);
 const captionSizeSchema = z.enum(captionSizeValues);
 const captionStylePresetSchema = z.enum(captionStylePresetValues);
 const captionMotionPresetSchema = z.enum(captionMotionPresetValues);
 const transitionPreferenceSchema = z.enum(transitionPreferenceValues);
+const workspaceTaskTypeSchema = z.enum(workspaceTaskTypeValues);
 const durationGoalModeSchema = z.enum(["auto", "custom"]);
 const durationGoalRangeSecondsSchema = z
 	.object({
@@ -177,6 +212,12 @@ const durationGoalRangeSecondsSchema = z
 		maxSeconds: z.number().positive(),
 	})
 	.strict();
+const workspaceMediaMimeTypeSchema = z
+	.string()
+	.trim()
+	.refine((value) => isWorkspaceMediaMimeType(value), {
+		message: "Media source MIME type must be video/*, audio/*, or image/*.",
+	});
 
 const workspaceMediaSourceSchema = z
 	.object({
@@ -184,7 +225,7 @@ const workspaceMediaSourceSchema = z
 		filePath: z.string().trim().optional(),
 		directoryPath: z.string().trim().optional(),
 		url: z.string().trim().optional(),
-		mimeType: z.string().trim().optional(),
+		mimeType: workspaceMediaMimeTypeSchema.optional(),
 	})
 	.strict();
 const workspaceMediaSourcesSchema = z.array(workspaceMediaSourceSchema);
@@ -243,6 +284,7 @@ const workspaceIntentInputSchema = {
 	pendingConfirmationId: z.string().trim().optional(),
 	projectId: z.string().trim(),
 	projectName: z.string().trim(),
+	taskType: workspaceTaskTypeSchema,
 	mediaSource: workspaceMediaSourceSchema.optional(),
 	mediaSources: workspaceMediaSourcesSchema.optional(),
 	targetAspectRatio: targetAspectRatioSchema,
@@ -266,6 +308,7 @@ const workspaceRecoverInputSchema = {
 
 const workspaceOpenInputSchema = {
 	projectName: z.string().trim().optional(),
+	taskType: workspaceTaskTypeSchema.optional(),
 	requirements: z.string().optional(),
 	filePath: z.string().trim().optional(),
 	mediaPath: z.string().trim().optional(),
@@ -1244,7 +1287,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. Keep durationGoalMode auto unless the user explicitly asked for one of the fixed duration ranges. Keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. Keep durationGoalMode auto unless the user explicitly asked for one of the fixed duration ranges. Keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1273,7 +1316,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "submit_codecut_setup",
 		title: "Submit CodeCut Workspace Setup",
 		description:
-			"Create a CodeCut executor project, import the confirmed media source, and return editor context.",
+			"Create a CodeCut executor project, import the confirmed media source, persist the confirmed taskType setup contract, and return editor context.",
 		inputSchema: workspaceIntentInputSchema,
 		readOnly: false,
 		modelVisible: false,
@@ -1638,6 +1681,13 @@ async function validateCodecutSetupIntent(intent) {
 	);
 	pushCheck(
 		checks,
+		"task-type",
+		"Task type",
+		workspaceTaskTypeValues.includes(normalized.taskType),
+		"Task type must be template_draft, template_import, template_apply_sample, or edit_execution. Reopen the CodeCut workspace from a fresh session.",
+	);
+	pushCheck(
+		checks,
 		"requirements",
 		"Requirements",
 		normalized.requirements.length > 0,
@@ -1904,6 +1954,7 @@ export async function submitCodecutSetup(
 function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 	return {
 		version: 1,
+		taskType: normalized.taskType,
 		confirmedAt: new Date().toISOString(),
 		source: "codecut_setup_confirmation",
 		timelinePreferences: {
@@ -1994,6 +2045,13 @@ function buildWorkspaceIntentDefaults(input = {}) {
 			String(input.projectId || "").trim() ||
 			buildWorkspaceProjectSlug(projectName || "codecut-project"),
 		projectName,
+		taskType: resolveWorkspaceTaskTypeDefault({
+			...input,
+			projectName,
+			requirements,
+			requirementOptions,
+			recommendedRequirementOptions,
+		}),
 		mediaSource: mediaSources[0],
 		mediaSources,
 		targetAspectRatio: input.targetAspectRatio || "9:16",
@@ -2112,6 +2170,40 @@ function normalizeWorkspaceOptionList(options, fallback) {
 	];
 }
 
+function resolveWorkspaceTaskTypeDefault(input = {}) {
+	const explicitTaskType = String(input.taskType || "").trim();
+	if (workspaceTaskTypeValues.includes(explicitTaskType)) {
+		return explicitTaskType;
+	}
+	return inferWorkspaceTaskType(input);
+}
+
+function inferWorkspaceTaskType(input = {}) {
+	const text = [
+		input.projectName,
+		input.requirements,
+		...(Array.isArray(input.requirementOptions) ? input.requirementOptions : []),
+		...(Array.isArray(input.recommendedRequirementOptions)
+			? input.recommendedRequirementOptions
+			: []),
+	]
+		.map((value) => String(value || "").trim())
+		.filter(Boolean)
+		.join("\n")
+		.toLowerCase();
+	if (
+		/创建[^。\n]*模板/.test(text) ||
+		/剪辑模板/.test(text) ||
+		/文案结构模板/.test(text) ||
+		/复刻[^。\n]*模板/.test(text) ||
+		/\blearn\s+(?:this\s+)?(?:editing\s+)?style\b/.test(text) ||
+		/\bmake\s+a\s+template\b/.test(text)
+	) {
+		return "template_draft";
+	}
+	return "edit_execution";
+}
+
 function defaultWorkspaceProjectName(uiLanguage) {
 	return uiLanguage === "zh-CN" ? "CodeCut 项目" : "CodeCut Project";
 }
@@ -2204,6 +2296,7 @@ function normalizeWorkspaceIntent(intent) {
 				: String(intent.pendingConfirmationId).trim(),
 		projectId: String(intent.projectId || "").trim(),
 		projectName: String(intent.projectName || "").trim(),
+		taskType: String(intent.taskType || "").trim(),
 		mediaSource: mediaSources[0],
 		mediaSources,
 		targetAspectRatio: String(intent.targetAspectRatio || ""),
@@ -2269,6 +2362,46 @@ function normalizeWorkspaceMediaSource(mediaSource = {}) {
 	};
 }
 
+function isWorkspaceMediaMimeType(value) {
+	const normalized = String(value || "")
+		.trim()
+		.toLowerCase();
+	if (!normalized) return true;
+	return workspaceMediaMimeTypePrefixes.some((prefix) =>
+		normalized.startsWith(prefix),
+	);
+}
+
+function getWorkspaceMediaExtension(value, { isUrl = false } = {}) {
+	const rawValue = String(value || "").trim();
+	if (!rawValue) return "";
+	if (isUrl) {
+		try {
+			return extname(new URL(rawValue).pathname).toLowerCase();
+		} catch {
+			return "";
+		}
+	}
+	return extname(rawValue).toLowerCase();
+}
+
+function validateWorkspaceMediaFileType({ mimeType, sourcePath, isUrl = false }) {
+	if (!isWorkspaceMediaMimeType(mimeType)) {
+		return {
+			ok: false,
+			message: "Media source MIME type must be video/*, audio/*, or image/*.",
+		};
+	}
+	const extension = getWorkspaceMediaExtension(sourcePath, { isUrl });
+	if (extension && !workspaceMediaFileExtensions.has(extension)) {
+		return {
+			ok: false,
+			message: "Media source file must be a video, audio, or image file.",
+		};
+	}
+	return { ok: true };
+}
+
 function validateWorkspaceMediaSources(mediaSources) {
 	if (!Array.isArray(mediaSources) || mediaSources.length < 1) {
 		return { ok: true };
@@ -2304,7 +2437,10 @@ function validateWorkspaceMediaSource(mediaSource) {
 		if (mediaSource.kind !== "filePath") {
 			return { ok: false, message: "File path source must use kind filePath." };
 		}
-		return { ok: true };
+		return validateWorkspaceMediaFileType({
+			mimeType: mediaSource.mimeType,
+			sourcePath: mediaSource.filePath,
+		});
 	}
 	if (hasDirectoryPath) {
 		if (mediaSource.kind !== "directoryPath") {
@@ -2323,7 +2459,11 @@ function validateWorkspaceMediaSource(mediaSource) {
 		if (parsed.protocol !== "https:") {
 			return { ok: false, message: "Media URL must use https." };
 		}
-		return { ok: true };
+		return validateWorkspaceMediaFileType({
+			mimeType: mediaSource.mimeType,
+			sourcePath: mediaSource.url,
+			isUrl: true,
+		});
 	} catch {
 		return { ok: false, message: "Media URL must be valid." };
 	}
@@ -2514,6 +2654,31 @@ function buildContinuePrompt({
 	importedMedia,
 	deferredMediaSources,
 }) {
+	if (intent.taskType === "template_draft") {
+		return [
+			`Use $codecut-reference-template to derive a reusable template draft for project "${projectName}" (${projectId}).`,
+			`This confirmed taskType is template_draft. Do not generate voice or media. Do not apply timeline plans. Do not mutate the timeline. Do not export.`,
+			`Read project and media evidence only as needed for template derivation. Call get_project_info with projectId "${projectId}" and list_media_assets with projectId "${projectId}" before drafting.`,
+			`Create these draft artifacts: reference-analysis.md, local-template-script.json, and template-fields.md.`,
+			`Stop after presenting those draft artifacts and wait for the user to confirm whether to import the template into the system template library.`,
+			`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
+			`Deferred media sources: ${JSON.stringify(deferredMediaSources)}.`,
+			`Confirmed intent: ${JSON.stringify(intent)}.`,
+		].join("\n");
+	}
+
+	if (intent.taskType === "template_import") {
+		return [
+			`Use $codecut-reference-template to import the confirmed template draft for project "${projectName}" (${projectId}).`,
+			`This confirmed taskType is template_import. Only import the user-confirmed local-template-script.json into the system template library.`,
+			`Use --confirmation-token ${confirmationToken} only for the template library mutation command.`,
+			`Do not generate voice or media. Do not apply timeline plans. Do not mutate the timeline. Do not export.`,
+			`If the user-confirmed local-template-script.json path is missing, stop and ask for that exact file path.`,
+			`Use the confirmed setup intent as context. Project revision: ${revision}. Editor URL: ${editorUrl}.`,
+			`Confirmed intent: ${JSON.stringify(intent)}.`,
+		].join("\n");
+	}
+
 	return [
 		`Use $codecut to continue the real CodeCut editing chain for project "${projectName}" (${projectId}).`,
 		`Use --confirmation-token ${confirmationToken} for any CodeCut side-effect command that creates projects, imports media, initializes workspaces, adds assets, generates media, mutates timelines, or exports files.`,

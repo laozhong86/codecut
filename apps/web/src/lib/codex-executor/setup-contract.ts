@@ -97,6 +97,13 @@ const ExportPreferencesSchema = z
 	})
 	.strict();
 
+export const ConfirmedSetupTaskTypeSchema = z.enum([
+	"template_draft",
+	"template_import",
+	"template_apply_sample",
+	"edit_execution",
+]);
+
 const ConfirmedSetupChangeSchema = z
 	.object({
 		changedAt: z.string().trim().min(1),
@@ -110,6 +117,7 @@ const ConfirmedSetupChangeSchema = z
 export const ConfirmedSetupSchema = z
 	.object({
 		version: z.literal(1),
+		taskType: ConfirmedSetupTaskTypeSchema,
 		confirmedAt: z.string().trim().min(1),
 		source: z.literal("codecut_setup_confirmation"),
 		timelinePreferences: TimelinePreferencesSchema,

@@ -49,6 +49,7 @@ function confirmedSetupBody(
 ) {
 	return {
 		version: 1,
+		taskType: "edit_execution",
 		confirmedAt: "2026-06-26T00:00:00.000Z",
 		source: "codecut_setup_confirmation",
 		timelinePreferences: {
@@ -208,6 +209,31 @@ describe("codex executor API routes", () => {
 				body: {
 					projectId: "project-invalid-setup",
 					name: "Invalid setup",
+					confirmedSetup: invalidConfirmedSetup,
+				},
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: "Invalid executor project body.",
+		});
+	});
+
+	test("rejects invalid confirmedSetup task type", async () => {
+		const invalidConfirmedSetup = {
+			...confirmedSetupBody("large"),
+			taskType: "three_video_template",
+		};
+
+		const response = await postProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					projectId: "project-invalid-task-type",
+					name: "Invalid task type",
 					confirmedSetup: invalidConfirmedSetup,
 				},
 			}),
