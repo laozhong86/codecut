@@ -1631,6 +1631,7 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		input.recommendedRequirementOptions,
 		[],
 	);
+	const hasExplicitRequirementOptions = input.requirementOptions !== undefined;
 	const defaults = {
 		projectId:
 			String(input.projectId || "").trim() ||
@@ -1665,7 +1666,7 @@ function buildWorkspaceIntentDefaults(input = {}) {
 	};
 	if (recommendedRequirementOptions.length) {
 		defaults.recommendedRequirementOptions = recommendedRequirementOptions;
-	} else if (!input.requirements && !input.requirementOptions) {
+	} else if (!hasExplicitRequirementOptions) {
 		defaults.recommendedRequirementOptions = requirementOptions;
 	}
 	const durationGoalRangeSeconds = normalizeDurationGoalRangeSeconds(

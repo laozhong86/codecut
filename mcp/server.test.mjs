@@ -873,6 +873,24 @@ describe("Codecut MCP server contract", () => {
 		expect(result).toEqual([]);
 	});
 
+	test("workspace defaults select fallback requirement options when only requirements are provided", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+		const workspace = serverModule.openCodecutWorkspace({
+			locale: "zh-CN",
+			projectName: "验证资源别名二次",
+			requirements:
+				"只验证 setup 小窗能加载，不创建项目，不导入素材，不运行 shell，不写文件。",
+		});
+		const defaults = workspace.structuredContent.intentDefaults;
+
+		const result = evaluateWorkspaceRecommendedChoices(html, {
+			options: defaults.requirementOptions,
+			recommendedValues: defaults.recommendedRequirementOptions || [],
+		});
+
+		expect(result).toEqual(defaults.requirementOptions);
+	});
+
 	test("opens the workspace with structured defaults and widget metadata", () => {
 		const result = serverModule.openCodecutWorkspace({
 			projectName: "Creator Launch",
