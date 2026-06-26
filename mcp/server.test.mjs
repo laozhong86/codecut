@@ -86,6 +86,21 @@ function evaluateWorkspaceRecommendedChoices(
 	return context.result;
 }
 
+function evaluateWorkspaceErrorMessage(html, { value, fallback }) {
+	const start = html.indexOf("function formatErrorMessage");
+	const end = html.indexOf("function renderBlocked", start);
+	if (start === -1 || end === -1) {
+		throw new Error("Missing workspace error formatting function");
+	}
+	const context = { value, fallback, result: null };
+	runInNewContext(
+		`${html.slice(start, end)}
+		result = formatErrorMessage(value, fallback);`,
+		context,
+	);
+	return context.result;
+}
+
 describe("Codecut MCP server contract", () => {
 	test("exposes only the stable Codecut editing primitives", () => {
 		expect(CODECUT_MCP_TOOLS.map((tool) => tool.name)).toEqual([
@@ -852,6 +867,23 @@ describe("Codecut MCP server contract", () => {
 		expect(result).toEqual(["新增字幕避开已有标题和字幕区域"]);
 	});
 
+	test("workspace widget formats object errors without object placeholders", async () => {
+		const html = await serverModule.readCodecutWorkspaceHtml();
+		const result = evaluateWorkspaceErrorMessage(html, {
+			value: {
+				code: "confirmation_required",
+				message:
+					"pendingConfirmationId from open_codecut_workspace is required before setup submission.",
+			},
+			fallback: "CodeCut setup failed.",
+		});
+
+		expect(result).toBe(
+			"pendingConfirmationId from open_codecut_workspace is required before setup submission.",
+		);
+		expect(result).not.toContain("[object Object]");
+	});
+
 	test("workspace widget choice logic leaves options unselected without explicit recommendations", async () => {
 		const html = await serverModule.readCodecutWorkspaceHtml();
 		const workspace = serverModule.openCodecutWorkspace({
@@ -1408,6 +1440,88 @@ describe("Codecut MCP server contract", () => {
 					ok: true,
 				});
 			}
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("workspace tool persists pending confirmation for later setup submission", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const env = {
+			...process.env,
+			CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+			CODECUT_CONFIRMATION_ROOT: directory,
+		};
+		const calls = [];
+		const bridgeToolImpl = async (toolName, args) => {
+			calls.push({ toolName, args });
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "launch-cut-canonical",
+						name: "Launch Cut",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+					},
+				};
+			}
+			if (toolName === "get_project_info") {
+				return {
+					structuredContent: {
+						results: [{ success: true, data: { revision: 1 } }],
+					},
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+
+		try {
+			const opened = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_workspace",
+				setupIntent({ mediaSources: [{ kind: "filePath", filePath: "" }] }),
+				{
+					env,
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+			const pendingConfirmationId =
+				opened.structuredContent.pendingConfirmationId;
+			const persistedState = JSON.parse(
+				await readFile(
+					join(directory, ".codecut-confirmations", "tokens.json"),
+					"utf8",
+				),
+			);
+			expect(persistedState.pendingConfirmations).toContainEqual(
+				expect.objectContaining({ pendingConfirmationId }),
+			);
+
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({
+					pendingConfirmationId,
+					mediaSources: [{ kind: "filePath", filePath: "" }],
+				}),
+				{
+					bridgeToolImpl,
+					confirmationRoot: directory,
+				},
+			);
+
+			expect(calls.map((call) => call.toolName)).toEqual([
+				"create_project",
+				"get_project_info",
+			]);
+			expect(result.structuredContent).toMatchObject({
+				status: "created",
+				projectId: "launch-cut-canonical",
+				importedMedia: [],
+				deferredMediaSources: [
+					{ index: 0, kind: "filePath", reason: "missing_file_path" },
+				],
+			});
 		} finally {
 			await rm(directory, {
 				recursive: true,

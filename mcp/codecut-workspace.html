@@ -1430,6 +1430,20 @@
           return checks.childElementCount ? checks : null;
         }
 
+        function formatErrorMessage(value, fallback) {
+          if (value === undefined || value === null || value === "") return fallback;
+          if (value instanceof Error) return value.message || fallback;
+          if (typeof value === "string") return value || fallback;
+          if (typeof value === "object") {
+            const nested = value.message ?? value.error ?? value.detail ?? value.description;
+            if (nested !== undefined && nested !== value) {
+              return formatErrorMessage(nested, fallback);
+            }
+            return JSON.stringify(value);
+          }
+          return String(value);
+        }
+
         function renderBlocked(payload) {
           const blockedPayload = payload || {};
           fields.result.classList.remove("hidden");
@@ -1439,7 +1453,10 @@
           title.textContent = t("blocked");
           const message = document.createElement("p");
           message.className = "muted";
-          message.textContent = blockedPayload.error || blockedPayload.message || t("setupBlocked");
+          message.textContent = formatErrorMessage(
+            blockedPayload.error ?? blockedPayload.message,
+            t("setupBlocked"),
+          );
           fields.result.append(title, message);
           const checks = renderChecks(blockedPayload);
           if (checks) fields.result.appendChild(checks);

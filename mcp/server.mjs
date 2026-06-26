@@ -15,6 +15,7 @@ import { z } from "zod";
 import {
 	createPendingCodecutConfirmation,
 	mintCodecutConfirmationToken,
+	resolveCodecutConfirmationRoot,
 } from "../scripts/codecut-confirmation-gate.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -1248,10 +1249,12 @@ export async function readCodecutWorkspaceHtml() {
 	return html.replace(captionFontOptionsToken, renderCaptionFontOptionsHtml());
 }
 
-export function openCodecutWorkspace(input = {}) {
+export function openCodecutWorkspace(input = {}, { confirmationRoot } = {}) {
 	assertNoLegacyWorkspaceOpenFields(input);
 	const intentDefaults = buildWorkspaceIntentDefaults(input);
-	const pendingConfirmationId = createPendingCodecutConfirmation();
+	const pendingConfirmationId = createPendingCodecutConfirmation({
+		root: confirmationRoot,
+	});
 	return {
 		content: [
 			{
@@ -1474,11 +1477,21 @@ export async function submitCodecutSetup(
 				"pendingConfirmationId from open_codecut_workspace is required before setup submission.",
 		});
 	}
-	const confirmationToken = await mintCodecutConfirmationToken({
-		root: confirmationRoot,
-		projectId: normalized.projectId,
-		pendingConfirmationId: normalized.pendingConfirmationId,
-	});
+	let confirmationToken;
+	try {
+		confirmationToken = await mintCodecutConfirmationToken({
+			root: confirmationRoot,
+			projectId: normalized.projectId,
+			pendingConfirmationId: normalized.pendingConfirmationId,
+		});
+	} catch (error) {
+		return buildSetupErrorResult({
+			status: "confirmation_required",
+			nextAction: "open_codecut_workspace",
+			intent: normalized,
+			error: extractErrorMessage(error),
+		});
+	}
 	const createdResult = await bridgeToolImpl("create_project", {
 		projectId: normalized.projectId,
 		name: normalized.projectName,
@@ -2081,13 +2094,29 @@ function extractImportedMedia(content) {
 }
 
 function extractErrorMessage(result) {
-	return String(
-		result?.structuredContent?.error ||
-			result?.structuredContent?.message ||
-			result?.content?.[0]?.text ||
-			result?.error ||
-			"CodeCut setup failed.",
+	return formatErrorValue(
+		result?.structuredContent?.error ??
+			result?.structuredContent?.message ??
+			result?.content?.[0]?.text ??
+			result?.error ??
+			result?.message,
+		"CodeCut setup failed.",
 	);
+}
+
+function formatErrorValue(value, fallback) {
+	if (value === undefined || value === null || value === "") return fallback;
+	if (value instanceof Error) return value.message || fallback;
+	if (typeof value === "string") return value || fallback;
+	if (typeof value === "object") {
+		const nested =
+			value.message ?? value.error ?? value.detail ?? value.description;
+		if (nested !== undefined && nested !== value) {
+			return formatErrorValue(nested, fallback);
+		}
+		return JSON.stringify(value);
+	}
+	return String(value);
 }
 
 function buildImportMediaArgs(intent) {
@@ -3147,10 +3176,11 @@ export async function callCodecutWorkspaceTool(
 	input,
 	{ cwd = pluginRoot, env = process.env, fetchImpl = fetch } = {},
 ) {
+	const confirmationRoot = resolveCodecutConfirmationRoot({ env });
 	if (toolName === "open_codecut_workspace") {
 		const blocked = await assertCodecutServiceReady({ cwd, env, fetchImpl });
 		if (blocked) return blocked;
-		return openCodecutWorkspace(input);
+		return openCodecutWorkspace(input, { confirmationRoot });
 	}
 	if (toolName === "inspect_codecut_setup") {
 		const structuredContent = await inspectCodecutSetup(input);
@@ -3168,7 +3198,7 @@ export async function callCodecutWorkspaceTool(
 		};
 	}
 	if (toolName === "submit_codecut_setup") {
-		return submitCodecutSetup(input);
+		return submitCodecutSetup(input, { confirmationRoot });
 	}
 	throw new Error(`Unsupported CodeCut workspace tool: ${toolName}`);
 }

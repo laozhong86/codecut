@@ -95,6 +95,49 @@ describe("codex bridge CLI helpers", () => {
 		}
 	});
 
+	test("accepts workspace pending confirmations submitted by a later process", async () => {
+		const root = await mkdtemp(join(tmpdir(), "codecut-confirmation-"));
+		const pendingConfirmationId = createPendingCodecutConfirmation({ root });
+		const helper = `
+import { mintCodecutConfirmationToken } from ${JSON.stringify(new URL("../codecut-confirmation-gate.mjs", import.meta.url).href)};
+
+try {
+	const token = await mintCodecutConfirmationToken({
+		root: process.env.CODECUT_TEST_CONFIRMATION_ROOT,
+		projectId: "project-123",
+		pendingConfirmationId: process.env.CODECUT_TEST_PENDING_CONFIRMATION_ID,
+	});
+	console.log(token);
+} catch (error) {
+	console.error(error instanceof Error ? error.message : String(error));
+	process.exit(1);
+}
+		`;
+
+		try {
+			const child = Bun.spawn(["node", "--input-type=module", "--eval", helper], {
+				env: {
+					...process.env,
+					CODECUT_TEST_CONFIRMATION_ROOT: root,
+					CODECUT_TEST_PENDING_CONFIRMATION_ID: pendingConfirmationId,
+				},
+				stdout: "pipe",
+				stderr: "pipe",
+			});
+			const [stdout, stderr, exitCode] = await Promise.all([
+				new Response(child.stdout).text(),
+				new Response(child.stderr).text(),
+				child.exited,
+			]);
+
+			expect(stderr).toBe("");
+			expect(exitCode).toBe(0);
+			expect(stdout.trim()).toMatch(/^ccconfirmed_[a-f0-9]{32}$/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("prints usage when invoked through the executable entrypoint", async () => {
 		const process = Bun.spawn(["node", "scripts/codex-bridge.mjs", "help"], {
 			stdout: "pipe",
