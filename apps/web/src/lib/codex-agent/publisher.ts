@@ -25,8 +25,8 @@ export async function publishGeneratedImage({
 	outputName?: string;
 }): Promise<PublishedGeneratedImage> {
 	const [rootRealPath, imageRealPath] = await Promise.all([
-		realpath(generatedRoot),
-		realpath(imagePath),
+		realpath(/* turbopackIgnore: true */ generatedRoot),
+		realpath(/* turbopackIgnore: true */ imagePath),
 	]);
 	const relativePath = relative(rootRealPath, imageRealPath);
 
@@ -38,7 +38,7 @@ export async function publishGeneratedImage({
 		throw new Error(`${basename(imageRealPath)} must be a PNG file`);
 	}
 
-	const header = await readFile(imageRealPath);
+	const header = await readFile(/* turbopackIgnore: true */ imageRealPath);
 	if (!header.subarray(0, pngSignature.length).equals(pngSignature)) {
 		throw new Error(`${basename(imageRealPath)} must have a PNG signature`);
 	}
@@ -47,8 +47,11 @@ export async function publishGeneratedImage({
 	const outputDir = join(publicDir, "generated/codex");
 	const outputPath = join(outputDir, safeOutputName);
 
-	await mkdir(outputDir, { recursive: true });
-	await copyFile(imageRealPath, outputPath);
+	await mkdir(/* turbopackIgnore: true */ outputDir, { recursive: true });
+	await copyFile(
+		/* turbopackIgnore: true */ imageRealPath,
+		/* turbopackIgnore: true */ outputPath,
+	);
 
 	return {
 		type: "image",
