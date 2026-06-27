@@ -1,0 +1,51 @@
+name: codecut-cover-generation
+version: 1
+type: functional
+primary_dimension: functional
+
+intent:
+  one_line: Create source-backed CodeCut project covers without adding image generation to runtime or changing video duration.
+  target_user: Codex preparing cover prompts, generated cover image imports, and project cover readback for CodeCut projects.
+  success_looks_like:
+    - Cover prompts are grounded in selected video evidence frames.
+    - Platform dimensions are marked as official, secondary, or current-check-required.
+    - Generated images are imported as image assets before set_project_cover.
+    - Project cover readback proves cover metadata and unchanged timeline duration.
+
+known_failure_modes:
+  - mode: Project cover is represented as EditPlan introCover.
+    severity: high
+    example: The agent adds a 1.2s image to the timeline when the user asked for a poster.
+  - mode: Image generation is hidden inside Codecut runtime.
+    severity: high
+    example: Runtime code calls an image model instead of Codex using an external image generation capability.
+  - mode: Weak frame evidence creates a generic cover.
+    severity: medium
+    example: The prompt uses a random first frame instead of an emotional, atmospheric, or proof-rich frame.
+
+style_constraints:
+  must_have:
+    - Cover work stays outside timeline duration.
+    - Evidence frames and platform source quality are recorded.
+    - Runtime gaps are reported instead of silently downgraded.
+  must_not_have:
+    - Magic default platform ratios.
+    - Silent fallback from project cover to intro cover.
+    - Runtime image generation.
+
+arena_config:
+  noise_band: 0.15
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-cover-generation/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-cover-generation/retrospective.jsonl
+  log_entry_note: Record platform, archetype, evidence frame timestamps, generated image import result, cover readback, and user corrections. Do not fabricate usage data.
+
+cold_start_mode: false

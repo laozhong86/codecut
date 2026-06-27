@@ -36,8 +36,8 @@ repair timeline state.
 ## Outputs
 
 - Selected route: source acquisition, requirement intake, material ingest,
-  reference-template, workflow recipe, executor apply, inspection, or
-  implementation work.
+  reference-template, cover generation, workflow recipe, executor apply,
+  inspection, or implementation work.
 - A stage handoff statement using `Stage`, `Status`, `Proof`, `Next`, and
   `Risk` when reporting progress or blockers.
 - No timeline, workspace, template, or export mutation.
@@ -87,7 +87,8 @@ Use this skill as a map, not as the execution manual.
 | Situation | Read first | Load detail when | Stop before continuing | Required readback |
 | --- | --- | --- | --- | --- |
 | Need to classify the request or explain stages | `references/workflow-stage-contract.md` | A handoff, blocker, or user-facing status needs stage ownership | No loadable owner is available or routing would choose a side-effect stage by guess | None; router does not mutate state |
-| Need executor commands, readback, export, captions, cover, visual QA, or plugin freshness proof | `references/execution-contract.md` | The task will mutate timeline state, verify export, or report completion | Required proof is missing or current executor/tool surface cannot produce it | `get_timeline_state` after timeline mutation; export proof after MP4/still export |
+| Need executor commands, readback, export, captions, visual QA, or plugin freshness proof | `references/execution-contract.md` | The task will mutate timeline state, verify export, or report completion | Required proof is missing or current executor/tool surface cannot produce it | `get_timeline_state` after timeline mutation; export proof after MP4/still export |
+| Need a project cover, short-video poster, thumbnail prompt, cover evidence-frame selection, generated cover image import, or cover readback | `../codecut-cover-generation/SKILL.md` | The user asks for a project cover/poster/thumbnail or setup requested a generated cover outside the video timeline | Platform ratio, visual evidence, image generation capability, imported image dimensions, or cover readback is missing | `get_project_info` or `get_timeline_state` proves project `cover`; duration is unchanged |
 | Need source facts, transcript, clip decisions, or an EditPlan | `references/editing-intent-router.md` plus one workflow recipe | Material evidence or planning strategy affects the edit | Required evidence is missing or unsupported by current Codecut contracts | Use executor readback only after `codecut-executor-apply` runs |
 | Need implementation work inside Codecut code | `../../docs/codex-driven-editing.md` and focused tests | A runtime/tool/schema change is required | Source/cache/session proof is stale for plugin-facing changes | Run the touched contract test and plugin freshness check |
 
@@ -120,6 +121,7 @@ export.
 | TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally for an editing job | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition only after widget submission and requirement intake pass. |
 | Source needs download, file copy, workspace init, or ffprobe audit for a creative editing job | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest` only after widget submission and requirement intake pass. |
 | Finished/reference videos, "learn this editing style", "复刻模板", reference-derived template draft/import/application | **REQUIRED SUB-SKILL:** Use `codecut-reference-template` before EditPlan authoring or executor mutation. |
+| Project cover, short-video poster, thumbnail, cover prompt, cover image, cover evidence-frame selection, or setting an independent project cover outside the timeline | **REQUIRED SUB-SKILL:** Use `codecut-cover-generation` before image generation, media import, or `set_project_cover`. |
 | Transcript, VideoContext, candidate clips, decision ledger, or EditPlan authoring | Read `references/editing-intent-router.md` and exactly one workflow recipe. |
 | Executor service, env, doctor, import, apply, caption build, timeline readback | **REQUIRED SUB-SKILL:** Use `codecut-executor-apply`. |
 | Existing project inspection or export readiness | Read `references/workflow-recipes/timeline-inspection.md`. |
@@ -209,6 +211,7 @@ Read only what matches the task:
 - Tool contract: `references/codecut-agent-tool-contract.md`
 - EditPlan schema: `references/edit-plan-schema.md`
 - Project and intro cover prompt guide: `references/intro-cover-prompts.md`
+- Project cover generation: `../codecut-cover-generation/SKILL.md`
 - Long-to-short: `references/workflow-recipes/long-to-short.md`
 - Talking-head polish: `references/workflow-recipes/talking-head-polish.md`
 - Subtitle pass: `references/workflow-recipes/subtitle-pass.md`
