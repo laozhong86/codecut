@@ -19,9 +19,9 @@ This recipe is executable only through the implemented `NarratedRemixPlan v1` pa
 ## Required Context
 
 - Visual media assets: video assets with known duration, or image assets with known dimensions and explicit planned beat durations.
-- Existing narration audio asset with known duration. A RunningHub-generated
-  voice asset is valid only after it has already been saved as a media asset
-  with sanitized `spokenScript` metadata.
+- Existing narration audio asset with known duration. A RunningHub-generated or
+  Volcengine-generated voice asset is valid only after it has already been saved
+  as a media asset with sanitized `spokenScript` metadata.
 - Caption text and timing authored by Codex from the available transcript or user-provided script.
 - Current bridge support for `apply_narrated_remix_plan`.
 

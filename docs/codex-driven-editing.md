@@ -146,6 +146,16 @@ export CODECUT_AGENT_BRIDGE_INTERVAL_MS="1000"
 
 Do not pass the token as a CLI flag. Do not commit local tokens or `.env` files. `apps/web/.env.local` is the supported local env file for this repo; do not infer bridge settings from the shell alone or from a repository-root `.env.local`. `CODECUT_AGENT_BRIDGE_*` is the only supported prefix; missing keys must fail fast instead of being inferred from legacy names.
 
+Provider-backed Volcengine OpenSpeech tools read the API key only from:
+
+```bash
+export VOLCENGINE_OPEN_SPEECH_API_KEY="<volcengine open speech api key>"
+```
+
+Do not pass the key as a CLI flag, MCP argument, request body field, or checked-in
+document. Volcengine ASR and subtitle tools accept only public `https://` audio
+or video URLs; local files are not uploaded implicitly.
+
 ## Local Web Service Gate
 
 Before calling `open_codecut_workspace`, asking the user to open a setup
@@ -1006,8 +1016,9 @@ that case the response also includes a `voiceConsistency` summary without raw
 script text or protected term values. Codex must copy those captions into the
 final EditPlan and apply that plan.
 
-RunningHub voice generation can bind protected terms to the generated audio
-asset:
+RunningHub and Volcengine voice generation can bind protected terms to the
+generated audio asset. Volcengine uses an existing `voice_type`; it does not
+train a new voice:
 
 ```bash
 node scripts/codex-bridge.mjs generate-runninghub-voice-design \
@@ -1017,10 +1028,23 @@ node scripts/codex-bridge.mjs generate-runninghub-voice-design \
   --protected-term "$2.34"
 ```
 
+```bash
+node scripts/codex-bridge.mjs generate-volcengine-cloned-voice \
+  --project-id <id> \
+  --voice-type "<existing voice_type>" \
+  --text "approved narration script" \
+  --protected-term "BrandName"
+```
+
 The generated media asset stores sanitized `spokenScript` metadata with the
 provider and task id. `list_media_assets`, referenced media readback, and
 quality reports expose counts and provider identifiers, not the raw script or
 protected term text.
+
+Volcengine public URL transcript and subtitle generation are exposed as MCP
+tools `transcribe_volcengine_url` and `build_volcengine_url_captions`. They
+return transcript/caption data only and do not mutate the timeline; use
+`add_texts`, `add_captions`, or an EditPlan path to place returned captions.
 
 Apply a local EditPlan file:
 

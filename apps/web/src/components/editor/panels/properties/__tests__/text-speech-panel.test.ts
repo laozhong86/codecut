@@ -20,4 +20,13 @@ describe("TextSpeechPanel", () => {
 		expect(source).toContain("action:");
 		expect(source).toContain('label: i18next.t("Go to Settings")');
 	});
+
+	test("shows a Volcengine voice_type input for cloned voice synthesis", async () => {
+		const source = await readFile(sourcePath, "utf8");
+
+		expect(source).toContain('"volcengine-voice-clone"');
+		expect(source).toContain("volcengineVoiceType");
+		expect(source).toContain("Volcengine voice_type");
+		expect(source).toContain("Volcengine voice_type is required");
+	});
 });

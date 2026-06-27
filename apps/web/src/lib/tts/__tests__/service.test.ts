@@ -200,4 +200,81 @@ describe("TTS service", () => {
 		});
 		expect(insertedElements).toHaveLength(1);
 	});
+
+	test("uses Volcengine voice_type synthesis and stores provider metadata", async () => {
+		const { generateAndInsertSpeech } = await import("../service");
+		const addedAssets: Array<{
+			projectId: string;
+			asset: Omit<MediaAsset, "id">;
+		}> = [];
+		const insertedElements: unknown[] = [];
+		globalThis.fetch = (async (
+			input: RequestInfo | URL,
+			init?: RequestInit,
+		) => {
+			expect(String(input)).toBe("/api/tts/generate");
+			const body = JSON.parse(String(init?.body));
+			expect(body).toMatchObject({
+				provider: "volcengine-voice-clone",
+				voiceType: "voice-clone-1",
+				text: "欢迎来到今天的节目。",
+			});
+			return new Response(
+				JSON.stringify({
+					audio: Buffer.from("volc-mp3").toString("base64"),
+					provider: "volcengine-voice-clone",
+					providerTaskId: "volc-req-1",
+				}),
+				{ headers: { "Content-Type": "application/json" } },
+			);
+		}) as unknown as typeof fetch;
+		globalThis.AudioContext = class {
+			async decodeAudioData() {
+				return { duration: 6.5 } as AudioBuffer;
+			}
+		} as unknown as typeof AudioContext;
+		URL.createObjectURL = () => "blob:volcengine-voice";
+		const editor = {
+			project: {
+				getActive: () => ({ metadata: { id: "project-123" } }),
+			},
+			media: {
+				addMediaAsset: async ({
+					projectId,
+					asset,
+				}: {
+					projectId: string;
+					asset: Omit<MediaAsset, "id">;
+				}) => {
+					addedAssets.push({ projectId, asset });
+					return "tts-media-1";
+				},
+			},
+			timeline: {
+				getTracks: () => [],
+				addTrack: () => "audio-track-1",
+				insertElement: ({ element }: { element: unknown }) => {
+					insertedElements.push(element);
+				},
+			},
+		} as unknown as EditorCore;
+
+		const result = await generateAndInsertSpeech({
+			editor,
+			text: "欢迎来到今天的节目。",
+			startTime: 0,
+			voice: "volcengine-voice-clone",
+			volcengineVoiceType: "voice-clone-1",
+		});
+
+		expect(result).toEqual({ duration: 6.5 });
+		expect(addedAssets[0].asset.spokenScript).toEqual({
+			source: "tts",
+			text: "欢迎来到今天的节目。",
+			captions: ["欢迎来到今天的节目。"],
+			provider: "volcengine-voice-clone",
+			providerTaskId: "volc-req-1",
+		});
+		expect(insertedElements).toHaveLength(1);
+	});
 });

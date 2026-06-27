@@ -52,6 +52,7 @@ const confirmationGatedCommands = new Set([
 	"generate-digital-human",
 	"generate-runninghub-voice-design",
 	"generate-runninghub-voice-clone",
+	"generate-volcengine-cloned-voice",
 	"apply-plan",
 	"apply-narrated-remix-plan",
 	"add-texts",
@@ -128,6 +129,7 @@ function usage() {
 		'  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text "..." --motion-prompt "..." --width 1280 --height 720 --fps 25 --confirmation-token <token>',
 		'  node scripts/codex-bridge.mjs generate-runninghub-voice-design --project-id <id> --text "..." --emotion-prompt "..." --confirmation-token <token>',
 		'  node scripts/codex-bridge.mjs generate-runninghub-voice-clone --project-id <id> --audio-path /absolute/path/reference.wav --text "..." --confirmation-token <token>',
+		'  node scripts/codex-bridge.mjs generate-volcengine-cloned-voice --project-id <id> --voice-type <voice_type> --text "..." --confirmation-token <token>',
 		"  node scripts/codex-bridge.mjs validate-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs preview-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false> --confirmation-token <token>",
@@ -2383,6 +2385,32 @@ export function buildRunningHubVoiceCloneEnvelope({
 	});
 }
 
+export function buildVolcengineClonedVoiceEnvelope({
+	projectId,
+	voiceType,
+	text,
+	protectedTerms,
+}) {
+	if (!voiceType?.trim()) {
+		throw new Error("--voice-type is required");
+	}
+	if (!text?.trim()) {
+		throw new Error("--text is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "generate_volcengine_cloned_voice",
+		args: {
+			voiceType: voiceType.trim(),
+			text: text.trim(),
+			...(protectedTerms === undefined
+				? {}
+				: { protectedTerms: normalizeProtectedTerms({ protectedTerms }) }),
+		},
+	});
+}
+
 async function readJsonObjectFile({ filePath, flagName }) {
 	if (!filePath) {
 		throw new Error(`--${flagName} is required`);
@@ -2400,6 +2428,12 @@ async function readJsonObjectFile({ filePath, flagName }) {
 function requireRunningHubApiKey({ env }) {
 	if (!env.RUNNINGHUB_API_KEY) {
 		throw new Error("RUNNINGHUB_API_KEY is required");
+	}
+}
+
+function requireVolcengineOpenSpeechApiKey({ env }) {
+	if (!env.VOLCENGINE_OPEN_SPEECH_API_KEY) {
+		throw new Error("VOLCENGINE_OPEN_SPEECH_API_KEY is required");
 	}
 }
 
@@ -3411,6 +3445,14 @@ export async function runCli({
 		envelope = buildRunningHubVoiceCloneEnvelope({
 			projectId: flags.projectId,
 			audioPath: flags.audioPath,
+			text: flags.text,
+			protectedTerms: flags.protectedTerm,
+		});
+	} else if (command === "generate-volcengine-cloned-voice") {
+		requireVolcengineOpenSpeechApiKey({ env });
+		envelope = buildVolcengineClonedVoiceEnvelope({
+			projectId: flags.projectId,
+			voiceType: flags.voiceType,
 			text: flags.text,
 			protectedTerms: flags.protectedTerm,
 		});

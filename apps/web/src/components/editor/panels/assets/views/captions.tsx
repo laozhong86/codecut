@@ -1,6 +1,7 @@
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -57,6 +58,8 @@ type CaptionStylePreset = EditPlanCaptionStyle["preset"];
 type CaptionPosition = EditPlanCaptionStyle["position"];
 type CaptionMotionPreset = NonNullable<EditPlanCaptionStyle["motionPreset"]>;
 type CaptionMotionSelection = CaptionMotionPreset | "none";
+type CaptionSourceMode = "local" | "volcengine-url";
+type EditableCaption = CaptionDiagnosticsReport["candidateCaptions"][number];
 
 const CAPTION_STYLE_OPTIONS: Array<{
 	value: CaptionStylePreset;
@@ -234,6 +237,16 @@ export function Captions() {
 			key: "editor-caption-motion-preset",
 			defaultValue: "none",
 		});
+	const [captionSourceMode, setCaptionSourceMode] =
+		useLocalStorage<CaptionSourceMode>({
+			key: "editor-caption-source-mode",
+			defaultValue: "local",
+		});
+	const [volcengineMediaUrl, setVolcengineMediaUrl] = useState("");
+	const [volcengineCaptions, setVolcengineCaptions] = useState<
+		EditableCaption[]
+	>([]);
+	const [volcengineCaptionTaskId, setVolcengineCaptionTaskId] = useState("");
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [processingStep, setProcessingStep] = useState("");
 	const [progressValue, setProgressValue] = useState(0);
@@ -280,10 +293,12 @@ export function Captions() {
 	const hasFreshDiagnostics =
 		diagnostics !== null && diagnosticsSignature === currentSignature;
 	const canGenerate =
-		hasFreshDiagnostics &&
-		diagnostics.status !== "blocked" &&
-		!diagnostics.existingSubtitles.blocksGeneration &&
-		diagnostics.candidateCaptions.length > 0;
+		captionSourceMode === "volcengine-url"
+			? volcengineCaptions.length > 0
+			: hasFreshDiagnostics &&
+				diagnostics.status !== "blocked" &&
+				!diagnostics.existingSubtitles.blocksGeneration &&
+				diagnostics.candidateCaptions.length > 0;
 
 	const handleProgress = (progress: TranscriptionProgress) => {
 		setProgressValue(progress.progress);
@@ -309,7 +324,50 @@ export function Captions() {
 			setIsProcessing(true);
 			setError(null);
 			setProgressValue(0);
-			setProcessingStep(t("Preparing caption diagnostics..."));
+			setProcessingStep(
+				captionSourceMode === "volcengine-url"
+					? t("Fetching Volcengine captions...")
+					: t("Preparing caption diagnostics..."),
+			);
+
+			if (captionSourceMode === "volcengine-url") {
+				const trimmedUrl = volcengineMediaUrl.trim();
+				let isHttpsUrl = false;
+				try {
+					isHttpsUrl = new URL(trimmedUrl).protocol === "https:";
+				} catch {
+					isHttpsUrl = false;
+				}
+				if (!isHttpsUrl) {
+					throw new Error("Volcengine public URL must start with https://");
+				}
+				const response = await fetch("/api/ai/volcengine/captions", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ mediaUrl: trimmedUrl }),
+				});
+				if (!response.ok) {
+					const error = await response.json().catch(() => null);
+					throw new Error(
+						error?.detail ??
+							error?.error ??
+							`Volcengine captions failed: ${response.status}`,
+					);
+				}
+				const result = (await response.json()) as {
+					taskId: string;
+					captions: EditableCaption[];
+				};
+				if (!Array.isArray(result.captions) || result.captions.length === 0) {
+					throw new Error("Volcengine returned no editable captions.");
+				}
+				setVolcengineCaptions(result.captions);
+				setVolcengineCaptionTaskId(result.taskId);
+				setDiagnostics(null);
+				setDiagnosticsSignature("");
+				setProgressValue(100);
+				return;
+			}
 
 			const tracks = editor.timeline.getTracks();
 			const mediaAssets = editor.media.getAssets();
@@ -356,6 +414,8 @@ export function Captions() {
 			});
 			setDiagnostics(report);
 			setDiagnosticsSignature(currentSignature);
+			setVolcengineCaptions([]);
+			setVolcengineCaptionTaskId("");
 		} catch (error) {
 			console.error("Caption diagnostics failed:", error);
 			setError(
@@ -370,7 +430,62 @@ export function Captions() {
 		}
 	};
 
+	const insertEditableCaptions = (captions: EditableCaption[]) => {
+		const captionTrackId = editor.timeline.addTrack({
+			type: "text",
+			index: 0,
+		});
+		for (let index = 0; index < captions.length; index += 1) {
+			const caption = captions[index];
+			const resolvedMotion = captionStyle.motionPreset
+				? resolveTextMotionPreset({
+						preset: captionStyle.motionPreset,
+						duration: caption.duration,
+						baseTransform: captionBaseTransform,
+					})
+				: undefined;
+			editor.timeline.insertElement({
+				placement: { mode: "explicit", trackId: captionTrackId },
+				element: buildTextElement({
+					raw: {
+						...resolvedCaptionStyle,
+						transform: captionBaseTransform,
+						name: `Caption ${index + 1}`,
+						content: caption.text,
+						duration: caption.duration,
+						...(resolvedMotion
+							? {
+									motionPreset: resolvedMotion.motionPreset,
+									keyframes: resolvedMotion.keyframes,
+								}
+							: {}),
+					},
+					startTime: caption.startTime,
+				}),
+			});
+		}
+	};
+
 	const handleGenerateCaptions = () => {
+		if (captionSourceMode === "volcengine-url") {
+			if (volcengineCaptions.length === 0) {
+				setError(t("Fetch Volcengine captions before generating."));
+				return;
+			}
+			try {
+				setError(null);
+				insertEditableCaptions(volcengineCaptions);
+			} catch (error) {
+				console.error("Caption generation failed:", error);
+				setError(
+					error instanceof Error
+						? error.message
+						: t("An unexpected error occurred"),
+				);
+			}
+			return;
+		}
+
 		if (!diagnostics || diagnosticsSignature !== currentSignature) {
 			setError(t("Run diagnostics again after changing caption settings."));
 			return;
@@ -386,43 +501,7 @@ export function Captions() {
 
 		try {
 			setError(null);
-			const captionTrackId = editor.timeline.addTrack({
-				type: "text",
-				index: 0,
-			});
-			for (
-				let index = 0;
-				index < diagnostics.candidateCaptions.length;
-				index += 1
-			) {
-				const caption = diagnostics.candidateCaptions[index];
-				const resolvedMotion = captionStyle.motionPreset
-					? resolveTextMotionPreset({
-							preset: captionStyle.motionPreset,
-							duration: caption.duration,
-							baseTransform: captionBaseTransform,
-						})
-					: undefined;
-				editor.timeline.insertElement({
-					placement: { mode: "explicit", trackId: captionTrackId },
-					element: buildTextElement({
-						raw: {
-							...resolvedCaptionStyle,
-							transform: captionBaseTransform,
-							name: `Caption ${index + 1}`,
-							content: caption.text,
-							duration: caption.duration,
-							...(resolvedMotion
-								? {
-										motionPreset: resolvedMotion.motionPreset,
-										keyframes: resolvedMotion.keyframes,
-									}
-								: {}),
-						},
-						startTime: caption.startTime,
-					}),
-				});
-			}
+			insertEditableCaptions(diagnostics.candidateCaptions);
 		} catch (error) {
 			console.error("Caption generation failed:", error);
 			setError(
@@ -453,6 +532,47 @@ export function Captions() {
 		>
 			<div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1">
 				<div className="flex flex-col gap-4">
+					<div className="flex flex-col gap-3">
+						<Label>{t("Caption source")}</Label>
+						<Select
+							value={captionSourceMode}
+							onValueChange={(value) => {
+								setCaptionSourceMode({ value: value as CaptionSourceMode });
+								setDiagnostics(null);
+								setDiagnosticsSignature("");
+								setVolcengineCaptions([]);
+								setVolcengineCaptionTaskId("");
+							}}
+							disabled={isProcessing}
+						>
+							<SelectTrigger>
+								<SelectValue placeholder={t("Select caption source")} />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="local">{t("Timeline audio")}</SelectItem>
+								<SelectItem value="volcengine-url">
+									{t("Volcengine public URL")}
+								</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+
+					{captionSourceMode === "volcengine-url" && (
+						<div className="flex flex-col gap-2">
+							<Label>{t("Volcengine public URL")}</Label>
+							<Input
+								value={volcengineMediaUrl}
+								onChange={(event) => {
+									setVolcengineMediaUrl(event.target.value);
+									setVolcengineCaptions([]);
+									setVolcengineCaptionTaskId("");
+								}}
+								placeholder="https://example.com/video.mp4"
+								disabled={isProcessing}
+							/>
+						</div>
+					)}
+
 					<div className="flex flex-col gap-3">
 						<Label>{t("Model")}</Label>
 						<Select
@@ -809,6 +929,46 @@ export function Captions() {
 						</DiagnosticSection>
 					</div>
 				)}
+
+				{captionSourceMode === "volcengine-url" &&
+					volcengineCaptions.length > 0 && (
+						<div className="flex flex-col gap-4">
+							<DiagnosticSection title={t("Volcengine public URL")}>
+								<div className="flex flex-wrap items-center gap-2 text-xs">
+									<span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 font-medium text-emerald-700">
+										{t("ready")}
+									</span>
+									<span className="text-muted-foreground">
+										{t("{{captions}} editable captions", {
+											captions: volcengineCaptions.length,
+										})}
+									</span>
+									{volcengineCaptionTaskId && (
+										<span className="text-muted-foreground">
+											{volcengineCaptionTaskId}
+										</span>
+									)}
+								</div>
+							</DiagnosticSection>
+
+							<DiagnosticSection title={t("Candidate Preview")}>
+								<ul className="space-y-2 text-xs">
+									{volcengineCaptions.slice(0, 6).map((caption, index) => (
+										<li key={`${caption.startTime}-${caption.text}`}>
+											<div className="text-muted-foreground">
+												{index + 1}.{" "}
+												{formatRange(
+													caption.startTime,
+													caption.startTime + caption.duration,
+												)}
+											</div>
+											<div className="break-words">{caption.text}</div>
+										</li>
+									))}
+								</ul>
+							</DiagnosticSection>
+						</div>
+					)}
 			</div>
 
 			<div className="flex shrink-0 flex-col gap-3 border-t pt-4">
@@ -835,7 +995,11 @@ export function Captions() {
 						disabled={isProcessing}
 					>
 						{isProcessing && <Spinner className="mr-1" />}
-						{isProcessing ? t("Processing...") : t("Run diagnostics")}
+						{isProcessing
+							? t("Processing...")
+							: captionSourceMode === "volcengine-url"
+								? t("Fetch Volcengine captions")
+								: t("Run diagnostics")}
 					</Button>
 					<Button
 						type="button"
