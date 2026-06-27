@@ -31,7 +31,7 @@ describe("SpeechCleanup workflow docs", () => {
 		);
 		const recipe = readFileSync(
 			new URL(
-				"../../../../../../skills/codecut/references/workflow-recipes/talking-head-polish.md",
+				"../../../../../../skills/codecut-edit-planning/references/workflow-recipes/talking-head-polish.md",
 				import.meta.url,
 			),
 			"utf8",

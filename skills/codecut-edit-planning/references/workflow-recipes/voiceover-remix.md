@@ -33,14 +33,14 @@ This recipe is executable only through the implemented `NarratedRemixPlan v1` pa
 4. Keep visual beat total duration equal to `target.durationSec`.
 5. Write captions and choose an explicit implemented `captionStyle` preset.
 
-## Execution Path When Supported
+## Executor Handoff When Supported
 
-1. Import or reference existing narration audio through an approved path.
-2. Import or reference video or image B-roll assets.
-3. Generate strict NarratedRemixPlan v1.
-4. Call `apply_narrated_remix_plan` with `replaceExisting=true` only when replacement is intentional.
-5. Verify video, audio, and text tracks separately through canonical
-   `get_timeline_state`, then run `build_video_quality_report` before export.
+1. Reference existing narration audio and visual assets from material audit.
+2. Generate strict NarratedRemixPlan v1 draft.
+3. Record whether `replaceExisting=true` is intentional and confirmed.
+4. Hand off expected video, audio, text track separation, canonical
+   `get_timeline_state` checks, and quality-report needs to
+   `codecut-executor-apply`.
 
 ## Stop Conditions
 

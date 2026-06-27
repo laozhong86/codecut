@@ -36,4 +36,17 @@ describe("codecut reference template granularity guidance", () => {
 			expect(content).toContain("not import-ready");
 		}
 	});
+
+	test("agent metadata preserves confirmation and readback gates", () => {
+		const metadata = readSkillFile("agents/openai.yaml");
+
+		expect(metadata).toContain("confirmed draft");
+		expect(metadata).toContain("system-template import");
+		expect(metadata).toContain("visual-only");
+		expect(metadata).toContain("not import-ready");
+		expect(metadata).toContain("unsupported runtime gaps");
+		expect(metadata).toContain("normal Codecut requirement intake");
+		expect(metadata).toContain("strict plan validation");
+		expect(metadata).toContain("get_timeline_state readback");
+	});
 });

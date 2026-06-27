@@ -17,16 +17,15 @@ Use this recipe when the user asks what is in the current project, whether an ed
 - `get_project_info`
 - `get_timeline_state`
 
-## Inspection Path
+## Inspection Planning Path
 
-1. Complete the service and executor readiness gates.
-2. Confirm the project ID is explicit and not stale.
-3. Run `get_project_info`.
-4. Run `get_timeline_state`.
-5. When judging edit success, export readiness, or preview correctness, run
+1. Confirm the project ID is explicit and not stale.
+2. Write the readback request that `codecut-executor-apply` must run:
+   `get_project_info` plus canonical `get_timeline_state`.
+3. When judging edit success, export readiness, or preview correctness, require
    `inspect_timeline` or `build-video-quality-report` over the relevant
-   timeline range and inspect the generated contact sheet.
-6. Summarize:
+   timeline range and a reviewed contact sheet.
+4. The verification spec must summarize:
    - canvas and duration
    - track count by type
    - element count by type
@@ -34,7 +33,7 @@ Use this recipe when the user asks what is in the current project, whether an ed
    - captions or title timing
    - empty or muted tracks
    - visual QA verdict, contact sheet path, frame count, and sampled timestamps
-7. Do not call mutation tools during inspection.
+5. Do not plan mutation tools during inspection.
 
 ## Export Readiness Checks
 
@@ -62,9 +61,8 @@ QA verdict needed for edit success or export readiness.
 
 ## MP4 Delivery Checks
 
-After `export_project` produces an MP4, inspect the final file separately with
-`codecut-workspace extract-export-frames`. Record the final verdict with
-`codecut-workspace record-visual-qa` under
+After `export_project` produces an MP4, the executor stage must inspect the
+final file separately with export-frame extraction. Record the final verdict under
 `.codecut-workspace/projects/<projectId>/06-verification/visual-qa/<runId>/`.
 
 The final MP4 contact sheet must be compared with the timeline contact sheet.

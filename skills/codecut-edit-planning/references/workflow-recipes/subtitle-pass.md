@@ -43,17 +43,16 @@ surface:
 Do not stack new captions over existing subtitles unless the user explicitly
 confirms a translation overlay or duplicate-language caption.
 
-## Execution Path
+## Planning Path
 
-1. Complete the main P0 CLI Runtime Gate and executor readiness check.
-2. Inspect project and media state.
-3. If timed captions are missing, transcribe the selected media first.
-4. Choose the caption timing source after the cut is stable:
+1. Use project and media state from upstream evidence.
+2. If timed captions are missing, hand back for transcription before planning.
+3. Choose the caption timing source after the cut is stable:
    - Use edited audio transcription through `build-post-cut-captions` after a clip-first EditPlan is applied.
    - Use source transcript remap when only source transcript segments exist: convert each kept source segment into output timeline time with `timelineStart + segment.start - clip.sourceStart`.
    - Do not place source transcript timestamps directly on the edited timeline.
    - If a transcript segment crosses a clip boundary, stop and either regenerate captions from edited audio or choose transcript-aligned cuts.
-5. Normalize caption text for readability:
+4. Normalize caption text for readability:
 	   - Chinese: short phrases. For vertical talking-head captions, prefer phrase
 	     chunks that the current preset renders as one or two balanced lines; avoid
 	     three-line captions and 1-2 character orphan last lines.
@@ -63,92 +62,41 @@ confirms a translation overlay or duplicate-language caption.
 	     full stops, commas, colons, semicolons, and enumeration punctuation after
 	     chunking; keep question marks and exclamation marks, and preserve numeric
 	     punctuation such as `117.55` and `1,000`.
-6. Select the caption preset by video type: `creator-clean` for the default Chinese creator/talking-head look, `talking-head-pop` for high-retention opinion clips that need stronger contrast, `tutorial-clean` for screen recordings or demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` only when the user explicitly asks for the older bold short-form look.
+5. Select the caption preset by video type: `creator-clean` for the standard Chinese creator/talking-head look, `talking-head-pop` for high-retention opinion clips that need stronger contrast, `tutorial-clean` for screen recordings or demos, `product-punch` for product proof or UGC ads, `lifestyle-warm` for vlog/food/travel/lifestyle clips, `cinematic-serif` for brand stories or premium emotional edits, `documentary-soft` for calm narrative edits, `black-bar` only when the user explicitly requests boxed subtitles, and `short-form-bold` only when the user explicitly asks for the older bold short-form look.
 	   - Prefer font choice, line breaking, and subtle shadow over heavy black outlines.
 	   - Use `richSpans` for one key phrase per sentence; do not style every caption as a visual effect.
-7. If `build-post-cut-captions` is used, copy the returned captions into the final implemented EditPlan v1 with the selected `captionStyle`.
-8. Generate or update an implemented EditPlan v1 with `captions`.
-9. Validate, preview, apply, read back with canonical `get_timeline_state`, run
-   `build_video_quality_report`, then export only after quality passes.
+6. If post-cut caption building is required, record the expected caption timing
+   source in the verification spec.
+7. Generate or update an implemented EditPlan v1 draft with `captions`.
+8. Write a verification spec that asks `codecut-executor-apply` to validate,
+   preview, apply, read back with canonical `get_timeline_state`, run
+   `build_video_quality_report`, and prove export only when export was
+   requested.
 
-## Executor Recipe
+## Executor Handoff
 
 Use this recipe when captions must be generated from edited audio, not source
-timestamps:
+timestamps. The planning artifact should hand off a clip-first plan draft,
+caption timing source, selected `captionStyle`, and verification spec to
+`codecut-executor-apply`.
 
-```bash
-node scripts/codex-bridge.mjs apply-plan \
-  --project-id <id> \
-  --plan-json-file /absolute/path/clip-first-edit-plan.json \
-  --replace-existing true
-```
-
-```bash
-node scripts/codex-bridge.mjs build-post-cut-captions \
-  --project-id <id> \
-  --language zh \
-  --model-id whisper-base
-```
-
-Codex then merges the returned `captions[]` and `captionStyle` into a final
-EditPlan file only when the returned `captionQuality.ok` is true. If
-`voiceConsistency` is present, preserve the scripted caption text and treat ASR
-as timing evidence only. The fixture
+The executor stage owns validation, preview, apply, post-cut caption building,
+timeline readback, quality reporting, and export proof when export was
+requested. The fixture
 `workflow-recipes/fixtures/post-cut-captions-final-edit-plan.json` shows the
-shape of that final plan.
-
-```bash
-node scripts/codex-bridge.mjs validate-edit-plan \
-  --project-id <id> \
-  --plan-json-file /absolute/path/final-edit-plan.json
-```
-
-```bash
-node scripts/codex-bridge.mjs preview-edit-plan \
-  --project-id <id> \
-  --plan-json-file /absolute/path/final-edit-plan.json
-```
-
-```bash
-node scripts/codex-bridge.mjs apply-plan \
-  --project-id <id> \
-  --plan-json-file /absolute/path/final-edit-plan.json \
-  --replace-existing true
-```
-
-```bash
-node scripts/codex-bridge.mjs send \
-  --project-id <id> \
-  --tool get_timeline_state \
-  --args-json '{}'
-```
-
-Run a quality report before export when captions are present:
-
-```bash
-node scripts/codex-bridge.mjs build-video-quality-report \
-  --project-id <id> \
-  --plan-json-file /absolute/path/final-edit-plan.json \
-  --start-time 0 \
-  --end-time <timeline-duration-seconds> \
-  --frame-count 6
-```
+shape of a final plan draft.
 
 Stop if `caption_quality`, `voice_consistency`, or `layout.captionLines` fails.
-Fix the caption text, timing, script binding, or selected preset, then re-apply
-the final EditPlan and re-run the report.
+Fix the caption text, timing, script binding, or selected preset in the plan
+draft, then require the executor stage to re-run the report.
 
 If burned-in source subtitles require a crop that current EditPlan `sourceCrop`
-cannot express, do not silently generate a fallback. Present two choices:
-A. stop at the runtime gap and wait for native capability; B. create a one-time
-fallback MP4. If B is chosen, document the fallback reason, exact command,
-verification result, and limitations in the project docs. Baked subtitles are
-not editable text tracks, and `build_video_quality_report` cannot validate them
-as timeline caption elements.
+cannot express, stop at the runtime gap. Do not replace editable timeline
+semantics with a baked media path.
 
-Do not add a hidden one-step caption mutation command. A future convenience
-command may be named `caption-edit-plan`, but it must output a final EditPlan
-file and leave timeline mutation to `apply-plan`.
+Do not add a hidden one-step caption mutation route. Any future convenience
+capability must output a final EditPlan file and leave timeline mutation to
+`codecut-executor-apply`.
 
 ## Boundary
 

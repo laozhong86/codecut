@@ -5,13 +5,15 @@ Use this recipe when the user wants one imported source video compressed into a 
 ## Success Criteria
 
 - One explicit source media asset is selected.
-- The target duration and aspect ratio are known or safely defaulted.
+- The target duration and aspect ratio are confirmed or explicitly inherited
+  from requirement intake.
 - A Codex-side EditingDecisionLedger is written before EditPlan generation for conversion, product, tutorial, highlight, platform short, or broad "make this better" requests.
 - Candidate clips are compared with hook strength, standalone coherence, user value, energy or pacing, platform fit, crop viability, source coverage, evidence, and risk before final selection.
 - The EditPlan uses only implemented v1 fields.
 - Speech-led cleanup requests use SpeechCleanupPlan before the final EditPlan projection.
-- `apply_edit_plan` succeeds.
-- `get_timeline_state` proves final duration, clip count, media source, and caption bounds.
+- The verification spec names the `codecut-executor-apply` validation, timeline
+  readback, duration, clip count, media source, and caption bounds expected
+  after apply.
 - If vertical or square output requires project canvas mutation and no current callable project-settings tool is visible, stop and report that runtime gap; `EditPlan.target.aspectRatio` alone does not mutate canvas settings.
 - If landscape source is converted to vertical or square output, visual preflight proves the reframe and caption policy before the EditPlan is applied.
 
@@ -30,7 +32,7 @@ Use this recipe when the user wants one imported source video compressed into a 
 
 If transcript is unavailable for speech-led content, stop and report the missing context. Do not infer content from the file name.
 
-## Execution Path
+## Planning Path
 
 ### Stage 1: Material Audit
 
@@ -39,10 +41,12 @@ If transcript is unavailable for speech-led content, stop and report the missing
 3. Run `codecut-workspace probe-assets` and review duration, dimensions, audio availability, and obvious format risks.
 4. Ask missing platform, aspect ratio, duration, video type, style, caption, or business questions with concrete choices and one recommended option.
 5. Write workflow route and planning documents that are knowable before timeline execution.
-6. Complete the main P0 CLI Runtime Gate and executor readiness check only after the workspace material audit is done.
-7. Confirm the project ID is explicit and matches the local project being modified.
-8. Pick the source media asset; import only if the user supplied an absolute local path and no suitable asset exists.
-9. Read project/media facts: duration, dimensions, audio availability, target platform, and whether export is requested.
+6. Confirm the project ID is explicit and matches the local project being
+   planned.
+7. Select the source media asset from audited material facts.
+8. Record project/media facts needed by the later executor stage: duration,
+   dimensions, audio availability, target platform, and whether export is
+   requested.
 
 ### Stage 2: Content Breakdown
 
@@ -62,7 +66,9 @@ If transcript is unavailable for speech-led content, stop and report the missing
    - classify whether the source is a plain talking head, a talking head with bottom burned-in captions, a screen recording, or mixed B-roll.
    - choose the reframe policy before caption placement. When visual preflight recommends `vertical_face_safe_crop_above_burned_captions` and the old subtitle band can be removed by a fixed rectangle, use EditPlan `clips[].sourceCrop`.
    - Do not use `black-bar` as a subtitle mask to cover source subtitles.
-   - If the chosen policy requires a face anchor, animated crop, arbitrary transform, or any reframe outside current EditPlan v1 `sourceCrop`, stop and present two choices: A. wait at the runtime gap; B. generate a one-time fallback MP4 with non-editable baked output.
+   - If the chosen policy requires a face anchor, animated crop, arbitrary
+     transform, or any reframe outside current EditPlan v1 `sourceCrop`, stop
+     at the runtime gap and report the unsupported planning constraint.
 16. If the user asks to remove filler, restarts, repeated setup, or dead air, generate a strict SpeechCleanupPlan v2 and project it with `rebuildTimelineFromSpeechCleanup({ captionMode: "clip-only" })` before applying when post-cut captions are available; use `captionMode: "source-transcript-remap"` only when source transcript remap is the declared caption source.
 17. Otherwise, select candidate clips with a clear role: hook, pain, proof, process, value, trust, objection, CTA, or tutorial step.
 18. Score each viable candidate in the ledger, using short labels rather than numeric precision:
@@ -84,20 +90,30 @@ If transcript is unavailable for speech-led content, stop and report the missing
    - `qaChecklist`: first frame, first 1-3 seconds, standalone clarity, claim support, source range validity, caption policy, reframe safety, unsupported requested fields.
 20. Keep the ledger outside the EditPlan. Do not include ledger fields, `intent`, `strategy`, or acceptance checks in EditPlan v1.
 
-### Stage 5: Technical Execution
+### Stage 5: Plan Draft
 
-21. Generate an implemented EditPlan v1 only.
-22. Apply only to an empty timeline, or use `replaceExisting=true` after explicit user confirmation that existing timeline content can be cleared. Append is not implemented in the current `apply_edit_plan` path.
+21. Generate an implemented EditPlan v1 draft only.
+22. Mark whether the later executor handoff requires an empty timeline or
+    explicit `replaceExisting=true` confirmation. Append is not implemented in
+    the current apply path, so do not plan append behavior.
 
-### Stage 6: Final QA
+### Stage 6: Verification Spec
 
-23. Verify with `get_timeline_state`.
-24. For conversion or platform shorts, QA the ledger against the applied timeline: the first frame is intentional, hook appears in the first 1-3 seconds, selected proof supports claims, weak candidates were rejected for explicit reasons, CTA or loop-back exists when requested, captions fit the timeline, and reframe/caption policy matches available visual-preflight evidence.
+23. Write a verification spec for `codecut-executor-apply`.
+24. For conversion or platform shorts, require the later readback to confirm:
+    the first frame is intentional, hook appears in the first 1-3 seconds,
+    selected proof supports claims, weak candidates were rejected for explicit
+    reasons, CTA or loop-back exists when requested, captions fit the timeline,
+    and reframe/caption policy matches available visual-preflight evidence.
 
-## Defaults
+## Confirmed Choices
 
-- Duration: 30-60 seconds.
-- Aspect ratio: 9:16 when the user asks for TikTok, Reels, Shorts, or short video. Use only a current callable project-settings tool for canvas mutation; otherwise keep the requested aspect ratio in the EditPlan and report the project-settings runtime gap instead of naming an unavailable tool.
+- Duration: Use the target from requirement intake. If it is missing and affects
+  clip selection, hand back to requirement intake.
+- Aspect ratio: Use the confirmed platform or aspect ratio from requirement
+  intake. If canvas mutation is required and no current callable
+  project-settings tool is visible to the executor stage, record a runtime gap
+  in the verification spec.
 - Captions: concise transcript-derived captions only after the cut is stable.
 - Speech cleanup: `dropReason` and `risk: "low" | "high"` are required for `drop` decisions and forbidden for `keep` decisions. High-risk drops require `retainedMeaningEvidence`. Filler counts come only from `dropReason: "filler"`, not marker words inside kept text.
 - Landscape-to-vertical reframe: prefer centered `cover` only when visual preflight proves the subject and burned-in captions are safe. Use `sourceCrop` for talking-head sources where a fixed source rectangle can crop out the old bottom caption band while preserving the subject.
@@ -118,8 +134,5 @@ If transcript is unavailable for speech-led content, stop and report the missing
 
 Return the project ID, selected media, selected structure summary, why the chosen candidates beat rejected alternatives, clip count, final duration, caption count, and the exact verification command/result.
 
-If the user chooses a one-time fallback MP4 for an unsupported reframe, write a
-project note with the fallback reason, exact command, verification result, and
-limitations: baked subtitles are not editable text tracks, and
-`build_video_quality_report` cannot validate baked caption pixels as timeline
-captions.
+Do not replace an unsupported reframe with a baked media path. Record the gap in
+`planning-blockers.md` and hand back to the user or implementation work.

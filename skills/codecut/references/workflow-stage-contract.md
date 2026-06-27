@@ -58,8 +58,9 @@ Expected benefits:
 | `router` | `codecut` | User request, plugin startup context, existing stage proof | Selected route; no timeline or workspace mutation | "Routed" or "Route blocked" | Request shape is ambiguous enough that routing could choose the wrong side-effect stage | Exactly one loadable stage skill |
 | `requirement-intake` | `codecut-requirement-intake` | User brief, known source path or URL, known output constraints | Widget submission, confirmed setup token, `requirement-intake.md`, explicit user answers, assumptions kept separate | "Setup confirmed" or "Missing setup fields" | Two or more blocking fields are missing; widget submission has not passed; confirmed setup token is missing for side effects | `codecut-material-ingest` when source facts are needed; `codecut-reference-template` for reference derivation; `codecut-executor-apply` only when source is already in an executor project |
 | `source-acquisition` | `codecut-tiktok-downloader` for TikTok sources; otherwise `codecut-material-ingest` | Source-only request or confirmed creative setup with TikTok URL, share link, author page, or `@handle` | local media files, `download_manifest.json`, backend warnings, later `material-audit.md` after ingest resumes | "Source downloaded" or "Source blocked" | Missing author download count, unavailable source rights/access, stale downloader, login/region/private-account block, or missing setup token for creative jobs | `codecut-material-ingest` for probe/audit; completion for source-only acquisition |
-| `material-ingest` | `codecut-material-ingest` | Confirmed setup token, confirmed source paths or remote URLs, workspace project ID | `.codecut-workspace` assets, ffprobe inventory, `material-audit.md` | "Source material ready" or "Source blocked" | Confirmed setup token is missing or invalid; remote source cannot be downloaded or probed; local path is not absolute; media has no positive duration | `codecut-reference-template` when deriving a reference package; otherwise Codex planning with workflow recipes before `codecut-executor-apply` |
-| `reference-template` | `codecut-reference-template` | Finished reference videos, requested reusable style, evidence availability | `reference-analysis.md`, `local-template-script.json`, `template-fields.md`, import result after confirmation | "Template draft ready" or "Template imported" | Speech/copy evidence is missing for an import-ready draft; user has not confirmed import; requested effect is unsupported | Normal `codecut-requirement-intake` and `codecut-material-ingest` when applying the saved template to new material; `codecut-executor-apply` only for confirmed import |
+| `material-ingest` | `codecut-material-ingest` | Confirmed setup token, confirmed source paths or remote URLs, workspace project ID | `.codecut-workspace` assets, ffprobe inventory, `material-audit.md` | "Source material ready" or "Source blocked" | Confirmed setup token is missing or invalid; remote source cannot be downloaded or probed; local path is not absolute; media has no positive duration | `codecut-reference-template` when deriving a reference package; otherwise `codecut-edit-planning` before `codecut-executor-apply` |
+| `reference-template` | `codecut-reference-template` | Finished reference videos, requested reusable style, evidence availability | `reference-analysis.md`, `local-template-script.json`, `template-fields.md`, import result after confirmation | "Template draft ready" or "Template imported" | Speech/copy evidence is missing for an import-ready draft; user has not confirmed import; requested effect is unsupported | Normal `codecut-requirement-intake` and `codecut-material-ingest` when applying the saved template to new material; `codecut-edit-planning` before executor apply; `codecut-executor-apply` only for confirmed import |
+| `edit-planning` | `codecut-edit-planning` | Passed requirement intake, material audit, transcript or VideoContext, visual evidence, reference-template constraints, optional platform strategy brief | `intent-route.md`, `editing-decision-ledger.md`, `candidate-clips.json`, strict plan draft, `verification-spec.json`, optional `planning-blockers.md` | "Plan ready" or "Planning blocked" | Required transcript, visual, material, business, caption, platform, or template evidence is missing; no candidate clip passes standalone coherence; requested plan cannot be represented safely; more than one primary recipe would be merged | `codecut-executor-apply` only after a strict plan draft and verification spec exist |
 | `cover-generation` | `codecut-cover-generation` | Confirmed project ID, setup token for cover side effects, platform or cover type, current media/timeline evidence | `cover-frame-ledger.md`, `cover-prompt.md`, `cover-import.md`, `cover-readback.md` | "Cover prompt ready", "Project cover set", or "Cover blocked" | Platform ratio, visual evidence, image generation capability, imported image dimensions, setup token, or cover readback is missing | `codecut-material-ingest` when source media is missing; `codecut-executor-apply` for cover import/set/readback side effects; completion report when cover metadata is verified |
 | `executor-apply` | `codecut-executor-apply` | Confirmed project ID, bridge env, imported media, strict plan file, verification/export request | validation result, preview result, applied draft revision, readback summary, optional exported file path | "Timeline updated", "Verified in timeline", or "Export produced" | service gate, doctor, import, validation, preview, apply, caption build, readback, or export fails | Completion report or the narrow failed owner stage |
 
@@ -76,29 +77,26 @@ preserving one canonical place for stop and readback expectations.
 | `material-ingest` | `skills/codecut-material-ingest/SKILL.md` | Source facts affect transcript, crop, aspect, captions, or clip selection | Confirmed setup token is missing, media cannot be reached/probed, or required duration/dimensions are absent | `02-inventory/material-audit.md` plus media metadata | Asset manifest, ffprobe report, material audit |
 | `reference-template` | `skills/codecut-reference-template/SKILL.md` | User asks to learn, import, or apply a reference-derived template | Speech/copy evidence is missing, unsupported effect is requested, or user has not confirmed import | Imported system template only after confirmed import; otherwise draft proof only | `reference-analysis.md`, `local-template-script.json`, `template-fields.md`, import result |
 | `cover-generation` | `skills/codecut-cover-generation/SKILL.md` | User asks for a project cover, short-video poster, thumbnail prompt, cover evidence-frame selection, generated cover image import, or cover readback | Platform ratio, visual evidence, image generation capability, setup token, imported image dimensions, or cover readback is missing | `get_project_info` or `get_timeline_state` proves project `cover`; total duration is unchanged | Cover frame ledger, generated cover prompt, import result, set_project_cover result, cover readback |
-| `edit-planning` | `skills/codecut/references/editing-intent-router.md` plus exactly one workflow recipe | Transcript, VideoContext, candidate clips, decision ledger, or EditPlan strategy is needed | Required transcript/visual/material evidence is missing or the requested plan cannot be represented safely | No mutation readback; hand off a strict plan to executor apply | Selected recipe, planning ledger, strict EditPlan or NarratedRemixPlan |
+| `edit-planning` | `skills/codecut-edit-planning/SKILL.md` | Transcript, VideoContext, candidate clips, decision ledger, or EditPlan/NarratedRemixPlan strategy is needed | Required transcript/visual/material/business/template evidence is missing or the requested plan cannot be represented safely | No mutation readback; hand off a strict plan draft and verification spec to executor apply | Selected recipe, planning ledger, strict EditPlan or NarratedRemixPlan draft, verification spec |
 | `executor-apply` | `skills/codecut-executor-apply/SKILL.md` and `skills/codecut/references/execution-contract.md` | Service readiness, import, validate/preview/apply, captions, timeline readback, export, visual QA, or plugin freshness proof is needed | Service, bridge env, doctor, import, validation, preview, apply, caption build, readback, or export fails | `get_timeline_state` after mutation; export proof after MP4/still export | Validation/apply result, timeline readback, visual QA verdict, export file proof |
-| `timeline-inspection` | `skills/codecut/references/workflow-recipes/timeline-inspection.md` | User asks to inspect existing project state or export readiness | Existing project cannot be read, evidence is stale, or requested proof cannot be produced | `get_timeline_state`; visual contact sheet when preview quality matters | Readback summary, contact sheet, readiness/blocker report |
+| `timeline-inspection` | `skills/codecut-edit-planning/SKILL.md` timeline-inspection recipe, then `skills/codecut-executor-apply/SKILL.md` for readback | User asks to inspect existing project state or export readiness | Existing project cannot be read, evidence is stale, or requested proof cannot be produced | `get_timeline_state`; visual contact sheet when preview quality matters | Readback summary, contact sheet, readiness/blocker report |
 | `implementation` | `docs/codex-driven-editing.md` and focused tests | Code, MCP schema, skill, widget, manifest, or bridge behavior changes | Runtime truth, source/cache/config/session state, or focused failing test is missing | Depends on touched surface; plugin-facing changes require freshness/session proof | Focused test, `bun run plugin:freshness`, and cache sync when plugin surface changes |
 
 ## Non-Skill Workflow Phases
 
-`evidence-build` and `edit-planning` are Codex-side workflow phases, not
-loadable stage skills. They must not appear as Stage Table owners or as the
-reported `Stage` value.
+`evidence-build` is a Codex-side workflow phase, not a loadable stage skill. It
+must not appear as a Stage Table owner or as the reported `Stage` value.
 
 - Evidence-building proof uses Codecut read-only tools such as transcript,
   `VideoContext`, visual context, contact sheets, range inspection, and quality
   reports.
-- Edit-planning proof uses `editing-intent-router.md`, one workflow recipe,
-  `EditingDecisionLedger`, strict EditPlan v1, SpeechCleanupPlan projection, or
-  NarratedRemixPlan v1.
+- Edit-planning is a loadable stage skill owned by `codecut-edit-planning`.
+  Report it as `Stage: edit-planning` when planning is active or blocked.
 - Project-cover generation is not a non-skill phase. Report it as
   `cover-generation` when the user outcome is an independent poster or
   thumbnail outside the exported video timeline.
-- If either phase is blocked, report the loadable owner stage whose gate cannot
-  continue, then name the missing evidence or unsupported planning constraint in
-  `Proof` and `Risk`.
+- If evidence-building is blocked, report the loadable owner stage whose gate
+  cannot continue, then name the missing evidence in `Proof` and `Risk`.
 
 ## Stage Ownership Rules
 
@@ -106,7 +104,8 @@ reported `Stage` value.
 - MCP tools own atomic capability schemas, side effects, read-only status, and
   failure shape.
 - `docs/codex-driven-editing.md` owns current runtime truth and command details.
-- Workflow recipes own Codex planning judgment for one selected intent.
+- `codecut-edit-planning` owns workflow recipes and Codex planning judgment for
+  one selected intent.
 - Codecut runtime code owns only deterministic validation and timeline mutation.
 
 ## Non-Transferable Boundaries
