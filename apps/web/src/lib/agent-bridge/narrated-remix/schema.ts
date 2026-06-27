@@ -103,6 +103,8 @@ export const NarratedRemixNarrationSchema = z
 	.object({
 		mediaId: z.string().min(1),
 		sourceStart: z.number().min(0),
+		timelineStart: z.number().min(0).optional(),
+		durationSec: z.number().positive().optional(),
 	})
 	.strict();
 

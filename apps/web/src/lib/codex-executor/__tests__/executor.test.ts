@@ -5603,6 +5603,122 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("applies preserve-source narrated remix when narration is slightly shorter", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Short narration full source remix",
+			confirmedSetup: confirmedSetupFixture({
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
+					sourceDurationSeconds: 28.866667,
+					toleranceSeconds: 0.25,
+				},
+			}),
+		});
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 28.866667,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const narrationImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("narration").toString("base64"),
+					size: 9,
+					lastModified: 1,
+					duration: 28.8,
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
+			narrationImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_narrated_remix_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 28.866667, aspectRatio: "9:16" },
+						visualBeats: [
+							{
+								id: "full-source",
+								mediaId: videoId,
+								sourceStart: 0,
+								sourceEnd: 28.866667,
+								timelineStart: 0,
+								muted: true,
+								reason: "Full source coverage.",
+							},
+						],
+						narration: { mediaId: narrationId, sourceStart: 0 },
+						captions: [],
+						rationale: "Preserve full source duration with real narration length.",
+					},
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				totalDuration: 28.866667,
+				durationContract: {
+					totalDurationMatches: true,
+					sourceCoverageMatches: true,
+				},
+			},
+		});
+		const timelineData = resultData<{
+			project: { totalDuration: number };
+			tracks: Array<{
+				type: string;
+				elements: Array<Record<string, unknown>>;
+			}>;
+		}>(timelineResult.results[0]);
+		const audioTrack = timelineData.tracks.find(
+			(track) => track.type === "audio",
+		);
+		expect(timelineData.project.totalDuration).toBe(28.866667);
+		expect(audioTrack).toMatchObject({
+			type: "audio",
+			elements: [
+				{
+					type: "audio",
+					duration: 28.8,
+					startTime: 0,
+					trimEnd: 28.8,
+				},
+			],
+		});
+		expect(timelineResult.results[0]).toMatchObject({
+			success: true,
+		});
+	});
+
 	test("keeps text overlays editable through timeline readback", async () => {
 		await createExecutorProject({ projectId, name: "Narrated text overlays" });
 		const videoImport = await executeCodexExecutorEnvelope({

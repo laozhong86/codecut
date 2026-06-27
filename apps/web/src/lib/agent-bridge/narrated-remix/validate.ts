@@ -3,6 +3,7 @@ import {
 	auditCaptions,
 	canonicalCaptionCanvasSizeForAspectRatio,
 } from "@/lib/agent-bridge/caption-quality";
+import { buildPostCutCaptionEntries } from "@/lib/agent-bridge/edit-plan/caption-chunking";
 import {
 	type NarratedRemixPlan,
 	NarratedRemixPlanSchema,
@@ -46,6 +47,13 @@ export type NarratedRemixPlanValidationResult =
 			durationContract?: NarratedRemixDurationContractSummary;
 	  }
 	| { success: false; message: string; path?: string };
+
+export interface NarratedRemixNarrationPlacement {
+	timelineStart: number;
+	durationSec: number;
+	sourceStart: number;
+	sourceEnd: number;
+}
 
 const TIME_EPSILON = 0.001;
 
@@ -109,6 +117,118 @@ function videoBeats(
 		(visualBeat): visualBeat is Exclude<NarratedRemixVisualBeat, NarratedRemixImageBeat> =>
 			!isImageBeat(visualBeat),
 	);
+}
+
+export function resolveNarratedRemixNarrationPlacement({
+	plan,
+	narrationAsset,
+}: {
+	plan: NarratedRemixPlan;
+	narrationAsset: MediaAsset;
+}): NarratedRemixNarrationPlacement {
+	if (!narrationAsset.duration) {
+		throw new Error("NarratedRemixPlan narration duration is required.");
+	}
+	const sourceStart = plan.narration.sourceStart;
+	const timelineStart = plan.narration.timelineStart ?? 0;
+	const availableSourceDuration = narrationAsset.duration - sourceStart;
+	const availableTimelineDuration = plan.target.durationSec - timelineStart;
+	const durationSec =
+		plan.narration.durationSec ??
+		Math.min(availableSourceDuration, availableTimelineDuration);
+
+	return {
+		timelineStart,
+		durationSec,
+		sourceStart,
+		sourceEnd: sourceStart + durationSec,
+	};
+}
+
+function validateNarrationPlacement({
+	placement,
+	plan,
+	narrationAsset,
+}: {
+	placement: NarratedRemixNarrationPlacement;
+	plan: NarratedRemixPlan;
+	narrationAsset: MediaAsset;
+}): { success: true } | { success: false; message: string; path: string } {
+	const narrationDuration = narrationAsset.duration;
+	if (!narrationDuration) {
+		return {
+			success: false,
+			message: "NarratedRemixPlan narration duration is required.",
+			path: "narration.mediaId",
+		};
+	}
+	if (placement.sourceStart >= narrationDuration - TIME_EPSILON) {
+		return {
+			success: false,
+			message: "NarratedRemixPlan narration sourceStart exceeds media duration.",
+			path: "narration.sourceStart",
+		};
+	}
+	if (placement.timelineStart >= plan.target.durationSec - TIME_EPSILON) {
+		return {
+			success: false,
+			message: "NarratedRemixPlan narration timelineStart exceeds target duration.",
+			path: "narration.timelineStart",
+		};
+	}
+	if (placement.durationSec <= TIME_EPSILON) {
+		return {
+			success: false,
+			message: "NarratedRemixPlan narration duration must be positive.",
+			path: "narration.durationSec",
+		};
+	}
+	if (exceeds({ end: placement.sourceEnd, limit: narrationDuration })) {
+		return {
+			success: false,
+			message: "NarratedRemixPlan narration exceeds media duration.",
+			path: "narration.durationSec",
+		};
+	}
+	if (
+		exceeds({
+			end: placement.timelineStart + placement.durationSec,
+			limit: plan.target.durationSec,
+		})
+	) {
+		return {
+			success: false,
+			message: "NarratedRemixPlan narration exceeds target duration.",
+			path: "narration.durationSec",
+		};
+	}
+	return { success: true };
+}
+
+function normalizeCaptionsForQuality({
+	plan,
+}: {
+	plan: NarratedRemixPlan;
+}): NarratedRemixPlan {
+	if (plan.captions.length === 0 || !plan.captionStyle) return plan;
+
+	const captionStyle = plan.captionStyle;
+	const canvasSize = canonicalCaptionCanvasSizeForAspectRatio({
+		aspectRatio: plan.target.aspectRatio,
+	});
+	return {
+		...plan,
+		captions: plan.captions.flatMap((caption) =>
+			buildPostCutCaptionEntries({
+				text: caption.text,
+				startTime: caption.startTime,
+				endTime: caption.startTime + caption.duration,
+				captionStyle,
+				aspectRatio: plan.target.aspectRatio,
+				canvasSize,
+			}),
+		),
+	};
 }
 
 function validateFullSourceCoverage({
@@ -342,19 +462,17 @@ export function validateNarratedRemixPlan({
 			path: "narration.mediaId",
 		};
 	}
-	if (
-		exceeds({
-			end:
-				normalizedPlan.narration.sourceStart +
-				normalizedPlan.target.durationSec,
-			limit: narrationAsset.duration,
-		})
-	) {
-		return {
-			success: false,
-			message: "NarratedRemixPlan narration does not cover target duration.",
-			path: "narration.mediaId",
-		};
+	const narrationPlacement = resolveNarratedRemixNarrationPlacement({
+		plan: normalizedPlan,
+		narrationAsset,
+	});
+	const narrationPlacementValidation = validateNarrationPlacement({
+		placement: narrationPlacement,
+		plan: normalizedPlan,
+		narrationAsset,
+	});
+	if (!narrationPlacementValidation.success) {
+		return narrationPlacementValidation;
 	}
 
 	let expectedTimelineStart = 0;
@@ -494,15 +612,18 @@ export function validateNarratedRemixPlan({
 			};
 		}
 	}
-	if (hasCaptions && normalizedPlan.captionStyle) {
+	const captionNormalizedPlan = normalizeCaptionsForQuality({
+		plan: normalizedPlan,
+	});
+	if (hasCaptions && captionNormalizedPlan.captionStyle) {
 		const captionQuality = auditCaptions({
-			captions: normalizedPlan.captions,
-			captionStyle: normalizedPlan.captionStyle,
-			aspectRatio: normalizedPlan.target.aspectRatio,
+			captions: captionNormalizedPlan.captions,
+			captionStyle: captionNormalizedPlan.captionStyle,
+			aspectRatio: captionNormalizedPlan.target.aspectRatio,
 			canvasSize: canonicalCaptionCanvasSizeForAspectRatio({
-				aspectRatio: normalizedPlan.target.aspectRatio,
+				aspectRatio: captionNormalizedPlan.target.aspectRatio,
 			}),
-			timelineDuration: normalizedPlan.target.durationSec,
+			timelineDuration: captionNormalizedPlan.target.durationSec,
 		});
 		const firstIssue = captionQuality.issues[0];
 		if (firstIssue) {
@@ -516,7 +637,7 @@ export function validateNarratedRemixPlan({
 
 	return {
 		success: true,
-		normalizedPlan,
+		normalizedPlan: captionNormalizedPlan,
 		...(contractValidation.summary
 			? { durationContract: contractValidation.summary }
 			: {}),

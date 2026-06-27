@@ -246,6 +246,136 @@ describe("validateNarratedRemixPlan", () => {
 		expect(result.success).toBe(true);
 	});
 
+	test("accepts narration that is shorter than a preserve-source timeline", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 28.866667, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "full-source",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 28.866667,
+						timelineStart: 0,
+						muted: true,
+						reason: "Preserve full source video.",
+					},
+				],
+				narration: { mediaId: "narration-1", sourceStart: 0 },
+				captions: [{ text: "结果先出现", startTime: 0, duration: 3 }],
+			},
+			projectId: "project-1",
+			mediaAssets: [
+				mediaAsset({ duration: 28.866667 }),
+				audioAsset({ duration: 28.8 }),
+			],
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+				toleranceSeconds: 0.25,
+			},
+		});
+
+		expect(result.success).toBe(true);
+	});
+
+	test("accepts explicitly offset narration inside the target timeline", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 28.866667, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "full-source",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 28.866667,
+						timelineStart: 0,
+						muted: true,
+						reason: "Preserve full source video.",
+					},
+				],
+				narration: {
+					mediaId: "narration-1",
+					sourceStart: 1,
+					timelineStart: 5,
+					durationSec: 18,
+				},
+				captions: [{ text: "结果先出现", startTime: 5, duration: 3 }],
+			},
+			projectId: "project-1",
+			mediaAssets: [
+				mediaAsset({ duration: 28.866667 }),
+				audioAsset({ duration: 20 }),
+			],
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+				toleranceSeconds: 0.25,
+			},
+		});
+
+		expect(result.success).toBe(true);
+	});
+
+	test("normalizes overlong narrated remix captions into readable chunks", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 28.866667, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "full-source",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 28.866667,
+						timelineStart: 0,
+						muted: true,
+						reason: "Preserve full source video.",
+					},
+				],
+				narration: { mediaId: "narration-1", sourceStart: 0 },
+				captions: [
+					{
+						text: "Bosuya 遮盖梳，是更轻的替代方案。",
+						startTime: 11.9,
+						duration: 4.2,
+					},
+					{
+						text: "包装、刷头、100% 植物萃取补可信度。",
+						startTime: 16.1,
+						duration: 4.5,
+					},
+				],
+				captionStyle: {
+					preset: "talking-head-pop",
+					position: "lower-safe",
+				},
+			},
+			projectId: "project-1",
+			mediaAssets: [
+				mediaAsset({ duration: 28.866667 }),
+				audioAsset({ duration: 28.866667 }),
+			],
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+				toleranceSeconds: 0.25,
+			},
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) throw new Error(result.message);
+		expect(result.normalizedPlan.captions.length).toBeGreaterThan(2);
+		expect(
+			result.normalizedPlan.captions.every((caption) => caption.duration <= 4),
+		).toBe(true);
+	});
+
 	test("accepts visual beats with multiple independent text overlays", () => {
 		const result = validateNarratedRemixPlan({
 			plan: {

@@ -25,6 +25,7 @@ import {
 	type NarratedRemixDurationContract,
 	type NarratedRemixDurationContractSummary,
 	type NarratedRemixDurationGoal,
+	resolveNarratedRemixNarrationPlacement,
 	validateNarratedRemixPlan,
 } from "./validate";
 
@@ -201,6 +202,18 @@ function buildNarrationElement({
 	plan: NarratedRemixPlan;
 	mediaAssets: MediaAsset[];
 }): UploadAudioElement {
+	const narrationAsset = mediaAssets.find(
+		(candidate) => candidate.id === plan.narration.mediaId,
+	);
+	if (!narrationAsset) {
+		throw new Error(
+			`NarratedRemixPlan media asset "${plan.narration.mediaId}" disappeared.`,
+		);
+	}
+	const placement = resolveNarratedRemixNarrationPlacement({
+		plan,
+		narrationAsset,
+	});
 	return {
 		...buildUploadAudioElement({
 			mediaId: plan.narration.mediaId,
@@ -208,12 +221,12 @@ function buildNarrationElement({
 				mediaAssets,
 				mediaId: plan.narration.mediaId,
 			}),
-			duration: plan.target.durationSec,
-			startTime: 0,
+			duration: placement.durationSec,
+			startTime: placement.timelineStart,
 		}),
 		id: generateUUID(),
-		trimStart: plan.narration.sourceStart,
-		trimEnd: plan.narration.sourceStart + plan.target.durationSec,
+		trimStart: placement.sourceStart,
+		trimEnd: placement.sourceEnd,
 		volume: 1,
 		muted: false,
 	};

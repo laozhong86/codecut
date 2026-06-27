@@ -102,6 +102,20 @@ function editorWithMedia({
 	};
 }
 
+function requireTrackByType({
+	tracks,
+	type,
+}: {
+	tracks: TimelineTrack[];
+	type: TimelineTrack["type"];
+}): TimelineTrack {
+	const track = tracks.find((candidate) => candidate.type === type);
+	if (!track) {
+		throw new Error(`Expected ${type} track to exist.`);
+	}
+	return track;
+}
+
 describe("applyNarratedRemixPlanToEditor", () => {
 	test("replaces the timeline with muted B-roll, narration, and captions", () => {
 		const updates: TimelineTrack[][] = [];
@@ -199,6 +213,139 @@ describe("applyNarratedRemixPlanToEditor", () => {
 				],
 			},
 		]);
+	});
+
+	test("keeps a shorter narration clip at its real duration on a preserve-source timeline", () => {
+		const updates: TimelineTrack[][] = [];
+		const result = applyNarratedRemixPlanToEditor({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 28.866667, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "full-source",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 28.866667,
+						timelineStart: 0,
+						muted: true,
+						reason: "Preserve full source video.",
+					},
+				],
+				narration: { mediaId: "narration-1", sourceStart: 0 },
+				captions: [{ text: "结果先出现", startTime: 0, duration: 3 }],
+			},
+			projectId: "project-1",
+			replaceExisting: true,
+			editor: editorWithMedia({
+				mediaAssets: [
+					mediaAsset({ duration: 28.866667 }),
+					audioAsset({ duration: 28.8 }),
+				],
+				onUpdate: (tracks) => updates.push(tracks),
+			}),
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+				toleranceSeconds: 0.25,
+			},
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			summary: { totalDuration: 28.866667 },
+		});
+		const tracks = updates[0] ?? [];
+		expect(requireTrackByType({ tracks, type: "video" })).toMatchObject({
+			type: "video",
+			elements: [
+				{
+					type: "video",
+					mediaId: "video-1",
+					startTime: 0,
+					duration: 28.866667,
+					trimStart: 0,
+					trimEnd: 28.866667,
+				},
+			],
+		});
+		expect(requireTrackByType({ tracks, type: "audio" })).toMatchObject({
+			type: "audio",
+			elements: [
+				{
+					type: "audio",
+					mediaId: "narration-1",
+					startTime: 0,
+					duration: 28.8,
+					trimStart: 0,
+					trimEnd: 28.8,
+				},
+			],
+		});
+	});
+
+	test("places explicitly offset narration without stretching it across the timeline", () => {
+		const updates: TimelineTrack[][] = [];
+		const result = applyNarratedRemixPlanToEditor({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 28.866667, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "full-source",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 28.866667,
+						timelineStart: 0,
+						muted: true,
+						reason: "Preserve full source video.",
+					},
+				],
+				narration: {
+					mediaId: "narration-1",
+					sourceStart: 1,
+					timelineStart: 5,
+					durationSec: 18,
+				},
+				captions: [{ text: "结果先出现", startTime: 5, duration: 3 }],
+			},
+			projectId: "project-1",
+			replaceExisting: true,
+			editor: editorWithMedia({
+				mediaAssets: [
+					mediaAsset({ duration: 28.866667 }),
+					audioAsset({ duration: 20 }),
+				],
+				onUpdate: (tracks) => updates.push(tracks),
+			}),
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+				toleranceSeconds: 0.25,
+			},
+		});
+
+		expect(result.success).toBe(true);
+		const tracks = updates[0] ?? [];
+		expect(requireTrackByType({ tracks, type: "video" })).toMatchObject({
+			type: "video",
+			elements: [{ type: "video", duration: 28.866667 }],
+		});
+		expect(requireTrackByType({ tracks, type: "audio" })).toMatchObject({
+			type: "audio",
+			elements: [
+				{
+					type: "audio",
+					mediaId: "narration-1",
+					startTime: 5,
+					duration: 18,
+					trimStart: 1,
+					trimEnd: 19,
+				},
+			],
+		});
 	});
 
 	test("projects visual beats with independent text overlays", () => {
