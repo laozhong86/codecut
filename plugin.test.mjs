@@ -427,13 +427,19 @@ describe("Codecut plugin startup guidance", () => {
 				"source-acquisition",
 				"material-ingest",
 				"reference-template",
+				"edit-planning",
 				"executor-apply",
 			]) {
 				expect(contract).toContain(`\`${stage}\``);
 			}
 			expect(contract).toContain("Non-Skill Workflow Phases");
-			expect(contract).toContain("`evidence-build` and `edit-planning`");
-			expect(contract).toMatch(/not\s+loadable stage skills/);
+			expect(contract).toContain(
+				"`evidence-build` is a Codex-side workflow phase",
+			);
+			expect(contract).toContain(
+				"Edit-planning is a loadable stage skill owned by `codecut-edit-planning`.",
+			);
+			expect(contract).not.toContain("`evidence-build` and `edit-planning`");
 			expect(contract).toContain(
 				'"Timeline updated", "Verified in timeline", or "Export produced"',
 			);
@@ -508,7 +514,7 @@ describe("Codecut plugin startup guidance", () => {
 			["skills", "codecut", "references", "round-trip-editing-contract.md"],
 			[
 				"skills",
-				"codecut",
+				"codecut-edit-planning",
 				"references",
 				"workflow-recipes",
 				"long-to-short.md",
@@ -543,6 +549,7 @@ describe("Codecut plugin startup guidance", () => {
 			"codecut",
 			"codecut-requirement-intake",
 			"codecut-material-ingest",
+			"codecut-edit-planning",
 			"codecut-executor-apply",
 			"codecut-reference-template",
 			"codecut-tiktok-downloader",
@@ -666,13 +673,19 @@ describe("Codecut plugin startup guidance", () => {
 
 	test("requires visual preflight for horizontal sources converted to vertical shorts", async () => {
 		const skillRoot = join(pluginRoot, "skills", "codecut");
+		const planningSkillRoot = join(pluginRoot, "skills", "codecut-edit-planning");
 		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
 		const executionContract = await readFile(
 			join(skillRoot, "references", "execution-contract.md"),
 			"utf8",
 		);
 		const longToShort = await readFile(
-			join(skillRoot, "references", "workflow-recipes", "long-to-short.md"),
+			join(
+				planningSkillRoot,
+				"references",
+				"workflow-recipes",
+				"long-to-short.md",
+			),
 			"utf8",
 		);
 		const platformPresets = await readFile(
@@ -709,13 +722,19 @@ describe("Codecut plugin startup guidance", () => {
 
 	test("requires post-cut caption timing and video-type caption preset routing", async () => {
 		const skillRoot = join(pluginRoot, "skills", "codecut");
+		const planningSkillRoot = join(pluginRoot, "skills", "codecut-edit-planning");
 		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
 		const executionContract = await readFile(
 			join(skillRoot, "references", "execution-contract.md"),
 			"utf8",
 		);
 		const subtitlePass = await readFile(
-			join(skillRoot, "references", "workflow-recipes", "subtitle-pass.md"),
+			join(
+				planningSkillRoot,
+				"references",
+				"workflow-recipes",
+				"subtitle-pass.md",
+			),
 			"utf8",
 		);
 		const platformPresets = await readFile(
@@ -752,7 +771,7 @@ describe("Codecut plugin startup guidance", () => {
 			join(
 				pluginRoot,
 				"skills",
-				"codecut",
+				"codecut-edit-planning",
 				"references",
 				"workflow-recipes",
 				"subtitle-pass.md",
