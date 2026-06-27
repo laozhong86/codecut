@@ -19,6 +19,7 @@ const stageSkills = [
 ];
 const requiredSections = [
 	"## Core Boundary",
+	"## Progressive Load Map",
 	"## Stage Ownership",
 	"## Inputs",
 	"## Outputs",
@@ -34,6 +35,25 @@ const expectedStageOwners = new Map([
 	["reference-template", ["codecut-reference-template"]],
 	["executor-apply", ["codecut-executor-apply"]],
 ]);
+const supportingFileStages = [
+	"`router`",
+	"`requirement-intake`",
+	"`source-acquisition`",
+	"`material-ingest`",
+	"`reference-template`",
+	"`edit-planning`",
+	"`executor-apply`",
+	"`timeline-inspection`",
+	"`implementation`",
+];
+const successContractOutcomes = [
+	"Workspace ready",
+	"Timeline mutated",
+	"Local MP4 export produced",
+	"Human preview ready",
+	"Visual QA passed",
+	"Plugin-facing change ready",
+];
 
 function readProjectFile(...parts) {
 	return readFileSync(join(pluginRoot, ...parts), "utf8");
@@ -124,6 +144,48 @@ describe("CodeCut skill architecture v1 contract", () => {
 		}
 		expect(workflowContract).toContain("Non-Skill Workflow Phases");
 		expect(workflowContract).toMatch(/not\s+loadable stage skills/);
+	});
+
+	test("workflow contract defines the progressive supporting file map", () => {
+		const workflowContract = readProjectFile(
+			"skills",
+			"codecut",
+			"references",
+			"workflow-stage-contract.md",
+		);
+
+		expect(workflowContract).toContain("## Supporting File Map");
+		expect(workflowContract).toContain(
+			"| Capability / stage | Read first | Load detail when | Stop before continuing | Required readback | Verification proof |",
+		);
+		for (const stage of supportingFileStages) {
+			expect(workflowContract).toContain(stage);
+		}
+		expect(workflowContract).toContain("get_timeline_state");
+		expect(workflowContract).toContain("bun run plugin:freshness");
+	});
+
+	test("execution contract centralizes success contracts and readback proof", () => {
+		const executionContract = readProjectFile(
+			"skills",
+			"codecut",
+			"references",
+			"execution-contract.md",
+		);
+
+		expect(executionContract).toContain("## Success Contract Table");
+		expect(executionContract).toContain(
+			"| Outcome | Durable truth | Required readback | Stop before claiming success | Minimum proof |",
+		);
+		for (const outcome of successContractOutcomes) {
+			expect(executionContract).toContain(outcome);
+		}
+		expect(executionContract).toContain(
+			"Timeline readback and export proof are different contracts",
+		);
+		expect(executionContract).toContain("get_timeline_state");
+		expect(executionContract).toContain("export_project");
+		expect(executionContract).toContain("bun run plugin:freshness");
 	});
 
 	test("user-visible stage reports use the standard status shape", () => {

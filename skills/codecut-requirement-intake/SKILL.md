@@ -23,6 +23,14 @@ Before material ingest, workspace init/add-assets, doctor checks,
 classify the request and decide whether the user's intent is confirmed enough
 to execute.
 
+## Progressive Load Map
+
+| Situation | Read first | Stop before continuing | Required readback |
+| --- | --- | --- | --- |
+| New creative job or missing setup fields | `../codecut/references/workflow-stage-contract.md` supporting file map | Two or more blocking fields are missing, or widget submission cannot pass | Confirmed setup token plus `00-brief/requirement-intake.md` when a project exists |
+| Widget or setup-token behavior is involved | `../../docs/codecut-workspace.md` and `../../docs/codex-driven-editing.md` | `open_codecut_workspace` or `submit_codecut_setup` is unavailable | Carry the returned confirmation token to later side-effect stages |
+| Requirement pass will lead to executor mutation | `../codecut/references/execution-contract.md` success contract table | Side-effect token, project ID, or required user decision is missing | Executor readback is owned by `codecut-executor-apply` after mutation |
+
 ## Stage Ownership
 
 This skill owns only the permission decision for entering Codecut editing

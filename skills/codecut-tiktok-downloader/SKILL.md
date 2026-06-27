@@ -20,6 +20,14 @@ TikTok download is source acquisition only. It may create local media files and
 a manifest, but it must not choose the edit strategy, import media into the
 executor, mutate the timeline, or claim export completion.
 
+## Progressive Load Map
+
+| Situation | Read first | Stop before continuing | Required readback |
+| --- | --- | --- | --- |
+| TikTok URL, photo, share link, author page, or `@handle` | `../codecut/references/workflow-stage-contract.md` supporting file map | Source rights, access, backend, author limit, or output directory is unclear | `download_manifest.json` with local file paths and warnings |
+| TikTok source is part of a creative edit | `../codecut-requirement-intake/SKILL.md` | Requirement intake has not passed or setup token is missing | Handoff to material ingest for ffprobe/material audit |
+| User only requested source download | This skill plus the download contract below | Editing, timeline, template, or export intent appears | Source-only completion proof; no executor readback |
+
 ## Stage Ownership
 
 This skill owns TikTok-specific source acquisition:
