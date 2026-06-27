@@ -503,7 +503,125 @@ function SavedSoundsView() {
 
 function SongsView() {
 	const { t } = useTranslation();
-	return <div>{t("Songs")}</div>;
+	const [query, setQuery] = useState("");
+	const [results, setResults] = useState<SoundEffect[]>([]);
+	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [playingId, setPlayingId] = useState<number | null>(null);
+	const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(
+		null,
+	);
+
+	useEffect(() => {
+		const trimmedQuery = query.trim();
+		if (!trimmedQuery) {
+			setResults([]);
+			setError(null);
+			return;
+		}
+
+		let shouldIgnore = false;
+		const timeoutId = setTimeout(async () => {
+			try {
+				setIsLoading(true);
+				setError(null);
+				const response = await fetch(
+					`/api/sounds/search?type=songs&q=${encodeURIComponent(
+						trimmedQuery,
+					)}&page_size=20`,
+				);
+				if (!response.ok) {
+					throw new Error(`Search failed: ${response.status}`);
+				}
+
+				const data = await response.json();
+				if (!shouldIgnore) {
+					setResults(data.results);
+				}
+			} catch (searchError) {
+				if (!shouldIgnore) {
+					setError(
+						searchError instanceof Error
+							? searchError.message
+							: "Search failed",
+					);
+				}
+			} finally {
+				if (!shouldIgnore) {
+					setIsLoading(false);
+				}
+			}
+		}, 300);
+
+		return () => {
+			shouldIgnore = true;
+			clearTimeout(timeoutId);
+		};
+	}, [query]);
+
+	const playSound = ({ sound }: { sound: SoundEffect }) => {
+		if (playingId === sound.id) {
+			audioElement?.pause();
+			setPlayingId(null);
+			return;
+		}
+
+		audioElement?.pause();
+
+		if (sound.previewUrl) {
+			const audio = new Audio(sound.previewUrl);
+			audio.addEventListener("ended", () => {
+				setPlayingId(null);
+			});
+			audio.addEventListener("error", () => {
+				setPlayingId(null);
+			});
+			audio.play().catch((playError: DOMException) => {
+				if (playError.name === "AbortError") return;
+				console.error("Failed to play song preview:", playError);
+				setPlayingId(null);
+			});
+
+			setAudioElement(audio);
+			setPlayingId(sound.id);
+		}
+	};
+
+	return (
+		<div className="mt-1 flex h-full flex-col gap-5">
+			<Input
+				value={query}
+				onChange={(event) => setQuery(event.target.value)}
+				placeholder={t("Search background music")}
+			/>
+
+			{error && <div className="text-destructive text-sm">{error}</div>}
+
+			<ScrollArea className="min-h-0 flex-1">
+				<div className="space-y-1">
+					{isLoading && (
+						<div className="text-muted-foreground py-6 text-center text-sm">
+							{t("Loading songs...")}
+						</div>
+					)}
+					{!isLoading &&
+						results.map((sound) => (
+							<AudioItem
+								key={sound.id}
+								sound={sound}
+								isPlaying={playingId === sound.id}
+								onPlay={playSound}
+							/>
+						))}
+					{!isLoading && query.trim() && results.length === 0 && !error && (
+						<div className="text-muted-foreground py-6 text-center text-sm">
+							{t("No songs found")}
+						</div>
+					)}
+				</div>
+			</ScrollArea>
+		</div>
+	);
 }
 
 interface AudioItemProps {
