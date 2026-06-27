@@ -1,0 +1,58 @@
+name: codecut-scriptwriting
+version: 1
+type: strategy
+primary_dimension: planning
+
+intent:
+  one_line: Generate CodeCut-ready cover titles, video titles, voiceover scripts, and de-AI copy before editing.
+  target_user: Codex preparing short-form video copy that can hand off cleanly to CodeCut planning and timeline work.
+  success_looks_like:
+    - Cover titles and video titles are separated instead of merged into one field.
+    - Title candidates include trigger family, rationale, proof check, and Top 3 judgment.
+    - Voiceover scripts are written as visual beats that later CodeCut planning can map to timeline decisions.
+    - De-AI rewrites preserve facts while removing generic AI phrasing.
+    - The skill reports missing proof or duration constraints instead of inventing them.
+
+known_failure_modes:
+  - mode: Cover title and video title are collapsed into one generic headline.
+    severity: high
+    example: Agent outputs only one title and never states whether it is for the cover or platform discovery.
+  - mode: De-AI rewrite adds fake slang or fake intimacy.
+    severity: high
+    example: Agent rewrites a product proof script into forced internet slang that the creator would not say.
+  - mode: Scriptwriting mutates CodeCut timeline state.
+    severity: high
+    example: Agent opens the executor and adds text overlays before the copy brief is approved.
+  - mode: Voiceover ignores duration or visual proof.
+    severity: medium
+    example: Agent writes one long paragraph that cannot map to beats, visuals, or caption emphasis.
+
+style_constraints:
+  must_have:
+    - Separate coverTitle and videoTitle lanes.
+    - Proof checks for claims and titles.
+    - Spoken beats with visual intent for voiceover scripts.
+    - Explicit de-AI diagnosis before rewrite.
+    - Clear CodeCut handoff without timeline mutation.
+  must_not_have:
+    - Guaranteed viral claims.
+    - Hidden default duration.
+    - Generic AI opening phrases.
+    - Executor, MCP mutation, import, export, or timeline completion claims.
+
+arena_config:
+  noise_band: 0.2
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-scriptwriting/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-scriptwriting/retrospective.jsonl
+  log_entry_note: Record requested lanes, available proof, title families used, de-AI rewrite issues, final handoff, and user corrections. Do not fabricate performance data.
+
+cold_start_mode: true
