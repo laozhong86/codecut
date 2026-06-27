@@ -49,6 +49,7 @@ type ExecutorSnapshot = {
 };
 
 const POLL_INTERVAL_MS = 1500;
+const UPDATE_PROJECT_SETTINGS_COMMAND_ID = "cmd-update-project-settings";
 
 type ExecutorSnapshotSummary = {
 	revision: number;
@@ -56,6 +57,15 @@ type ExecutorSnapshotSummary = {
 	trackCount: number;
 	mediaCount: number;
 	syncedAt: string;
+};
+
+type ExecutorCommandResult = {
+	success?: boolean;
+	message?: string;
+};
+
+type ExecutorCommandEnvelopeResult = {
+	results?: ExecutorCommandResult[];
 };
 
 export const EXECUTOR_STATUS_DOT_CLASS =
@@ -207,6 +217,67 @@ export async function loadCodexExecutorStatus({
 	}
 
 	return (await response.json()) as ExecutorStatus;
+}
+
+export async function syncCodexExecutorProjectSettings({
+	projectId,
+	bridgeToken,
+	settings,
+}: {
+	projectId: string;
+	bridgeToken?: string | null;
+	settings: Partial<
+		Pick<TProject["settings"], "canvasSize" | "fps" | "background">
+	>;
+}): Promise<void> {
+	if (!bridgeToken) return;
+
+	const args: Record<string, unknown> = {};
+	if (settings.canvasSize) {
+		args.width = settings.canvasSize.width;
+		args.height = settings.canvasSize.height;
+	}
+	if (settings.fps !== undefined) {
+		args.fps = settings.fps;
+	}
+	if (settings.background) {
+		args.background = settings.background;
+	}
+
+	const response = await fetch("/api/codex-executor/commands", {
+		method: "POST",
+		headers: executorBrowserBridgeHeaders({
+			bridgeToken,
+			contentType: "application/json",
+		}),
+		body: JSON.stringify({
+			envelope: {
+				version: 1,
+				projectId,
+				source: "codex",
+				commands: [
+					{
+						id: UPDATE_PROJECT_SETTINGS_COMMAND_ID,
+						tool: "update_project_settings",
+						args,
+					},
+				],
+			},
+		}),
+	});
+	if (!response.ok) {
+		throw new Error(await response.text());
+	}
+
+	const result = (await response.json()) as ExecutorCommandEnvelopeResult;
+	const failedResult = result.results?.find(
+		(commandResult) => commandResult.success === false,
+	);
+	if (failedResult) {
+		throw new Error(
+			failedResult.message ?? "Executor project settings update failed.",
+		);
+	}
 }
 
 export function applyCodexExecutorSnapshot({

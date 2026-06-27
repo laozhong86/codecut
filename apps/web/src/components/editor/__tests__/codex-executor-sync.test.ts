@@ -18,6 +18,7 @@ const {
 	loadCodexExecutorSnapshot,
 	loadCodexExecutorStatus,
 	shouldSyncExecutorRevision,
+	syncCodexExecutorProjectSettings,
 } = await import("../codex-executor-sync");
 
 const originalFetch = globalThis.fetch;
@@ -338,6 +339,91 @@ describe("applyCodexExecutorSnapshot", () => {
 		).rejects.toThrow("Executor media asset media-1 is empty.");
 
 		expect(capturedAssets).toEqual([]);
+	});
+});
+
+describe("syncCodexExecutorProjectSettings", () => {
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+	});
+
+	test("sends color background updates through the executor command route", async () => {
+		const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
+		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+			fetchCalls.push({ url: String(input), init });
+			return new Response(
+				JSON.stringify({
+					projectId: "project-1",
+					status: "completed",
+					results: [
+						{
+							commandId: "cmd-update-project-settings",
+							tool: "update_project_settings",
+							success: true,
+						},
+					],
+				}),
+				{ headers: { "content-type": "application/json" } },
+			);
+		}) as unknown as typeof fetch;
+
+		await syncCodexExecutorProjectSettings({
+			projectId: "project-1",
+			bridgeToken: "browser-token-1",
+			settings: {
+				background: { type: "color", color: "#fed7aa" },
+			},
+		});
+
+		expect(fetchCalls).toHaveLength(1);
+		expect(fetchCalls[0].url).toBe("/api/codex-executor/commands");
+		expect(fetchCalls[0].init?.headers).toMatchObject({
+			"x-codecut-editor-bridge-token": "browser-token-1",
+			"Content-Type": "application/json",
+		});
+		expect(JSON.parse(String(fetchCalls[0].init?.body))).toEqual({
+			envelope: {
+				version: 1,
+				projectId: "project-1",
+				source: "codex",
+				commands: [
+					{
+						id: "cmd-update-project-settings",
+						tool: "update_project_settings",
+						args: {
+							background: { type: "color", color: "#fed7aa" },
+						},
+					},
+				],
+			},
+		});
+	});
+
+	test("throws when executor rejects the settings update", async () => {
+		globalThis.fetch = (async () =>
+			new Response(
+				JSON.stringify({
+					results: [
+						{
+							commandId: "cmd-update-project-settings",
+							tool: "update_project_settings",
+							success: false,
+							message: "No settings to update",
+						},
+					],
+				}),
+				{ headers: { "content-type": "application/json" } },
+			)) as unknown as typeof fetch;
+
+		await expect(
+			syncCodexExecutorProjectSettings({
+				projectId: "project-1",
+				bridgeToken: "browser-token-1",
+				settings: {
+					background: { type: "color", color: "#fed7aa" },
+				},
+			}),
+		).rejects.toThrow("No settings to update");
 	});
 });
 

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { memo, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PanelBaseView as BaseView } from "@/components/editor/panels/panel-base-view";
+import { syncCodexExecutorProjectSettings } from "@/components/editor/codex-executor-sync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,8 +38,10 @@ import {
 } from "@/lib/media/processing";
 import { buildProjectCoverFromImageAsset } from "@/lib/project/cover";
 import { getLastFrameTime } from "@/lib/time";
+import { readExecutorBrowserBridgeTokenFromLocation } from "@/lib/codex-executor/browser-bridge-token";
 import { CanvasRenderer } from "@/services/renderer/canvas-renderer";
 import { useAISettingsStore } from "@/stores/ai-settings-store";
+import type { TBackground } from "@/types/project";
 import { cn } from "@/utils/ui";
 import {
 	PropertyGroup,
@@ -715,22 +718,47 @@ function BackgroundView() {
 	const activeProject = editor.project.getActive();
 	const blurLevels = useMemo(() => BLUR_INTENSITY_PRESETS, []);
 
+	const updateBackground = useCallback(
+		async ({ background }: { background: TBackground }) => {
+			try {
+				const bridgeToken = readExecutorBrowserBridgeTokenFromLocation();
+				if (bridgeToken) {
+					await syncCodexExecutorProjectSettings({
+						projectId: activeProject.metadata.id,
+						bridgeToken,
+						settings: { background },
+					});
+				}
+				await editor.project.updateSettings({
+					settings: { background },
+				});
+			} catch (error) {
+				toast.error(t("Failed to update background"), {
+					description:
+						error instanceof Error ? error.message : t("Please try again"),
+				});
+				throw error;
+			}
+		},
+		[activeProject.metadata.id, editor.project, t],
+	);
+
 	const handleBlurSelect = useCallback(
 		async ({ blurIntensity }: { blurIntensity: number }) => {
-			await editor.project.updateSettings({
-				settings: { background: { type: "blur", blurIntensity } },
+			await updateBackground({
+				background: { type: "blur", blurIntensity },
 			});
 		},
-		[editor.project],
+		[updateBackground],
 	);
 
 	const handleColorSelect = useCallback(
 		async ({ color }: { color: string }) => {
-			await editor.project.updateSettings({
-				settings: { background: { type: "color", color } },
+			await updateBackground({
+				background: { type: "color", color },
 			});
 		},
-		[editor.project],
+		[updateBackground],
 	);
 
 	const currentBlurIntensity =

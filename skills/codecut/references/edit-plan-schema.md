@@ -143,9 +143,13 @@ Current validation fail-fast checks include:
   `fontSize`, `color`, CSS, or external renderer fields to captions or
   captionStyle. Presets resolve to controlled local renderer styles; the
   current implementation uses curated local CJK renderer fonts.
-- `creator-clean` is the default Chinese creator-caption treatment. It uses a
-  local serif font, white text, no heavy black stroke, and subtle shadow for
-  readability.
+- `talking-head-pop` is the default spoken talking-head caption treatment. It
+  uses a local CJK font, white text, translucent dark backing, and stronger
+  shadow for light-background readability. Very short caption lines are
+  enlarged by the renderer.
+- `creator-clean` is a clean Chinese creator-caption treatment for visually
+  controlled backgrounds. It uses a local serif font, white text, no heavy
+  black stroke, and subtle shadow.
 - captions must not overlap, each caption duration must be `0.5s..4s`, and the
   resolved preset/layout must render at most two lines with no 1-2 character
   orphan final line.
