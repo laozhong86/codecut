@@ -84,9 +84,10 @@ preview URL.
   image with `import_media` and calling `set_project_cover`. Do not represent a
   project cover with `introCover`, and do not shift timeline clips for it.
 - If the user asks for a short-video cover/poster, use the video first frame or
-  visual evidence to create an image outside Codecut runtime, import the image,
-  then call `set_project_cover` with the imported image `mediaId`, title text,
-  prompt, and style preset metadata. Verify with `get_project_info` or
+  visual evidence to create an image outside Codecut runtime, route through
+  `codecut-cover-generation` before importing the image, then call
+  `set_project_cover` with the imported image `mediaId`, title text, prompt,
+  and style preset metadata. Verify with `get_project_info` or
   `get_timeline_state` that `cover` is present and total duration is unchanged.
 - If confirmed setup intent has `generateIntroCover: true`, create a timeline
   opening image before final EditPlan authoring. This is not the project cover.

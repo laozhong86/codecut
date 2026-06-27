@@ -16,6 +16,7 @@ const stageSkills = [
 	"codecut-tiktok-downloader",
 	"codecut-reference-template",
 	"codecut-executor-apply",
+	"codecut-cover-generation",
 ];
 const requiredSections = [
 	"## Core Boundary",
@@ -34,6 +35,7 @@ const expectedStageOwners = new Map([
 	["material-ingest", ["codecut-material-ingest"]],
 	["reference-template", ["codecut-reference-template"]],
 	["executor-apply", ["codecut-executor-apply"]],
+	["cover-generation", ["codecut-cover-generation"]],
 ]);
 const supportingFileStages = [
 	"`router`",

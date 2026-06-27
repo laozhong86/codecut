@@ -1,0 +1,4 @@
+interface:
+  display_name: Codecut Cover Generation
+  short_description: Builds source-backed project cover prompts, imports generated images, and verifies Codecut project cover readback.
+  default_prompt: Use $codecut-cover-generation when a Codecut project needs a project cover, short-video poster, thumbnail prompt, evidence-frame selection, generated cover image import, set_project_cover, or cover readback. Keep image generation outside Codecut runtime, use video evidence frames for emotion, atmosphere, subject, and proof, import the generated image with import_media, set the project cover with set_project_cover, and verify cover metadata with get_project_info or get_timeline_state without changing timeline duration.
