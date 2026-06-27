@@ -1074,6 +1074,40 @@ describe("validateEditPlan", () => {
 		});
 	});
 
+	test("accepts migration transition presets as native transitions", () => {
+		const transitionTypes = [
+			"blur-crossfade",
+			"flash-white",
+			"push-soft",
+			"whip-pan-left",
+			"whip-pan-right",
+			"cinematic-zoom",
+			"chromatic-split",
+		];
+
+		for (const type of transitionTypes) {
+			const plan = {
+				...validPlan(),
+				transitions: [
+					{
+						fromClipId: "clip-1",
+						toClipId: "clip-2",
+						type,
+						duration: 0.4,
+					},
+				],
+			};
+
+			const result = validateEditPlan({
+				plan,
+				projectId: "project-1",
+				mediaAssets: [mediaAsset()],
+			});
+
+			expect(result.success, type).toBe(true);
+		}
+	});
+
 	test("rejects missing bgm audio assets", () => {
 		const plan = {
 			...validPlan(),

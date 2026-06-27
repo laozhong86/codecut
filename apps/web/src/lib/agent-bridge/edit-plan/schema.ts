@@ -48,6 +48,13 @@ export const EditPlanTransitionTypeSchema = z.enum([
 	"slide-down",
 	"zoom-in",
 	"zoom-out",
+	"blur-crossfade",
+	"flash-white",
+	"push-soft",
+	"whip-pan-left",
+	"whip-pan-right",
+	"cinematic-zoom",
+	"chromatic-split",
 ]);
 
 export const EditPlanClipFitSchema = z.enum(["cover"]);

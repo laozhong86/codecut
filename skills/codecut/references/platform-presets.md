@@ -155,6 +155,22 @@ Use implemented caption presets only:
 - `short-form-bold`: legacy bold short-form route only when the user explicitly asks for that heavier look; do not use it as a hidden fallback.
 - `black-bar`: only when the user explicitly wants a boxed subtitle look; Do not use it to mask burned-in captions.
 
+## Native Transition Routing
+
+Use implemented native transition presets only; never use keyframes, Shader,
+WebGL, CSS, or arbitrary transition names to satisfy a transition request.
+
+- Talking-head, opinion, and interview shorts: `blur-crossfade` for calm
+  continuity, or `push-soft` for point-to-point pacing.
+- Tutorial, demo, and screen walkthrough: `push-soft` to show progression
+  without distracting from the proof.
+- Product proof, UGC ad, deal hook, before/after: `flash-white` for reveal or
+  `cinematic-zoom` for product emphasis.
+- Brand story, fashion, emotional montage, premium product film:
+  `blur-crossfade` as the default restrained transition.
+- High-energy launch, sports, music, or promo: `chromatic-split`,
+  `whip-pan-left`, or `whip-pan-right` when the source motion can support it.
+
 ## Preset Selection
 
 If user says:

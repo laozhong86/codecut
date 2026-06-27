@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import {
 	CODECUT_CJK_FONT_FAMILY,
+	CODECUT_FONTSOURCE_FONTS,
 	resolveCodecutCjkFontPaths,
+	resolveCodecutFontFamilyPaths,
 	registerCodecutCjkFont,
 } from "../codecut-cjk-font";
 import * as codecutFontModule from "../codecut-cjk-font";
@@ -118,6 +121,132 @@ describe("Codecut CJK font registration", () => {
 				family: "CodecutYanBoSong",
 			},
 		]);
+	});
+
+	test("resolves and registers fontsource migration font families", () => {
+		const inter = CODECUT_FONTSOURCE_FONTS.find(
+			(font) => font.family === "Inter",
+		);
+		expect(inter).toBeDefined();
+		if (!inter) {
+			throw new Error("Missing Inter fontsource manifest entry");
+		}
+		const paths = resolveCodecutFontFamilyPaths({
+			fontFamily: "Inter",
+			cwd: "/repo",
+		});
+
+		expect(paths).toEqual([
+			join(
+				"/repo",
+				"apps/web/node_modules",
+				inter.packageName,
+				"files",
+				inter.fileName,
+			),
+			join(
+				"/repo",
+				"node_modules",
+				inter.packageName,
+				"files",
+				inter.fileName,
+			),
+			join(
+				"/repo",
+				"apps/web/node_modules",
+				inter.packageName,
+				"files",
+				"inter-latin-700-normal.woff2",
+			),
+			join(
+				"/repo",
+				"node_modules",
+				inter.packageName,
+				"files",
+				"inter-latin-700-normal.woff2",
+			),
+		]);
+
+		const calls: Array<{ path: string; family: string }> = [];
+		const result = codecutFontModule.registerCodecutFontFamily({
+			fontFamily: "Inter",
+			existsSync: (path) =>
+				path.includes("inter-latin-400-normal.woff2") ||
+				path.includes("inter-latin-700-normal.woff2"),
+			globalFonts: {
+				has: () => false,
+				registerFromPath: (path, family) => {
+					calls.push({ path, family });
+					return {};
+				},
+			},
+		});
+
+		expect(result).toMatchObject({
+			family: "Inter",
+			fontPath: expect.stringContaining("inter-latin-400-normal.woff2"),
+			registered: true,
+		});
+		expect(calls).toEqual([
+			{
+				path: expect.stringContaining("inter-latin-400-normal.woff2"),
+				family: "Inter",
+			},
+			{
+				path: expect.stringContaining("inter-latin-700-normal.woff2"),
+				family: "Inter",
+			},
+		]);
+	});
+
+	test("registers forced fontsource files even when the family exists globally", () => {
+		const calls: Array<{ path: string; family: string }> = [];
+		const result = codecutFontModule.registerCodecutFontFamily({
+			fontFamily: "Inter",
+			force: true,
+			existsSync: (path) =>
+				path.includes("inter-latin-400-normal.woff2") ||
+				path.includes("inter-latin-700-normal.woff2"),
+			globalFonts: {
+				has: () => true,
+				registerFromPath: (path, family) => {
+					calls.push({ path, family });
+					return {};
+				},
+			},
+		});
+
+		expect(result).toMatchObject({
+			family: "Inter",
+			fontPath: expect.stringContaining("inter-latin-400-normal.woff2"),
+			registered: true,
+		});
+		expect(calls).toEqual([
+			{
+				path: expect.stringContaining("inter-latin-400-normal.woff2"),
+				family: "Inter",
+			},
+			{
+				path: expect.stringContaining("inter-latin-700-normal.woff2"),
+				family: "Inter",
+			},
+		]);
+	});
+
+	test("fails clearly when a fontsource migration font is missing", () => {
+		expect(() =>
+			codecutFontModule.registerCodecutFontFamily({
+				fontFamily: "Inter",
+				fontPaths: ["/missing/inter.woff2"],
+				existsSync: () => false,
+				globalFonts: {
+					has: () => false,
+					registerFromPath: () => {
+						throw new Error("must not register missing fonts");
+					},
+				},
+			}),
+		).toThrow("Codecut node renderer requires a registered font file for Inter.");
 	});
 
 	test("fails clearly for unknown curated Codecut caption font families", () => {

@@ -23,5 +23,155 @@
 			"sourceUrl": "https://github.com/atelier-anchor/smiley-sans"
 		}
 	],
+	"fontsourceFonts": [
+		{
+			"family": "Inter",
+			"label": "Inter",
+			"packageName": "@fontsource/inter",
+			"packageSlug": "inter",
+			"fileName": "inter-latin-400-normal.woff2",
+			"license": "OFL-1.1",
+			"sourceUrl": "https://fontsource.org/fonts/inter",
+			"sha256": "8909904ab6c872eb994093482a88a28eca2cd95912d7b6fecd72103b0dc07edc",
+			"additionalFiles": [
+				{
+					"fileName": "inter-latin-700-normal.woff2",
+					"sha256": "6f56409fd3d64bb85f7d070bce20749db2d66b6d63cec586cc22d1c761be2491"
+				}
+			]
+		},
+		{
+			"family": "Montserrat",
+			"label": "Montserrat",
+			"packageName": "@fontsource/montserrat",
+			"packageSlug": "montserrat",
+			"fileName": "montserrat-latin-400-normal.woff2",
+			"license": "OFL-1.1",
+			"sourceUrl": "https://fontsource.org/fonts/montserrat",
+			"sha256": "e66bcd2761ab6924b25ce70dafe10e57a39193c4fea1516730bd9cb5240af6c8",
+			"additionalFiles": [
+				{
+					"fileName": "montserrat-latin-700-normal.woff2",
+					"sha256": "f9d9e65b15372cebcafc3acd1e664a564c5c4b23278de4d5760de9a13c530371"
+				}
+			]
+		},
+		{
+			"family": "Outfit",
+			"label": "Outfit",
+			"packageName": "@fontsource/outfit",
+			"packageSlug": "outfit",
+			"fileName": "outfit-latin-400-normal.woff2",
+			"license": "OFL-1.1",
+			"sourceUrl": "https://fontsource.org/fonts/outfit",
+			"sha256": "71f028fd2349990b3f8aa643abe767e82e0f596be407ae66f0004ff164121bdb",
+			"additionalFiles": [
+				{
+					"fileName": "outfit-latin-700-normal.woff2",
+					"sha256": "5d5e3734089a74707292ce8a3e186def34cd63e33879f9ac3689a8d8da9d0706"
+				}
+			]
+		},
+		{
+			"family": "Oswald",
+			"label": "Oswald",
+			"packageName": "@fontsource/oswald",
+			"packageSlug": "oswald",
+			"fileName": "oswald-latin-400-normal.woff2",
+			"license": "OFL-1.1",
+			"sourceUrl": "https://fontsource.org/fonts/oswald",
+			"sha256": "e902b779e43944c300cf8ae5e4a1affa68cb8a823fd263dd2f479c4cdfbd213c",
+			"additionalFiles": [
+				{
+					"fileName": "oswald-latin-700-normal.woff2",
+					"sha256": "aae665c75af89ea7cb7d8ccc8b0911ea72267442ebcd84f6e3efa041ad3b3c16"
+				}
+			]
+		},
+		{
+			"family": "Archivo Black",
+			"label": "Archivo Black",
+			"packageName": "@fontsource/archivo-black",
+			"packageSlug": "archivo-black",
+			"fileName": "archivo-black-latin-400-normal.woff2",
+			"license": "OFL-1.1",
+			"sourceUrl": "https://fontsource.org/fonts/archivo-black",
+			"sha256": "25f33e61cf995abd6be62931cf03bf427286259177b43618cc410ee0157cfd30"
+		},
+		{
+			"family": "League Gothic",
+			"label": "League Gothic",
+			"packageName": "@fontsource/league-gothic",
+			"packageSlug": "league-gothic",
+			"fileName": "league-gothic-latin-400-normal.woff2",
+			"license": "OFL-1.1",
+			"sourceUrl": "https://fontsource.org/fonts/league-gothic",
+			"sha256": "44dceee4d918f5928d05ad0711d17e1edd421ce7fd7bed91d05642d8d693a8b1"
+		},
+		{
+			"family": "Space Mono",
+			"label": "Space Mono",
+			"packageName": "@fontsource/space-mono",
+			"packageSlug": "space-mono",
+			"fileName": "space-mono-latin-400-normal.woff2",
+			"license": "OFL-1.1",
+			"sourceUrl": "https://fontsource.org/fonts/space-mono",
+			"sha256": "fb4a81a2d0a893e5c38c394a7e716a1cef0b24610a0af49c96f6d529bd66bf2b",
+			"additionalFiles": [
+				{
+					"fileName": "space-mono-latin-700-normal.woff2",
+					"sha256": "2d46bd159b53f55c41167a4f1540a074649464194fd1e416f5b4694a6c0f282c"
+				}
+			]
+		},
+		{
+			"family": "JetBrains Mono",
+			"label": "JetBrains Mono",
+			"packageName": "@fontsource/jetbrains-mono",
+			"packageSlug": "jetbrains-mono",
+			"fileName": "jetbrains-mono-latin-400-normal.woff2",
+			"license": "OFL-1.1",
+			"sourceUrl": "https://fontsource.org/fonts/jetbrains-mono",
+			"sha256": "14425ba9c695763c1547f48a206b7aa60350a33ae23de09f0407877f3fcd89eb",
+			"additionalFiles": [
+				{
+					"fileName": "jetbrains-mono-latin-700-normal.woff2",
+					"sha256": "d0d4e818808f2a0ba39b2b09d1989366f63494e295f003c7ef436697378507e8"
+				}
+			]
+		},
+		{
+			"family": "Playfair Display",
+			"label": "Playfair Display",
+			"packageName": "@fontsource/playfair-display",
+			"packageSlug": "playfair-display",
+			"fileName": "playfair-display-latin-400-normal.woff2",
+			"license": "OFL-1.1",
+			"sourceUrl": "https://fontsource.org/fonts/playfair-display",
+			"sha256": "1fe9ad5d8b2ebd8ecb8fbd05bed1e3fdfa52dae3f1a04e1c219918442fe9394d",
+			"additionalFiles": [
+				{
+					"fileName": "playfair-display-latin-700-normal.woff2",
+					"sha256": "28453852ea165c47b5a941be00e418402e1407002ed87507f062a1e316328fe6"
+				}
+			]
+		},
+		{
+			"family": "Poppins",
+			"label": "Poppins",
+			"packageName": "@fontsource/poppins",
+			"packageSlug": "poppins",
+			"fileName": "poppins-latin-400-normal.woff2",
+			"license": "OFL-1.1",
+			"sourceUrl": "https://fontsource.org/fonts/poppins",
+			"sha256": "7d93459d86585bfcdbb7e0376056226adb25821ee54b96236fe2123e9560929f",
+			"additionalFiles": [
+				{
+					"fileName": "poppins-latin-700-normal.woff2",
+					"sha256": "9338e65fc077355c7a87ae0d64cc101e23b9bf8ad78ae65f0f319c857311b526"
+				}
+			]
+		}
+	],
 	"publicDirectory": "/fonts/codecut-cjk"
 }

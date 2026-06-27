@@ -224,6 +224,79 @@ function TransitionIcon({ type }: { type: TransitionType }) {
 		);
 	}
 
+	if (type === "blur-crossfade") {
+		return (
+			<svg viewBox="0 0 60 30" className={baseClass} role="img" aria-label={label}>
+				<title>{label}</title>
+				<defs>
+					<filter id="blur-crossfade-filter">
+						<feGaussianBlur stdDeviation="1.6" />
+					</filter>
+				</defs>
+				<rect x="5" y="4" width="24" height="22" rx="3" fill="hsl(var(--primary))" filter="url(#blur-crossfade-filter)" />
+				<rect x="31" y="4" width="24" height="22" rx="3" fill="hsl(var(--muted-foreground))" opacity="0.45" filter="url(#blur-crossfade-filter)" />
+				<path d="M24 15 H36" stroke="hsl(var(--foreground))" strokeWidth="1.5" strokeLinecap="round" />
+			</svg>
+		);
+	}
+
+	if (type === "flash-white") {
+		return (
+			<svg viewBox="0 0 60 30" className={baseClass} role="img" aria-label={label}>
+				<title>{label}</title>
+				<rect x="2" y="2" width="26" height="26" rx="2" fill="hsl(var(--primary))" />
+				<rect x="32" y="2" width="26" height="26" rx="2" fill="hsl(var(--muted-foreground))" opacity="0.35" />
+				<path d="M33 3 L23 15 H31 L25 27 L39 12 H31 Z" fill="#ffffff" stroke="hsl(var(--foreground))" strokeWidth="0.8" />
+			</svg>
+		);
+	}
+
+	if (type === "push-soft") {
+		return (
+			<svg viewBox="0 0 60 30" className={baseClass} role="img" aria-label={label}>
+				<title>{label}</title>
+				<rect x="5" y="4" width="24" height="22" rx="5" fill="hsl(var(--primary))" />
+				<rect x="31" y="4" width="24" height="22" rx="5" fill="hsl(var(--muted-foreground))" opacity="0.35" />
+				<path d="M26 15 H36 M33 11 L37 15 L33 19" fill="none" stroke="hsl(var(--foreground))" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+			</svg>
+		);
+	}
+
+	if (type === "whip-pan-left" || type === "whip-pan-right") {
+		const direction = type === "whip-pan-left" ? "left" : "right";
+		return (
+			<svg viewBox="0 0 60 30" className={baseClass} role="img" aria-label={label}>
+				<title>{label}</title>
+				<rect x="4" y="4" width="22" height="22" rx="2" fill="hsl(var(--primary))" />
+				<rect x="34" y="4" width="22" height="22" rx="2" fill="hsl(var(--muted-foreground))" opacity="0.35" />
+				<path d={getArrowPath({ direction })} fill="none" stroke="hsl(var(--foreground))" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+				<path d="M14 9 H46 M10 15 H50 M14 21 H46" stroke="hsl(var(--foreground))" strokeWidth="0.8" strokeDasharray="2 3" opacity="0.55" />
+			</svg>
+		);
+	}
+
+	if (type === "cinematic-zoom") {
+		return (
+			<svg viewBox="0 0 60 30" className={baseClass} role="img" aria-label={label}>
+				<title>{label}</title>
+				<rect x="4" y="4" width="52" height="22" rx="3" fill="hsl(var(--primary))" opacity="0.35" />
+				<rect x="12" y="7" width="36" height="16" rx="3" fill="hsl(var(--primary))" opacity="0.55" />
+				<rect x="21" y="10" width="18" height="10" rx="2" fill="hsl(var(--foreground))" opacity="0.8" />
+			</svg>
+		);
+	}
+
+	if (type === "chromatic-split") {
+		return (
+			<svg viewBox="0 0 60 30" className={baseClass} role="img" aria-label={label}>
+				<title>{label}</title>
+				<rect x="16" y="5" width="28" height="20" rx="3" fill="#ef4444" opacity="0.7" />
+				<rect x="20" y="5" width="28" height="20" rx="3" fill="#22d3ee" opacity="0.7" />
+				<rect x="18" y="5" width="28" height="20" rx="3" fill="hsl(var(--primary))" opacity="0.72" />
+			</svg>
+		);
+	}
+
 	return (
 		<svg viewBox="0 0 60 30" className={baseClass} role="img" aria-label={label}>
 			<title>{label}</title>

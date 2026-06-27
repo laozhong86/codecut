@@ -180,6 +180,27 @@ function applyTransition({
 		case "zoom-out":
 			applyZoom({ context, ...source, width, height, progress, direction: "out" });
 			break;
+		case "blur-crossfade":
+			applyBlurCrossfade({ context, ...source, width, height, progress });
+			break;
+		case "flash-white":
+			applyFlashWhite({ context, ...source, width, height, progress });
+			break;
+		case "push-soft":
+			applyPushSoft({ context, ...source, width, height, progress });
+			break;
+		case "whip-pan-left":
+			applyWhipPan({ context, ...source, width, height, progress, direction: "left" });
+			break;
+		case "whip-pan-right":
+			applyWhipPan({ context, ...source, width, height, progress, direction: "right" });
+			break;
+		case "cinematic-zoom":
+			applyCinematicZoom({ context, ...source, width, height, progress });
+			break;
+		case "chromatic-split":
+			applyChromaticSplit({ context, ...source, width, height, progress });
+			break;
 		default:
 			applyFade({ context, ...source, width, height, progress });
 	}
@@ -193,6 +214,11 @@ type TransitionContext = {
 	height: number;
 	progress: number;
 };
+
+type TransitionDrawContext = Pick<
+	TransitionContext,
+	"context" | "width" | "height"
+>;
 
 function applyFade({ context, canvasA, canvasB, width, height, progress }: TransitionContext): void {
 	context.save();
@@ -335,4 +361,284 @@ function applyZoom({
 	}
 
 	context.restore();
+}
+
+function applyBlurCrossfade({
+	context,
+	canvasA,
+	canvasB,
+	width,
+	height,
+	progress,
+}: TransitionContext): void {
+	const eased = smoothstep(0, 1, progress);
+	const peak = Math.sin(progress * Math.PI);
+	const blurPx = 18 * peak;
+	const originalFilter = getContextFilter({ context });
+
+	context.save();
+	setContextFilter({ context, filter: `blur(${blurPx}px)` });
+	context.globalAlpha = 1 - eased;
+	context.drawImage(canvasA as CanvasImageSource, 0, 0, width, height);
+	context.globalAlpha = eased;
+	context.drawImage(canvasB as CanvasImageSource, 0, 0, width, height);
+	setContextFilter({ context, filter: originalFilter });
+	context.restore();
+}
+
+function applyFlashWhite({
+	context,
+	canvasA,
+	canvasB,
+	width,
+	height,
+	progress,
+}: TransitionContext): void {
+	const reveal = smoothstep(0.35, 0.85, progress);
+	const flash = Math.sin(progress * Math.PI);
+
+	context.save();
+	context.globalAlpha = 1 - reveal;
+	context.drawImage(canvasA as CanvasImageSource, 0, 0, width, height);
+	context.globalAlpha = reveal;
+	context.drawImage(canvasB as CanvasImageSource, 0, 0, width, height);
+	context.globalAlpha = flash * 0.86;
+	context.fillStyle = "#ffffff";
+	context.fillRect(0, 0, width, height);
+	context.restore();
+}
+
+function applyPushSoft({
+	context,
+	canvasA,
+	canvasB,
+	width,
+	height,
+	progress,
+}: TransitionContext): void {
+	const eased = easeInOutCubic(progress);
+	const outgoingX = -width * eased;
+	const incomingX = width * (1 - eased);
+	const scale = 1 + Math.sin(progress * Math.PI) * 0.025;
+
+	context.save();
+	drawScaledImage({
+		context,
+		canvas: canvasA,
+		width,
+		height,
+		scale,
+		offsetX: outgoingX,
+		alpha: 1,
+	});
+	drawScaledImage({
+		context,
+		canvas: canvasB,
+		width,
+		height,
+		scale,
+		offsetX: incomingX,
+		alpha: 1,
+	});
+	context.restore();
+}
+
+function applyWhipPan({
+	context,
+	canvasA,
+	canvasB,
+	width,
+	height,
+	progress,
+	direction,
+}: TransitionContext & { direction: "left" | "right" }): void {
+	const sign = direction === "left" ? -1 : 1;
+	const eased = easeInOutCubic(progress);
+	const blurStrength = Math.sin(progress * Math.PI);
+	const outgoingX = sign * width * 1.2 * eased;
+	const incomingX = -sign * width * 1.2 * (1 - eased);
+
+	context.save();
+	drawMotionBlurredImage({
+		context,
+		canvas: canvasA,
+		width,
+		height,
+		offsetX: outgoingX,
+		blurX: sign * blurStrength * 42,
+		alpha: 1 - smoothstep(0.72, 1, progress),
+	});
+	drawMotionBlurredImage({
+		context,
+		canvas: canvasB,
+		width,
+		height,
+		offsetX: incomingX,
+		blurX: sign * blurStrength * 42,
+		alpha: smoothstep(0, 0.35, progress),
+	});
+	context.restore();
+}
+
+function applyCinematicZoom({
+	context,
+	canvasA,
+	canvasB,
+	width,
+	height,
+	progress,
+}: TransitionContext): void {
+	const eased = smoothstep(0, 1, progress);
+	const peak = Math.sin(progress * Math.PI);
+
+	context.save();
+	drawScaledImage({
+		context,
+		canvas: canvasA,
+		width,
+		height,
+		scale: 1 + eased * 0.16,
+		alpha: 1 - eased,
+	});
+	drawScaledImage({
+		context,
+		canvas: canvasB,
+		width,
+		height,
+		scale: 1.08 - eased * 0.08,
+		alpha: eased,
+	});
+	context.globalAlpha = peak * 0.18;
+	context.fillStyle = "#ffffff";
+	context.fillRect(0, 0, width, height);
+	context.restore();
+}
+
+function applyChromaticSplit({
+	context,
+	canvasA,
+	canvasB,
+	width,
+	height,
+	progress,
+}: TransitionContext): void {
+	const eased = smoothstep(0, 1, progress);
+	const split = Math.sin(progress * Math.PI) * 18;
+	const originalFilter = getContextFilter({ context });
+
+	context.save();
+	context.globalAlpha = 1 - eased;
+	context.drawImage(canvasA as CanvasImageSource, 0, 0, width, height);
+	context.globalAlpha = eased;
+	context.drawImage(canvasB as CanvasImageSource, 0, 0, width, height);
+
+	context.globalCompositeOperation = "screen";
+	context.globalAlpha = 0.32 * Math.sin(progress * Math.PI);
+	setContextFilter({
+		context,
+		filter: "sepia(1) saturate(6) hue-rotate(-35deg)",
+	});
+	context.drawImage(canvasA as CanvasImageSource, -split, 0, width, height);
+	context.drawImage(canvasB as CanvasImageSource, split * 0.5, 0, width, height);
+	setContextFilter({
+		context,
+		filter: "sepia(1) saturate(6) hue-rotate(155deg)",
+	});
+	context.drawImage(canvasA as CanvasImageSource, split, 0, width, height);
+	context.drawImage(canvasB as CanvasImageSource, -split * 0.5, 0, width, height);
+
+	setContextFilter({ context, filter: originalFilter });
+	context.restore();
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+	const t = clamp01((value - edge0) / (edge1 - edge0));
+	return t * t * (3 - 2 * t);
+}
+
+function easeInOutCubic(value: number): number {
+	const t = clamp01(value);
+	return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+function clamp01(value: number): number {
+	return Math.min(1, Math.max(0, value));
+}
+
+function drawScaledImage({
+	context,
+	canvas,
+	width,
+	height,
+	scale,
+	offsetX = 0,
+	offsetY = 0,
+	alpha,
+}: TransitionDrawContext & {
+	canvas: OffscreenCanvas | HTMLCanvasElement;
+	scale: number;
+	offsetX?: number;
+	offsetY?: number;
+	alpha: number;
+}): void {
+	const scaledWidth = width * scale;
+	const scaledHeight = height * scale;
+	const x = (width - scaledWidth) / 2 + offsetX;
+	const y = (height - scaledHeight) / 2 + offsetY;
+
+	context.save();
+	context.globalAlpha = alpha;
+	context.drawImage(canvas as CanvasImageSource, x, y, scaledWidth, scaledHeight);
+	context.restore();
+}
+
+function drawMotionBlurredImage({
+	context,
+	canvas,
+	width,
+	height,
+	offsetX,
+	blurX,
+	alpha,
+}: TransitionDrawContext & {
+	canvas: OffscreenCanvas | HTMLCanvasElement;
+	offsetX: number;
+	blurX: number;
+	alpha: number;
+}): void {
+	const samples = 7;
+	context.save();
+	for (let index = 0; index < samples; index += 1) {
+		const sampleProgress = index / (samples - 1);
+		const centered = sampleProgress - 0.5;
+		context.globalAlpha = alpha / samples;
+		context.drawImage(
+			canvas as CanvasImageSource,
+			offsetX + centered * blurX,
+			0,
+			width,
+			height,
+		);
+	}
+	context.restore();
+}
+
+function getContextFilter({
+	context,
+}: {
+	context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+}): string {
+	return "filter" in context ? String(context.filter || "none") : "none";
+}
+
+function setContextFilter({
+	context,
+	filter,
+}: {
+	context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+	filter: string;
+}): void {
+	if ("filter" in context) {
+		context.filter = filter;
+	}
 }

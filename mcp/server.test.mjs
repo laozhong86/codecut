@@ -281,6 +281,31 @@ describe("Codecut MCP server contract", () => {
 		expect(readOnlyByTool.get("remove_transition")).toBe(false);
 	});
 
+	test("accepts implemented migration transition types in MCP schemas", () => {
+		const addTransitions = CODECUT_MCP_TOOLS.find(
+			(tool) => tool.name === "add_transitions",
+		);
+		const updateTransition = CODECUT_MCP_TOOLS.find(
+			(tool) => tool.name === "update_transition",
+		);
+
+		expect(
+			addTransitions?.inputSchema.entries.safeParse([
+				{
+					trackId: "video-track-1",
+					fromElementId: "clip-1",
+					toElementId: "clip-2",
+					type: "blur-crossfade",
+					duration: 0.4,
+				},
+			]).success,
+		).toBe(true);
+		expect(updateTransition?.inputSchema.type.safeParse("blur-crossfade").success)
+			.toBe(true);
+		expect(updateTransition?.inputSchema.type.safeParse("domain-warp").success)
+			.toBe(false);
+	});
+
 	test("classifies MCP tools by governance surface", () => {
 		const categoryByTool = new Map(
 			CODECUT_MCP_TOOLS.map((tool) => [tool.name, tool.governanceCategory]),

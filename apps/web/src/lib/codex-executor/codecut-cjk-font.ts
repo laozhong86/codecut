@@ -3,6 +3,7 @@ import { existsSync as fileExistsSync } from "node:fs";
 import { join } from "node:path";
 import {
 	CODECUT_CJK_FONT_FAMILY,
+	getCodecutFontsourceFontByFamily,
 	getCodecutLocalFontByFamily,
 	isCodecutRendererFontFamily,
 	type CodecutRendererFontFamily,
@@ -10,6 +11,8 @@ import {
 
 export {
 	CODECUT_CJK_FONT_FAMILY,
+	CODECUT_FONTSOURCE_FONTS,
+	isCodecutFontsourceFontFamily,
 	isCodecutRendererFontFamily,
 } from "@/lib/codecut-fonts";
 
@@ -52,14 +55,22 @@ export function resolveCodecutFontFamilyPaths({
 	}
 
 	const localFont = getCodecutLocalFontByFamily(fontFamily);
-	if (!localFont) {
-		throw new Error(`Unsupported Codecut caption font family: ${fontFamily}.`);
+	if (localFont) {
+		return [
+			join(cwd, "apps/web/public/fonts/codecut-cjk", localFont.fileName),
+			join(cwd, "public/fonts/codecut-cjk", localFont.fileName),
+		];
 	}
 
-	return [
-		join(cwd, "apps/web/public/fonts/codecut-cjk", localFont.fileName),
-		join(cwd, "public/fonts/codecut-cjk", localFont.fileName),
-	];
+	const fontsourceFont = getCodecutFontsourceFontByFamily(fontFamily);
+	if (fontsourceFont) {
+		return resolveCodecutFontsourcePathGroups({
+			fontsourceFont,
+			cwd,
+		}).flat();
+	}
+
+	throw new Error(`Unsupported Codecut caption font family: ${fontFamily}.`);
 }
 
 type CodecutFontRegistry = {
@@ -81,21 +92,23 @@ export type RegisterCodecutCjkFontResult =
 
 export function registerCodecutFontFamily({
 	fontFamily,
-	fontPaths = resolveCodecutFontFamilyPaths({ fontFamily }),
+	fontPaths,
 	existsSync = fileExistsSync,
 	globalFonts = GlobalFonts,
+	force = false,
 }: {
 	fontFamily: CodecutRendererFontFamily | string;
 	fontPaths?: readonly string[];
 	existsSync?: (path: string) => boolean;
 	globalFonts?: CodecutFontRegistry;
+	force?: boolean;
 }): RegisterCodecutCjkFontResult {
 	if (!isCodecutRendererFontFamily(fontFamily)) {
 		throw new Error(`Unsupported Codecut caption font family: ${fontFamily}.`);
 	}
 
 	const family = fontFamily as CodecutRendererFontFamily;
-	if (globalFonts.has(family)) {
+	if (!force && globalFonts.has(family)) {
 		return {
 			family,
 			registered: false,
@@ -103,10 +116,42 @@ export function registerCodecutFontFamily({
 		};
 	}
 
-	const fontPath = fontPaths.find((candidate) => existsSync(candidate));
+	const fontsourceFont = getCodecutFontsourceFontByFamily(family);
+	if (fontsourceFont && fontPaths === undefined) {
+		const selectedPaths = resolveCodecutFontsourcePathGroups({
+			fontsourceFont,
+			cwd: process.cwd(),
+		}).map((candidates) => candidates.find((candidate) => existsSync(candidate)));
+		const missingIndex = selectedPaths.findIndex((candidate) => !candidate);
+
+		if (missingIndex !== -1) {
+			throw new Error(
+				`Codecut node renderer requires a registered font file for ${family}. Install one of: ${resolveCodecutFontFamilyPaths({ fontFamily: family }).join(", ")}`,
+			);
+		}
+
+		for (const selectedPath of selectedPaths) {
+			globalFonts.registerFromPath(selectedPath as string, family);
+		}
+
+		return {
+			family,
+			fontPath: selectedPaths[0] as string,
+			registered: true,
+		};
+	}
+
+	const resolvedFontPaths =
+		fontPaths ?? resolveCodecutFontFamilyPaths({ fontFamily: family });
+	const fontPath = resolvedFontPaths.find((candidate) => existsSync(candidate));
 	if (!fontPath) {
+		if (family === CODECUT_CJK_FONT_FAMILY) {
+			throw new Error(
+				`Codecut node renderer requires a CJK font for ${family}. Install one of: ${resolvedFontPaths.join(", ")}`,
+			);
+		}
 		throw new Error(
-			`Codecut node renderer requires a CJK font for ${family}. Install one of: ${fontPaths.join(", ")}`,
+			`Codecut node renderer requires a registered font file for ${family}. Install one of: ${resolvedFontPaths.join(", ")}`,
 		);
 	}
 
@@ -133,4 +178,25 @@ export function registerCodecutCjkFont({
 		existsSync,
 		globalFonts,
 	});
+}
+
+function resolveCodecutFontsourcePathGroups({
+	fontsourceFont,
+	cwd,
+}: {
+	fontsourceFont: {
+		packageName: string;
+		fileName: string;
+		additionalFiles?: Array<{ fileName: string }>;
+	};
+	cwd: string;
+}): readonly string[][] {
+	const fileNames = [
+		fontsourceFont.fileName,
+		...(fontsourceFont.additionalFiles ?? []).map((file) => file.fileName),
+	];
+	return fileNames.map((fileName) => [
+		join(cwd, "apps/web/node_modules", fontsourceFont.packageName, "files", fileName),
+		join(cwd, "node_modules", fontsourceFont.packageName, "files", fileName),
+	]);
 }

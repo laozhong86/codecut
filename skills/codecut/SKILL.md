@@ -149,11 +149,30 @@ export.
   `ripple_delete_ranges` are advanced repair tools after timeline readback or
   explicit user intent. Normal generated edits go through strict EditPlan or
   NarratedRemixPlan paths.
+- Caption typography uses top-level `captionStyle` presets only. Do not emit
+  arbitrary `fontFamily`, `fontSize`, CSS, or per-caption style objects in an
+  EditPlan. Codecut caption presets preserve CJK defaults for Chinese captions
+  and use curated local Latin fonts only through controlled presets.
+- Title typography uses controlled `title.stylePreset` values only. Do not ask
+  Codex to output a direct font name unless the schema explicitly exposes that
+  field.
 - When the user asks for transitions, transition, or picture-to-picture
   transitions, use native timeline transitions (`TrackTransition`,
   `tracks[].transitions`, `summary.transitionCount`) or report a capability
   blocker. `set_keyframes` is only for motion effects such as push, pull, fade,
   zoom, or opacity animation and must not be reported as a transition.
+- Implemented native transition types are `fade`, `dissolve`,
+  `wipe-left`, `wipe-right`, `wipe-up`, `wipe-down`, `slide-left`,
+  `slide-right`, `slide-up`, `slide-down`, `zoom-in`, `zoom-out`,
+  `blur-crossfade`, `flash-white`, `push-soft`, `whip-pan-left`,
+  `whip-pan-right`, `cinematic-zoom`, and `chromatic-split`. Do not emit
+  Shader, WebGL, GSAP, CSS, or arbitrary transition names in EditPlan.
+- Choose native transitions by video type: talking-head shorts use
+  `blur-crossfade` or `push-soft`; product proof and UGC ads use
+  `flash-white` or `cinematic-zoom`; emotional or premium edits use
+  `blur-crossfade`; tutorials and screen walkthroughs use `push-soft`.
+  Use `chromatic-split` and `whip-pan-*` only for high-energy promos where
+  visual evidence supports the stronger motion.
 - Before completing a transition task, read back
   `get_timeline_state.summary.transitionCount` and the target video
   track's `transitions[]`. For `verify_timeline`, include `transitionCount` in

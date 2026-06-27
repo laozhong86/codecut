@@ -367,7 +367,14 @@ Codex sends exactly one editing plan format to Codecut:
       | "slide-up"
       | "slide-down"
       | "zoom-in"
-      | "zoom-out",
+      | "zoom-out"
+      | "blur-crossfade"
+      | "flash-white"
+      | "push-soft"
+      | "whip-pan-left"
+      | "whip-pan-right"
+      | "cinematic-zoom"
+      | "chromatic-split",
     duration: number
   }>,
   rationale: string
@@ -455,6 +462,10 @@ Caption preset routing:
 `title.stylePreset` is optional. If omitted, Codecut keeps the existing default
 text behavior. If present, it must be `hook_title`, `lower_title`,
 `social_hook`, `product_badge`, or `chapter_bumper`.
+Title presets resolve to controlled local renderer styles. Chinese-safe title
+routes continue to use curated local CJK fonts; high-impact Latin title routes
+use curated `@fontsource` fonts such as Outfit, Archivo Black, Montserrat, and
+JetBrains Mono. Do not send arbitrary title font fields in EditPlan.
 
 `title.motionPreset` and `captionStyle.motionPreset` are optional. If present,
 they must be `slam-in`, `soft-reveal`, or `pop-bounce`. Codecut resolves these
@@ -505,7 +516,19 @@ timeline second and is truncated at the timeline end if needed.
 `fromClipId` and `toClipId` refer to `clips[].id`, not timeline element IDs.
 The two clips must be adjacent within `0.05s`, and the transition duration must
 not exceed either neighboring clip duration. Invalid transitions fail the plan;
-Codecut does not move clips to make them valid.
+Codecut does not move clips to make them valid. Transition `type` must be one
+of the implemented native transition names in the schema above; do not use
+keyframes, Shader, WebGL, CSS, or arbitrary effect names to satisfy a
+transition request.
+
+Native transition routing:
+
+- Talking-head, opinion, and interview shorts: `blur-crossfade` or `push-soft`.
+- Product proof and UGC ads: `flash-white` or `cinematic-zoom`.
+- Emotional, cinematic, or premium edits: `blur-crossfade`.
+- Tutorial, demo, and screen walkthrough: `push-soft`.
+- High-energy launch, sports, music, or promo: `chromatic-split`,
+  `whip-pan-left`, or `whip-pan-right` when source motion supports it.
 
 `clips[].fit` currently supports only `cover`. Use it when a horizontal source
 must fill a vertical or square canvas without letterboxing. Cover fit requires a
