@@ -37,6 +37,7 @@ import {
 } from "@/lib/codex-executor/timeline-inspection";
 import { buildVideoQualityReport } from "@/lib/codex-executor/video-quality-report";
 import { buildCaptionDiagnosticsReport } from "@/lib/caption-diagnostics/caption-diagnostics";
+import { parseControlledSubtitles } from "@/lib/subtitles/controlled-import";
 import type { TBackground } from "@/types/project";
 import {
 	addTextElements,
@@ -163,6 +164,7 @@ type ExecutorToolName =
 	| "build_post_cut_captions"
 	| "add_texts"
 	| "add_captions"
+	| "import_subtitles"
 	| "list_models"
 	| "set_keyframes"
 	| "add_transitions"
@@ -288,6 +290,7 @@ const commandSchema = z
 			"build_post_cut_captions",
 			"add_texts",
 			"add_captions",
+			"import_subtitles",
 			"list_models",
 			"set_keyframes",
 			"add_transitions",
@@ -590,6 +593,17 @@ const addCaptionsArgsSchema = z
 	.object({
 		language: z.unknown(),
 		modelId: z.unknown(),
+		captionStyle: EditPlanCaptionStyleSchema.optional(),
+	})
+	.strict();
+
+const importSubtitlesArgsSchema = z
+	.object({
+		filePath: z.string().min(1).refine(isAbsolute, {
+			message: "filePath must be an absolute path.",
+		}),
+		format: z.enum(["srt", "ass"]),
+		trackName: z.string().min(1),
 		captionStyle: EditPlanCaptionStyleSchema.optional(),
 	})
 	.strict();
@@ -4839,6 +4853,89 @@ async function runAddCaptions({
 	};
 }
 
+async function runImportSubtitles({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = importSubtitlesArgsSchema.parse(args);
+	const captionStyle = resolveCaptionStyleForContract({
+		confirmedSetup: state.confirmedSetup,
+		explicitCaptionStyle: parsed.captionStyle,
+	});
+	const content = await readFile(parsed.filePath, "utf8");
+	const captions = parseControlledSubtitles({
+		format: parsed.format,
+		content,
+	});
+	const existingDuration = calculateTotalDuration({ tracks: state.tracks });
+	const captionDuration = captions.reduce(
+		(maxEnd, caption) =>
+			Math.max(maxEnd, caption.startTime + caption.duration),
+		0,
+	);
+	const captionQuality = auditCaptions({
+		captions,
+		captionStyle,
+		aspectRatio: aspectRatioForState(state),
+		canvasSize: state.project.settings.canvasSize,
+		timelineDuration: existingDuration > 0 ? existingDuration : captionDuration,
+	});
+	if (!captionQuality.ok) {
+		return {
+			success: false,
+			message: "Imported subtitles failed caption quality validation.",
+			data: { captionQuality },
+		};
+	}
+	const raw = resolveCaptionStylePreset({
+		captionStyle,
+		aspectRatio: aspectRatioForState(state),
+	});
+	const captionRaw = state.confirmedSetup
+		? applyCaptionPreferencesToTextRaw({
+				raw,
+				captionPreferences: state.confirmedSetup.captionPreferences,
+			})
+		: raw;
+	const summary = addTextElements({
+		state,
+		args: {
+			entries: captions.map((caption, index) => ({
+				...captionRaw,
+				name: `Imported Subtitle ${index + 1}`,
+				content: caption.text,
+				startTime: caption.startTime,
+				duration: caption.duration,
+			})),
+		},
+	});
+	if (summary.createdTrackId) {
+		const track = state.tracks.find(
+			(candidate) => candidate.id === summary.createdTrackId,
+		);
+		if (!track) {
+			throw new Error("Created subtitle track was not found.");
+		}
+		track.name = parsed.trackName;
+	}
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Imported ${captions.length} subtitle caption(s).`,
+		data: {
+			...summary,
+			revision: state.revision,
+			sourceFormat: parsed.format,
+			captionCount: captions.length,
+			captionStyle,
+			captionQuality,
+		},
+	};
+}
+
 function runGetTimelineState({
 	state,
 	args,
@@ -5515,6 +5612,9 @@ async function executeCommand({
 			args: command.args,
 			transcribeMediaRange,
 		});
+	}
+	if (command.tool === "import_subtitles") {
+		return runImportSubtitles({ state, args: command.args });
 	}
 	if (command.tool === "list_models") {
 		return runListModels({ args: command.args });

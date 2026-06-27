@@ -73,6 +73,7 @@ function envelope({
 		| "build_post_cut_captions"
 		| "add_texts"
 		| "add_captions"
+		| "import_subtitles"
 		| "list_models"
 		| "set_keyframes"
 		| "add_transitions"
@@ -8773,6 +8774,142 @@ describe("codex executor", () => {
 			},
 		});
 		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
+	test("import_subtitles writes strict SRT captions through editor text layers", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "codecut-srt-"));
+		const filePath = join(tempDir, "captions.srt");
+
+		try {
+			await writeFile(
+				filePath,
+				[
+					"1",
+					"00:00:00,500 --> 00:00:02,500",
+					"First imported line",
+					"",
+					"2",
+					"00:00:03,000 --> 00:00:05,000",
+					"Second imported line",
+					"",
+				].join("\n"),
+				"utf8",
+			);
+			await seedDraftState({
+				tracks: [],
+				confirmedSetup: confirmedSetupFixture({
+					captionStylePreset: "talking-head-pop",
+				}),
+			});
+
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "import_subtitles",
+					args: {
+						filePath,
+						format: "srt",
+						trackName: "Imported Captions",
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+						},
+					},
+				}),
+			});
+			const state = await getExecutorProjectState({ projectId });
+			const textTrack = state.tracks.find((track) => track.type === "text");
+
+			expect(result.results[0]).toMatchObject({
+				success: true,
+				data: {
+					sourceFormat: "srt",
+					captionCount: 2,
+					createdTrackId: expect.any(String),
+					createdElementIds: [expect.any(String), expect.any(String)],
+					revision: 2,
+				},
+			});
+			expect(textTrack).toMatchObject({
+				name: "Imported Captions",
+				type: "text",
+				elements: [
+					{
+						type: "text",
+						name: "Imported Subtitle 1",
+						content: "First imported line",
+						startTime: 0.5,
+						duration: 2,
+						fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+						transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
+					},
+					{
+						type: "text",
+						name: "Imported Subtitle 2",
+						content: "Second imported line",
+						startTime: 3,
+						duration: 2,
+						fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+						transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
+					},
+				],
+			});
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	test("import_subtitles rejects unreadable imported captions before mutating", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "codecut-srt-"));
+		const filePath = join(tempDir, "captions.srt");
+
+		try {
+			await writeFile(
+				filePath,
+				[
+					"1",
+					"00:00:00,000 --> 00:00:00,200",
+					"too fast",
+					"",
+				].join("\n"),
+				"utf8",
+			);
+			await seedDraftState({ tracks: [] });
+			const before = await getExecutorProjectState({ projectId });
+
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "import_subtitles",
+					args: {
+						filePath,
+						format: "srt",
+						trackName: "Imported Captions",
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+						},
+					},
+				}),
+			});
+
+			expect(result.results[0]).toMatchObject({
+				success: false,
+				message: "Imported subtitles failed caption quality validation.",
+				data: {
+					captionQuality: {
+						ok: false,
+						issues: [
+							expect.objectContaining({
+								code: "caption_too_short",
+								path: "captions[0].duration",
+							}),
+						],
+					},
+				},
+			});
+			expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	test("add_captions writes segment-level captions from edited audio clips", async () => {

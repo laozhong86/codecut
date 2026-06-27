@@ -563,6 +563,7 @@ const captionStyleSchema = z
 		motionPreset: captionMotionPresetSchema.optional(),
 	})
 	.strict();
+const subtitleFormatSchema = z.enum(["srt", "ass"]);
 const protectedTermsSchema = z.array(z.string().trim().min(1)).optional();
 
 const keyframeInterpolationSchema = z.enum(["linear", "hold"]);
@@ -638,6 +639,7 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["verify_timeline", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["add_texts", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
 	["add_captions", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
+	["import_subtitles", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR],
 	[
 		"update_project_preferences",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.ADVANCED_REPAIR,
@@ -1057,6 +1059,21 @@ export const CODECUT_MCP_TOOLS = [
 			...confirmationTokenInputSchema,
 			language: languageSchema.optional(),
 			modelId: modelIdSchema,
+			captionStyle: captionStyleSchema.optional(),
+		},
+		readOnly: false,
+	},
+	{
+		name: "import_subtitles",
+		title: "Import Codecut Subtitles",
+		description:
+			"Import a strict SRT or ASS subtitle file and add the captions as editable Codecut text elements.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
+			filePath: filePathSchema,
+			format: subtitleFormatSchema,
+			trackName: z.string().trim().min(1),
 			captionStyle: captionStyleSchema.optional(),
 		},
 		readOnly: false,
@@ -3562,6 +3579,25 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 						: { captionStyle: args.captionStyle }),
 				},
 			});
+		case "import_subtitles": {
+			const command = [
+				"scripts/codex-bridge.mjs",
+				"import-subtitles",
+				"--project-id",
+				projectId,
+				"--file-path",
+				requireStringArg(args, "filePath"),
+				"--format",
+				requireStringArg(args, "format"),
+				"--track-name",
+				requireStringArg(args, "trackName"),
+			];
+			if (args.captionStyle !== undefined) {
+				command.push("--caption-style-json", JSON.stringify(args.captionStyle));
+			}
+			command.push("--confirmation-token", requireConfirmationTokenArg(args));
+			return command;
+		}
 		case "update_project_preferences":
 			return buildSendArgs({
 				projectId,

@@ -58,6 +58,7 @@ const confirmationGatedCommands = new Set([
 	"apply-narrated-remix-plan",
 	"add-texts",
 	"add-captions",
+	"import-subtitles",
 	"insert-clips",
 	"move-clips",
 	"remove-clips",
@@ -75,6 +76,7 @@ const confirmationGatedSendTools = new Set([
 	"update_project_preferences",
 	"add_texts",
 	"add_captions",
+	"import_subtitles",
 	"insert_clips",
 	"move_clips",
 	"remove_clips",
@@ -111,6 +113,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs get-transcript --project-id <id> --granularity <segment|word> --language <auto|code> --model-id <model> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>]",
 		"  node scripts/codex-bridge.mjs add-texts --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs add-captions --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs import-subtitles --project-id <id> --file-path /absolute/path/captions.srt --format <srt|ass> --track-name <name> [--caption-style-json '<json>'] --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs insert-clips --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs move-clips --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs remove-clips --project-id <id> --args-json '<json>' --confirmation-token <token>",
@@ -1791,6 +1794,34 @@ export function buildAddCaptionsEnvelope({
 	});
 }
 
+export function buildImportSubtitlesEnvelope({
+	projectId,
+	filePath,
+	format,
+	trackName,
+	captionStyle,
+}) {
+	if (!filePath) {
+		throw new Error("--file-path is required");
+	}
+	if (format !== "srt" && format !== "ass") {
+		throw new Error("--format must be srt or ass");
+	}
+	if (!trackName) {
+		throw new Error("--track-name is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "import_subtitles",
+		args: {
+			filePath,
+			format,
+			trackName,
+			...(captionStyle === undefined ? {} : { captionStyle }),
+		},
+	});
+}
+
 export function buildListModelsEnvelope({ projectId, type }) {
 	if (
 		type !== undefined &&
@@ -3387,6 +3418,17 @@ export async function runCli({
 		envelope = buildAddCaptionsEnvelope({
 			projectId: flags.projectId,
 			...payload,
+		});
+	} else if (command === "import-subtitles") {
+		envelope = buildImportSubtitlesEnvelope({
+			projectId: flags.projectId,
+			filePath: flags.filePath,
+			format: flags.format,
+			trackName: flags.trackName,
+			captionStyle:
+				flags.captionStyleJson === undefined
+					? undefined
+					: JSON.parse(flags.captionStyleJson),
 		});
 	} else if (command === "list-models") {
 		envelope = buildListModelsEnvelope({

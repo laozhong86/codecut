@@ -44,8 +44,8 @@ skill keeps the minimum command surface needed to operate the current executor.
   available.
 - Bridge env from `apps/web/.env.local`.
 - Imported media IDs and readback from material/evidence stages.
-- Strict EditPlan, NarratedRemixPlan, verification JSON, template draft path, or
-  explicit export request.
+- Strict EditPlan, NarratedRemixPlan, verification JSON, template draft path,
+  explicit controlled subtitle import request, or explicit export request.
 
 ## Outputs
 
@@ -151,6 +151,12 @@ Use `validate-edit-plan`, `preview-edit-plan`, and `apply-plan` from the docs.
 Captioned EditPlans must use `captions[]` plus top-level `captionStyle` only.
 Do not add arbitrary caption font or CSS fields to the plan.
 
+For user-supplied SRT/ASS files, use the controlled `import-subtitles`
+exception instead of rebuilding the timeline through EditPlan. Require an
+absolute file path, explicit `format`, `trackName`, `captionStyle`, and a
+confirmed setup token, then verify the created text elements through
+`get_timeline_state`.
+
 Verify:
 
 Use `verify-timeline`, `get_timeline_state`, `build-video-quality-report`, and
@@ -195,13 +201,14 @@ Use `fresh-session-smoke` from the docs.
 
 ## Failure Rule
 
-Do not continue after `doctor-install`, `doctor`, `fresh-session-smoke`, `import-media`, `import-system-template-script`, `transcribe`, `build-post-cut-captions`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
+Do not continue after `doctor-install`, `doctor`, `fresh-session-smoke`, `import-media`, `import-system-template-script`, `transcribe`, `build-post-cut-captions`, `import-subtitles`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
 
 Advanced MCP repair tools such as `insert_clips`, `add_texts`,
-`add_captions`, `move_clips`, `remove_clips`, `split_clip`,
+`add_captions`, `import_subtitles`, `move_clips`, `remove_clips`, `split_clip`,
 `set_clip_properties`, `set_keyframes`, and `ripple_delete_ranges` are not the
 default generated-edit path. Use them only after timeline readback identifies a
-specific repair or the user explicitly asks for a direct low-level edit.
+specific repair, the user explicitly asks for a direct low-level edit, or the
+user supplies a subtitle file for controlled import.
 
 ## Completion
 

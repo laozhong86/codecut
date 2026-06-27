@@ -17,6 +17,7 @@ import {
 	buildFreshSessionSmokeReport,
 	buildGetTimelineStateEnvelope,
 	buildGetTranscriptEnvelope,
+	buildImportSubtitlesEnvelope,
 	buildImportSystemTemplateScriptEnvelope,
 	buildImportMediaEnvelope,
 	buildInsertClipsEnvelope,
@@ -1239,6 +1240,33 @@ try {
 				projectId: "project-123",
 				tool: "add_captions",
 				args: { language: "auto", modelId: "whisper-base" },
+			}),
+		);
+
+		expect(
+			buildImportSubtitlesEnvelope({
+				projectId: "project-123",
+				filePath: "/tmp/captions.ass",
+				format: "ass",
+				trackName: "Imported Captions",
+				captionStyle: {
+					preset: "talking-head-pop",
+					position: "lower-safe",
+				},
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "import_subtitles",
+				args: {
+					filePath: "/tmp/captions.ass",
+					format: "ass",
+					trackName: "Imported Captions",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
+				},
 			}),
 		);
 
