@@ -98,6 +98,18 @@ describe("agent bridge schema", () => {
 		expect(result.success).toBe(true);
 	});
 
+	test("accepts the system template query tools", () => {
+		expect(BridgeToolNameSchema.safeParse("list_system_template_scripts").success).toBe(
+			true,
+		);
+		expect(BridgeToolNameSchema.safeParse("get_system_template_script").success).toBe(
+			true,
+		);
+		expect(
+			BridgeToolNameSchema.safeParse("resolve_system_template_script").success,
+		).toBe(true);
+	});
+
 	test("rejects non-Codex sources", () => {
 		const result = BridgeEnvelopeSchema.safeParse({
 			version: 1,

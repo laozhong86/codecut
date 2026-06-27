@@ -687,6 +687,27 @@ function expectedMarketplaceSourcePath({ marketplaceRoot, cwd }) {
 	return relativePath.startsWith(".") ? relativePath : `./${relativePath}`;
 }
 
+function expectedMarketplaceSourcePaths({ marketplaceRoot, cwd }) {
+	const expectedPaths = [
+		expectedMarketplaceSourcePath({
+			marketplaceRoot,
+			cwd,
+		}),
+	];
+	const normalizedCwd = resolve(cwd).replaceAll("\\", "/");
+	const worktreeMarker = "/.worktrees/";
+	const markerIndex = normalizedCwd.lastIndexOf(worktreeMarker);
+	if (markerIndex !== -1) {
+		expectedPaths.push(
+			expectedMarketplaceSourcePath({
+				marketplaceRoot,
+				cwd: normalizedCwd.slice(0, markerIndex),
+			}),
+		);
+	}
+	return [...new Set(expectedPaths)];
+}
+
 async function checkPluginConfig({ cwd, homeDir, sourceManifest }) {
 	const pluginName = sourceManifest?.name ?? "codecut";
 	const configPath = join(homeDir, ".codex/config.toml");
@@ -819,24 +840,27 @@ async function checkPluginConfig({ cwd, homeDir, sourceManifest }) {
 		? marketplace.plugins.find((plugin) => plugin?.name === pluginName)
 		: null;
 	const sourcePath = entry?.source?.path;
-	const expectedSourcePath = expectedMarketplaceSourcePath({
+	const expectedSourcePaths = expectedMarketplaceSourcePaths({
 		marketplaceRoot,
 		cwd,
 	});
+	const configMatchesSource =
+		Boolean(entry) && expectedSourcePaths.includes(sourcePath);
 	checks.push(
 		doctorCheck({
 			id: "marketplace_entry",
-			ok: Boolean(entry) && sourcePath === expectedSourcePath,
+			ok: configMatchesSource,
 			message: !entry
 				? `Marketplace entry for ${pluginName} is missing.`
-				: sourcePath === expectedSourcePath
+				: configMatchesSource
 					? `Marketplace entry for ${pluginName} points to the active source checkout.`
-					: `Marketplace entry for ${pluginName} points to ${String(sourcePath)}, expected ${expectedSourcePath}.`,
+					: `Marketplace entry for ${pluginName} points to ${String(sourcePath)}, expected one of ${expectedSourcePaths.join(", ")}.`,
 			data: {
 				marketplaceJsonPath,
 				pluginName,
 				sourcePath: sourcePath ?? null,
-				expectedSourcePath,
+				expectedSourcePath: expectedSourcePaths[0],
+				expectedSourcePaths,
 			},
 		}),
 	);
@@ -852,7 +876,8 @@ async function checkPluginConfig({ cwd, homeDir, sourceManifest }) {
 			marketplaceRoot,
 			marketplaceJsonPath,
 			sourcePath: sourcePath ?? null,
-			expectedSourcePath,
+			expectedSourcePath: expectedSourcePaths[0],
+			expectedSourcePaths,
 		},
 	};
 }
