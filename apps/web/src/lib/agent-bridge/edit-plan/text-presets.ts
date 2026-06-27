@@ -1,6 +1,10 @@
 import type { buildTextElement } from "@/lib/timeline/element-utils";
 import {
+	CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
 	CODECUT_CJK_FONT_FAMILY,
+	CODECUT_JETBRAINS_MONO_FONT_FAMILY,
+	CODECUT_MONTSERRAT_FONT_FAMILY,
+	CODECUT_OUTFIT_FONT_FAMILY,
 	CODECUT_SMILEY_SANS_FONT_FAMILY,
 	CODECUT_WEN_KAI_FONT_FAMILY,
 	CODECUT_YAN_BO_SONG_FONT_FAMILY,
@@ -72,7 +76,7 @@ export function resolveTitleStylePreset({
 
 	if (preset === "social_hook") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
 			fontSize: 11,
 			fontWeight: "bold",
 			color: "#ffe45c",
@@ -90,7 +94,7 @@ export function resolveTitleStylePreset({
 
 	if (preset === "product_badge") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_MONTSERRAT_FONT_FAMILY,
 			fontSize: 7,
 			fontWeight: "bold",
 			color: "#111827",
@@ -111,7 +115,7 @@ export function resolveTitleStylePreset({
 
 	if (preset === "chapter_bumper") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_JETBRAINS_MONO_FONT_FAMILY,
 			fontSize: 8.5,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -133,7 +137,7 @@ export function resolveTitleStylePreset({
 
 	if (preset === "hook_title") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_OUTFIT_FONT_FAMILY,
 			fontSize: 10,
 			fontWeight: "bold",
 			color: "#ffffff",

@@ -9,7 +9,11 @@ import type {
 	TransitionType,
 } from "@/types/timeline";
 import {
+	CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
 	CODECUT_CJK_FONT_FAMILY,
+	CODECUT_JETBRAINS_MONO_FONT_FAMILY,
+	CODECUT_MONTSERRAT_FONT_FAMILY,
+	CODECUT_OUTFIT_FONT_FAMILY,
 	CODECUT_SMILEY_SANS_FONT_FAMILY,
 	CODECUT_WEN_KAI_FONT_FAMILY,
 	CODECUT_YAN_BO_SONG_FONT_FAMILY,
@@ -713,7 +717,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[0]).toMatchObject({
 			content: "Stop wasting effort",
-			fontFamily: "CodecutCJK",
+			fontFamily: CODECUT_OUTFIT_FONT_FAMILY,
 			fontSize: 10,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -935,7 +939,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				stylePreset: "social_hook",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
 					fontSize: 11,
 					fontWeight: "bold",
 					color: "#ffe45c",
@@ -952,7 +956,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				stylePreset: "product_badge",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_MONTSERRAT_FONT_FAMILY,
 					fontSize: 7,
 					fontWeight: "bold",
 					color: "#111827",
@@ -970,7 +974,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				stylePreset: "chapter_bumper",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_JETBRAINS_MONO_FONT_FAMILY,
 					fontSize: 8.5,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -1332,6 +1336,59 @@ describe("applyEditPlanToEditor", () => {
 				toElementId: "element-2",
 			},
 		]);
+	});
+
+	test("applies migration transition presets as native track transitions", () => {
+		const transitionTypes: TransitionType[] = [
+			"blur-crossfade",
+			"flash-white",
+			"push-soft",
+			"whip-pan-left",
+			"whip-pan-right",
+			"cinematic-zoom",
+			"chromatic-split",
+		];
+
+		for (const type of transitionTypes) {
+			const plan = {
+				...shortVideoPlan(),
+				transitions: [
+					{
+						fromClipId: "clip-1",
+						toClipId: "clip-2",
+						type,
+						duration: 0.4,
+					},
+				],
+			};
+			const editor = fakeEditor();
+
+			const result = applyEditPlanToEditor({
+				plan,
+				projectId: "project-1",
+				replaceExisting: true,
+				editor,
+			});
+
+			const videoTracks = editor.timeline
+				.getTracks()
+				.filter((track): track is VideoTrack => track.type === "video");
+
+			expect(result).toMatchObject({
+				success: true,
+				summary: {
+					transitionCount: 1,
+				},
+			});
+			expect(videoTracks[0].transitions).toMatchObject([
+				{
+					type,
+					duration: 0.4,
+					fromElementId: "element-1",
+					toElementId: "element-2",
+				},
+			]);
+		}
 	});
 
 	test("does not modify the timeline when transition insertion fails during apply", () => {

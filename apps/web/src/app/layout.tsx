@@ -1,6 +1,24 @@
 import Script from "next/script";
 import type { Viewport } from "next";
 
+import "@fontsource/archivo-black/latin-400.css";
+import "@fontsource/inter/latin-400.css";
+import "@fontsource/inter/latin-700.css";
+import "@fontsource/jetbrains-mono/latin-400.css";
+import "@fontsource/jetbrains-mono/latin-700.css";
+import "@fontsource/league-gothic/latin-400.css";
+import "@fontsource/montserrat/latin-400.css";
+import "@fontsource/montserrat/latin-700.css";
+import "@fontsource/oswald/latin-400.css";
+import "@fontsource/oswald/latin-700.css";
+import "@fontsource/outfit/latin-400.css";
+import "@fontsource/outfit/latin-700.css";
+import "@fontsource/playfair-display/latin-400.css";
+import "@fontsource/playfair-display/latin-700.css";
+import "@fontsource/poppins/latin-400.css";
+import "@fontsource/poppins/latin-700.css";
+import "@fontsource/space-mono/latin-400.css";
+import "@fontsource/space-mono/latin-700.css";
 import "./globals.css";
 import { baseMetaData } from "./metadata";
 import { BotIdClient } from "botid/client";

@@ -169,6 +169,13 @@ const transitionTypeValues = [
 	"slide-down",
 	"zoom-in",
 	"zoom-out",
+	"blur-crossfade",
+	"flash-white",
+	"push-soft",
+	"whip-pan-left",
+	"whip-pan-right",
+	"cinematic-zoom",
+	"chromatic-split",
 ];
 const transitionPreferenceValues = ["auto", "none", ...transitionTypeValues];
 const workspaceTaskTypeValues = [
@@ -1070,7 +1077,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "add_transitions",
 		title: "Add Codecut Transitions",
 		description:
-			"Add native timeline transitions between adjacent visual elements on video tracks. This does not move clips, create keyframes, or downgrade transition requests to animation.",
+			"Add implemented native timeline transitions between adjacent visual elements on video tracks. This does not move clips, create keyframes, accept Shader/CSS transition names, or downgrade transition requests to animation.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			...confirmationTokenInputSchema,
@@ -1094,7 +1101,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "update_transition",
 		title: "Update Codecut Transition",
 		description:
-			"Update one existing native timeline transition by trackId and transitionId. At least one of type or duration is required.",
+			"Update one existing native timeline transition by trackId and transitionId. At least one of implemented native type or duration is required.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			...confirmationTokenInputSchema,

@@ -40,7 +40,13 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
     text: string,
     startTime: number,
     duration: number,
-    stylePreset?: "hook_title" | "lower_title",
+    stylePreset?:
+      | "hook_title"
+      | "lower_title"
+      | "social_hook"
+      | "product_badge"
+      | "chapter_bumper",
+    motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce",
     richSpans?: Array<{
       start: number,
       end: number,
@@ -79,7 +85,8 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
       | "social-highlight"
       | "comment-bubble"
       | "minimal-reel",
-    position: "lower-safe" | "center"
+    position: "lower-safe" | "center",
+    motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce"
   },
   audio?: {
     bgm?: {
@@ -108,7 +115,14 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
       | "slide-up"
       | "slide-down"
       | "zoom-in"
-      | "zoom-out",
+      | "zoom-out"
+      | "blur-crossfade"
+      | "flash-white"
+      | "push-soft"
+      | "whip-pan-left"
+      | "whip-pan-right"
+      | "cinematic-zoom"
+      | "chromatic-split",
     duration: number
   }>,
   rationale: string
@@ -139,10 +153,15 @@ Current validation fail-fast checks include:
 - title and captions must fit inside the generated timeline.
 - captions must use top-level `captionStyle`; per-caption style objects are not
   accepted.
-- captionStyle accepts only `preset` and `position`. Do not add `fontFamily`,
-  `fontSize`, `color`, CSS, or external renderer fields to captions or
+- captionStyle accepts only `preset`, `position`, and optional `motionPreset`.
+  Do not add `fontFamily`, `fontSize`, `color`, CSS, or external renderer fields to captions or
   captionStyle. Presets resolve to controlled local renderer styles; the
   current implementation uses curated local CJK renderer fonts.
+- title styling accepts only implemented `title.stylePreset` values and
+  optional `title.motionPreset`; do not put arbitrary title `fontFamily`,
+  `fontSize`, `color`, CSS, Shader, or HTML fields in EditPlan. Title presets
+  resolve to controlled Codecut renderer styles, including curated local CJK
+  fonts and curated `@fontsource` Latin fonts.
 - `talking-head-pop` is the default spoken talking-head caption treatment. It
   uses a local CJK font, white text, translucent dark backing, and stronger
   shadow for light-background readability. Very short caption lines are
@@ -166,7 +185,9 @@ Current validation fail-fast checks include:
 - SFX start times must fit inside the generated timeline.
 - transitions must reference existing `clips[].id` values, must be adjacent on
   the output timeline within `0.05s`, and must not exceed either neighboring
-  clip duration.
+  clip duration. They must use the implemented native transition types listed
+  above; do not use keyframes, Shader, WebGL, CSS, or arbitrary effect names to
+  satisfy a transition request.
 
 `target.aspectRatio` is a planning field in the current implemented schema. It does not update the project canvas by itself. When the user outcome requires vertical, square, or specific FPS output, call the implemented project settings path and verify the result through `get_project_info`.
 
@@ -251,6 +272,11 @@ Transitions v1 only accepts adjacent generated video clips:
   ]
 }
 ```
+
+Use `blur-crossfade` or `push-soft` for talking-head shorts, `flash-white` or
+`cinematic-zoom` for product proof and UGC ads, `blur-crossfade` for emotional
+or premium edits, and `push-soft` for tutorials. Reserve `chromatic-split` and
+`whip-pan-*` for high-energy promos.
 
 ## Current Implemented NarratedRemixPlan v1
 

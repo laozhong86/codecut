@@ -108,7 +108,14 @@ export type TransitionType =
 	| "slide-up"
 	| "slide-down"
 	| "zoom-in"
-	| "zoom-out";
+	| "zoom-out"
+	| "blur-crossfade"
+	| "flash-white"
+	| "push-soft"
+	| "whip-pan-left"
+	| "whip-pan-right"
+	| "cinematic-zoom"
+	| "chromatic-split";
 
 export interface TrackTransition {
 	id: string;
