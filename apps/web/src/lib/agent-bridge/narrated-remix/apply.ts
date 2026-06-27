@@ -21,7 +21,12 @@ import {
 import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
 import { generateUUID } from "@/utils/id";
 import type { NarratedRemixPlan } from "./schema";
-import { validateNarratedRemixPlan } from "./validate";
+import {
+	type NarratedRemixDurationContract,
+	type NarratedRemixDurationContractSummary,
+	type NarratedRemixDurationGoal,
+	validateNarratedRemixPlan,
+} from "./validate";
 
 export interface NarratedRemixEditor {
 	media: {
@@ -44,6 +49,7 @@ export type ApplyNarratedRemixPlanResult =
 				textOverlayElementCount: number;
 				totalDuration: number;
 				rationale: string;
+				durationContract?: NarratedRemixDurationContractSummary;
 			};
 	  }
 	| { success: false; message: string; path?: string };
@@ -364,17 +370,23 @@ export function applyNarratedRemixPlanToEditor({
 	projectId,
 	replaceExisting,
 	editor,
+	durationContract,
+	durationGoal,
 }: {
 	plan: unknown;
 	projectId: string;
 	replaceExisting: boolean;
 	editor: NarratedRemixEditor;
+	durationContract?: NarratedRemixDurationContract;
+	durationGoal?: NarratedRemixDurationGoal;
 }): ApplyNarratedRemixPlanResult {
 	const mediaAssets = editor.media.getAssets();
 	const validation = validateNarratedRemixPlan({
 		plan,
 		projectId,
 		mediaAssets,
+		durationContract,
+		durationGoal,
 	});
 	if (!validation.success) {
 		return validation;
@@ -406,6 +418,9 @@ export function applyNarratedRemixPlanToEditor({
 			textOverlayElementCount: normalizedPlan.textOverlays?.length ?? 0,
 			totalDuration: calculateTotalDuration({ tracks: nextTracks }),
 			rationale: normalizedPlan.rationale,
+			...(validation.durationContract
+				? { durationContract: validation.durationContract }
+				: {}),
 		},
 	};
 }

@@ -44,7 +44,7 @@ import {
 	getExecutorProjectState,
 	getExecutorStatus,
 } from "../executor";
-import type { ConfirmedSetup } from "../setup-contract";
+import type { ConfirmedSetup, DurationContract } from "../setup-contract";
 
 const projectId = "project-1";
 
@@ -147,6 +147,11 @@ function confirmedSetupFixture({
 	exportFormat = "mp4",
 	exportQuality = "high",
 	includeAudio = true,
+	durationContract = {
+		totalDurationMode: "auto",
+		sourceCoverageMode: "selected_segments",
+		toleranceSeconds: 0.2,
+	},
 }: {
 	taskType?:
 		| "template_draft"
@@ -172,6 +177,7 @@ function confirmedSetupFixture({
 	exportFormat?: "mp4" | "webm";
 	exportQuality?: "low" | "medium" | "high" | "very_high";
 	includeAudio?: boolean;
+	durationContract?: DurationContract;
 } = {}): ConfirmedSetup {
 	return {
 		version: 1,
@@ -181,6 +187,7 @@ function confirmedSetupFixture({
 		timelinePreferences: {
 			aspectRatio: "9:16",
 			durationGoal: { mode: "auto" },
+			durationContract,
 			transitionPreference: "auto",
 			generateIntroCover: true,
 			requirements: "Create a clear short video.",
@@ -3375,6 +3382,87 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("export fails before rendering when timeline violates duration contract", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Contracted export",
+			confirmedSetup: confirmedSetupFixture({
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
+					sourceDurationSeconds: 28.866667,
+					toleranceSeconds: 0.2,
+				},
+			}),
+		});
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 28.866667,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 16.8, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "short-clip",
+								sourceStart: 0,
+								sourceEnd: 16.8,
+								timelineStart: 0,
+								sourceCrop: { x: 0, y: 0, width: 1080, height: 1920 },
+								reason: "Shortened source.",
+							},
+						],
+						rationale: "This timeline violates the confirmed contract.",
+					},
+				},
+			}),
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_project",
+				args: {
+					format: "mp4",
+					quality: "high",
+					includeAudio: true,
+					outputFile: join(stateDir, "contract-out.mp4"),
+					overwrite: false,
+				},
+			}),
+			exportProject: async () => {
+				throw new Error("should not run");
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "export_project",
+			success: false,
+			message:
+				"Timeline violates confirmed duration contract: totalDurationMatches=false, sourceCoverageMatches=false.",
+		});
+	});
+
 	test("verify_timeline returns explicit mismatch fields", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 
@@ -5312,6 +5400,206 @@ describe("codex executor", () => {
 				{ type: "text", content: "Opening line" },
 				{ type: "text", content: "Closing line" },
 			],
+		});
+	});
+
+	test("rejects narrated remix plans that violate confirmed duration contract", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Preserve source remix",
+			confirmedSetup: confirmedSetupFixture({
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
+					sourceDurationSeconds: 28.866667,
+					toleranceSeconds: 0.2,
+				},
+			}),
+		});
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 28.866667,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const narrationImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("narration").toString("base64"),
+					size: 9,
+					lastModified: 1,
+					duration: 16.8,
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
+			narrationImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_narrated_remix_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 16.8, aspectRatio: "9:16" },
+						visualBeats: [
+							{
+								id: "compressed",
+								mediaId: videoId,
+								sourceStart: 0,
+								sourceEnd: 16.8,
+								timelineStart: 0,
+								muted: true,
+								reason: "Compressed source video.",
+							},
+						],
+						narration: { mediaId: narrationId, sourceStart: 0 },
+						captions: [
+							{ text: "Compressed cut", startTime: 0, duration: 3 },
+						],
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+						},
+						rationale: "This should be rejected by duration contract.",
+					},
+				},
+			}),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "apply_narrated_remix_plan",
+			success: false,
+			message: "NarratedRemixPlan violates preserve_source duration contract.",
+			data: {
+				path: "target.durationSec",
+			},
+		});
+	});
+
+	test("reports satisfied duration contract in timeline state", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Full source remix",
+			confirmedSetup: confirmedSetupFixture({
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
+					sourceDurationSeconds: 28.866667,
+					toleranceSeconds: 0.2,
+				},
+			}),
+		});
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 28.866667,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const narrationImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("narration").toString("base64"),
+					size: 9,
+					lastModified: 1,
+					duration: 28.866667,
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
+			narrationImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_narrated_remix_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 28.866667, aspectRatio: "9:16" },
+						visualBeats: [
+							{
+								id: "full-source",
+								mediaId: videoId,
+								sourceStart: 0,
+								sourceEnd: 28.866667,
+								timelineStart: 0,
+								muted: true,
+								reason: "Full source coverage.",
+							},
+						],
+						narration: { mediaId: narrationId, sourceStart: 0 },
+						captions: [],
+						rationale: "Preserve full source duration.",
+					},
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				totalDuration: 28.866667,
+				durationContract: {
+					totalDurationMatches: true,
+					sourceCoverageMatches: true,
+				},
+			},
+		});
+		expect(timelineResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				summary: {
+					durationContract: {
+						totalDurationMode: "preserve_source",
+						sourceCoverageMode: "full_source",
+						actualDurationSec: 28.866667,
+						sourceDurationSeconds: 28.866667,
+						toleranceSeconds: 0.2,
+						totalDurationMatches: true,
+						sourceCoverageMatches: true,
+					},
+				},
+			},
 		});
 	});
 

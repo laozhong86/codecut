@@ -226,6 +226,28 @@ const durationGoalRangeSecondsSchema = z
 		maxSeconds: z.number().positive(),
 	})
 	.strict();
+const durationContractSchema = z
+	.object({
+		totalDurationMode: z.enum(["auto", "preserve_source", "custom_range"]),
+		sourceCoverageMode: z.enum(["selected_segments", "full_source"]),
+		sourceDurationSeconds: z.number().positive().optional(),
+		toleranceSeconds: z.number().positive().default(0.2),
+	})
+	.strict()
+	.superRefine((value, ctx) => {
+		if (
+			(value.totalDurationMode === "preserve_source" ||
+				value.sourceCoverageMode === "full_source") &&
+			value.sourceDurationSeconds === undefined
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"durationContract.sourceDurationSeconds is required for preserve_source or full_source.",
+				path: ["sourceDurationSeconds"],
+			});
+		}
+	});
 const workspaceMediaMimeTypeSchema = z
 	.string()
 	.trim()
@@ -268,6 +290,7 @@ const confirmedSetupPatchSchema = z
 			.object({
 				aspectRatio: targetAspectRatioSchema.optional(),
 				durationGoal: confirmedSetupDurationGoalSchema.optional(),
+				durationContract: durationContractSchema.optional(),
 				transitionPreference: transitionPreferenceSchema.optional(),
 				generateIntroCover: z.boolean().optional(),
 				requirements: z.string().trim().min(1).optional(),
@@ -304,6 +327,7 @@ const workspaceIntentInputSchema = {
 	targetAspectRatio: targetAspectRatioSchema,
 	durationGoalMode: durationGoalModeSchema,
 	durationGoalRangeSeconds: durationGoalRangeSecondsSchema.optional(),
+	durationContract: durationContractSchema.optional(),
 	captionLanguage: z.string().trim(),
 	transitionPreference: transitionPreferenceSchema,
 	output: workspaceOutputSchema,
@@ -337,6 +361,7 @@ const workspaceOpenInputSchema = {
 	targetAspectRatio: targetAspectRatioSchema.optional(),
 	durationGoalMode: durationGoalModeSchema.optional(),
 	durationGoalRangeSeconds: durationGoalRangeSecondsSchema.optional(),
+	durationContract: durationContractSchema.optional(),
 	captionLanguage: z.string().trim().optional(),
 	transitionPreference: transitionPreferenceSchema.optional(),
 	locale: z.string().trim().optional(),
@@ -1375,7 +1400,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. Keep durationGoalMode auto unless the user explicitly asked for one of the fixed duration ranges. Keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. When the user asks to keep the original duration, avoid trimming the total length, preserve the complete source, or avoid deleting source ranges, pass durationContract with totalDurationMode preserve_source and/or sourceCoverageMode full_source plus sourceDurationSeconds. Use durationGoalMode custom only for explicit duration ranges, and keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1809,6 +1834,14 @@ async function validateCodecutSetupIntent(intent) {
 				isValidDurationGoalRange(normalized.durationGoalRangeSeconds)),
 		"Duration goal must be automatic or a valid positive seconds range.",
 	);
+	const durationContractCheck = validateWorkspaceDurationContract(normalized);
+	pushCheck(
+		checks,
+		"duration-contract",
+		"Duration contract",
+		durationContractCheck.ok,
+		durationContractCheck.message,
+	);
 	pushCheck(
 		checks,
 		"generate-intro-cover",
@@ -2054,6 +2087,7 @@ function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 							rangeSeconds: normalized.durationGoalRangeSeconds,
 						}
 					: { mode: "auto" },
+			durationContract: normalized.durationContract,
 			transitionPreference: normalized.transitionPreference,
 			generateIntroCover: normalized.generateIntroCover,
 			requirements: normalized.requirements,
@@ -2178,6 +2212,9 @@ function buildWorkspaceIntentDefaults(input = {}) {
 	if (durationGoalRangeSeconds) {
 		defaults.durationGoalRangeSeconds = durationGoalRangeSeconds;
 	}
+	defaults.durationContract = normalizeDurationContract(input.durationContract, {
+		durationGoalMode: defaults.durationGoalMode,
+	});
 	return defaults;
 }
 
@@ -2392,6 +2429,9 @@ function normalizeWorkspaceIntent(intent) {
 		durationGoalRangeSeconds: normalizeDurationGoalRangeSeconds(
 			intent.durationGoalRangeSeconds,
 		),
+		durationContract: normalizeDurationContract(intent.durationContract, {
+			durationGoalMode: intent.durationGoalMode === "custom" ? "custom" : "auto",
+		}),
 		captionLanguage: String(intent.captionLanguage || "auto").trim() || "auto",
 		transitionPreference:
 			intent.transitionPreference === undefined
@@ -2418,6 +2458,36 @@ function normalizeDurationGoalRangeSeconds(value) {
 	};
 }
 
+function normalizePositiveNumber(value) {
+	const number = Number(value);
+	return Number.isFinite(number) && number > 0 ? number : undefined;
+}
+
+function normalizeDurationContract(value, { durationGoalMode }) {
+	const input = value && typeof value === "object" ? value : {};
+	const sourceDurationSeconds = normalizePositiveNumber(
+		input.sourceDurationSeconds,
+	);
+	return {
+		totalDurationMode:
+			typeof input.totalDurationMode === "string" &&
+			["auto", "preserve_source", "custom_range"].includes(
+				input.totalDurationMode,
+			)
+				? input.totalDurationMode
+				: durationGoalMode === "custom"
+					? "custom_range"
+					: "auto",
+		sourceCoverageMode:
+			typeof input.sourceCoverageMode === "string" &&
+			["selected_segments", "full_source"].includes(input.sourceCoverageMode)
+				? input.sourceCoverageMode
+				: "selected_segments",
+		...(sourceDurationSeconds === undefined ? {} : { sourceDurationSeconds }),
+		toleranceSeconds: normalizePositiveNumber(input.toleranceSeconds) ?? 0.2,
+	};
+}
+
 function isValidDurationGoalRange(range) {
 	return (
 		Boolean(range) &&
@@ -2426,6 +2496,27 @@ function isValidDurationGoalRange(range) {
 		range.minSeconds > 0 &&
 		range.maxSeconds >= range.minSeconds
 	);
+}
+
+function validateWorkspaceDurationContract(normalized) {
+	const parsed = durationContractSchema.safeParse(normalized.durationContract);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			message: parsed.error.issues[0]?.message || "Duration contract is invalid.",
+		};
+	}
+	if (
+		parsed.data.totalDurationMode === "custom_range" &&
+		normalized.durationGoalMode !== "custom"
+	) {
+		return {
+			ok: false,
+			message:
+				"durationGoalMode must be custom when durationContract.totalDurationMode is custom_range.",
+		};
+	}
+	return { ok: true, message: "Duration contract is valid." };
 }
 
 function normalizeWorkspaceMediaSource(mediaSource = {}) {

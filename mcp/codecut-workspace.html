@@ -797,6 +797,7 @@
 
         let currentProjectId = "";
         let currentPendingConfirmationId = "";
+        let currentDurationContract = null;
         let activeLanguage = "en";
 
         function normalizeUiLanguage(value) {
@@ -863,6 +864,7 @@
         function applyDefaults(defaults) {
           fields.projectName.value = defaults.projectName || "";
           currentProjectId = defaults.projectId || slugify(fields.projectName.value);
+          currentDurationContract = normalizeDurationContract(defaults.durationContract, defaults);
           setSelectValue(fields.taskType, defaults.taskType || "edit_execution");
           renderMediaSources(defaults.mediaSources || defaults.mediaSource || []);
           setSelectValue(fields.targetAspectRatio, defaults.targetAspectRatio || "9:16");
@@ -1383,6 +1385,39 @@
           };
         }
 
+        function normalizePositiveNumber(value) {
+          const number = Number(value);
+          return Number.isFinite(number) && number > 0 ? number : undefined;
+        }
+
+        function normalizeDurationContract(contract, durationGoal) {
+          const input = contract && typeof contract === "object" ? contract : {};
+          const sourceDurationSeconds = normalizePositiveNumber(input.sourceDurationSeconds);
+          return {
+            totalDurationMode: ["auto", "preserve_source", "custom_range"].includes(input.totalDurationMode)
+              ? input.totalDurationMode
+              : durationGoal?.durationGoalMode === "custom"
+                ? "custom_range"
+                : "auto",
+            sourceCoverageMode: ["selected_segments", "full_source"].includes(input.sourceCoverageMode)
+              ? input.sourceCoverageMode
+              : "selected_segments",
+            ...(sourceDurationSeconds === undefined ? {} : { sourceDurationSeconds }),
+            toleranceSeconds: normalizePositiveNumber(input.toleranceSeconds) || 0.2,
+          };
+        }
+
+        function collectDurationContract(durationGoal) {
+          const existing = normalizeDurationContract(currentDurationContract, durationGoal);
+          if (
+            existing.totalDurationMode === "preserve_source" ||
+            existing.sourceCoverageMode === "full_source"
+          ) {
+            return existing;
+          }
+          return normalizeDurationContract(null, durationGoal);
+        }
+
         function collectIntent() {
           const mediaSources = collectMediaSources();
           const durationGoal = collectDurationGoal();
@@ -1395,6 +1430,7 @@
             mediaSources,
             targetAspectRatio: fields.targetAspectRatio.value,
             ...durationGoal,
+            durationContract: collectDurationContract(durationGoal),
             captionLanguage: fields.captionLanguage.value.trim() || "auto",
             transitionPreference: fields.transitionPreference.value,
             output: {
