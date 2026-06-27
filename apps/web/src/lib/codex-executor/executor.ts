@@ -66,6 +66,8 @@ import {
 	resolveCaptionStyleForContract,
 	resolveExportPreferencesForContract,
 	type ConfirmedSetup,
+	type DurationContract,
+	type DurationGoal,
 } from "@/lib/codex-executor/setup-contract";
 import { assertAsrProviderResult } from "@/lib/transcription/asr-provider-contract";
 import {
@@ -259,6 +261,8 @@ const DEFAULT_POST_CUT_CAPTION_STYLE = {
 	preset: "talking-head-pop",
 	position: "lower-safe",
 } satisfies EditPlanCaptionStyle;
+
+const DURATION_CONTRACT_TIME_EPSILON = 0.001;
 
 const commandSchema = z
 	.object({
@@ -1321,6 +1325,10 @@ function timelineSummary({
 	state: ExecutorProjectState;
 	returnedElementCount: number;
 }) {
+	const durationContract = timelineDurationContractSummary({
+		state,
+		totalDuration: calculateTotalDuration({ tracks: state.tracks }),
+	});
 	const trackTypeCounts: Record<TrackType, number> = {
 		video: 0,
 		text: 0,
@@ -1343,7 +1351,170 @@ function timelineSummary({
 		transitionCount,
 		derivedAssetCount: state.derivedAssets.length,
 		trackTypeCounts,
+		...(durationContract ? { durationContract } : {}),
 	};
+}
+
+function withinDurationContractTolerance({
+	actual,
+	expected,
+	toleranceSeconds,
+}: {
+	actual: number;
+	expected: number;
+	toleranceSeconds: number;
+}) {
+	return (
+		Math.abs(actual - expected) <=
+		toleranceSeconds + DURATION_CONTRACT_TIME_EPSILON
+	);
+}
+
+function timelineHasFullSourceCoverage({
+	state,
+	sourceDurationSeconds,
+	toleranceSeconds,
+}: {
+	state: ExecutorProjectState;
+	sourceDurationSeconds: number;
+	toleranceSeconds: number;
+}) {
+	const visualElements = state.tracks.flatMap((track) =>
+		track.type === "video" ? track.elements : [],
+	);
+	if (visualElements.length === 0) return false;
+	if (visualElements.some((element) => element.type === "image")) return false;
+
+	const videoElements = visualElements.filter(
+		(element): element is VideoElement => element.type === "video",
+	);
+	if (videoElements.length === 0) return false;
+	if (new Set(videoElements.map((element) => element.mediaId)).size !== 1) {
+		return false;
+	}
+
+	const ordered = [...videoElements].sort(
+		(left, right) => left.trimStart - right.trimStart,
+	);
+	if (
+		!withinDurationContractTolerance({
+			actual: ordered[0].trimStart,
+			expected: 0,
+			toleranceSeconds,
+		})
+	) {
+		return false;
+	}
+
+	for (let index = 1; index < ordered.length; index += 1) {
+		if (
+			!withinDurationContractTolerance({
+				actual: ordered[index].trimStart,
+				expected: ordered[index - 1].trimEnd,
+				toleranceSeconds,
+			})
+		) {
+			return false;
+		}
+	}
+
+	return withinDurationContractTolerance({
+		actual: ordered[ordered.length - 1].trimEnd,
+		expected: sourceDurationSeconds,
+		toleranceSeconds,
+	});
+}
+
+function timelineTotalDurationMatchesContract({
+	totalDuration,
+	durationContract,
+	durationGoal,
+}: {
+	totalDuration: number;
+	durationContract: DurationContract;
+	durationGoal: DurationGoal;
+}) {
+	const toleranceSeconds = durationContract.toleranceSeconds ?? 0.2;
+	if (durationContract.totalDurationMode === "auto") return true;
+	if (durationContract.totalDurationMode === "preserve_source") {
+		const sourceDurationSeconds = durationContract.sourceDurationSeconds;
+		return (
+			sourceDurationSeconds !== undefined &&
+			withinDurationContractTolerance({
+				actual: totalDuration,
+				expected: sourceDurationSeconds,
+				toleranceSeconds,
+			})
+		);
+	}
+	if (durationGoal.mode !== "custom" || !durationGoal.rangeSeconds) {
+		return false;
+	}
+	return (
+		totalDuration >=
+			durationGoal.rangeSeconds.minSeconds - toleranceSeconds &&
+		totalDuration <= durationGoal.rangeSeconds.maxSeconds + toleranceSeconds
+	);
+}
+
+function timelineDurationContractSummary({
+	state,
+	totalDuration,
+}: {
+	state: ExecutorProjectState;
+	totalDuration: number;
+}) {
+	const confirmedSetup = state.confirmedSetup;
+	const durationContract = confirmedSetup?.timelinePreferences.durationContract;
+	if (!durationContract) return undefined;
+
+	const toleranceSeconds = durationContract.toleranceSeconds ?? 0.2;
+	const sourceDurationSeconds = durationContract.sourceDurationSeconds;
+	const sourceCoverageMatches =
+		durationContract.sourceCoverageMode === "full_source"
+			? sourceDurationSeconds !== undefined &&
+				timelineHasFullSourceCoverage({
+					state,
+					sourceDurationSeconds,
+					toleranceSeconds,
+				})
+			: true;
+
+	return {
+		totalDurationMode: durationContract.totalDurationMode,
+		sourceCoverageMode: durationContract.sourceCoverageMode,
+		actualDurationSec: totalDuration,
+		...(sourceDurationSeconds === undefined ? {} : { sourceDurationSeconds }),
+		toleranceSeconds,
+		totalDurationMatches: timelineTotalDurationMatchesContract({
+			totalDuration,
+			durationContract,
+			durationGoal: confirmedSetup.timelinePreferences.durationGoal,
+		}),
+		sourceCoverageMatches,
+	};
+}
+
+function assertTimelineDurationContractSatisfied({
+	state,
+	totalDuration,
+}: {
+	state: ExecutorProjectState;
+	totalDuration: number;
+}) {
+	const durationContract = timelineDurationContractSummary({
+		state,
+		totalDuration,
+	});
+	if (
+		durationContract &&
+		(!durationContract.totalDurationMatches ||
+			!durationContract.sourceCoverageMatches)
+	) {
+		throw new Error(
+			`Timeline violates confirmed duration contract: totalDurationMatches=${durationContract.totalDurationMatches}, sourceCoverageMatches=${durationContract.sourceCoverageMatches}.`,
+		);
+	}
 }
 
 function referencedMediaIds(state: ExecutorProjectState) {
@@ -2453,6 +2624,7 @@ async function runExportProject({
 	if (state.tracks.length === 0 || totalDuration <= 0) {
 		throw new Error("Cannot export an empty timeline.");
 	}
+	assertTimelineDurationContractSatisfied({ state, totalDuration });
 
 	const exported = await exportProject({
 		state,
@@ -2703,6 +2875,8 @@ async function runApplyNarratedRemixPlan({
 		plan: parsed.plan,
 		projectId: state.project.id,
 		replaceExisting: parsed.replaceExisting,
+		durationContract: state.confirmedSetup?.timelinePreferences.durationContract,
+		durationGoal: state.confirmedSetup?.timelinePreferences.durationGoal,
 		editor: {
 			media: {
 				getAssets: () => mediaAssets,
@@ -2717,7 +2891,15 @@ async function runApplyNarratedRemixPlan({
 	});
 
 	if (!result.success) {
-		return result;
+		return {
+			success: false,
+			message: result.message,
+			data: {
+				valid: false,
+				revision: state.revision,
+				...(result.path ? { path: result.path } : {}),
+			},
+		};
 	}
 
 	await saveProjectState({ state });

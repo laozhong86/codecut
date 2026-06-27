@@ -55,6 +55,11 @@ function confirmedSetupBody(
 		timelinePreferences: {
 			aspectRatio: "9:16",
 			durationGoal: { mode: "auto" },
+			durationContract: {
+				totalDurationMode: "auto",
+				sourceCoverageMode: "selected_segments",
+				toleranceSeconds: 0.2,
+			},
 			transitionPreference: "auto",
 			generateIntroCover: true,
 			requirements: "Create a clear short video.",

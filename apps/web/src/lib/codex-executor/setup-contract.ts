@@ -66,10 +66,34 @@ const DurationGoalSchema = z
 		}
 	});
 
-const TimelinePreferencesSchema = z
+export const DurationContractSchema = z
+	.object({
+		totalDurationMode: z.enum(["auto", "preserve_source", "custom_range"]),
+		sourceCoverageMode: z.enum(["selected_segments", "full_source"]),
+		sourceDurationSeconds: z.number().positive().optional(),
+		toleranceSeconds: z.number().positive().default(0.2),
+	})
+	.strict()
+	.superRefine((value, ctx) => {
+		if (
+			(value.totalDurationMode === "preserve_source" ||
+				value.sourceCoverageMode === "full_source") &&
+			value.sourceDurationSeconds === undefined
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"durationContract.sourceDurationSeconds is required for preserve_source or full_source.",
+				path: ["sourceDurationSeconds"],
+			});
+		}
+	});
+
+const TimelinePreferencesBaseSchema = z
 	.object({
 		aspectRatio: EditPlanAspectRatioSchema,
 		durationGoal: DurationGoalSchema,
+		durationContract: DurationContractSchema,
 		transitionPreference: z.union([
 			z.literal("auto"),
 			z.literal("none"),
@@ -79,6 +103,22 @@ const TimelinePreferencesSchema = z
 		requirements: z.string().trim().min(1),
 	})
 	.strict();
+
+const TimelinePreferencesSchema = TimelinePreferencesBaseSchema.superRefine(
+	(value, ctx) => {
+		if (
+			value.durationContract.totalDurationMode === "custom_range" &&
+			value.durationGoal.mode !== "custom"
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"durationGoal.mode must be custom when durationContract.totalDurationMode is custom_range.",
+				path: ["durationGoal", "mode"],
+			});
+		}
+	},
+);
 
 const CaptionPreferencesSchema = z
 	.object({
@@ -128,7 +168,7 @@ export const ConfirmedSetupSchema = z
 	.strict();
 
 const TimelinePreferencesPatchSchema =
-	TimelinePreferencesSchema.partial().strict();
+	TimelinePreferencesBaseSchema.partial().strict();
 const CaptionPreferencesPatchSchema =
 	CaptionPreferencesSchema.partial().strict();
 const ExportPreferencesPatchSchema = ExportPreferencesSchema.partial().strict();
@@ -167,6 +207,8 @@ export type ConfirmedSetup = z.infer<typeof ConfirmedSetupSchema>;
 export type ConfirmedSetupPatch = z.infer<typeof ConfirmedSetupPatchSchema>;
 export type CaptionPreferences = ConfirmedSetup["captionPreferences"];
 export type ExportPreferences = ConfirmedSetup["exportPreferences"];
+export type DurationContract = z.infer<typeof DurationContractSchema>;
+export type DurationGoal = z.infer<typeof DurationGoalSchema>;
 
 export function captionStyleFromConfirmedSetup(
 	confirmedSetup: ConfirmedSetup,
@@ -346,6 +388,7 @@ export function applyConfirmedSetupPatch({
 		requiresReplan: changes.some((change) =>
 			[
 				"timelinePreferences.durationGoal",
+				"timelinePreferences.durationContract",
 				"timelinePreferences.transitionPreference",
 				"timelinePreferences.generateIntroCover",
 			].some(

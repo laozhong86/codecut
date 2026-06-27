@@ -117,6 +117,135 @@ describe("validateNarratedRemixPlan", () => {
 		});
 	});
 
+	test("rejects a plan that shortens a preserve-source duration contract", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 16.8, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "beat-1",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 16.8,
+						timelineStart: 0,
+						muted: true,
+						reason: "Compressed source video.",
+					},
+				],
+				narration: { mediaId: "narration-1", sourceStart: 0 },
+				captions: [{ text: "Compressed cut", startTime: 0, duration: 3 }],
+			},
+			projectId: "project-1",
+			mediaAssets: [
+				mediaAsset({ duration: 28.866667 }),
+				audioAsset({ duration: 16.8 }),
+			],
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "selected_segments",
+				sourceDurationSeconds: 28.866667,
+				toleranceSeconds: 0.2,
+			},
+		});
+
+		expect(result).toMatchObject({
+			success: false,
+			message: "NarratedRemixPlan violates preserve_source duration contract.",
+			path: "target.durationSec",
+		});
+	});
+
+	test("rejects a full-source contract when visual beats skip source ranges", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 28.866667, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "beat-1",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 12,
+						timelineStart: 0,
+						muted: true,
+						reason: "Opening source range.",
+					},
+					{
+						id: "beat-2",
+						mediaId: "video-1",
+						sourceStart: 20,
+						sourceEnd: 36.866667,
+						timelineStart: 12,
+						muted: true,
+						reason: "Skipped middle source range.",
+					},
+				],
+				narration: { mediaId: "narration-1", sourceStart: 0 },
+			},
+			projectId: "project-1",
+			mediaAssets: [
+				mediaAsset({ duration: 60 }),
+				audioAsset({ duration: 28.866667 }),
+			],
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+				toleranceSeconds: 0.2,
+			},
+		});
+
+		expect(result).toMatchObject({
+			success: false,
+			message: "NarratedRemixPlan violates full_source coverage contract.",
+			path: "visualBeats",
+		});
+	});
+
+	test("accepts full-source coverage when visual beats cover the source continuously", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				target: { durationSec: 28.866667, aspectRatio: "9:16" },
+				visualBeats: [
+					{
+						id: "beat-1",
+						mediaId: "video-1",
+						sourceStart: 0,
+						sourceEnd: 12,
+						timelineStart: 0,
+						muted: true,
+						reason: "Opening source range.",
+					},
+					{
+						id: "beat-2",
+						mediaId: "video-1",
+						sourceStart: 12,
+						sourceEnd: 28.866667,
+						timelineStart: 12,
+						muted: true,
+						reason: "Closing source range.",
+					},
+				],
+				narration: { mediaId: "narration-1", sourceStart: 0 },
+			},
+			projectId: "project-1",
+			mediaAssets: [
+				mediaAsset({ duration: 28.866667 }),
+				audioAsset({ duration: 28.866667 }),
+			],
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+				toleranceSeconds: 0.2,
+			},
+		});
+
+		expect(result.success).toBe(true);
+	});
+
 	test("accepts visual beats with multiple independent text overlays", () => {
 		const result = validateNarratedRemixPlan({
 			plan: {

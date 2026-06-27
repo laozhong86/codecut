@@ -1630,6 +1630,11 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(automaticDuration.status).toBe("ready");
 			expect(automaticDuration.intent.durationGoalMode).toBe("auto");
+			expect(automaticDuration.intent.durationContract).toEqual({
+				totalDurationMode: "auto",
+				sourceCoverageMode: "selected_segments",
+				toleranceSeconds: 0.2,
+			});
 
 			const customDurationRange = await serverModule.inspectCodecutSetup(
 				setupIntent({
@@ -1642,6 +1647,29 @@ describe("Codecut MCP server contract", () => {
 			expect(customDurationRange.intent.durationGoalRangeSeconds).toEqual({
 				minSeconds: 15,
 				maxSeconds: 30,
+			});
+			expect(customDurationRange.intent.durationContract).toEqual({
+				totalDurationMode: "custom_range",
+				sourceCoverageMode: "selected_segments",
+				toleranceSeconds: 0.2,
+			});
+
+			const preserveFullSource = await serverModule.inspectCodecutSetup(
+				setupIntent({
+					durationContract: {
+						totalDurationMode: "preserve_source",
+						sourceCoverageMode: "full_source",
+						sourceDurationSeconds: 28.866667,
+					},
+				}),
+				{ bridgeToolImpl },
+			);
+			expect(preserveFullSource.status).toBe("ready");
+			expect(preserveFullSource.intent.durationContract).toEqual({
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+				toleranceSeconds: 0.2,
 			});
 
 			const manualTransition = await serverModule.inspectCodecutSetup(
@@ -1998,6 +2026,11 @@ describe("Codecut MCP server contract", () => {
 					timelinePreferences: {
 						aspectRatio: "9:16",
 						durationGoal: { mode: "auto" },
+						durationContract: {
+							totalDurationMode: "auto",
+							sourceCoverageMode: "selected_segments",
+							toleranceSeconds: 0.2,
+						},
 						transitionPreference: "dissolve",
 						generateIntroCover: true,
 						requirements:
