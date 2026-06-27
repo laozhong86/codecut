@@ -36,8 +36,9 @@ repair timeline state.
 ## Outputs
 
 - Selected route: source acquisition, requirement intake, material ingest,
-  material understanding, reference-template, cover generation, edit planning,
-  executor apply, methodology capture, inspection, or implementation work.
+  material understanding, reference-template, scriptwriting, cover generation,
+  edit planning, executor apply, methodology capture, inspection, or
+  implementation work.
 - A stage handoff statement using `Stage`, `Status`, `Proof`, `Next`, and
   `Risk` when reporting progress or blockers.
 - No timeline, workspace, template, or export mutation.
@@ -73,6 +74,8 @@ stage proof.
   contract, EditPlan/NarratedRemixPlan details, and failure handling.
 - `codecut`: route requests to the correct stage
   skill or recipe.
+- `codecut-scriptwriting`: create upstream cover title, video title, voiceover
+  script, and de-AI copy briefs without timeline mutation.
 - Stage skills: own one gate, input set, output shape, handoff, and stop
   conditions.
 - `references/workflow-stage-contract.md`: user-visible stage map, stage
@@ -89,6 +92,7 @@ Use this skill as a map, not as the execution manual.
 | Need to classify the request or explain stages | `references/workflow-stage-contract.md` | A handoff, blocker, or user-facing status needs stage ownership | No loadable owner is available or routing would choose a side-effect stage by guess | None; router does not mutate state |
 | Need executor commands, readback, export, captions, visual QA, or plugin freshness proof | `references/execution-contract.md` | The task will mutate timeline state, verify export, or report completion | Required proof is missing or current executor/tool surface cannot produce it | `get_timeline_state` after timeline mutation; export proof after MP4/still export |
 | Need a project cover, short-video poster, thumbnail prompt, cover evidence-frame selection, generated cover image import, or cover readback | `../codecut-cover-generation/SKILL.md` | The user asks for a project cover/poster/thumbnail or setup requested a generated cover outside the video timeline | Platform ratio, visual evidence, image generation capability, imported image dimensions, or cover readback is missing | `get_project_info` or `get_timeline_state` proves project `cover`; duration is unchanged |
+| Need a cover title, video title, hook, voiceover script, spoken-word draft, or de-AI copy cleanup before editing | `../codecut-scriptwriting/SKILL.md` | The user asks for 封面标题, 视频标题, 口播脚本, 口播稿, 文案润色, 去 AI 味, or copy that later CodeCut planning should use | Missing topic, audience, proof, platform, or duration would force false claims or unusable spoken timing | ScriptwritingBrief only; no timeline mutation |
 | Opening a new edit plan with confirmed local preferences | `../codecut-methodology-capture/SKILL.md` only for the private store contract, then `../codecut-edit-planning/SKILL.md` | A workspace already has `.codecut-workspace/user-methodology/` files | Current user instructions conflict with stored methodology | Read-only local methodology context; no mutation |
 | Need material roles, content understanding, script-to-material matching, replacement/PIP/split-screen/circular talking-head suitability, or material risk reporting | `../codecut-material-understanding/SKILL.md` | Material audit exists and understanding is needed before planning | Material audit or required transcript/visual evidence is missing | `02-inventory/material-understanding.json` and `.md`; no timeline mutation |
 | Need transcript, VideoContext, candidate clips, decision ledger, or an EditPlan/NarratedRemixPlan draft | `../codecut-edit-planning/SKILL.md` | Material evidence or planning strategy affects the edit | Required material-understanding, transcript, visual, or planning evidence is missing or unsupported by current Codecut contracts | Use executor readback only after `codecut-executor-apply` runs |
@@ -120,6 +124,7 @@ export.
 | --- | --- |
 | Source-only acquisition: "download", "save locally", "提取到本地", "下载到本地", or similar with no editing, timeline, template, or export request | Use `codecut-tiktok-downloader` for TikTok sources, otherwise use `codecut-material-ingest`. Do not open the creative editing widget or run executor mutation commands. |
 | New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", or any request that will create, edit, verify, or export a timeline | Verify `http://127.0.0.1:4100/en/projects` first; if it fails, start `bun run dev:web` and wait for readiness. Then call `open_codecut_workspace` before loading child skills or shell. After widget submission, use `codecut-requirement-intake` to pass or block the execution gate. |
+| Cover title, video title, hook, voiceover script, spoken-word draft, or de-AI rewrite with no timeline mutation request | Use `codecut-scriptwriting`. Do not open the creative editing widget, create an executor project, import media, or mutate the timeline. If the user also asks to apply the copy into an edit, produce the copy brief first, then route through normal requirement intake and planning. |
 | New creative job with explicit setup fields already provided | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` before executor mutation. |
 | TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally for an editing job | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition only after widget submission and requirement intake pass. |
 | Source needs download, file copy, workspace init, or ffprobe audit for a creative editing job | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest` only after widget submission and requirement intake pass. |
@@ -220,6 +225,7 @@ Read only what matches the task:
 - Workspace spec: `../../docs/codecut-workspace.md`
 - Workflow stage contract: `references/workflow-stage-contract.md`
 - Material understanding: `../codecut-material-understanding/SKILL.md`
+- Scriptwriting: `../codecut-scriptwriting/SKILL.md`
 - Edit planning: `../codecut-edit-planning/SKILL.md`
 - Methodology capture: `../codecut-methodology-capture/SKILL.md`
 - Tool contract: `references/codecut-agent-tool-contract.md`

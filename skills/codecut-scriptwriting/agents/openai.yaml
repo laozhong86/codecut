@@ -1,0 +1,4 @@
+interface:
+  display_name: "CodeCut Scriptwriting"
+  short_description: "Draft titles, voiceover scripts, and de-AI copy."
+  default_prompt: "Use $codecut-scriptwriting when a CodeCut job needs cover titles, video titles, voiceover scripts, or de-AI rewriting before editing or timeline planning."
