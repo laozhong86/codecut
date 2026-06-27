@@ -36,8 +36,8 @@ repair timeline state.
 ## Outputs
 
 - Selected route: source acquisition, requirement intake, material ingest,
-  reference-template, cover generation, edit planning, executor apply,
-  methodology capture, inspection, or implementation work.
+  material understanding, reference-template, cover generation, edit planning,
+  executor apply, methodology capture, inspection, or implementation work.
 - A stage handoff statement using `Stage`, `Status`, `Proof`, `Next`, and
   `Risk` when reporting progress or blockers.
 - No timeline, workspace, template, or export mutation.
@@ -90,7 +90,8 @@ Use this skill as a map, not as the execution manual.
 | Need executor commands, readback, export, captions, visual QA, or plugin freshness proof | `references/execution-contract.md` | The task will mutate timeline state, verify export, or report completion | Required proof is missing or current executor/tool surface cannot produce it | `get_timeline_state` after timeline mutation; export proof after MP4/still export |
 | Need a project cover, short-video poster, thumbnail prompt, cover evidence-frame selection, generated cover image import, or cover readback | `../codecut-cover-generation/SKILL.md` | The user asks for a project cover/poster/thumbnail or setup requested a generated cover outside the video timeline | Platform ratio, visual evidence, image generation capability, imported image dimensions, or cover readback is missing | `get_project_info` or `get_timeline_state` proves project `cover`; duration is unchanged |
 | Opening a new edit plan with confirmed local preferences | `../codecut-methodology-capture/SKILL.md` only for the private store contract, then `../codecut-edit-planning/SKILL.md` | A workspace already has `.codecut-workspace/user-methodology/` files | Current user instructions conflict with stored methodology | Read-only local methodology context; no mutation |
-| Need transcript, VideoContext, candidate clips, decision ledger, or an EditPlan/NarratedRemixPlan draft | `../codecut-edit-planning/SKILL.md` | Material evidence or planning strategy affects the edit | Required evidence is missing or unsupported by current Codecut contracts | Use executor readback only after `codecut-executor-apply` runs |
+| Need material roles, content understanding, script-to-material matching, replacement/PIP/split-screen/circular talking-head suitability, or material risk reporting | `../codecut-material-understanding/SKILL.md` | Material audit exists and understanding is needed before planning | Material audit or required transcript/visual evidence is missing | `02-inventory/material-understanding.json` and `.md`; no timeline mutation |
+| Need transcript, VideoContext, candidate clips, decision ledger, or an EditPlan/NarratedRemixPlan draft | `../codecut-edit-planning/SKILL.md` | Material evidence or planning strategy affects the edit | Required material-understanding, transcript, visual, or planning evidence is missing or unsupported by current Codecut contracts | Use executor readback only after `codecut-executor-apply` runs |
 | Need to remember feedback, update preferences, capture a correction, or produce post-project learning | `../codecut-methodology-capture/SKILL.md` | The user says "remember this", "以后按这个", "更新偏好", "刚才这里剪错了", or a completed project needs a methodology proposal | User confirmation is missing for long-term preference updates | Proposal under `08-learning/`; confirmed updates under `.codecut-workspace/user-methodology/` |
 | Need implementation work inside Codecut code | `../../docs/codex-driven-editing.md` and focused tests | A runtime/tool/schema change is required | Source/cache/session proof is stale for plugin-facing changes | Run the touched contract test and plugin freshness check |
 
@@ -122,9 +123,10 @@ export.
 | New creative job with explicit setup fields already provided | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` before executor mutation. |
 | TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally for an editing job | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition only after widget submission and requirement intake pass. |
 | Source needs download, file copy, workspace init, or ffprobe audit for a creative editing job | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest` only after widget submission and requirement intake pass. |
+| Material understanding, material role labeling, "这些素材适合怎么用", "帮我理解素材", "给脚本匹配素材", replacement suitability, picture-in-picture suitability, split-screen suitability, or circular talking-head suitability before final editing decisions | **REQUIRED SUB-SKILL:** Use `codecut-material-understanding` after material ingest and before `codecut-edit-planning`. Do not mutate the timeline or choose the final edit recipe in this stage. |
 | Finished/reference videos, "learn this editing style", "复刻模板", reference-derived template draft/import/application | **REQUIRED SUB-SKILL:** Use `codecut-reference-template` before EditPlan authoring or executor mutation. |
 | Project cover, short-video poster, thumbnail, cover prompt, cover image, cover evidence-frame selection, or setting an independent project cover outside the timeline | **REQUIRED SUB-SKILL:** Use `codecut-cover-generation` before image generation, media import, or `set_project_cover`. |
-| Transcript, VideoContext, candidate clips, decision ledger, or EditPlan/NarratedRemixPlan authoring | **REQUIRED SUB-SKILL:** Use `codecut-edit-planning` before executor validation or mutation. |
+| Transcript, VideoContext, candidate clips, decision ledger, or EditPlan/NarratedRemixPlan authoring | **REQUIRED SUB-SKILL:** Use `codecut-edit-planning` before executor validation or mutation. If material roles, script matching, replacement, PIP, split-screen, or circular talking-head suitability affects the plan, require the material-understanding report first. |
 | Executor service, env, doctor, import, apply, caption build, timeline readback | **REQUIRED SUB-SKILL:** Use `codecut-executor-apply`. |
 | Opening a new planning pass after workspace init | Read `.codecut-workspace/user-methodology/profile.md` and `rules.md` if they exist, then use `codecut-edit-planning`. Current user instructions override stored methodology. |
 | User says "remember this", "以后按这个", "更新偏好", "刚才这里剪错了", or gives reusable editing feedback | **REQUIRED SUB-SKILL:** Use `codecut-methodology-capture`. First generate a project proposal; do not update long-term preferences without explicit user confirmation. |
@@ -217,6 +219,7 @@ Read only what matches the task:
 - Current runtime truth: `../../docs/codex-driven-editing.md`
 - Workspace spec: `../../docs/codecut-workspace.md`
 - Workflow stage contract: `references/workflow-stage-contract.md`
+- Material understanding: `../codecut-material-understanding/SKILL.md`
 - Edit planning: `../codecut-edit-planning/SKILL.md`
 - Methodology capture: `../codecut-methodology-capture/SKILL.md`
 - Tool contract: `references/codecut-agent-tool-contract.md`

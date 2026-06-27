@@ -46,7 +46,8 @@ download/probe limitations, workspace asset filing, ffprobe inventory, and
 material-audit handoff.
 
 It does not pass requirement intake, choose creative strategy, infer platform or
-aspect ratio defaults, write EditPlans, import into the executor, mutate the
+aspect ratio defaults, understand material roles, match script segments, assess
+composition affordances, write EditPlans, import into the executor, mutate the
 timeline, or verify completed edits. If material facts reveal missing business
 or output decisions, hand back to `codecut-requirement-intake`.
 
@@ -88,9 +89,12 @@ path.
 
 Report `Stage`, `Status`, `Proof`, `Next`, and `Risk`. Hand back to
 `codecut-requirement-intake` if source facts reveal missing decisions; otherwise
-hand off to `codecut-reference-template` for reference derivation or to Codex
-planning with workflow recipes before `codecut-executor-apply`. This skill does
-not own those planning phases.
+hand off to `codecut-material-understanding` when material roles, content
+meaning, script matching, or composition suitability matter. Hand off to
+`codecut-reference-template` for reference derivation or to
+`codecut-edit-planning` only when source facts are enough and no separate
+material-understanding pass is needed. This skill does not own those later
+phases.
 
 ## Responsibilities
 

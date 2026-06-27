@@ -43,6 +43,7 @@ describe("codecut edit planning skill contract", () => {
 		expect(openai).toContain("candidate clips");
 		expect(openai).toContain("EditingDecisionLedger");
 		expect(openai).toContain("verification spec");
+		expect(openai).toContain("material-understanding report");
 		expect(openai).toContain("$codecut-executor-apply");
 	});
 
@@ -76,6 +77,7 @@ describe("codecut edit planning skill contract", () => {
 		expect(skill).toContain("run executor commands");
 		expect(skill).toContain("mutate timelines");
 		expect(skill).toContain("export files");
+		expect(skill).toContain("codecut-material-understanding");
 		expect(skill).toContain("One selected primary recipe");
 		expect(skill).toContain("verification spec");
 		expect(openai).toContain("Do not call executor tools");

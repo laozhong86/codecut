@@ -13,6 +13,7 @@ const stageSkills = [
 	"codecut",
 	"codecut-requirement-intake",
 	"codecut-material-ingest",
+	"codecut-material-understanding",
 	"codecut-tiktok-downloader",
 	"codecut-reference-template",
 	"codecut-executor-apply",
@@ -34,6 +35,7 @@ const expectedStageOwners = new Map([
 	["requirement-intake", ["codecut-requirement-intake"]],
 	["source-acquisition", ["codecut-material-ingest", "codecut-tiktok-downloader"]],
 	["material-ingest", ["codecut-material-ingest"]],
+	["material-understanding", ["codecut-material-understanding"]],
 	["reference-template", ["codecut-reference-template"]],
 	["edit-planning", ["codecut-edit-planning"]],
 	["executor-apply", ["codecut-executor-apply"]],
@@ -44,6 +46,7 @@ const supportingFileStages = [
 	"`requirement-intake`",
 	"`source-acquisition`",
 	"`material-ingest`",
+	"`material-understanding`",
 	"`reference-template`",
 	"`edit-planning`",
 	"`executor-apply`",
@@ -150,6 +153,7 @@ describe("CodeCut skill architecture v1 contract", () => {
 		expect(workflowContract).toContain(
 			"`evidence-build` is a Codex-side workflow phase",
 		);
+		expect(workflowContract).toContain("`codecut-material-understanding`");
 		expect(workflowContract).toContain("`codecut-edit-planning`");
 		expect(workflowContract).not.toMatch(
 			/`evidence-build` and `edit-planning` are Codex-side workflow phases/,
@@ -212,6 +216,20 @@ describe("CodeCut skill architecture v1 contract", () => {
 		for (const label of ["Stage:", "Status:", "Proof:", "Next:", "Risk:"]) {
 			expect(workflowContract).toContain(label);
 		}
+	});
+
+	test("router exposes material understanding before edit planning", () => {
+		const router = readProjectFile("skills", "codecut", "SKILL.md");
+		const openai = readProjectFile("skills", "codecut", "agents", "openai.yaml");
+		const manifest = readProjectFile("skills", "codecut", "manifest.yaml");
+
+		for (const content of [router, openai, manifest]) {
+			expect(content.toLowerCase()).toContain("material understanding");
+			expect(content).toContain("codecut-material-understanding");
+		}
+		expect(router).toContain("帮我理解素材");
+		expect(openai).toContain("script-to-material matching");
+		expect(manifest).toContain("Material understanding requests route");
 	});
 
 	test("router exposes methodology capture triggers at planning start, feedback time, and completion", () => {
