@@ -2053,11 +2053,20 @@ describe("codex executor", () => {
 			endTime: 3,
 			style: {
 				fontFamily: "CodecutCJK",
-				fontSize: 4.8,
-				color: "#fff3b0",
-				stroke: { color: "#101010", width: 3 },
-				backgroundColor: "transparent",
-				boxWidth: 44,
+				fontSize: 5.2,
+				color: "#ffffff",
+				backgroundColor: "#0f172a",
+				backgroundOpacity: 0.42,
+				backgroundPaddingX: 24,
+				backgroundPaddingY: 12,
+				backgroundBorderRadius: 8,
+				shadow: {
+					color: "rgba(0,0,0,0.72)",
+					offsetX: 0,
+					offsetY: 3,
+					blur: 10,
+				},
+				boxWidth: 50,
 				transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
 			},
 		});
@@ -2182,11 +2191,20 @@ describe("codex executor", () => {
 			duration: 2,
 			style: {
 				fontFamily: "CodecutCJK",
-				fontSize: 4.8,
-				color: "#fff3b0",
-				stroke: { color: "#101010", width: 3 },
-				backgroundColor: "transparent",
-				boxWidth: 44,
+				fontSize: 5.2,
+				color: "#ffffff",
+				backgroundColor: "#0f172a",
+				backgroundOpacity: 0.42,
+				backgroundPaddingX: 24,
+				backgroundPaddingY: 12,
+				backgroundBorderRadius: 8,
+				shadow: {
+					color: "rgba(0,0,0,0.72)",
+					offsetX: 0,
+					offsetY: 3,
+					blur: 10,
+				},
+				boxWidth: 50,
 				transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
 			},
 		});
@@ -3449,8 +3467,10 @@ describe("codex executor", () => {
 									fontWeight: "bold",
 									backgroundColor: "#000000",
 									backgroundOpacity: 0.78,
-									backgroundPaddingX: 24,
-									backgroundPaddingY: 12,
+									backgroundPaddingX: 26,
+									backgroundPaddingY: 13,
+									fontSize: 7.2,
+									boxWidth: 40,
 								},
 							},
 						],
@@ -4936,6 +4956,33 @@ describe("codex executor", () => {
 						elements: [{ type: "video", mediaId }],
 					},
 				],
+			},
+		});
+	});
+
+	test("updates the executor project background from a project settings command", async () => {
+		await createExecutorProject({ projectId, name: "Background sync" });
+
+		const updateResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_project_settings",
+				args: {
+					background: { type: "color", color: "#fed7aa" },
+				},
+			}),
+		});
+		const infoResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_project_info", args: {} }),
+		});
+
+		expect(updateResult.results[0]).toMatchObject({
+			success: true,
+			message: "Project settings updated: background",
+		});
+		expect(infoResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				background: { type: "color", color: "#fed7aa" },
 			},
 		});
 	});
@@ -7760,9 +7807,21 @@ describe("codex executor", () => {
 			startTime: 11,
 			duration: 1,
 			fontFamily: "CodecutCJK",
-			fontSize: 4.8,
+			fontSize: 5.2,
 			fontWeight: "bold",
-			color: "#fff3b0",
+			color: "#ffffff",
+			backgroundColor: "#0f172a",
+			backgroundOpacity: 0.42,
+			backgroundPaddingX: 24,
+			backgroundPaddingY: 12,
+			backgroundBorderRadius: 8,
+			boxWidth: 50,
+			shadow: {
+				color: "rgba(0,0,0,0.72)",
+				offsetX: 0,
+				offsetY: 3,
+				blur: 10,
+			},
 			transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
 		});
 	});

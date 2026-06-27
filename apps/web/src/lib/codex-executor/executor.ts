@@ -34,6 +34,7 @@ import { inspectVideoRange as inspectVideoRangeWithNodeRuntime } from "@/lib/cod
 import { inspectTimelineWithNodeRenderer } from "@/lib/codex-executor/timeline-inspection";
 import { buildVideoQualityReport } from "@/lib/codex-executor/video-quality-report";
 import { buildCaptionDiagnosticsReport } from "@/lib/caption-diagnostics/caption-diagnostics";
+import type { TBackground } from "@/types/project";
 import {
 	addTextElements,
 	insertClips,
@@ -208,7 +209,7 @@ export interface ExecutorProjectState {
 		settings: {
 			canvasSize: { width: number; height: number };
 			fps: number;
-			background: { type: "color"; color: string };
+			background: TBackground;
 		};
 		createdAt: string;
 		updatedAt: string;
@@ -348,6 +349,22 @@ const updateProjectSettingsArgsSchema = z
 		height: z.number().positive().optional(),
 		fps: z.number().positive().optional(),
 		backgroundColor: z.string().min(1).optional(),
+		background: z
+			.discriminatedUnion("type", [
+				z
+					.object({
+						type: z.literal("color"),
+						color: z.string().min(1),
+					})
+					.strict(),
+				z
+					.object({
+						type: z.literal("blur"),
+						blurIntensity: z.number().nonnegative(),
+					})
+					.strict(),
+			])
+			.optional(),
 	})
 	.strict();
 
@@ -1968,7 +1985,10 @@ async function runUpdateProjectSettings({
 		state.project.settings.fps = parsed.fps;
 		updated.push("fps");
 	}
-	if (parsed.backgroundColor) {
+	if (parsed.background) {
+		state.project.settings.background = parsed.background;
+		updated.push("background");
+	} else if (parsed.backgroundColor) {
 		state.project.settings.background = {
 			type: "color",
 			color: parsed.backgroundColor,

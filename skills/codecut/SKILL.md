@@ -233,11 +233,14 @@ Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview
   per-caption style objects, or external subtitle renderer settings in an
   EditPlan. Codecut caption presets resolve to controlled local renderer
   styles and curated local CJK renderer fonts.
-- For Chinese creator captions, default to a clean font-first treatment:
-  `creator-clean`, lower-safe position, no heavy black stroke, subtle shadow,
-  balanced one- or two-line chunks, and at most one emphasized phrase per
-  sentence through `richSpans`. Treat commercial fonts seen in references as
-  style inspiration unless the user supplies redistribution rights.
+- Route Chinese captions by content type. Use `talking-head-pop` for spoken
+  talking-head and opinion clips because it uses white text, translucent dark
+  backing, and stronger shadow for light-background readability. Use
+  `creator-clean` only when the source background is visually controlled and
+  the user wants a clean font-first look. Emphasize at most one key phrase per
+  sentence through `richSpans`, using light yellow text such as `#fde68a` when
+  emphasis is needed. Treat commercial fonts seen in references as style
+  inspiration unless the user supplies redistribution rights.
 - Caption timing must declare a post-cut caption source. Prefer edited audio transcription through `build-post-cut-captions`; use source transcript remap only when every source segment maps cleanly into selected clips.
 - After applying captions, use `get_timeline_state` readback and verify text
   elements include `content`, `startTime`, `duration`, and `style`.

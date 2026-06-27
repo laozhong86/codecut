@@ -75,6 +75,8 @@ export type ApplyEditPlanResult =
 	  }
 	| { success: false; message: string; path?: string };
 
+type TextElementRaw = Parameters<typeof buildTextElement>[0]["raw"];
+
 function hasTimelineElements({ tracks }: { tracks: TimelineTrack[] }): boolean {
 	return tracks.some((track) => track.elements.length > 0);
 }
@@ -309,7 +311,7 @@ function createTextElement({
 	name: string;
 	richSpans?: EditPlanTextRichSpan[];
 	motionPreset?: EditPlanTextMotionPreset;
-	raw?: Parameters<typeof buildTextElement>[0]["raw"];
+	raw?: TextElementRaw;
 }): CreateTimelineElement {
 	const baseRaw = raw ?? {};
 	const baseTransform = baseRaw.transform ?? {
@@ -341,6 +343,49 @@ function createTextElement({
 		},
 		startTime,
 	});
+}
+
+function getVisibleCharacterCount({ text }: { text: string }): number {
+	return Array.from(text.replace(/\s+/g, "")).length;
+}
+
+function withShortCaptionSizing({
+	raw,
+	text,
+}: {
+	raw?: TextElementRaw;
+	text: string;
+}): TextElementRaw | undefined {
+	if (!raw || typeof raw.fontSize !== "number") {
+		return raw;
+	}
+
+	const visibleCharacterCount = getVisibleCharacterCount({ text });
+	if (visibleCharacterCount <= 0) {
+		return raw;
+	}
+
+	if (visibleCharacterCount <= 4) {
+		return {
+			...raw,
+			fontSize: Math.max(raw.fontSize, 8.4),
+			boxWidth: Math.min(raw.boxWidth ?? 34, 34),
+			backgroundPaddingX: Math.max(raw.backgroundPaddingX ?? 0, 28),
+			backgroundPaddingY: Math.max(raw.backgroundPaddingY ?? 0, 14),
+		};
+	}
+
+	if (visibleCharacterCount <= 7) {
+		return {
+			...raw,
+			fontSize: Math.max(raw.fontSize, 7.2),
+			boxWidth: Math.min(raw.boxWidth ?? 40, 40),
+			backgroundPaddingX: Math.max(raw.backgroundPaddingX ?? 0, 26),
+			backgroundPaddingY: Math.max(raw.backgroundPaddingY ?? 0, 13),
+		};
+	}
+
+	return raw;
 }
 
 function createUploadAudioSegment({
@@ -510,7 +555,7 @@ export function applyEditPlanToEditor({
 		name: string;
 		richSpans?: EditPlanTextRichSpan[];
 		motionPreset?: EditPlanTextMotionPreset;
-		raw?: Parameters<typeof buildTextElement>[0]["raw"];
+		raw?: TextElementRaw;
 	}> = [];
 	if (normalizedPlan.title) {
 		textItems.push({
@@ -542,7 +587,7 @@ export function applyEditPlanToEditor({
 			...caption,
 			name: `Caption ${index + 1}`,
 			motionPreset: normalizedPlan.captionStyle?.motionPreset,
-			raw: captionRaw,
+			raw: withShortCaptionSizing({ raw: captionRaw, text: caption.text }),
 		});
 	}
 

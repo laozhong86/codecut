@@ -625,19 +625,67 @@ describe("applyEditPlanToEditor", () => {
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
 			fontFamily: "CodecutCJK",
-			fontSize: 4.8,
+			fontSize: 5.2,
 			fontWeight: "bold",
-			color: "#fff3b0",
-			stroke: { color: "#101010", width: 3 },
-			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 5 },
-			backgroundColor: "transparent",
-			boxWidth: 44,
+			color: "#ffffff",
+			stroke: undefined,
+			shadow: { color: "rgba(0,0,0,0.72)", offsetX: 0, offsetY: 3, blur: 10 },
+			backgroundColor: "#0f172a",
+			backgroundOpacity: 0.42,
+			backgroundPaddingX: 24,
+			backgroundPaddingY: 12,
+			backgroundBorderRadius: 8,
+			boxWidth: 50,
 			transform: {
 				scale: 1,
 				position: { x: 0, y: 520 },
 				rotate: 0,
 			},
 		});
+	});
+
+	test("enlarges very short talking-head captions without changing normal caption size", () => {
+		const editor = fakeEditor();
+		const plan: EditPlan = {
+			...validPlan(),
+			title: undefined,
+			captions: [
+				{ text: "别犹豫", startTime: 0, duration: 2 },
+				{ text: "这是一个正常长度的字幕", startTime: 2, duration: 2 },
+			],
+			captionStyle: {
+				preset: "talking-head-pop",
+				position: "lower-safe",
+			},
+		};
+
+		applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const textElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "text" ? track.elements : []));
+
+		expect(textElements).toMatchObject([
+			{
+				content: "别犹豫",
+				fontSize: 8.4,
+				boxWidth: 34,
+				backgroundPaddingX: 28,
+				backgroundPaddingY: 14,
+			},
+			{
+				content: "这是一个正常长度的字幕",
+				fontSize: 5.2,
+				boxWidth: 50,
+				backgroundPaddingX: 24,
+				backgroundPaddingY: 12,
+			},
+		]);
 	});
 
 	test("applies hook title preset without changing caption style", () => {
@@ -733,11 +781,18 @@ describe("applyEditPlanToEditor", () => {
 				preset: "talking-head-pop",
 				expected: {
 					fontFamily: CODECUT_CJK_FONT_FAMILY,
-					fontSize: 4.8,
+					fontSize: 5.2,
 					fontWeight: "bold",
-					color: "#fff3b0",
-					stroke: { color: "#101010", width: 3 },
-					backgroundColor: "transparent",
+					color: "#ffffff",
+					stroke: undefined,
+					shadow: {
+						color: "rgba(0,0,0,0.72)",
+						offsetX: 0,
+						offsetY: 3,
+						blur: 10,
+					},
+					backgroundColor: "#0f172a",
+					backgroundOpacity: 0.42,
 				},
 			},
 			{
@@ -792,13 +847,14 @@ describe("applyEditPlanToEditor", () => {
 					fontWeight: "normal",
 					color: "#f8fafc",
 					shadow: {
-						color: "rgba(0,0,0,0.45)",
+						color: "rgba(0,0,0,0.58)",
 						offsetX: 0,
 						offsetY: 2,
-						blur: 6,
+						blur: 8,
 					},
 					stroke: undefined,
-					backgroundColor: "transparent",
+					backgroundColor: "#111827",
+					backgroundOpacity: 0.32,
 				},
 			},
 			{
@@ -831,7 +887,8 @@ describe("applyEditPlanToEditor", () => {
 					fontSize: 4.6,
 					fontWeight: "normal",
 					color: "#f8fafc",
-					backgroundColor: "transparent",
+					backgroundColor: "#0f172a",
+					backgroundOpacity: 0.38,
 				},
 			},
 		];
@@ -863,7 +920,6 @@ describe("applyEditPlanToEditor", () => {
 
 			expect(textElements[1]).toMatchObject({
 				content: "This is the key insight.",
-				boxWidth: 44,
 				transform: {
 					scale: 1,
 					position: { x: 0, y: 520 },
