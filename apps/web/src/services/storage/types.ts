@@ -35,7 +35,11 @@ export interface SpokenScriptData {
 	text: string;
 	captions: string[];
 	protectedTerms?: string[];
-	provider?: "imported-tts" | "runninghub-voice-design" | "runninghub-voice-clone";
+	provider?:
+		| "imported-tts"
+		| "runninghub-voice-design"
+		| "runninghub-voice-clone"
+		| "volcengine-voice-clone";
 	providerTaskId?: string;
 }
 

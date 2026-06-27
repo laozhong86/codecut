@@ -162,6 +162,9 @@ describe("Codecut MCP server contract", () => {
 			"generate_digital_human",
 			"generate_runninghub_voice_design",
 			"generate_runninghub_voice_clone",
+			"generate_volcengine_cloned_voice",
+			"transcribe_volcengine_url",
+			"build_volcengine_url_captions",
 			"verify_timeline",
 			"export_project",
 			"get_timeline_state",
@@ -333,6 +336,9 @@ describe("Codecut MCP server contract", () => {
 			"generate_digital_human",
 			"generate_runninghub_voice_design",
 			"generate_runninghub_voice_clone",
+			"generate_volcengine_cloned_voice",
+			"transcribe_volcengine_url",
+			"build_volcengine_url_captions",
 			"export_project",
 		]) {
 			expect(categoryByTool.get(toolName)).toBe(
@@ -3522,6 +3528,62 @@ describe("Codecut MCP server contract", () => {
 			"hello",
 			"--confirmation-token",
 			confirmationToken,
+		]);
+		expect(
+			buildBridgeCliArgs("generate_volcengine_cloned_voice", {
+				projectId: "project-1",
+				confirmationToken,
+				voiceType: "voice-clone-1",
+				text: "hello",
+				protectedTerms: ["CodeCut"],
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"generate-volcengine-cloned-voice",
+			"--project-id",
+			"project-1",
+			"--voice-type",
+			"voice-clone-1",
+			"--text",
+			"hello",
+			"--protected-term",
+			"CodeCut",
+			"--confirmation-token",
+			confirmationToken,
+		]);
+		expect(
+			buildBridgeCliArgs("transcribe_volcengine_url", {
+				projectId: "project-1",
+				mediaUrl: "https://example.com/audio.mp3",
+				requestId: "asr-request-1",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"send",
+			"--project-id",
+			"project-1",
+			"--tool",
+			"transcribe_volcengine_url",
+			"--args-json",
+			JSON.stringify({
+				mediaUrl: "https://example.com/audio.mp3",
+				requestId: "asr-request-1",
+			}),
+		]);
+		expect(
+			buildBridgeCliArgs("build_volcengine_url_captions", {
+				projectId: "project-1",
+				mediaUrl: "https://example.com/video.mp4",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"send",
+			"--project-id",
+			"project-1",
+			"--tool",
+			"build_volcengine_url_captions",
+			"--args-json",
+			JSON.stringify({ mediaUrl: "https://example.com/video.mp4" }),
 		]);
 	});
 

@@ -92,6 +92,9 @@ function envelope({
 		| "generate_digital_human"
 		| "generate_runninghub_voice_design"
 		| "generate_runninghub_voice_clone"
+		| "generate_volcengine_cloned_voice"
+		| "transcribe_volcengine_url"
+		| "build_volcengine_url_captions"
 		| "export_project"
 		| "verify_timeline"
 		| "get_timeline_state";
@@ -536,9 +539,9 @@ describe("codex executor", () => {
 		const snapshot = await getExecutorProjectSnapshot({ projectId });
 
 		expect(info.confirmedSetup).toEqual(confirmedSetup);
-		expect(
-			(info.confirmedSetup as ConfirmedSetup).taskType,
-		).toBe("template_draft");
+		expect((info.confirmedSetup as ConfirmedSetup).taskType).toBe(
+			"template_draft",
+		);
 		expect(snapshot.confirmedSetup).toEqual(confirmedSetup);
 	});
 
@@ -1804,6 +1807,169 @@ describe("codex executor", () => {
 		expect(invalidPath.results[0]).toMatchObject({
 			success: false,
 			message: "audioPath must be an absolute path",
+		});
+	});
+
+	test("generate_volcengine_cloned_voice creates a local audio media asset", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const voiceBytes = await createFixtureBareAudio({ format: "wav" });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_volcengine_cloned_voice",
+				args: {
+					voiceType: "voice-clone-1",
+					text: "豆包语音复刻测试",
+					protectedTerms: ["豆包语音"],
+				},
+			}),
+			env: { VOLCENGINE_OPEN_SPEECH_API_KEY: "volc-key" },
+			generateVolcengineClonedVoice: async ({ apiKey, voiceType, text }) => {
+				expect(apiKey).toBe("volc-key");
+				expect(voiceType).toBe("voice-clone-1");
+				expect(text).toBe("豆包语音复刻测试");
+				return {
+					taskId: "volc-task-1",
+					audioBytes: voiceBytes,
+					mimeType: "audio/wav",
+				};
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "generate_volcengine_cloned_voice",
+			success: true,
+			message:
+				"Generated Volcengine voice 'volcengine-voice-clone-volc-task-1.wav'",
+			data: {
+				taskId: "volc-task-1",
+				provider: "volcengine-voice-clone",
+				name: "volcengine-voice-clone-volc-task-1.wav",
+				voiceConsistency: {
+					provider: "volcengine-voice-clone",
+					providerTaskId: "volc-task-1",
+					scriptCaptionLineCount: 1,
+					protectedTermCount: 1,
+				},
+			},
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const asset = state.mediaAssets.find(
+			(item) =>
+				item.id === resultData<{ mediaId: string }>(result.results[0]).mediaId,
+		);
+		expect(asset?.spokenScript).toMatchObject({
+			source: "tts",
+			text: "豆包语音复刻测试",
+			captions: ["豆包语音复刻测试"],
+			protectedTerms: ["豆包语音"],
+			provider: "volcengine-voice-clone",
+			providerTaskId: "volc-task-1",
+		});
+	});
+
+	test("generate_volcengine_cloned_voice rejects a missing API key", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_volcengine_cloned_voice",
+				args: {
+					voiceType: "voice-clone-1",
+					text: "豆包语音复刻测试",
+				},
+			}),
+			env: {},
+			generateVolcengineClonedVoice: async () => {
+				throw new Error("should not run");
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: false,
+			message: "VOLCENGINE_OPEN_SPEECH_API_KEY is required",
+		});
+	});
+
+	test("transcribe_volcengine_url returns transcript data without mutating project state", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "transcribe_volcengine_url",
+				args: {
+					mediaUrl: "https://example.com/audio.mp3",
+					requestId: "asr-request-1",
+				},
+			}),
+			env: { VOLCENGINE_OPEN_SPEECH_API_KEY: "volc-key" },
+			transcribeVolcengineUrl: async ({ apiKey, mediaUrl, requestId }) => {
+				expect(apiKey).toBe("volc-key");
+				expect(mediaUrl).toBe("https://example.com/audio.mp3");
+				expect(requestId).toBe("asr-request-1");
+				return {
+					taskId: "asr-request-1",
+					status: "succeeded",
+					text: "豆包语音",
+					language: "zh-CN",
+					modelId: "volcengine-bigmodel",
+					segments: [{ text: "豆包语音", start: 0, end: 1.23 }],
+					...asrContractFields(),
+				};
+			},
+		});
+
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		expect(result.results[0]).toMatchObject({
+			tool: "transcribe_volcengine_url",
+			success: true,
+			data: {
+				taskId: "asr-request-1",
+				text: "豆包语音",
+				segments: [{ text: "豆包语音", start: 0, end: 1.23 }],
+			},
+		});
+	});
+
+	test("build_volcengine_url_captions returns editable captions without mutating project state", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_volcengine_url_captions",
+				args: {
+					mediaUrl: "https://example.com/video.mp4",
+				},
+			}),
+			env: { VOLCENGINE_OPEN_SPEECH_API_KEY: "volc-key" },
+			buildVolcengineUrlCaptions: async ({ apiKey, mediaUrl }) => {
+				expect(apiKey).toBe("volc-key");
+				expect(mediaUrl).toBe("https://example.com/video.mp4");
+				return {
+					taskId: "subtitle-task-1",
+					status: "succeeded",
+					captions: [
+						{ text: "第一句", startTime: 0, duration: 0.9 },
+						{ text: "第二句", startTime: 0.9, duration: 0.9 },
+					],
+				};
+			},
+		});
+
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		expect(result.results[0]).toMatchObject({
+			tool: "build_volcengine_url_captions",
+			success: true,
+			data: {
+				source: "volcengine_url_subtitle",
+				taskId: "subtitle-task-1",
+				captions: [
+					{ text: "第一句", startTime: 0, duration: 0.9 },
+					{ text: "第二句", startTime: 0.9, duration: 0.9 },
+				],
+			},
 		});
 	});
 
@@ -4353,7 +4519,7 @@ describe("codex executor", () => {
 					eligibleClipCount: 1,
 					skippedClipCount: 0,
 					eligibleClips: [
-							{
+						{
 							clipId: expect.any(String),
 							mediaId,
 							timelineStart: 0,
@@ -5344,7 +5510,9 @@ describe("codex executor", () => {
 				expect.objectContaining({ type: "image", mediaId: imageId }),
 			]),
 		);
-		expect(textOverlayTrack?.elements.map((element) => element.content)).toEqual([
+		expect(
+			textOverlayTrack?.elements.map((element) => element.content),
+		).toEqual([
 			"天府新区双华麓港",
 			"117.55㎡ 套三双卫 总价186万",
 			"地铁口商圈边",

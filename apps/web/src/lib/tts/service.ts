@@ -111,12 +111,57 @@ async function generateRunningHubClonedSpeechFromText({
 	};
 }
 
+async function generateVolcengineClonedSpeechFromText({
+	text,
+	voiceType,
+}: {
+	text: string;
+	voiceType?: string;
+}): Promise<TtsResult> {
+	if (!voiceType?.trim()) {
+		throw new Error("Volcengine voice_type is required");
+	}
+	const response = await fetch("/api/tts/generate", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({
+			provider: "volcengine-voice-clone",
+			voiceType: voiceType.trim(),
+			text,
+		}),
+	});
+
+	if (!response.ok) {
+		const error = await response.json().catch(() => null);
+		throw new Error(error?.error ?? `TTS request failed: ${response.status}`);
+	}
+
+	const { audio, provider, providerTaskId } = (await response.json()) as {
+		audio: string;
+		provider?: SpokenScriptData["provider"];
+		providerTaskId?: string;
+	};
+	const arrayBuffer = base64ToArrayBuffer({ base64: audio });
+	const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
+	const buffer = await decodeAudioBlob({ blob });
+
+	return {
+		duration: buffer.duration,
+		buffer,
+		blob,
+		provider,
+		providerTaskId,
+	};
+}
+
 export async function generateSpeechFromText({
 	text,
 	voice,
+	volcengineVoiceType,
 }: {
 	text: string;
 	voice?: string;
+	volcengineVoiceType?: string;
 }): Promise<TtsResult> {
 	const voicePack = resolveVoicePack({ voice });
 	if (voicePack.provider === "legacy-tts") {
@@ -124,6 +169,12 @@ export async function generateSpeechFromText({
 	}
 	if (voicePack.provider === "runninghub-voice-clone") {
 		return generateRunningHubClonedSpeechFromText({ text, voicePack });
+	}
+	if (voicePack.provider === "volcengine-voice-clone") {
+		return generateVolcengineClonedSpeechFromText({
+			text,
+			voiceType: volcengineVoiceType,
+		});
 	}
 	throw new Error(`Unsupported TTS voice provider: ${voicePack.provider}`);
 }
@@ -162,6 +213,7 @@ export async function generateAndInsertSpeech({
 	text,
 	startTime,
 	voice,
+	volcengineVoiceType,
 	captionLines,
 	protectedTerms,
 }: {
@@ -169,6 +221,7 @@ export async function generateAndInsertSpeech({
 	text: string;
 	startTime: number;
 	voice?: string;
+	volcengineVoiceType?: string;
 	captionLines?: string[];
 	protectedTerms?: string[];
 }): Promise<{ duration: number }> {
@@ -180,6 +233,7 @@ export async function generateAndInsertSpeech({
 	const result = await generateSpeechFromText({
 		text: spokenScript.text,
 		voice,
+		volcengineVoiceType,
 	});
 	const assetSpokenScript = buildTtsSpokenScript({
 		text: spokenScript.text,

@@ -21,6 +21,7 @@ const webEnvSchema = z.object({
 	UPSTASH_REDIS_REST_TOKEN: z.string(),
 	FREESOUND_CLIENT_ID: z.string().optional(),
 	FREESOUND_API_KEY: z.string().optional(),
+	VOLCENGINE_OPEN_SPEECH_API_KEY: z.string().optional(),
 
 	// Cloudflare R2
 	R2_ACCOUNT_ID: z.string().optional(),

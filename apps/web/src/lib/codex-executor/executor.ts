@@ -81,6 +81,15 @@ import {
 	type RunningHubGeneratedVoiceDesign,
 } from "@/lib/ai/providers/runninghub-voice-design-server";
 import { RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID } from "@/lib/ai/providers/runninghub-voice-design";
+import {
+	queryVolcengineAsrTask,
+	queryVolcengineSubtitleTask,
+	submitVolcengineAsrTask,
+	submitVolcengineSubtitleTask,
+	synthesizeVolcengineClonedVoice,
+	VOLCENGINE_VOICE_CLONE_PROVIDER_ID,
+	type VolcengineCaption,
+} from "@/lib/ai/providers/volcengine-openspeech";
 import type {
 	DigitalHumanGenerationRequest,
 	VoiceCloneRequest,
@@ -168,6 +177,9 @@ type ExecutorToolName =
 	| "generate_digital_human"
 	| "generate_runninghub_voice_design"
 	| "generate_runninghub_voice_clone"
+	| "generate_volcengine_cloned_voice"
+	| "transcribe_volcengine_url"
+	| "build_volcengine_url_captions"
 	| "export_project"
 	| "verify_timeline"
 	| "get_timeline_state";
@@ -195,7 +207,8 @@ interface ExecutorSpokenScript {
 	provider?:
 		| "imported-tts"
 		| "runninghub-voice-design"
-		| "runninghub-voice-clone";
+		| "runninghub-voice-clone"
+		| "volcengine-voice-clone";
 	providerTaskId?: string;
 }
 
@@ -286,6 +299,9 @@ const commandSchema = z
 			"generate_digital_human",
 			"generate_runninghub_voice_design",
 			"generate_runninghub_voice_clone",
+			"generate_volcengine_cloned_voice",
+			"transcribe_volcengine_url",
+			"build_volcengine_url_captions",
 			"export_project",
 			"verify_timeline",
 			"get_timeline_state",
@@ -324,6 +340,7 @@ const importMediaArgsSchema = z
 						"imported-tts",
 						"runninghub-voice-design",
 						"runninghub-voice-clone",
+						"volcengine-voice-clone",
 					])
 					.optional(),
 				providerTaskId: z.string().min(1).optional(),
@@ -830,6 +847,27 @@ const generateVoiceCloneArgsSchema = z
 	})
 	.strict();
 
+const generateVolcengineClonedVoiceArgsSchema = z
+	.object({
+		voiceType: z.string().trim().min(1),
+		text: z.string().trim().min(1),
+		protectedTerms: z.array(z.string().trim().min(1)).optional(),
+	})
+	.strict();
+
+const volcengineUrlArgsSchema = z
+	.object({
+		mediaUrl: z
+			.string()
+			.trim()
+			.url()
+			.refine((value) => new URL(value).protocol === "https:", {
+				message: "mediaUrl must use https",
+			}),
+		requestId: z.string().trim().min(1).optional(),
+	})
+	.strict();
+
 const exportProjectArgsSchema = z
 	.object({
 		format: z.string().min(1).optional(),
@@ -873,6 +911,31 @@ export type ExecutorGenerateVoiceClone = (params: {
 	referenceAudioPath: string;
 	request: VoiceCloneRequest;
 }) => Promise<RunningHubGeneratedVoiceClone>;
+
+export type ExecutorGenerateVolcengineClonedVoice = (params: {
+	apiKey: string;
+	voiceType: string;
+	text: string;
+}) => Promise<{
+	taskId: string;
+	audioBytes: Buffer;
+	mimeType: string;
+}>;
+
+export type ExecutorTranscribeVolcengineUrl = (params: {
+	apiKey: string;
+	mediaUrl: string;
+	requestId?: string;
+}) => Promise<Awaited<ReturnType<typeof queryVolcengineAsrTask>>>;
+
+export type ExecutorBuildVolcengineUrlCaptions = (params: {
+	apiKey: string;
+	mediaUrl: string;
+}) => Promise<{
+	taskId: string;
+	status: "succeeded";
+	captions: VolcengineCaption[];
+}>;
 
 type ExecutorExportFormat = "mp4" | "webm";
 type ExecutorExportQuality = "low" | "medium" | "high" | "very_high";
@@ -1211,8 +1274,8 @@ function serializeTimelineReadbackTrack({
 		}))
 		.filter(({ element }) =>
 			elementOverlapsWindow({ element, startTime, endTime }),
-			);
-		return {
+		);
+	return {
 		id: track.id,
 		type: track.type,
 		name: track.name,
@@ -3016,7 +3079,37 @@ async function normalizeRunningHubVoiceAudio({
 	}
 }
 
-async function saveGeneratedRunningHubVoiceAsset({
+function spokenScriptProviderForGeneratedVoice({
+	providerId,
+}: {
+	providerId: string;
+}): NonNullable<ExecutorSpokenScript["provider"]> {
+	if (providerId === RUNNINGHUB_VOICE_CLONE_PROVIDER_ID) {
+		return "runninghub-voice-clone";
+	}
+	if (providerId === RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID) {
+		return "runninghub-voice-design";
+	}
+	if (providerId === VOLCENGINE_VOICE_CLONE_PROVIDER_ID) {
+		return "volcengine-voice-clone";
+	}
+	throw new Error(`Unsupported generated voice provider: ${providerId}`);
+}
+
+function generatedVoiceMessagePrefix({ providerId }: { providerId: string }) {
+	if (
+		providerId === RUNNINGHUB_VOICE_CLONE_PROVIDER_ID ||
+		providerId === RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID
+	) {
+		return "Generated RunningHub voice";
+	}
+	if (providerId === VOLCENGINE_VOICE_CLONE_PROVIDER_ID) {
+		return "Generated Volcengine voice";
+	}
+	throw new Error(`Unsupported generated voice provider: ${providerId}`);
+}
+
+async function saveGeneratedVoiceAsset({
 	state,
 	providerId,
 	taskId,
@@ -3034,7 +3127,7 @@ async function saveGeneratedRunningHubVoiceAsset({
 	mimeType: string;
 }) {
 	if (audioBytes.byteLength <= 0) {
-		throw new Error("RunningHub returned an empty voice audio file");
+		throw new Error("Voice provider returned an empty audio file");
 	}
 	const normalizedAudio = await normalizeRunningHubVoiceAudio({
 		audioBytes,
@@ -3054,10 +3147,7 @@ async function saveGeneratedRunningHubVoiceAsset({
 	const spokenScript = buildTtsSpokenScript({
 		text,
 		protectedTerms,
-		provider:
-			providerId === RUNNINGHUB_VOICE_CLONE_PROVIDER_ID
-				? "runninghub-voice-clone"
-				: "runninghub-voice-design",
+		provider: spokenScriptProviderForGeneratedVoice({ providerId }),
 		providerTaskId: taskId,
 	});
 	const asset: ExecutorMediaAsset = {
@@ -3075,7 +3165,7 @@ async function saveGeneratedRunningHubVoiceAsset({
 	await saveProjectState({ state });
 	return {
 		success: true,
-		message: `Generated RunningHub voice '${name}'`,
+		message: `${generatedVoiceMessagePrefix({ providerId })} '${name}'`,
 		data: {
 			mediaId,
 			taskId,
@@ -3202,7 +3292,7 @@ async function runGenerateRunningHubVoiceDesign({
 		apiKey,
 		request,
 	});
-	return saveGeneratedRunningHubVoiceAsset({
+	return saveGeneratedVoiceAsset({
 		state,
 		providerId: RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID,
 		taskId: generated.taskId,
@@ -3244,7 +3334,7 @@ async function runGenerateRunningHubVoiceClone({
 		referenceAudioPath: parsed.audioPath,
 		request,
 	});
-	return saveGeneratedRunningHubVoiceAsset({
+	return saveGeneratedVoiceAsset({
 		state,
 		providerId: RUNNINGHUB_VOICE_CLONE_PROVIDER_ID,
 		taskId: generated.taskId,
@@ -3253,6 +3343,92 @@ async function runGenerateRunningHubVoiceClone({
 		audioBytes: generated.audioBytes,
 		mimeType: generated.mimeType || "audio/mpeg",
 	});
+}
+
+async function runGenerateVolcengineClonedVoice({
+	state,
+	args,
+	env,
+	generateVolcengineClonedVoice,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	generateVolcengineClonedVoice: ExecutorGenerateVolcengineClonedVoice;
+}) {
+	const parsed = generateVolcengineClonedVoiceArgsSchema.parse(args);
+	const apiKey = env.VOLCENGINE_OPEN_SPEECH_API_KEY?.trim();
+	if (!apiKey) {
+		throw new Error("VOLCENGINE_OPEN_SPEECH_API_KEY is required");
+	}
+	const generated = await generateVolcengineClonedVoice({
+		apiKey,
+		voiceType: parsed.voiceType,
+		text: parsed.text,
+	});
+	return saveGeneratedVoiceAsset({
+		state,
+		providerId: VOLCENGINE_VOICE_CLONE_PROVIDER_ID,
+		taskId: generated.taskId,
+		text: parsed.text,
+		protectedTerms: parsed.protectedTerms,
+		audioBytes: generated.audioBytes,
+		mimeType: generated.mimeType || "audio/mpeg",
+	});
+}
+
+async function runTranscribeVolcengineUrl({
+	args,
+	env,
+	transcribeVolcengineUrl,
+}: {
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	transcribeVolcengineUrl: ExecutorTranscribeVolcengineUrl;
+}) {
+	const parsed = volcengineUrlArgsSchema.parse(args);
+	const apiKey = env.VOLCENGINE_OPEN_SPEECH_API_KEY?.trim();
+	if (!apiKey) {
+		throw new Error("VOLCENGINE_OPEN_SPEECH_API_KEY is required");
+	}
+	const result = await transcribeVolcengineUrl({
+		apiKey,
+		mediaUrl: parsed.mediaUrl,
+		requestId: parsed.requestId,
+	});
+	return {
+		success: true,
+		message: "Transcribed Volcengine URL",
+		data: result,
+	};
+}
+
+async function runBuildVolcengineUrlCaptions({
+	args,
+	env,
+	buildVolcengineUrlCaptions,
+}: {
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	buildVolcengineUrlCaptions: ExecutorBuildVolcengineUrlCaptions;
+}) {
+	const parsed = volcengineUrlArgsSchema.omit({ requestId: true }).parse(args);
+	const apiKey = env.VOLCENGINE_OPEN_SPEECH_API_KEY?.trim();
+	if (!apiKey) {
+		throw new Error("VOLCENGINE_OPEN_SPEECH_API_KEY is required");
+	}
+	const result = await buildVolcengineUrlCaptions({
+		apiKey,
+		mediaUrl: parsed.mediaUrl,
+	});
+	return {
+		success: true,
+		message: "Built Volcengine URL captions",
+		data: {
+			source: "volcengine_url_subtitle",
+			...result,
+		},
+	};
 }
 
 async function runTranscribeMedia({
@@ -4967,6 +5143,9 @@ async function executeCommand({
 	generateDigitalHuman,
 	generateVoiceDesign,
 	generateVoiceClone,
+	generateVolcengineClonedVoice,
+	transcribeVolcengineUrl,
+	buildVolcengineUrlCaptions,
 	exportProject,
 	probeExportedFile,
 }: {
@@ -4981,6 +5160,9 @@ async function executeCommand({
 	generateDigitalHuman: ExecutorGenerateDigitalHuman;
 	generateVoiceDesign: ExecutorGenerateVoiceDesign;
 	generateVoiceClone: ExecutorGenerateVoiceClone;
+	generateVolcengineClonedVoice: ExecutorGenerateVolcengineClonedVoice;
+	transcribeVolcengineUrl: ExecutorTranscribeVolcengineUrl;
+	buildVolcengineUrlCaptions: ExecutorBuildVolcengineUrlCaptions;
 	exportProject: ExecutorExportProject;
 	probeExportedFile: ExecutorProbeExportedFile;
 }) {
@@ -5153,6 +5335,28 @@ async function executeCommand({
 			generateVoiceClone,
 		});
 	}
+	if (command.tool === "generate_volcengine_cloned_voice") {
+		return runGenerateVolcengineClonedVoice({
+			state,
+			args: command.args,
+			env,
+			generateVolcengineClonedVoice,
+		});
+	}
+	if (command.tool === "transcribe_volcengine_url") {
+		return runTranscribeVolcengineUrl({
+			args: command.args,
+			env,
+			transcribeVolcengineUrl,
+		});
+	}
+	if (command.tool === "build_volcengine_url_captions") {
+		return runBuildVolcengineUrlCaptions({
+			args: command.args,
+			env,
+			buildVolcengineUrlCaptions,
+		});
+	}
 	if (command.tool === "export_project") {
 		return runExportProject({
 			state,
@@ -5219,6 +5423,42 @@ const defaultGenerateVoiceClone: ExecutorGenerateVoiceClone = ({
 		request,
 	});
 
+const defaultGenerateVolcengineClonedVoice: ExecutorGenerateVolcengineClonedVoice =
+	({ apiKey, voiceType, text }) =>
+		synthesizeVolcengineClonedVoice({
+			apiKey,
+			voiceType,
+			text,
+		});
+
+const defaultTranscribeVolcengineUrl: ExecutorTranscribeVolcengineUrl = async ({
+	apiKey,
+	mediaUrl,
+	requestId,
+}) => {
+	const submitted = await submitVolcengineAsrTask({
+		apiKey,
+		audioUrl: mediaUrl,
+		requestId,
+	});
+	return queryVolcengineAsrTask({
+		apiKey,
+		requestId: submitted.taskId,
+	});
+};
+
+const defaultBuildVolcengineUrlCaptions: ExecutorBuildVolcengineUrlCaptions =
+	async ({ apiKey, mediaUrl }) => {
+		const submitted = await submitVolcengineSubtitleTask({
+			apiKey,
+			mediaUrl,
+		});
+		return queryVolcengineSubtitleTask({
+			apiKey,
+			taskId: submitted.taskId,
+		});
+	};
+
 const defaultExportProject: ExecutorExportProject = async (params) => {
 	const { exportProjectWithNodeRenderer } = await import("./node-exporter");
 	return exportProjectWithNodeRenderer(params);
@@ -5234,6 +5474,9 @@ export async function executeCodexExecutorEnvelope({
 	generateDigitalHuman = defaultGenerateDigitalHuman,
 	generateVoiceDesign = defaultGenerateVoiceDesign,
 	generateVoiceClone = defaultGenerateVoiceClone,
+	generateVolcengineClonedVoice = defaultGenerateVolcengineClonedVoice,
+	transcribeVolcengineUrl = defaultTranscribeVolcengineUrl,
+	buildVolcengineUrlCaptions = defaultBuildVolcengineUrlCaptions,
 	exportProject = defaultExportProject,
 	probeExportedFile = probeExportedFileWithFfprobe,
 }: {
@@ -5246,6 +5489,9 @@ export async function executeCodexExecutorEnvelope({
 	generateDigitalHuman?: ExecutorGenerateDigitalHuman;
 	generateVoiceDesign?: ExecutorGenerateVoiceDesign;
 	generateVoiceClone?: ExecutorGenerateVoiceClone;
+	generateVolcengineClonedVoice?: ExecutorGenerateVolcengineClonedVoice;
+	transcribeVolcengineUrl?: ExecutorTranscribeVolcengineUrl;
+	buildVolcengineUrlCaptions?: ExecutorBuildVolcengineUrlCaptions;
 	exportProject?: ExecutorExportProject;
 	probeExportedFile?: ExecutorProbeExportedFile;
 }) {
@@ -5278,6 +5524,9 @@ export async function executeCodexExecutorEnvelope({
 				generateDigitalHuman,
 				generateVoiceDesign,
 				generateVoiceClone,
+				generateVolcengineClonedVoice,
+				transcribeVolcengineUrl,
+				buildVolcengineUrlCaptions,
 				exportProject,
 				probeExportedFile,
 			});

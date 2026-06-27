@@ -29,7 +29,10 @@ const require = createRequire(import.meta.url);
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
-const bridgeAllowedEnvKeys = new Set(["RUNNINGHUB_API_KEY"]);
+const bridgeAllowedEnvKeys = new Set([
+	"RUNNINGHUB_API_KEY",
+	"VOLCENGINE_OPEN_SPEECH_API_KEY",
+]);
 const workspaceResourceMimeType = "text/html;profile=mcp-app";
 const codecutServiceStartCommand = "bun run dev:web";
 const defaultCodecutReadinessUrl = "http://127.0.0.1:4100/en/projects";
@@ -87,6 +90,10 @@ const filePathSchema = z
 	.min(1)
 	.describe("Absolute path to a local media file.");
 const urlSchema = z.string().trim().url().describe("HTTPS media URL.");
+const httpsUrlSchema = urlSchema.refine(
+	(value) => new URL(value).protocol === "https:",
+	"URL must use https.",
+);
 const bytesSchema = z
 	.string()
 	.trim()
@@ -599,6 +606,18 @@ const codecutToolGovernanceCategoryByName = new Map([
 		"generate_runninghub_voice_clone",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
 	],
+	[
+		"generate_volcengine_cloned_voice",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
+	],
+	[
+		"transcribe_volcengine_url",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
+	],
+	[
+		"build_volcengine_url_captions",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
+	],
 ]);
 
 export const DESTRUCTIVE_MCP_TOOL_NAMES = new Set([
@@ -613,6 +632,9 @@ export const DESTRUCTIVE_MCP_TOOL_NAMES = new Set([
 	"generate_digital_human",
 	"generate_runninghub_voice_design",
 	"generate_runninghub_voice_clone",
+	"generate_volcengine_cloned_voice",
+	"transcribe_volcengine_url",
+	"build_volcengine_url_captions",
 	"export_project",
 ]);
 
@@ -1174,6 +1196,43 @@ export const CODECUT_MCP_TOOLS = [
 			audioPath: filePathSchema,
 			text: z.string().trim().min(1),
 			protectedTerms: protectedTermsSchema,
+		},
+		readOnly: false,
+	},
+	{
+		name: "generate_volcengine_cloned_voice",
+		title: "Generate Volcengine Cloned Voice",
+		description:
+			"Generate an MP3 audio asset with an existing Volcengine OpenSpeech voice_type. This calls the external Volcengine service and does not train a new voice.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
+			voiceType: z.string().trim().min(1),
+			text: z.string().trim().min(1),
+			protectedTerms: protectedTermsSchema,
+		},
+		readOnly: false,
+	},
+	{
+		name: "transcribe_volcengine_url",
+		title: "Transcribe Volcengine URL",
+		description:
+			"Submit and query a public HTTPS audio or video URL through Volcengine OpenSpeech ASR. This returns transcript data only and does not mutate the timeline.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			mediaUrl: httpsUrlSchema,
+			requestId: z.string().trim().min(1).optional(),
+		},
+		readOnly: false,
+	},
+	{
+		name: "build_volcengine_url_captions",
+		title: "Build Volcengine URL Captions",
+		description:
+			"Submit and query a public HTTPS audio or video URL through Volcengine subtitle generation. This returns editable caption data only; use add_texts or an EditPlan to place captions on the timeline.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			mediaUrl: httpsUrlSchema,
 		},
 		readOnly: false,
 	},
@@ -3478,6 +3537,49 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--confirmation-token",
 				requireConfirmationTokenArg(args),
 			];
+		case "generate_volcengine_cloned_voice":
+			return [
+				"scripts/codex-bridge.mjs",
+				"generate-volcengine-cloned-voice",
+				"--project-id",
+				projectId,
+				"--voice-type",
+				requireStringArg(args, "voiceType"),
+				"--text",
+				requireStringArg(args, "text"),
+				...protectedTermCliArgs(args),
+				"--confirmation-token",
+				requireConfirmationTokenArg(args),
+			];
+		case "transcribe_volcengine_url":
+			assertOnlyToolArgs(
+				args,
+				new Set(["projectId", "mediaUrl", "requestId"]),
+				toolName,
+			);
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					mediaUrl: requireStringArg(args, "mediaUrl"),
+					...(args.requestId === undefined
+						? {}
+						: { requestId: requireStringArg(args, "requestId") }),
+				},
+			});
+		case "build_volcengine_url_captions":
+			assertOnlyToolArgs(
+				args,
+				new Set(["projectId", "mediaUrl"]),
+				toolName,
+			);
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					mediaUrl: requireStringArg(args, "mediaUrl"),
+				},
+			});
 		case "verify_timeline":
 			return [
 				"scripts/codex-bridge.mjs",

@@ -6,6 +6,7 @@ import { i18next } from "@/lib/i18n";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
 	Select,
 	SelectContent,
@@ -26,10 +27,7 @@ import {
 } from "./property-item";
 import { useEditor } from "@/hooks/use-editor";
 import { generateAndInsertSpeech } from "@/lib/tts/service";
-import {
-	VOICE_PACKS,
-	DEFAULT_VOICE_PACK,
-} from "@/constants/tts-constants";
+import { VOICE_PACKS, DEFAULT_VOICE_PACK } from "@/constants/tts-constants";
 import type { TextElement } from "@/types/timeline";
 import { useAssetsPanelStore } from "@/stores/assets-panel-store";
 
@@ -47,19 +45,24 @@ export function TextSpeechPanel({
 	const editor = useEditor();
 	const openAISettings = useAssetsPanelStore((state) => state.openAISettings);
 	const [selectedVoice, setSelectedVoice] = useState(DEFAULT_VOICE_PACK);
+	const [volcengineVoiceType, setVolcengineVoiceType] = useState("");
 	const [alignDuration, setAlignDuration] = useState(false);
 	const [isGenerating, setIsGenerating] = useState(false);
 
 	const handleGenerate = async () => {
 		if (elementRefs.length === 0) return;
+		if (
+			selectedVoice === "volcengine-voice-clone" &&
+			!volcengineVoiceType.trim()
+		) {
+			toast.warning(i18next.t("Volcengine voice_type is required"));
+			return;
+		}
 
 		setIsGenerating(true);
 		const toastId = "tts-generate";
 
-		toast.loading(
-			i18next.t("Generating speech..."),
-			{ id: toastId },
-		);
+		toast.loading(i18next.t("Generating speech..."), { id: toastId });
 
 		let successCount = 0;
 		let failCount = 0;
@@ -72,6 +75,10 @@ export function TextSpeechPanel({
 					text: element.content,
 					startTime: element.startTime,
 					voice: selectedVoice,
+					volcengineVoiceType:
+						selectedVoice === "volcengine-voice-clone"
+							? volcengineVoiceType.trim()
+							: undefined,
 				});
 
 				if (alignDuration) {
@@ -94,10 +101,9 @@ export function TextSpeechPanel({
 		}
 
 		if (failCount === 0) {
-			toast.success(
-				i18next.t("Speech generated successfully"),
-				{ id: toastId },
-			);
+			toast.success(i18next.t("Speech generated successfully"), {
+				id: toastId,
+			});
 		} else if (configurationReminder) {
 			toast.warning(i18next.t(configurationReminder), {
 				id: toastId,
@@ -130,21 +136,13 @@ export function TextSpeechPanel({
 					<PropertyItem direction="column">
 						<PropertyItemLabel>{t("Voice")}</PropertyItemLabel>
 						<PropertyItemValue>
-							<Select
-								value={selectedVoice}
-								onValueChange={setSelectedVoice}
-							>
+							<Select value={selectedVoice} onValueChange={setSelectedVoice}>
 								<SelectTrigger>
-									<SelectValue
-										placeholder={t("Select a voice")}
-									/>
+									<SelectValue placeholder={t("Select a voice")} />
 								</SelectTrigger>
 								<SelectContent>
 									{VOICE_PACKS.map((voice) => (
-										<SelectItem
-											key={voice.id}
-											value={voice.id}
-										>
+										<SelectItem key={voice.id} value={voice.id}>
 											{voice.name}
 										</SelectItem>
 									))}
@@ -153,13 +151,29 @@ export function TextSpeechPanel({
 						</PropertyItemValue>
 					</PropertyItem>
 
+					{selectedVoice === "volcengine-voice-clone" && (
+						<PropertyItem direction="column">
+							<PropertyItemLabel>
+								{t("Volcengine voice_type")}
+							</PropertyItemLabel>
+							<PropertyItemValue>
+								<Input
+									value={volcengineVoiceType}
+									onChange={(event) =>
+										setVolcengineVoiceType(event.target.value)
+									}
+									placeholder="voice_type"
+									disabled={isGenerating}
+								/>
+							</PropertyItemValue>
+						</PropertyItem>
+					)}
+
 					<div className="flex items-center gap-2">
 						<Checkbox
 							id="align-text-duration"
 							checked={alignDuration}
-							onCheckedChange={(checked) =>
-								setAlignDuration(checked === true)
-							}
+							onCheckedChange={(checked) => setAlignDuration(checked === true)}
 						/>
 						<label
 							htmlFor="align-text-duration"
@@ -175,9 +189,7 @@ export function TextSpeechPanel({
 						disabled={isGenerating || elementRefs.length === 0}
 						onClick={handleGenerate}
 					>
-						{isGenerating
-							? t("Generating...")
-							: t("Generate Speech")}
+						{isGenerating ? t("Generating...") : t("Generate Speech")}
 					</Button>
 				</div>
 			</PropertyGroup>
