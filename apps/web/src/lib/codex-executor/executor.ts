@@ -603,7 +603,7 @@ const importSubtitlesArgsSchema = z
 			message: "filePath must be an absolute path.",
 		}),
 		format: z.enum(["srt", "ass"]),
-		trackName: z.string().min(1),
+		trackName: z.string().trim().min(1, "trackName must not be blank."),
 		captionStyle: EditPlanCaptionStyleSchema.optional(),
 	})
 	.strict();
@@ -4876,9 +4876,20 @@ async function runImportSubtitles({
 			Math.max(maxEnd, caption.startTime + caption.duration),
 		0,
 	);
+	const raw = resolveCaptionStylePreset({
+		captionStyle,
+		aspectRatio: aspectRatioForState(state),
+	});
+	const captionRaw = state.confirmedSetup
+		? applyCaptionPreferencesToTextRaw({
+				raw,
+				captionPreferences: state.confirmedSetup.captionPreferences,
+			})
+		: raw;
 	const captionQuality = auditCaptions({
 		captions,
 		captionStyle,
+		captionTextRaw: captionRaw,
 		aspectRatio: aspectRatioForState(state),
 		canvasSize: state.project.settings.canvasSize,
 		timelineDuration: existingDuration > 0 ? existingDuration : captionDuration,
@@ -4890,16 +4901,6 @@ async function runImportSubtitles({
 			data: { captionQuality },
 		};
 	}
-	const raw = resolveCaptionStylePreset({
-		captionStyle,
-		aspectRatio: aspectRatioForState(state),
-	});
-	const captionRaw = state.confirmedSetup
-		? applyCaptionPreferencesToTextRaw({
-				raw,
-				captionPreferences: state.confirmedSetup.captionPreferences,
-			})
-		: raw;
 	const summary = addTextElements({
 		state,
 		args: {

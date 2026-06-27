@@ -46,6 +46,9 @@ function parseSrtTimestamp(value: string, cueNumber: number): number {
 		throw new Error(`Invalid SRT timestamp at cue ${cueNumber}.`);
 	}
 	const [, hours, minutes, seconds, milliseconds] = match;
+	if (Number(minutes) > 59 || Number(seconds) > 59) {
+		throw new Error(`Invalid SRT timestamp at cue ${cueNumber}.`);
+	}
 	return (
 		Number(hours) * 3600 +
 		Number(minutes) * 60 +
@@ -60,6 +63,9 @@ function parseAssTimestamp(value: string, dialogueNumber: number): number {
 		throw new Error(`Invalid ASS timestamp at dialogue ${dialogueNumber}.`);
 	}
 	const [, hours, minutes, seconds, centiseconds] = match;
+	if (Number(minutes) > 59 || Number(seconds) > 59) {
+		throw new Error(`Invalid ASS timestamp at dialogue ${dialogueNumber}.`);
+	}
 	return (
 		Number(hours) * 3600 +
 		Number(minutes) * 60 +
@@ -107,8 +113,14 @@ function assertTiming({
 		if (caption.duration <= 0) {
 			throw new Error(`Subtitle cue ${index + 1} must have positive duration.`);
 		}
-		if (index === 0) continue;
-		const previous = captions[index - 1];
+	}
+	const orderedCaptions = [...captions].sort(
+		(left, right) => left.startTime - right.startTime,
+	);
+	for (let index = 1; index < orderedCaptions.length; index += 1) {
+		const caption = orderedCaptions[index];
+		const previous = orderedCaptions[index - 1];
+		if (!caption || !previous) continue;
 		if (previous.startTime + previous.duration > caption.startTime) {
 			throw new Error(
 				format === "srt" ? "SRT cues must not overlap." : "ASS cues must not overlap.",

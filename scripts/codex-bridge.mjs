@@ -1804,6 +1804,9 @@ export function buildImportSubtitlesEnvelope({
 	if (!filePath) {
 		throw new Error("--file-path is required");
 	}
+	if (!isAbsolute(filePath)) {
+		throw new Error("--file-path must be an absolute path");
+	}
 	if (format !== "srt" && format !== "ass") {
 		throw new Error("--format must be srt or ass");
 	}

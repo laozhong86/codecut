@@ -8912,6 +8912,109 @@ describe("codex executor", () => {
 		}
 	});
 
+	test("import_subtitles rejects blank track names before mutating", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "codecut-srt-"));
+		const filePath = join(tempDir, "captions.srt");
+
+		try {
+			await writeFile(
+				filePath,
+				[
+					"1",
+					"00:00:00,500 --> 00:00:02,500",
+					"Readable caption",
+					"",
+				].join("\n"),
+				"utf8",
+			);
+			await seedDraftState({ tracks: [] });
+			const before = await getExecutorProjectState({ projectId });
+
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "import_subtitles",
+					args: {
+						filePath,
+						format: "srt",
+						trackName: "   ",
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+						},
+					},
+				}),
+			});
+
+			expect(result.results[0]).toMatchObject({
+				success: false,
+				message: expect.stringContaining("trackName must not be blank"),
+			});
+			expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	test("import_subtitles validates caption quality against confirmed final text style", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "codecut-srt-"));
+		const filePath = join(tempDir, "captions.srt");
+
+		try {
+			await writeFile(
+				filePath,
+				[
+					"1",
+					"00:00:00,500 --> 00:00:03,500",
+					"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuv",
+					"",
+				].join("\n"),
+				"utf8",
+			);
+			await seedDraftState({
+				tracks: [],
+				confirmedSetup: confirmedSetupFixture({
+					captionSize: "large",
+					captionStylePreset: "talking-head-pop",
+				}),
+			});
+			const before = await getExecutorProjectState({ projectId });
+
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "import_subtitles",
+					args: {
+						filePath,
+						format: "srt",
+						trackName: "Imported Captions",
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+						},
+					},
+				}),
+			});
+
+			expect(result.results[0]).toMatchObject({
+				success: false,
+				message: "Imported subtitles failed caption quality validation.",
+				data: {
+					captionQuality: {
+						ok: false,
+						issues: [
+							expect.objectContaining({
+								code: "caption_line_break_failed",
+								path: "captions[0].text",
+							}),
+						],
+					},
+				},
+			});
+			expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	test("add_captions writes segment-level captions from edited audio clips", async () => {
 		await seedDraftState({
 			mediaAssets: [

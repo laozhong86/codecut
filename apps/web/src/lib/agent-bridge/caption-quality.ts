@@ -75,18 +75,24 @@ function auditCaptionLineFit({
 	caption,
 	index,
 	captionStyle,
+	captionTextRaw,
 	aspectRatio,
 	canvasSize,
 }: {
 	caption: CaptionQualityCaption;
 	index: number;
 	captionStyle: EditPlanCaptionStyle;
+	captionTextRaw?: {
+		boxWidth?: number;
+		fontSize?: number;
+	};
 	aspectRatio: EditPlan["target"]["aspectRatio"];
 	canvasSize: { width: number; height: number };
 }): { lineCount: number; issue?: CaptionQualityIssue } {
 	const maxWidth = computeCaptionCharacterLimit({
 		text: caption.text,
 		captionStyle,
+		captionTextRaw,
 		aspectRatio,
 		canvasSize,
 	});
@@ -138,12 +144,17 @@ function auditCaptionLineFit({
 export function auditCaptions({
 	captions,
 	captionStyle,
+	captionTextRaw,
 	aspectRatio,
 	canvasSize,
 	timelineDuration,
 }: {
 	captions: CaptionQualityCaption[];
 	captionStyle: EditPlanCaptionStyle;
+	captionTextRaw?: {
+		boxWidth?: number;
+		fontSize?: number;
+	};
 	aspectRatio: EditPlan["target"]["aspectRatio"];
 	canvasSize: { width: number; height: number };
 	timelineDuration: number;
@@ -224,6 +235,7 @@ export function auditCaptions({
 			caption,
 			index,
 			captionStyle,
+			captionTextRaw,
 			aspectRatio,
 			canvasSize,
 		});

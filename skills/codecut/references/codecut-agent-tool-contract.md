@@ -53,7 +53,7 @@ Current callable MCP tools relevant to Codex-driven editing:
 | `build_video_context` | Build local L2 transcript context for one imported audio/video asset; media longer than 300 seconds is analyzed in fixed 5-minute chunks and returned with source-video timestamps. |
 | `inspect_video_range` | Build local L3-on-demand visual/audio evidence for one video source range as a PNG contact sheet plus frame, waveform, and silence metadata. This is not OCR or scene detection. |
 | `build_post_cut_captions` | Transcribe the current edited video clip ranges and return caption items, `captionQuality`, optional `voiceConsistency`, and trace data offset into output timeline time. |
-| `import_subtitles` | Import one explicit SRT or strict ASS timed-text file as editable `TextElement` captions on a new text track after full parse, timing, style, and caption-quality validation. It requires `format`, absolute `filePath`, `trackName`, `captionStyle`, and a confirmation token. |
+| `import_subtitles` | Import one explicit SRT or strict ASS timed-text file as editable `TextElement` captions on a new text track after full parse, timing, style, and caption-quality validation. It requires `format`, absolute `filePath`, `trackName`, and a confirmation token. `captionStyle` is optional only when the project already has confirmed caption preferences. |
 | `validate_edit_plan` | Validate an implemented EditPlan v1 without mutating timeline state. |
 | `preview_edit_plan` | Return EditPlan summary, clip list, caption/audio/transition counts, and replacement warning without mutating timeline state. |
 | `apply_edit_plan` | Validate and apply the implemented EditPlan v1 to the timeline. |

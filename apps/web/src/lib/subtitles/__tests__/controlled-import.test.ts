@@ -55,6 +55,30 @@ describe("parseControlledSubtitles", () => {
 		).toThrow("SRT cues must not overlap");
 	});
 
+	test("rejects SRT timestamps with out-of-range minute or second fields", () => {
+		expect(() =>
+			parseControlledSubtitles({
+				format: "srt",
+				content: [
+					"1",
+					"00:60:01,000 --> 00:60:03,000",
+					"Bad minutes",
+				].join("\n"),
+			}),
+		).toThrow("Invalid SRT timestamp at cue 1");
+
+		expect(() =>
+			parseControlledSubtitles({
+				format: "srt",
+				content: [
+					"1",
+					"00:00:60,000 --> 00:01:02,000",
+					"Bad seconds",
+				].join("\n"),
+			}),
+		).toThrow("Invalid SRT timestamp at cue 1");
+	});
+
 	test("parses strict ASS Default-style dialogues", () => {
 		const captions = parseControlledSubtitles({
 			format: "ass",
@@ -95,5 +119,46 @@ describe("parseControlledSubtitles", () => {
 				].join("\n"),
 			}),
 		).toThrow("ASS override blocks are not supported");
+	});
+
+	test("accepts non-overlapping ASS dialogues that are not chronologically ordered", () => {
+		const captions = parseControlledSubtitles({
+			format: "ass",
+			content: [
+				"[Events]",
+				"Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+				"Dialogue: 0,0:00:04.00,0:00:05.00,Default,,0,0,0,,Later",
+				"Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Earlier",
+			].join("\n"),
+		});
+
+		expect(captions).toEqual([
+			{ text: "Later", startTime: 4, duration: 1 },
+			{ text: "Earlier", startTime: 1, duration: 1 },
+		]);
+	});
+
+	test("rejects ASS timestamps with out-of-range minute or second fields", () => {
+		expect(() =>
+			parseControlledSubtitles({
+				format: "ass",
+				content: [
+					"[Events]",
+					"Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+					"Dialogue: 0,0:60:01.00,0:60:03.00,Default,,0,0,0,,Bad minutes",
+				].join("\n"),
+			}),
+		).toThrow("Invalid ASS timestamp at dialogue 1");
+
+		expect(() =>
+			parseControlledSubtitles({
+				format: "ass",
+				content: [
+					"[Events]",
+					"Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+					"Dialogue: 0,0:00:60.00,0:01:02.00,Default,,0,0,0,,Bad seconds",
+				].join("\n"),
+			}),
+		).toThrow("Invalid ASS timestamp at dialogue 1");
 	});
 });

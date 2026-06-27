@@ -34,6 +34,10 @@ const COMMON_LATIN_ABBREVIATIONS = new Set([
 
 type CaptionChunkingLayout = {
 	captionStyle?: EditPlanCaptionStyle;
+	captionTextRaw?: {
+		boxWidth?: number;
+		fontSize?: number;
+	};
 	aspectRatio?: EditPlan["target"]["aspectRatio"];
 	canvasSize?: { width: number; height: number };
 };
@@ -134,6 +138,7 @@ function defaultCaptionCharacterLimit(text: string): number {
 export function computeCaptionCharacterLimit({
 	text,
 	captionStyle,
+	captionTextRaw,
 	aspectRatio,
 	canvasSize,
 }: {
@@ -141,7 +146,7 @@ export function computeCaptionCharacterLimit({
 } & CaptionChunkingLayout): number {
 	const defaultLimit = defaultCaptionCharacterLimit(text);
 	if (!captionStyle || !aspectRatio || !canvasSize) return defaultLimit;
-	const raw = resolveCaptionStylePreset({ captionStyle, aspectRatio });
+	const raw = captionTextRaw ?? resolveCaptionStylePreset({ captionStyle, aspectRatio });
 	if (!raw.boxWidth || !raw.fontSize) return defaultLimit;
 	const scaledBoxWidth = raw.boxWidth * (canvasSize.height / 90);
 	const scaledFontSize = raw.fontSize * (canvasSize.height / 90);

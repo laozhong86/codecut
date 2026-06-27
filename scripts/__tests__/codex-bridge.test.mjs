@@ -1270,6 +1270,15 @@ try {
 			}),
 		);
 
+		expect(() =>
+			buildImportSubtitlesEnvelope({
+				projectId: "project-123",
+				filePath: "captions.ass",
+				format: "ass",
+				trackName: "Imported Captions",
+			}),
+		).toThrow("--file-path must be an absolute path");
+
 		expect(
 			buildListModelsEnvelope({
 				projectId: "project-123",
