@@ -904,6 +904,19 @@ node scripts/codecut-workspace.mjs init \
   --confirmation-token <token>
 ```
 
+Workspace initialization also ensures the local private methodology store
+exists:
+
+```text
+.codecut-workspace/user-methodology/profile.md
+.codecut-workspace/user-methodology/rules.md
+.codecut-workspace/user-methodology/feedback-log.md
+```
+
+At the start of edit planning, read those files when present. They are
+read-only context; the current user request always overrides stored
+methodology.
+
 Copy and classify local materials:
 
 ```bash
@@ -931,6 +944,30 @@ node scripts/codecut-workspace.mjs write-doc \
   --content-file /absolute/path/workflow-route.md \
   --confirmation-token <token>
 ```
+
+After verified timeline/export completion, create the project learning proposal:
+
+```bash
+node scripts/codecut-workspace.mjs write-doc \
+  --project-id <id> \
+  --kind methodology-proposal \
+  --content-file /absolute/path/methodology-proposal.md \
+  --confirmation-token <token>
+```
+
+Only after explicit user confirmation, record accepted learning:
+
+```bash
+node scripts/codecut-workspace.mjs write-doc \
+  --project-id <id> \
+  --kind methodology-accepted-updates \
+  --content-file /absolute/path/accepted-updates.md \
+  --confirmation-token <token>
+```
+
+Confirmed long-term preferences belong only in
+`.codecut-workspace/user-methodology/`. Do not write private editing
+preferences into `skills/**`, `docs/**`, plugin manifests, or installed cache.
 
 Check that the local executor is ready before sending business commands:
 

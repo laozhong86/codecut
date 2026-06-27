@@ -24,6 +24,7 @@ Executor apply mutates Codecut state. Use it only after requirement intake passe
 | Service readiness, bridge env, import, validate, preview, apply, or export is needed | `../codecut/references/execution-contract.md` success contract table | Requirement intake, setup token, project ID, bridge env, doctor, validation, preview, apply, readback, or export proof is missing | `get_timeline_state` after timeline mutation; export proof after MP4/still export |
 | Current command syntax or executor behavior is needed | `../../docs/codex-driven-editing.md` | Callable tool or command is not implemented in the current runtime | Command result plus field-level readback |
 | Human preview or visual QA is required | `../codecut/references/execution-contract.md` human preview and visual QA sections | Browser-control blocker, contact sheet, or verdict path is missing | Visual QA verdict under `06-verification/visual-qa/<runId>/` |
+| Project execution is complete and learning capture is needed | `../codecut-methodology-capture/SKILL.md` | Timeline/export proof or user confirmation for long-term updates is missing | Proposal under `08-learning/methodology-proposal.md` |
 
 ## Stage Ownership
 
@@ -53,6 +54,8 @@ skill keeps the minimum command surface needed to operate the current executor.
   export proof as applicable.
 - Completion report with project ID, editor URL, revision, track count, clip
   count, caption count, total duration, source media IDs, and export status.
+- Post-completion handoff to `codecut-methodology-capture` for a private
+  learning proposal.
 
 ## Artifacts
 
@@ -64,6 +67,8 @@ Execution proof should live under the active Codecut workspace:
   `verify_timeline`, `get_timeline_state`, quality reports, and readback notes.
 - `.codecut-workspace/projects/<projectId>/07-exports/` for verified exported
   files and export metadata.
+- `.codecut-workspace/projects/<projectId>/08-learning/` for the methodology
+  proposal created after execution proof is complete.
 
 Do not create a skill-local `.artifacts` directory as the primary Codecut
 artifact path.
@@ -221,3 +226,7 @@ Do not claim MP4 export unless a verified export path produced it.
 Do not claim final delivery unless the visual QA verdict is recorded and has no
 unresolved blocking issue. If MP4 export was not requested, state that no MP4
 was produced and omit export QA instead of marking it as passed.
+After the completion report is backed by readback and visual/export proof,
+handoff to `codecut-methodology-capture` to create
+`08-learning/methodology-proposal.md`. Do not update
+`.codecut-workspace/user-methodology/` from this executor skill.

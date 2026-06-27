@@ -1,0 +1,4 @@
+interface:
+  display_name: Codecut Methodology Capture
+  short_description: Captures Codecut editing feedback into private local methodology proposals and confirmed preferences.
+  default_prompt: Use $codecut-methodology-capture when a user says remember this, update preference, 后面按这个, 刚才这里剪错了, or when a Codecut project completes and should produce a learning proposal. Generate a project-scoped proposal first, ask for explicit user confirmation before updating long-term preferences, store private methodology only under .codecut-workspace/user-methodology, and do not call executor, timeline, download, import, export, publishing, or plugin-cache tools from this skill.

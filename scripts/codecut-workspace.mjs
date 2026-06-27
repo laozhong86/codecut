@@ -50,6 +50,7 @@ const workspaceDirectories = [
 	"05-execution",
 	"06-verification",
 	"07-exports",
+	"08-learning",
 ];
 
 const documentPaths = new Map([
@@ -68,6 +69,8 @@ const documentPaths = new Map([
 	["editing-decision-ledger", "04-planning/editing-decision-ledger.md"],
 	["timeline-restructure", "04-planning/timeline-restructure.md"],
 	["edit-plan-notes", "04-planning/edit-plan-notes.md"],
+	["methodology-proposal", "08-learning/methodology-proposal.md"],
+	["methodology-accepted-updates", "08-learning/accepted-updates.md"],
 ]);
 
 const extensionMimeTypes = new Map([
@@ -258,6 +261,58 @@ function defaultDocumentContent({ kind, projectId, name, userMessage }) {
 	return `# ${heading}\n\nProject: ${name}\nProject ID: ${projectId}\n\nDraft:\n\n`;
 }
 
+const userMethodologyDefaults = new Map([
+	[
+		"profile.md",
+		[
+			"# User Editing Profile",
+			"",
+			"Private Codecut user preferences confirmed by the user.",
+			"",
+			"## Preferences",
+			"",
+			"No confirmed preferences yet.",
+			"",
+		].join("\n"),
+	],
+	[
+		"rules.md",
+		[
+			"# User Editing Rules",
+			"",
+			"Private reusable editing methodology confirmed by the user.",
+			"",
+			"## Rules",
+			"",
+			"No confirmed rules yet.",
+			"",
+		].join("\n"),
+	],
+	[
+		"feedback-log.md",
+		[
+			"# Feedback Log",
+			"",
+			"Event log only. Reusable rules belong in `rules.md`; user preferences belong in `profile.md`.",
+			"",
+		].join("\n"),
+	],
+]);
+
+async function ensureUserMethodologyStore({ workspaceRoot }) {
+	const directory = join(workspaceRoot, "user-methodology");
+	await mkdir(directory, { recursive: true });
+	const files = [];
+	for (const [fileName, content] of userMethodologyDefaults.entries()) {
+		const path = join(directory, fileName);
+		if (!(await pathExists(path))) {
+			await writeFile(path, content, "utf8");
+		}
+		files.push(path);
+	}
+	return { directory, files };
+}
+
 export function buildWorkspacePaths({ sourceRoot = process.cwd(), projectId }) {
 	assertProjectId(projectId);
 	const resolvedSourceRoot = resolve(sourceRoot);
@@ -301,6 +356,9 @@ export async function initWorkspace({
 	for (const directory of workspaceDirectories) {
 		await mkdir(join(paths.projectDirectory, directory), { recursive: true });
 	}
+	const userMethodology = await ensureUserMethodologyStore({
+		workspaceRoot: paths.workspaceRoot,
+	});
 
 	const createdAt = nowIso();
 	const workspace = {
@@ -322,7 +380,11 @@ export async function initWorkspace({
 		"utf8",
 	);
 
-	const writtenFiles = [paths.workspaceFile, paths.manifestFile];
+	const writtenFiles = [
+		paths.workspaceFile,
+		paths.manifestFile,
+		...userMethodology.files,
+	];
 	for (const [kind, relativePath] of documentPaths.entries()) {
 		const path = join(paths.projectDirectory, relativePath);
 		await writeFile(

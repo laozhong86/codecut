@@ -213,4 +213,20 @@ describe("CodeCut skill architecture v1 contract", () => {
 			expect(workflowContract).toContain(label);
 		}
 	});
+
+	test("router exposes methodology capture triggers at planning start, feedback time, and completion", () => {
+		const router = readProjectFile("skills", "codecut", "SKILL.md");
+		const planning = readProjectFile("skills", "codecut-edit-planning", "SKILL.md");
+		const executor = readProjectFile("skills", "codecut-executor-apply", "SKILL.md");
+
+		for (const content of [router, planning, executor]) {
+			expect(content).toContain("codecut-methodology-capture");
+			expect(content).toContain(".codecut-workspace/user-methodology");
+		}
+		expect(router).toContain("Opening a new planning pass");
+		expect(router).toContain("Project completion after timeline/export verification");
+		expect(router).toContain("刚才这里剪错了");
+		expect(executor).toContain("08-learning/methodology-proposal.md");
+		expect(planning).toContain("Current user instructions override stored methodology");
+	});
 });

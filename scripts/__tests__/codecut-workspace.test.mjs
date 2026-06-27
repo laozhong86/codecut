@@ -181,6 +181,7 @@ describe("Codecut workspace CLI helpers", () => {
 				"05-execution",
 				"06-verification",
 				"07-exports",
+				"08-learning",
 			];
 
 			for (const directory of expectedDirectories) {
@@ -219,6 +220,36 @@ describe("Codecut workspace CLI helpers", () => {
 					"utf8",
 				),
 			).toContain("Draft");
+			expect(
+				await readFile(
+					join(result.projectDirectory, "08-learning/methodology-proposal.md"),
+					"utf8",
+				),
+			).toContain("Draft");
+			expect(
+				await readFile(
+					join(result.projectDirectory, "08-learning/accepted-updates.md"),
+					"utf8",
+				),
+			).toContain("Draft");
+			expect(
+				await readFile(
+					join(sourceRoot, ".codecut-workspace/user-methodology/profile.md"),
+					"utf8",
+				),
+			).toContain("User Editing Profile");
+			expect(
+				await readFile(
+					join(sourceRoot, ".codecut-workspace/user-methodology/rules.md"),
+					"utf8",
+				),
+			).toContain("User Editing Rules");
+			expect(
+				await readFile(
+					join(sourceRoot, ".codecut-workspace/user-methodology/feedback-log.md"),
+					"utf8",
+				),
+			).toContain("Event log only");
 			expect(
 				await readJson(
 					join(result.projectDirectory, "02-inventory/asset-manifest.json"),
@@ -882,6 +913,60 @@ describe("Codecut workspace CLI helpers", () => {
 				true,
 			);
 			expect(await readFile(result.path, "utf8")).toContain("第一句先说结果。");
+		} finally {
+			await rm(sourceRoot, { recursive: true, force: true });
+		}
+	});
+
+	test("writes methodology learning documents into the private project workspace", async () => {
+		const sourceRoot = await makeTempRoot();
+		const confirmationToken = await createWorkspaceConfirmationToken(
+			sourceRoot,
+			"learning-cut",
+		);
+
+		try {
+			await initWorkspace({
+				sourceRoot,
+				projectId: "learning-cut",
+				name: "Learning cut",
+				userMessage: "剪完后沉淀偏好",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
+			});
+			const proposalResult = await writeWorkspaceDocument({
+				sourceRoot,
+				projectId: "learning-cut",
+				kind: "methodology-proposal",
+				content: "# Methodology Proposal\n\nSuggested rule.\n",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
+			});
+			const acceptedResult = await writeWorkspaceDocument({
+				sourceRoot,
+				projectId: "learning-cut",
+				kind: "methodology-accepted-updates",
+				content: "# Accepted Updates\n\nUser confirmed.\n",
+				confirmationToken,
+				confirmationRoot: sourceRoot,
+			});
+
+			expect(
+				proposalResult.path.endsWith(
+					join("08-learning", "methodology-proposal.md"),
+				),
+			).toBe(true);
+			expect(
+				acceptedResult.path.endsWith(
+					join("08-learning", "accepted-updates.md"),
+				),
+			).toBe(true);
+			expect(await readFile(proposalResult.path, "utf8")).toContain(
+				"Suggested rule.",
+			);
+			expect(await readFile(acceptedResult.path, "utf8")).toContain(
+				"User confirmed.",
+			);
 		} finally {
 			await rm(sourceRoot, { recursive: true, force: true });
 		}
