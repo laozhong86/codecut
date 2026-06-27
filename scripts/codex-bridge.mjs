@@ -49,6 +49,7 @@ const confirmationGatedCommands = new Set([
 	"delete-project",
 	"import-media",
 	"export",
+	"export-timeline-frame",
 	"generate-digital-human",
 	"generate-runninghub-voice-design",
 	"generate-runninghub-voice-clone",
@@ -86,6 +87,7 @@ const confirmationGatedSendTools = new Set([
 	"ripple_delete_ranges",
 	"create_text_background_effect",
 	"create_human_pip_effect",
+	"export_timeline_frame",
 ]);
 
 function usage() {
@@ -136,6 +138,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs apply-narrated-remix-plan --project-id <id> --plan-json-file /absolute/path/remix-plan.json --replace-existing <true|false> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs verify-timeline --project-id <id> --verification-json-file /absolute/path/verification.json",
 		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --output-file /absolute/path/out.mp4 --overwrite <true|false> --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs export-timeline-frame --project-id <id> --time-seconds <seconds> --format png --output-file /absolute/path/frame.png --overwrite <true|false> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs list-projects",
 		"  node scripts/codex-bridge.mjs rename-project --project-id <id> --name <name> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs delete-project --project-id <id> --confirmation-token <token>",
@@ -2082,6 +2085,41 @@ export function buildExportEnvelope({
 	});
 }
 
+export function buildExportTimelineFrameEnvelope({
+	projectId,
+	timeSeconds,
+	format,
+	outputFile,
+	overwrite,
+}) {
+	if (timeSeconds === undefined) {
+		throw new Error("--time-seconds is required");
+	}
+	if (!format) {
+		throw new Error("--format is required");
+	}
+	if (!outputFile) {
+		throw new Error("--output-file is required");
+	}
+	if (!isAbsolute(outputFile)) {
+		throw new Error("--output-file must be an absolute path");
+	}
+	if (typeof overwrite !== "boolean") {
+		throw new Error("--overwrite is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "export_timeline_frame",
+		args: {
+			timeSeconds,
+			format,
+			outputFile,
+			overwrite,
+		},
+	});
+}
+
 export function buildTranscribeEnvelope({
 	projectId,
 	mediaId,
@@ -3169,6 +3207,15 @@ export async function runCli({
 				flags.includeAudio === undefined
 					? undefined
 					: parseBoolean(flags.includeAudio, "includeAudio"),
+			outputFile: flags.outputFile,
+			overwrite: parseBoolean(flags.overwrite, "overwrite"),
+		});
+	} else if (command === "export-timeline-frame") {
+		envelope = buildExportTimelineFrameEnvelope({
+			projectId: flags.projectId,
+			timeSeconds:
+				flags.timeSeconds === undefined ? undefined : Number(flags.timeSeconds),
+			format: flags.format,
 			outputFile: flags.outputFile,
 			overwrite: parseBoolean(flags.overwrite, "overwrite"),
 		});

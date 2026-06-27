@@ -52,10 +52,11 @@ Before this loop starts, the local service and current executor path must be rea
 9. `verify_timeline`
 10. `get_timeline_state`
 11. `export_project` only after user confirmation and only with explicit `format`, `quality`, `includeAudio`, `outputFile`, and `overwrite`
+12. `export_timeline_frame` only after user confirmation and only with explicit `timeSeconds`, `format: "png"`, `outputFile`, and `overwrite`
 
 `validate_edit_plan` and `preview_edit_plan` are read-only. `apply_edit_plan` is the only EditPlan mutation path. `verify_timeline` compares explicit verification JSON to current timeline metrics and reports field-level mismatches.
 
-`export_project` is executor-native and writes one explicit local file. The local executor must not use browser download as a fallback. If the current server runtime lacks a Node-compatible renderer, export fails fast with that runtime gap.
+`export_project` is executor-native and writes one explicit local file. `export_timeline_frame` is executor-native and writes one explicit local PNG frame file. The local executor must not use browser download as a fallback. If the current server runtime lacks a Node-compatible renderer, export fails fast with that runtime gap.
 
 If a bridge command stays pending until timeout, stop the editing loop. If the current implementation still depends on a browser-mounted poller or heartbeat, report that as an executor gap instead of asking the user to refresh a Browser tab. Do not enqueue more edit commands while the executor is not consuming.
 

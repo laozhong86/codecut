@@ -167,6 +167,7 @@ describe("Codecut MCP server contract", () => {
 			"build_volcengine_url_captions",
 			"verify_timeline",
 			"export_project",
+			"export_timeline_frame",
 			"get_timeline_state",
 		]);
 		expect(CODECUT_MCP_TOOLS.map((tool) => tool.name)).not.toContain(
@@ -229,6 +230,23 @@ describe("Codecut MCP server contract", () => {
 		expect(tool?.inputSchema.outputFormat.safeParse("mp4").success).toBe(true);
 		expect(tool?.inputSchema.includeAudio.safeParse(true).success).toBe(true);
 	});
+
+	test("exposes explicit timeline frame export inputs", () => {
+		const tool = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "export_timeline_frame",
+		);
+
+		expect(tool?.description).toContain("PNG");
+		expect(tool?.readOnly).toBe(false);
+		expect(tool?.inputSchema.timeSeconds.safeParse(1.25).success).toBe(true);
+		expect(tool?.inputSchema.format.safeParse("png").success).toBe(true);
+		expect(tool?.inputSchema.format.safeParse("jpg").success).toBe(false);
+		expect(
+			tool?.inputSchema.outputFile.safeParse("/tmp/codecut-frame.png").success,
+		).toBe(true);
+		expect(tool?.inputSchema.overwrite.safeParse(false).success).toBe(true);
+	});
+
 
 	test("exposes protected terms for RunningHub voice tools", () => {
 		for (const name of [
@@ -340,6 +358,7 @@ describe("Codecut MCP server contract", () => {
 			"transcribe_volcengine_url",
 			"build_volcengine_url_captions",
 			"export_project",
+			"export_timeline_frame",
 		]) {
 			expect(categoryByTool.get(toolName)).toBe(
 				CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
@@ -3658,10 +3677,10 @@ describe("Codecut MCP server contract", () => {
 			"--confirmation-token",
 			confirmationToken,
 		]);
-		expect(
-			buildBridgeCliArgs("export_project", {
-				projectId: "project-1",
-				confirmationToken,
+			expect(
+				buildBridgeCliArgs("export_project", {
+					projectId: "project-1",
+					confirmationToken,
 				format: "mp4",
 				quality: "high",
 				includeAudio: true,
@@ -3684,9 +3703,34 @@ describe("Codecut MCP server contract", () => {
 			"--overwrite",
 			"false",
 			"--confirmation-token",
-			confirmationToken,
-		]);
-	});
+				confirmationToken,
+			]);
+			expect(
+				buildBridgeCliArgs("export_timeline_frame", {
+					projectId: "project-1",
+					confirmationToken,
+					timeSeconds: 1.25,
+					format: "png",
+					outputFile: "/tmp/frame.png",
+					overwrite: false,
+				}),
+			).toEqual([
+				"scripts/codex-bridge.mjs",
+				"export-timeline-frame",
+				"--project-id",
+				"project-1",
+				"--time-seconds",
+				"1.25",
+				"--format",
+				"png",
+				"--output-file",
+				"/tmp/frame.png",
+				"--overwrite",
+				"false",
+				"--confirmation-token",
+				confirmationToken,
+			]);
+		});
 
 	test("rejects unknown tools instead of forwarding arbitrary bridge commands", () => {
 		expect(() =>

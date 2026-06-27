@@ -151,6 +151,9 @@ export.
   path for cuts or subtitle burn-in.
 - Do not claim MP4 export unless `export_project` or the equivalent verified
   executor path produced the file.
+- Do not claim timeline frame export unless `export_timeline_frame` produced
+  the requested local PNG file. `inspect_timeline` contact sheets are visual
+  evidence, not the still-frame export product.
 
 ## Human Preview
 
@@ -285,6 +288,10 @@ They are not a visual pass by themselves. Before reporting completion, Codex
 must inspect the timeline contact sheet and report a verdict that includes:
 contact sheet path, frame count, sampled timestamps, pass/fail status, issues
 found, and whether each issue was fixed.
+
+`export_timeline_frame` writes a requested local PNG frame file. It is not a
+visual QA verdict and does not replace contact-sheet inspection when reporting
+edit success or export readiness.
 
 For MP4 delivery, Codex must also sample frames from the exported MP4 with
 `codecut-workspace extract-export-frames`, inspect the export contact sheet,

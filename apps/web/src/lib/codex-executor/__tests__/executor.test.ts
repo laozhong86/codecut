@@ -63,9 +63,10 @@ function envelope({
 		| "transcribe_media"
 		| "build_video_context"
 		| "build_visual_context"
-		| "build_video_quality_report"
-		| "inspect_timeline"
-		| "get_transcript"
+			| "build_video_quality_report"
+			| "inspect_timeline"
+			| "export_timeline_frame"
+			| "get_transcript"
 		| "inspect_video_range"
 		| "build_caption_diagnostics"
 		| "build_post_cut_captions"
@@ -6014,6 +6015,215 @@ describe("codex executor", () => {
 		);
 		expect((await readFile(data.artifact.path)).byteLength).toBeGreaterThan(0);
 		expect(after).toEqual(before);
+	});
+
+	test("export_timeline_frame writes one PNG frame without mutating project state", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "text-track-1",
+					type: "text",
+					name: "Captions",
+					hidden: false,
+					elements: [
+						{
+							id: "caption-1",
+							type: "text",
+							name: "Caption",
+							content: "Frame export",
+							richSpans: [],
+							fontSize: 96,
+							fontFamily: "Inter",
+							color: "#ffffff",
+							backgroundColor: "transparent",
+							textAlign: "center",
+							fontWeight: "bold",
+							fontStyle: "normal",
+							textDecoration: "none",
+							hidden: false,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+						},
+					],
+				},
+			],
+		});
+		const outputFile = join(stateDir, "frame.png");
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 1,
+					format: "png",
+					outputFile,
+					overwrite: false,
+				},
+			}),
+		});
+		const after = await getExecutorProjectState({ projectId });
+		const outputBytes = await readFile(outputFile);
+
+		expect(outputBytes.byteLength).toBeGreaterThan(0);
+		expect(outputBytes.subarray(1, 4).toString("ascii")).toBe("PNG");
+		expect(result.results[0]).toMatchObject({
+			tool: "export_timeline_frame",
+			success: true,
+			message: `Exported png frame at 1s to ${outputFile}`,
+			data: {
+				outputFile,
+				byteLength: outputBytes.byteLength,
+				format: "png",
+				timeSeconds: 1,
+				revision: 1,
+				canvasSize: { width: 1080, height: 1920 },
+				artifact: {
+					kind: "timeline_frame",
+					path: outputFile,
+					mimeType: "image/png",
+					width: 1080,
+					height: 1920,
+				},
+			},
+		});
+		expect(after).toEqual(before);
+	});
+
+	test("export_timeline_frame fails fast for unsafe frame export inputs", async () => {
+		await createExecutorProject({ projectId, name: "Frame export" });
+		const emptyTimeline = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 0,
+					format: "png",
+					outputFile: join(stateDir, "empty.png"),
+					overwrite: false,
+				},
+			}),
+		});
+		expect(emptyTimeline.results[0]).toMatchObject({
+			success: false,
+			message: "Cannot export a frame from an empty timeline.",
+		});
+
+		await seedDraftState({
+			tracks: [
+				{
+					id: "text-track-1",
+					type: "text",
+					name: "Captions",
+					hidden: false,
+					elements: [
+						{
+							id: "caption-1",
+							type: "text",
+							name: "Caption",
+							content: "Frame export",
+							richSpans: [],
+							fontSize: 96,
+							fontFamily: "Inter",
+							color: "#ffffff",
+							backgroundColor: "transparent",
+							textAlign: "center",
+							fontWeight: "bold",
+							fontStyle: "normal",
+							textDecoration: "none",
+							hidden: false,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+						},
+					],
+				},
+			],
+		});
+		const existingOutputFile = join(stateDir, "existing-frame.png");
+		await writeFile(existingOutputFile, "existing");
+		const relativeOutput = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 1,
+					format: "png",
+					outputFile: "relative.png",
+					overwrite: false,
+				},
+			}),
+		});
+		const existingOutput = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 1,
+					format: "png",
+					outputFile: existingOutputFile,
+					overwrite: false,
+				},
+			}),
+		});
+		const unsupportedFormat = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 1,
+					format: "jpg",
+					outputFile: join(stateDir, "frame.jpg"),
+					overwrite: false,
+				},
+			}),
+		});
+		const negativeTime = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: -0.1,
+					format: "png",
+					outputFile: join(stateDir, "negative.png"),
+					overwrite: false,
+				},
+			}),
+		});
+		const outOfRangeTime = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 2.1,
+					format: "png",
+					outputFile: join(stateDir, "out-of-range.png"),
+					overwrite: false,
+				},
+			}),
+		});
+
+		expect(relativeOutput.results[0]).toMatchObject({
+			success: false,
+			message: "--output-file must be an absolute path",
+		});
+		expect(existingOutput.results[0]).toMatchObject({
+			success: false,
+			message: "Output file already exists. Set overwrite=true to replace it.",
+		});
+		expect(unsupportedFormat.results[0]).toMatchObject({
+			success: false,
+			message: "--format must be png",
+		});
+		expect(negativeTime.results[0]).toMatchObject({
+			success: false,
+			message: "timeSeconds must be greater than or equal to 0.",
+		});
+		expect(outOfRangeTime.results[0]).toMatchObject({
+			success: false,
+			message: "timeSeconds must be less than or equal to total duration 2.",
+		});
 	});
 
 	test("build_video_quality_report returns validation failure without rendering a contact sheet", async () => {

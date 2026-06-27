@@ -55,6 +55,11 @@ These checks are required before export readiness can be reported. A successful
 `inspect_timeline` call only proves that frames were rendered; it is not a
 visual pass.
 
+For a user-requested still frame, use `export_timeline_frame` with explicit
+`timeSeconds`, `format: "png"`, `outputFile`, and `overwrite`. This produces a
+local PNG frame file, but it does not replace the contact-sheet review or visual
+QA verdict needed for edit success or export readiness.
+
 ## MP4 Delivery Checks
 
 After `export_project` produces an MP4, inspect the final file separately with
