@@ -1015,7 +1015,19 @@ templates only after explicit confirmation:
 node scripts/codex-bridge.mjs import-system-template-script \
   --project-id <id> \
   --template-json-file /absolute/path/local-template-script.json \
-  --confirmed-by-user true
+	  --confirmed-by-user true
+```
+
+Read browser-local Codecut system template scripts only after opening the
+editor URL for one project so the browser bridge is mounted. These reads do not
+mutate templates or timelines; system template scripts remain planning data and
+do not replace EditPlan validation or timeline readback:
+
+```bash
+node scripts/codex-bridge.mjs send \
+  --project-id <id> \
+  --tool list_system_template_scripts \
+  --args-json '{}'
 ```
 
 Transcribe an existing imported media asset:

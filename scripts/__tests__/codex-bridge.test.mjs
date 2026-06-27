@@ -3278,6 +3278,116 @@ try {
 		}
 	});
 
+	test("plugin freshness accepts a marketplace main checkout when validating a linked worktree", async () => {
+		const marketplaceRoot = await mkdtemp(
+			join(tmpdir(), "codecut-marketplace-"),
+		);
+		const sourceRoot = join(marketplaceRoot, "plugins/cutia");
+		const worktreeRoot = join(
+			sourceRoot,
+			".worktrees/system-template-read-tools",
+		);
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(marketplaceRoot, ".agents/plugins"), { recursive: true });
+		await mkdir(join(worktreeRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(worktreeRoot, "skills/codecut"), {
+			recursive: true,
+		});
+		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(cacheRoot, "skills/codecut"), {
+			recursive: true,
+		});
+		await mkdir(join(homeRoot, ".codex"), { recursive: true });
+		await writeFile(
+			join(marketplaceRoot, ".agents/plugins/marketplace.json"),
+			JSON.stringify({
+				name: "local-opc",
+				plugins: [
+					{
+						name: "codecut",
+						source: { source: "local", path: "./plugins/cutia" },
+						policy: {
+							installation: "AVAILABLE",
+							authentication: "ON_INSTALL",
+						},
+						category: "Developer Tools",
+					},
+				],
+			}),
+			"utf8",
+		);
+		await writeFile(
+			join(homeRoot, ".codex/config.toml"),
+			[
+				'[plugins."codecut@local-opc"]',
+				"enabled = true",
+				"",
+				"[marketplaces.local-opc]",
+				'source_type = "local"',
+				`source = ${JSON.stringify(marketplaceRoot)}`,
+			].join("\n"),
+			"utf8",
+		);
+		await writeFile(
+			join(worktreeRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(worktreeRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
+			"utf8",
+		);
+
+		try {
+			const result = await runPluginFreshness({
+				cwd: worktreeRoot,
+				homeDir: homeRoot,
+				execFileImpl: async (command, args) => {
+					expect(command).toBe("rsync");
+					expect(args).toContain("--dry-run");
+					expect(args).toContain("--itemize-changes");
+					return { stdout: "", stderr: "" };
+				},
+			});
+
+			expect(result.ok).toBe(true);
+			expect(
+				result.layers.find((layer) => layer.id === "config"),
+			).toMatchObject({
+				status: "ok",
+				data: {
+					sourcePath: "./plugins/cutia",
+					expectedSourcePath:
+						"./plugins/cutia/.worktrees/system-template-read-tools",
+					expectedSourcePaths: [
+						"./plugins/cutia/.worktrees/system-template-read-tools",
+						"./plugins/cutia",
+					],
+				},
+			});
+		} finally {
+			await Promise.all([
+				rm(marketplaceRoot, { recursive: true, force: true }),
+				rm(homeRoot, { recursive: true, force: true }),
+			]);
+		}
+	});
+
 	test("plugin freshness CLI does not require bridge env or call the web service", async () => {
 		const output = [];
 		const exitCode = await runCli({

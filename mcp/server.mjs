@@ -77,6 +77,17 @@ const templateIdSchema = z
 	.trim()
 	.min(1)
 	.describe("Exact Codecut system template script ID.");
+const systemTemplateTriggerTypeSchema = z
+	.enum([
+		"talking-head-short",
+		"tutorial-demo",
+		"product-proof-ad",
+		"narrated-broll",
+		"subtitle-pass",
+		"timeline-inspection",
+		"custom",
+	])
+	.describe("Codecut system template script trigger type.");
 
 const verificationJsonFileSchema = z
 	.string()
@@ -602,9 +613,21 @@ const codecutToolGovernanceCategoryByName = new Map([
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
 	],
 	["build_post_cut_captions", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
-	["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
-	["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
-	["get_timeline_state", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+		["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+		["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+		[
+			"list_system_template_scripts",
+			CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
+		],
+		[
+			"get_system_template_script",
+			CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
+		],
+		[
+			"resolve_system_template_script",
+			CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
+		],
+		["get_timeline_state", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["validate_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["preview_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["apply_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
@@ -867,9 +890,9 @@ export const CODECUT_MCP_TOOLS = [
 		},
 		readOnly: true,
 	},
-	{
-		name: "search_media",
-		title: "Search Codecut Media",
+		{
+			name: "search_media",
+			title: "Search Codecut Media",
 		description:
 			"Search media metadata and cached spoken transcript segments without running implicit indexing.",
 		inputSchema: {
@@ -878,25 +901,61 @@ export const CODECUT_MCP_TOOLS = [
 			scope: z.enum(["metadata", "spoken", "both"]).optional(),
 			mediaId: mediaIdSchema.optional(),
 			limit: z.number().int().positive().optional(),
+			},
+			readOnly: true,
 		},
-		readOnly: true,
-	},
-	{
-		name: "import_system_template_script",
-		title: "Import Codecut System Template Script",
-		description:
-			"Import one user-confirmed reference-derived template draft into the Codecut system template library used by Templates UI and future Codex planning context.",
-		inputSchema: {
-			projectId: projectIdSchema,
-			templateJsonFile: templateJsonFileSchema,
-			confirmedByUser: z
-				.literal(true)
-				.describe(
-					"Must be true only after the user explicitly confirmed this exact template draft for import.",
-				),
+		{
+			name: "list_system_template_scripts",
+			title: "List Codecut System Template Scripts",
+			description:
+				"List Codecut system template scripts from the browser local Templates UI library for one explicit project bridge session.",
+			inputSchema: projectOnlyInputSchema,
+			readOnly: true,
 		},
-		readOnly: false,
-	},
+		{
+			name: "get_system_template_script",
+			title: "Get Codecut System Template Script",
+			description:
+				"Read one complete Codecut system template script by exact template ID from the browser local Templates UI library.",
+			inputSchema: {
+				projectId: projectIdSchema,
+				templateId: templateIdSchema,
+			},
+			readOnly: true,
+		},
+		{
+			name: "resolve_system_template_script",
+			title: "Resolve Codecut System Template Script",
+			description:
+				"Resolve one Codecut system template script by ID, name, alias, or default trigger type from the browser local Templates UI library.",
+			inputSchema: {
+				projectId: projectIdSchema,
+				requestedTemplate: z
+					.string()
+					.trim()
+					.min(1)
+					.describe("Template ID, exact name, or alias mentioned by the user.")
+					.optional(),
+				triggerType: systemTemplateTriggerTypeSchema.optional(),
+			},
+			readOnly: true,
+		},
+		{
+			name: "import_system_template_script",
+			title: "Import Codecut System Template Script",
+			description:
+				"Import one user-confirmed reference-derived template draft into the Codecut system template library used by Templates UI and future Codex planning context.",
+			inputSchema: {
+				projectId: projectIdSchema,
+				templateJsonFile: templateJsonFileSchema,
+				confirmedByUser: z
+					.literal(true)
+					.describe(
+						"Must be true only after the user explicitly confirmed this exact template draft for import.",
+					),
+			},
+			readOnly: false,
+		},
 	{
 		name: "update_system_template_script",
 		title: "Update Codecut System Template Script",
@@ -3245,10 +3304,10 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 						: { type: requireStringArg(args, "type") }),
 				},
 			});
-		case "search_media":
-			return buildSendArgs({
-				projectId,
-				toolName,
+			case "search_media":
+				return buildSendArgs({
+					projectId,
+					toolName,
 				args: {
 					query: requireStringArg(args, "query"),
 					...(args.scope === undefined
@@ -3257,14 +3316,41 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 					...(args.mediaId === undefined
 						? {}
 						: { mediaId: requireStringArg(args, "mediaId") }),
-					...(optionalNumberArg(args, "limit") === undefined
-						? {}
-						: { limit: optionalNumberArg(args, "limit") }),
-				},
-			});
-		case "import_system_template_script":
-			requireConfirmedByUser(args);
-			return [
+						...(optionalNumberArg(args, "limit") === undefined
+							? {}
+							: { limit: optionalNumberArg(args, "limit") }),
+					},
+				});
+			case "list_system_template_scripts":
+				return buildSendArgs({
+					projectId,
+					toolName,
+					args: {},
+				});
+			case "get_system_template_script":
+				return buildSendArgs({
+					projectId,
+					toolName,
+					args: {
+						templateId: requireStringArg(args, "templateId"),
+					},
+				});
+			case "resolve_system_template_script":
+				return buildSendArgs({
+					projectId,
+					toolName,
+					args: {
+						...(args.requestedTemplate === undefined
+							? {}
+							: { requestedTemplate: requireStringArg(args, "requestedTemplate") }),
+						...(args.triggerType === undefined
+							? {}
+							: { triggerType: requireStringArg(args, "triggerType") }),
+					},
+				});
+			case "import_system_template_script":
+				requireConfirmedByUser(args);
+				return [
 				"scripts/codex-bridge.mjs",
 				"import-system-template-script",
 				"--project-id",
