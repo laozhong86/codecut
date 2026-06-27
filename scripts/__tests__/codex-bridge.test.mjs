@@ -13,6 +13,7 @@ import {
 	buildRunningHubVoiceCloneEnvelope,
 	buildRunningHubVoiceDesignEnvelope,
 	buildExportEnvelope,
+	buildExportTimelineFrameEnvelope,
 	buildFreshSessionSmokeReport,
 	buildGetTimelineStateEnvelope,
 	buildGetTranscriptEnvelope,
@@ -494,6 +495,63 @@ try {
 				quality: "high",
 				includeAudio: true,
 				outputFile: "/tmp/codecut-export.mp4",
+			}),
+			).toThrow("--overwrite is required");
+	});
+
+	test("builds a timeline frame export command only from explicit options", () => {
+		const envelope = buildExportTimelineFrameEnvelope({
+			projectId: "project-123",
+			timeSeconds: 1.25,
+			format: "png",
+			outputFile: "/tmp/codecut-frame.png",
+			overwrite: false,
+		});
+
+		expect(envelope.commands[0]).toEqual({
+			id: "cmd-1",
+			tool: "export_timeline_frame",
+			args: {
+				timeSeconds: 1.25,
+				format: "png",
+				outputFile: "/tmp/codecut-frame.png",
+				overwrite: false,
+			},
+		});
+	});
+
+	test("timeline frame export command requires explicit safe options", () => {
+		expect(() =>
+			buildExportTimelineFrameEnvelope({
+				projectId: "project-123",
+				timeSeconds: 1,
+				format: "png",
+				outputFile: "relative.png",
+				overwrite: false,
+			}),
+		).toThrow("--output-file must be an absolute path");
+		expect(() =>
+			buildExportTimelineFrameEnvelope({
+				projectId: "project-123",
+				format: "png",
+				outputFile: "/tmp/codecut-frame.png",
+				overwrite: false,
+			}),
+		).toThrow("--time-seconds is required");
+		expect(() =>
+			buildExportTimelineFrameEnvelope({
+				projectId: "project-123",
+				timeSeconds: 1,
+				outputFile: "/tmp/codecut-frame.png",
+				overwrite: false,
+			}),
+		).toThrow("--format is required");
+		expect(() =>
+			buildExportTimelineFrameEnvelope({
+				projectId: "project-123",
+				timeSeconds: 1,
+				format: "png",
+				outputFile: "/tmp/codecut-frame.png",
 			}),
 		).toThrow("--overwrite is required");
 	});

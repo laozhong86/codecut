@@ -31,7 +31,10 @@ import {
 } from "@/lib/codex-executor/video-context";
 import { buildVisualContextWithInspector } from "@/lib/codex-executor/visual-context";
 import { inspectVideoRange as inspectVideoRangeWithNodeRuntime } from "@/lib/codex-executor/video-range-inspection";
-import { inspectTimelineWithNodeRenderer } from "@/lib/codex-executor/timeline-inspection";
+import {
+	exportTimelineFrameWithNodeRenderer,
+	inspectTimelineWithNodeRenderer,
+} from "@/lib/codex-executor/timeline-inspection";
 import { buildVideoQualityReport } from "@/lib/codex-executor/video-quality-report";
 import { buildCaptionDiagnosticsReport } from "@/lib/caption-diagnostics/caption-diagnostics";
 import type { TBackground } from "@/types/project";
@@ -150,6 +153,7 @@ type ExecutorToolName =
 	| "build_visual_context"
 	| "inspect_video_range"
 	| "inspect_timeline"
+	| "export_timeline_frame"
 	| "build_video_quality_report"
 	| "get_transcript"
 	| "build_caption_diagnostics"
@@ -272,6 +276,7 @@ const commandSchema = z
 			"build_visual_context",
 			"inspect_video_range",
 			"inspect_timeline",
+			"export_timeline_frame",
 			"build_video_quality_report",
 			"get_transcript",
 			"build_caption_diagnostics",
@@ -442,6 +447,15 @@ const inspectTimelineArgsSchema = z
 		startTime: z.number().nonnegative(),
 		endTime: z.number().nonnegative().optional(),
 		frameCount: z.number().int().min(1).max(16).optional(),
+	})
+	.strict();
+
+const exportTimelineFrameArgsSchema = z
+	.object({
+		timeSeconds: z.number(),
+		format: z.string().min(1),
+		outputFile: z.string().min(1),
+		overwrite: z.boolean(),
 	})
 	.strict();
 
@@ -2286,6 +2300,11 @@ function requireExportFormat(value: string): ExecutorExportFormat {
 	throw new Error("--format must be mp4 or webm");
 }
 
+function requireTimelineFrameFormat(value: string): "png" {
+	if (value === "png") return value;
+	throw new Error("--format must be png");
+}
+
 function requireExportQuality(value: string): ExecutorExportQuality {
 	if (
 		value === "low" ||
@@ -2464,6 +2483,52 @@ async function runExportProject({
 			revision: state.revision,
 			totalDuration,
 			outputProbe,
+		},
+	};
+}
+
+async function runExportTimelineFrame({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = exportTimelineFrameArgsSchema.parse(args);
+	const format = requireTimelineFrameFormat(parsed.format);
+	if (!isAbsolute(parsed.outputFile)) {
+		throw new Error("--output-file must be an absolute path");
+	}
+	if (!parsed.overwrite && (await localFileExists(parsed.outputFile))) {
+		throw new Error(
+			"Output file already exists. Set overwrite=true to replace it.",
+		);
+	}
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
+	const exported = await exportTimelineFrameWithNodeRenderer({
+		state,
+		mediaAssets,
+		timeSeconds: parsed.timeSeconds,
+		outputFile: parsed.outputFile,
+	});
+	return {
+		success: true,
+		message: `Exported ${format} frame at ${parsed.timeSeconds}s to ${parsed.outputFile}`,
+		data: {
+			outputFile: exported.outputFile,
+			byteLength: exported.byteLength,
+			format,
+			timeSeconds: exported.timeSeconds,
+			revision: state.revision,
+			canvasSize: exported.canvasSize,
+			totalDuration: exported.totalDuration,
+			artifact: {
+				kind: "timeline_frame",
+				path: exported.outputFile,
+				mimeType: "image/png",
+				width: exported.canvasSize.width,
+				height: exported.canvasSize.height,
+			},
 		},
 	};
 }
@@ -5218,6 +5283,9 @@ async function executeCommand({
 	}
 	if (command.tool === "inspect_timeline") {
 		return runInspectTimeline({ state, args: command.args });
+	}
+	if (command.tool === "export_timeline_frame") {
+		return runExportTimelineFrame({ state, args: command.args });
 	}
 	if (command.tool === "build_video_quality_report") {
 		return runBuildVideoQualityReport({

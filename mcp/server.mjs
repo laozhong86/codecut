@@ -366,6 +366,15 @@ const inspectTimelineInputSchema = {
 	frameCount: z.number().int().min(1).max(16).optional(),
 };
 
+const exportTimelineFrameInputSchema = {
+	projectId: projectIdSchema,
+	...confirmationTokenInputSchema,
+	timeSeconds: secondsSchema,
+	format: z.enum(["png"]),
+	outputFile: z.string().trim().min(1),
+	overwrite: z.boolean(),
+};
+
 const videoQualityReportInputSchema = {
 	projectId: projectIdSchema,
 	planJsonFile: planJsonFileSchema,
@@ -595,6 +604,10 @@ const codecutToolGovernanceCategoryByName = new Map([
 	],
 	["export_project", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
 	[
+		"export_timeline_frame",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
+	],
+	[
 		"generate_digital_human",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
 	],
@@ -636,6 +649,7 @@ export const DESTRUCTIVE_MCP_TOOL_NAMES = new Set([
 	"transcribe_volcengine_url",
 	"build_volcengine_url_captions",
 	"export_project",
+	"export_timeline_frame",
 ]);
 
 export const CODECUT_MCP_TOOLS = [
@@ -1261,6 +1275,14 @@ export const CODECUT_MCP_TOOLS = [
 			outputFile: z.string().trim().min(1),
 			overwrite: z.boolean(),
 		},
+		readOnly: false,
+	},
+	{
+		name: "export_timeline_frame",
+		title: "Export Codecut Timeline Frame",
+		description:
+			"Export one composited timeline frame as a PNG image to one explicit local file through the Codecut executor.",
+		inputSchema: exportTimelineFrameInputSchema,
 		readOnly: false,
 	},
 	{
@@ -3604,6 +3626,23 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				...(args.includeAudio === undefined
 					? []
 					: ["--include-audio", String(requireBooleanArg(args, "includeAudio"))]),
+				"--output-file",
+				requireStringArg(args, "outputFile"),
+				"--overwrite",
+				requireBooleanArg(args, "overwrite"),
+				"--confirmation-token",
+				requireConfirmationTokenArg(args),
+			];
+		case "export_timeline_frame":
+			return [
+				"scripts/codex-bridge.mjs",
+				"export-timeline-frame",
+				"--project-id",
+				projectId,
+				"--time-seconds",
+				requireNumberArg(args, "timeSeconds"),
+				"--format",
+				requireStringArg(args, "format"),
 				"--output-file",
 				requireStringArg(args, "outputFile"),
 				"--overwrite",

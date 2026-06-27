@@ -804,6 +804,8 @@ After application, Codex must verify `get_timeline_state` proof fields:
 32. If export is requested, Codex calls `export` with explicit output path and
     overwrite policy. If the local renderer runtime is unavailable, report that
     runtime gap.
+    For a still-frame export, Codex calls `export-timeline-frame` with explicit
+    `--time-seconds`, `--format png`, output path, and overwrite policy.
 33. After MP4 export, Codex samples the final exported MP4 with
     `codecut-workspace extract-export-frames`, inspects the export contact
     sheet, compares it against the timeline contact sheet, and records the
@@ -1225,6 +1227,22 @@ Node-compatible renderer, the command fails fast and reports that runtime gap.
 Export success is not final delivery success. After export, run
 `codecut-workspace extract-export-frames`, inspect the final MP4 contact sheet,
 and update the visual QA verdict before reporting completion.
+
+Export one composed timeline frame as a PNG file:
+
+```bash
+node scripts/codex-bridge.mjs export-timeline-frame \
+  --project-id <id> \
+  --time-seconds 1.25 \
+  --format png \
+  --output-file /absolute/path/frame.png \
+  --overwrite false \
+  --confirmation-token <token>
+```
+
+`export-timeline-frame` is executor-native and writes only to the local
+`--output-file`. It does not trigger browser download and does not replace
+`inspect_timeline` contact sheets or a recorded visual QA verdict.
 
 Before running this command for a long render, rerun:
 
