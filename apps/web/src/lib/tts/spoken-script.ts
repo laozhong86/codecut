@@ -103,12 +103,17 @@ function normalizeProtectedTerms({
 		.map((term) => term.trim())
 		.filter(Boolean);
 	const captionText = captions.join(" ");
+	const presentTerms: string[] = [];
 	for (const term of normalizedTerms) {
-		if (!text.includes(term) || !captionText.includes(term)) {
+		if (!text.includes(term)) {
+			continue;
+		}
+		if (!captionText.includes(term)) {
 			throw new Error(`TTS spokenScript is missing protected term '${term}'.`);
 		}
+		presentTerms.push(term);
 	}
-	return normalizedTerms.length > 0 ? normalizedTerms : undefined;
+	return presentTerms.length > 0 ? presentTerms : undefined;
 }
 
 export function buildTtsSpokenScript({
