@@ -136,6 +136,23 @@ const outputFormatSchema = z.enum(["mp4", "webm"]);
 const outputQualitySchema = z.enum(["low", "medium", "high", "very_high"]);
 const codecutFontManifest = readCodecutFontManifest();
 const codecutCaptionFonts = codecutFontManifest.localFonts;
+const codecutFontsourceFonts = codecutFontManifest.fontsourceFonts || [];
+const editorFontFamilyValues = [
+	"Arial",
+	"Helvetica",
+	"Times New Roman",
+	"Georgia",
+	...codecutFontsourceFonts.map((font) => font.family),
+	"Roboto",
+	"Open Sans",
+	"Comic Neue",
+	...codecutCaptionFonts.map((font) => font.family),
+	"Noto Sans SC",
+	"Noto Serif SC",
+	"LXGW WenKai",
+	"Smiley Sans",
+	"ZCOOL KuaiLe",
+];
 const captionFontValues = [
 	"auto",
 	...codecutCaptionFonts.map((font) => font.family),
@@ -213,6 +230,7 @@ const workspaceMediaFileExtensions = new Set([
 	".webp",
 ]);
 const transitionTypeSchema = z.enum(transitionTypeValues);
+const editorFontFamilySchema = z.enum(editorFontFamilyValues);
 const captionFontSchema = z.enum(captionFontValues);
 const captionSizeSchema = z.enum(captionSizeValues);
 const captionStylePresetSchema = z.enum(captionStylePresetValues);
@@ -475,7 +493,7 @@ const clipPropertiesSchema = z
 		transform: transformSchema.optional(),
 		content: z.string().optional(),
 		fontSize: z.number().positive().optional(),
-		fontFamily: z.string().min(1).optional(),
+		fontFamily: editorFontFamilySchema.optional(),
 		color: z.string().min(1).optional(),
 		backgroundColor: z.string().min(1).optional(),
 		textAlign: z.enum(["left", "center", "right"]).optional(),
@@ -510,7 +528,7 @@ const textEntrySchema = z
 		transform: transformSchema.optional(),
 		opacity: z.number().min(0).max(1).optional(),
 		fontSize: z.number().positive().optional(),
-		fontFamily: z.string().min(1).optional(),
+		fontFamily: editorFontFamilySchema.optional(),
 		color: z.string().min(1).optional(),
 		backgroundColor: z.string().min(1).optional(),
 		textAlign: z.enum(["left", "center", "right"]).optional(),

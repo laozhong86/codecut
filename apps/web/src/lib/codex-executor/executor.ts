@@ -105,6 +105,7 @@ import {
 	TRANSCRIPTION_LANGUAGES,
 	TRANSCRIPTION_MODELS,
 } from "@/constants/transcription-constants";
+import { isFontFamilyOption } from "@/constants/font-constants";
 import { buildTtsSpokenScript } from "@/lib/tts/spoken-script";
 import {
 	createHumanPipEffect,
@@ -544,6 +545,14 @@ const textShadowSchema = z
 	})
 	.strict();
 
+const editorFontFamilySchema = z
+	.string()
+	.trim()
+	.min(1)
+	.refine(isFontFamilyOption, {
+		message: "fontFamily must be one of CodeCut's editor font options.",
+	});
+
 const addTextEntrySchema = z
 	.object({
 		startTime: z.number().nonnegative(),
@@ -553,7 +562,7 @@ const addTextEntrySchema = z
 		transform: transformSchema.optional(),
 		opacity: z.number().min(0).max(1).optional(),
 		fontSize: z.number().positive().optional(),
-		fontFamily: z.string().min(1).optional(),
+		fontFamily: editorFontFamilySchema.optional(),
 		color: z.string().min(1).optional(),
 		backgroundColor: z.string().min(1).optional(),
 		textAlign: z.enum(["left", "center", "right"]).optional(),
@@ -681,7 +690,7 @@ const setClipPropertiesArgsSchema = z
 				transform: transformSchema.optional(),
 				content: z.string().optional(),
 				fontSize: z.number().positive().optional(),
-				fontFamily: z.string().min(1).optional(),
+				fontFamily: editorFontFamilySchema.optional(),
 				color: z.string().min(1).optional(),
 				backgroundColor: z.string().min(1).optional(),
 				textAlign: z.enum(["left", "center", "right"]).optional(),

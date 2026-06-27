@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { MediaAsset } from "@/types/assets";
 import type { TimelineTrack } from "@/types/timeline";
+import { CODECUT_YAN_BO_SONG_FONT_FAMILY } from "@/lib/codecut-fonts";
 import { applyNarratedRemixPlanToEditor } from "../apply";
 
 function mediaAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
@@ -191,7 +192,7 @@ describe("applyNarratedRemixPlanToEditor", () => {
 						content: "The key idea",
 						startTime: 0,
 						duration: 3,
-						fontFamily: "CodecutCJK",
+						fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 						fontSize: 5.2,
 						fontWeight: "bold",
 						color: "#ffffff",
@@ -474,6 +475,7 @@ describe("applyNarratedRemixPlanToEditor", () => {
 						content: "天府新区双华麓港",
 						startTime: 10,
 						duration: 20,
+						fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					},
 					{
 						type: "text",
@@ -481,6 +483,7 @@ describe("applyNarratedRemixPlanToEditor", () => {
 						content: "117.55㎡ 套三双卫 总价186万",
 						startTime: 10,
 						duration: 20,
+						fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					},
 					{
 						type: "text",
@@ -488,6 +491,7 @@ describe("applyNarratedRemixPlanToEditor", () => {
 						content: "地铁口商圈边",
 						startTime: 10,
 						duration: 20,
+						fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					},
 				],
 			},

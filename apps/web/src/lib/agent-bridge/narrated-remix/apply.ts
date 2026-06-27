@@ -18,7 +18,7 @@ import {
 	buildUploadAudioElement,
 	buildVideoElement,
 } from "@/lib/timeline/element-utils";
-import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
+import { CODECUT_EDITOR_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
 import { generateUUID } from "@/utils/id";
 import type { NarratedRemixPlan } from "./schema";
 import {
@@ -274,7 +274,7 @@ function buildTextOverlayElement({
 			name: overlay.name,
 			content: overlay.text,
 			duration: overlay.duration,
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
 			fontSize: overlay.fontSize,
 			color: overlay.color,
 			backgroundColor: overlay.backgroundColor,

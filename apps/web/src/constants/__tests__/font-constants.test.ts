@@ -7,6 +7,7 @@ import {
 	FONT_OPTIONS,
 	getFontByValue,
 	getFontOptionsForText,
+	isFontFamilyOption,
 	resolveFontFamily,
 } from "../font-constants";
 
@@ -50,6 +51,12 @@ describe("FONT_OPTIONS", () => {
 	test("keeps font values unique for stable editor serialization", () => {
 		const values = FONT_OPTIONS.map((font) => font.value);
 		expect(new Set(values).size).toBe(values.length);
+	});
+
+	test("identifies editor-selectable font values", () => {
+		expect(isFontFamilyOption("CodecutYanBoSong")).toBe(true);
+		expect(isFontFamilyOption("Inter")).toBe(true);
+		expect(isFontFamilyOption("CodecutCJK")).toBe(false);
 	});
 
 	test("disables Latin-only fonts for pure Chinese text", () => {

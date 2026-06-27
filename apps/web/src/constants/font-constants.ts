@@ -211,6 +211,9 @@ export type FontFamily = (typeof FONT_OPTIONS)[number]["value"];
 export const getFontByValue = (value: string): FontOption | undefined =>
 	FONT_OPTIONS.find((font) => font.value === value);
 
+export const isFontFamilyOption = (value: string): value is FontFamily =>
+	getFontByValue(value) !== undefined;
+
 export const getGoogleFonts = (): FontOption[] =>
 	FONT_OPTIONS.filter((font) => font.category === "google");
 
