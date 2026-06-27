@@ -441,7 +441,13 @@ segment timestamps into output timeline timestamps through the selected
 `clips[]`. Do not copy source transcript timestamps directly into
 `captions[].startTime`.
 Do not replace this flow with rewritten summary captions or external subtitle
-burn-in. The final proof must be text elements in the Codecut timeline.
+burn-in. If the user explicitly provides an SRT or ASS file, use the
+controlled `import_subtitles` path instead: require an absolute `filePath`,
+explicit `format`, `trackName`, `captionStyle`, and a confirmation token. SRT
+must be strict SubRip timed text; ASS is limited to the strict timed-text
+subset and rejects unsupported style, override, effect, margin, positioning,
+karaoke, drawing, and non-allowlisted event fields before mutation. The final
+proof must be editable text elements in the Codecut timeline.
 
 Caption preset routing:
 
@@ -1090,6 +1096,26 @@ that case the response also includes a `voiceConsistency` summary without raw
 script text or protected term values. Codex must copy those captions into the
 final EditPlan and apply that plan.
 
+Import an explicit user-supplied subtitle file as editable text captions:
+
+```bash
+node scripts/codex-bridge.mjs import-subtitles \
+  --project-id <id> \
+  --file-path /absolute/path/subtitles.srt \
+  --format srt \
+  --track-name "Imported subtitles" \
+  --caption-style-json '{"preset":"creator-clean","position":"lower-safe"}' \
+  --confirmation-token <token>
+```
+
+`import_subtitles` is also exposed as a Codex Agent tool with the same
+`filePath`, `format`, `trackName`, and `captionStyle` inputs. It creates one
+new text track and returns `sourceFormat`, `captionCount`, `createdTrackId`,
+`createdElementIds`, `captionQuality`, and `revision`. It is not free-form
+subtitle compatibility, FFmpeg burn-in, or an EditPlan replacement path. After
+success, call `get_timeline_state` and prove the created captions' content,
+timing, duration, and resolved style.
+
 RunningHub and Volcengine voice generation can bind protected terms to the
 generated audio asset. Volcengine uses an existing `voice_type`; it does not
 train a new voice:
@@ -1355,4 +1381,4 @@ Do not start the render if either freshness gate fails.
 - If `create_text_background_effect` or `create_human_pip_effect` fails, fix the media or derived-asset input. Do not simulate the effect with unrelated low-level timeline tools.
 - If export fails with the Node-compatible renderer runtime gap, report that blocker. Do not use browser download as a fallback.
 
-`generate_captions` is not part of the Codex-only MVP automation path. Captions in this workflow come from the Codex-authored EditPlan and are applied by `apply_edit_plan`.
+`generate_captions` is not part of the Codex-only MVP automation path. Captions in this workflow come from the Codex-authored EditPlan and are applied by `apply_edit_plan`; user-supplied SRT/ASS files use only the controlled `import_subtitles` exception and must be verified with timeline readback.

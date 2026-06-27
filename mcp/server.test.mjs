@@ -149,6 +149,7 @@ describe("Codecut MCP server contract", () => {
 			"apply_narrated_remix_plan",
 			"add_texts",
 			"add_captions",
+			"import_subtitles",
 			"update_project_preferences",
 			"insert_clips",
 			"move_clips",
@@ -321,6 +322,7 @@ describe("Codecut MCP server contract", () => {
 		expect(readOnlyByTool.get("clear_project_cover")).toBe(false);
 		expect(readOnlyByTool.get("add_texts")).toBe(false);
 		expect(readOnlyByTool.get("add_captions")).toBe(false);
+		expect(readOnlyByTool.get("import_subtitles")).toBe(false);
 		expect(readOnlyByTool.get("set_keyframes")).toBe(false);
 		expect(readOnlyByTool.get("add_transitions")).toBe(false);
 		expect(readOnlyByTool.get("update_transition")).toBe(false);
@@ -392,6 +394,7 @@ describe("Codecut MCP server contract", () => {
 		for (const toolName of [
 			"add_texts",
 			"add_captions",
+			"import_subtitles",
 			"insert_clips",
 			"move_clips",
 			"remove_clips",
@@ -3157,6 +3160,38 @@ describe("Codecut MCP server contract", () => {
 					preset: "talking-head-pop",
 					position: "lower-safe",
 				},
+			}),
+			"--confirmation-token",
+			confirmationToken,
+		]);
+
+		expect(
+			buildBridgeCliArgs("import_subtitles", {
+				projectId: "project-1",
+				confirmationToken,
+				filePath: "/tmp/captions.srt",
+				format: "srt",
+				trackName: "Imported Captions",
+				captionStyle: {
+					preset: "talking-head-pop",
+					position: "lower-safe",
+				},
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"import-subtitles",
+			"--project-id",
+			"project-1",
+			"--file-path",
+			"/tmp/captions.srt",
+			"--format",
+			"srt",
+			"--track-name",
+			"Imported Captions",
+			"--caption-style-json",
+			JSON.stringify({
+				preset: "talking-head-pop",
+				position: "lower-safe",
 			}),
 			"--confirmation-token",
 			confirmationToken,
