@@ -80,6 +80,17 @@ stage proof.
 - MCP tools: define atomic capability schemas, side effects, read-only status,
   and failure shape. They do not choose workflows.
 
+## Progressive Load Map
+
+Use this skill as a map, not as the execution manual.
+
+| Situation | Read first | Load detail when | Stop before continuing | Required readback |
+| --- | --- | --- | --- | --- |
+| Need to classify the request or explain stages | `references/workflow-stage-contract.md` | A handoff, blocker, or user-facing status needs stage ownership | No loadable owner is available or routing would choose a side-effect stage by guess | None; router does not mutate state |
+| Need executor commands, readback, export, captions, cover, visual QA, or plugin freshness proof | `references/execution-contract.md` | The task will mutate timeline state, verify export, or report completion | Required proof is missing or current executor/tool surface cannot produce it | `get_timeline_state` after timeline mutation; export proof after MP4/still export |
+| Need source facts, transcript, clip decisions, or an EditPlan | `references/editing-intent-router.md` plus one workflow recipe | Material evidence or planning strategy affects the edit | Required evidence is missing or unsupported by current Codecut contracts | Use executor readback only after `codecut-executor-apply` runs |
+| Need implementation work inside Codecut code | `../../docs/codex-driven-editing.md` and focused tests | A runtime/tool/schema change is required | Source/cache/session proof is stale for plugin-facing changes | Run the touched contract test and plugin freshness check |
+
 ## Required Stage Routing
 
 Choose one path before running commands:
@@ -158,101 +169,15 @@ export.
 ## Human Preview
 
 Browser is not the Agent runtime. The local executor draft and readback are the
-agent proof; the Codex in-app browser is only for human preview.
+agent proof; the Codex in-app browser is only for human preview. Read
+`references/execution-contract.md` for the human-preview contract before
+reporting browser-visible readiness.
 
-Whenever a Codecut project is created and an `editorUrl` is returned, open that
-exact `editorUrl` in the Codex in-app browser before reporting the project
-ready. This is mandatory for setup-widget project creation and direct executor
-`create-project` runs. If browser control is unavailable, report the `editorUrl`
-and the browser-control blocker explicitly; do not claim browser-visible
-preview.
+## Detail Gates
 
-Use `setupBrowserRuntime` through the current Codex browser API, make the
-browser visible, and navigate only when needed:
-
-```ts
-const previewUrl = editorUrl;
-const browser = await agent.browsers.get("iab");
-await (await browser.capabilities.get("visibility")).set(true);
-const tab = (await browser.tabs.selected()) ?? await browser.tabs.new();
-if ((await tab.url()) !== previewUrl) {
-  await tab.goto(previewUrl);
-}
-```
-
-Preview URLs:
-
-- `http://127.0.0.1:4100/en/projects`
-- the `editorUrl` returned by `create-project`
-
-Do not reconstruct a bare `/editor/<projectId>` URL for executor projects; the
-returned `editorUrl` carries the browser bridge token required for editor state.
-Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview URL.
-
-## Evidence And Caption Gates
-
-- For tutorial, product-proof, screen-recording, or horizontal-to-vertical jobs,
-  use visual preflight before final EditPlan authoring when crop, caption, or
-  proof risk affects the result.
-- Project cover and EditPlan `introCover` are separate products. A project
-  cover is a poster/thumbnail outside the timeline; set it only by importing an
-  image with `import_media` and calling `set_project_cover`. Do not represent a
-  project cover with `introCover`, and do not shift timeline clips for it.
-- If the user asks for a short-video cover/poster, use the video first frame or
-  visual evidence to create an image outside Codecut runtime, import the image,
-  then call `set_project_cover` with the imported image `mediaId`, title text,
-  prompt, and style preset metadata. Verify with `get_project_info` or
-  `get_timeline_state` that `cover` is present and total duration is unchanged.
-- If confirmed setup intent has `generateIntroCover: true`, create a timeline
-  opening image before final EditPlan authoring. This is not the project cover.
-  Determine the final first clip's `sourceStart`, inspect that source frame or a
-  tight range with `inspect_video_range`, choose a prompt from
-  `references/intro-cover-prompts.md` based on video type, generate a separate
-  image through an available image generation capability outside Codecut
-  runtime, import that image with `import_media`, and write `introCover` in the
-  EditPlan.
-- Do not generate a timeline intro image when confirmed setup intent has
-  `generateIntroCover: false`.
-- Do not silently downgrade cover work. If image generation capability is
-  unavailable, first-frame visual evidence is missing, or the generated image
-  cannot be imported as an image asset with width and height, stop and report
-  the blocker before calling timeline mutation tools.
-- Intro cover duration is planned explicitly by Codex. The current recommended
-  starting value is `1.2s`; do not rely on a runtime default. The first video
-  clip's `timelineStart` must equal `introCover.duration`.
-- For project covers, baked title text is expected when the user asks for
-  short-video cover style. For timeline intro images, prefer adding titles
-  through Codecut text/title layers unless the user explicitly needs image text.
-- For horizontal sources converted to vertical shorts, use
-  `vertical_face_safe_crop_above_burned_captions` only when current visual
-  evidence supports that policy.
-- When that policy can be represented as a fixed source rectangle, use EditPlan
-  `sourceCrop` and verify `visual.sourceCrop` in `get_timeline_state`.
-- If the needed crop cannot be represented natively, present the runtime-gap
-  versus one-time fallback MP4 choice instead of silently baking a fallback.
-- Do not use `black-bar` as a subtitle mask. It is a caption style only.
-- Subtitle styling has one generated-edit path: `EditPlan.captions[]` plus
-  top-level `captionStyle`. Do not put `fontFamily`, `fontSize`, `color`, CSS,
-  per-caption style objects, or external subtitle renderer settings in an
-  EditPlan. Codecut caption presets resolve to controlled local renderer
-  styles and curated local CJK renderer fonts.
-- Route Chinese captions by content type. Use `talking-head-pop` for spoken
-  talking-head and opinion clips because it uses white text, translucent dark
-  backing, and stronger shadow for light-background readability. Use
-  `creator-clean` only when the source background is visually controlled and
-  the user wants a clean font-first look. Emphasize at most one key phrase per
-  sentence through `richSpans`, using light yellow text such as `#fde68a` when
-  emphasis is needed. Treat commercial fonts seen in references as style
-  inspiration unless the user supplies redistribution rights.
-- Caption timing must declare a post-cut caption source. Prefer edited audio transcription through `build-post-cut-captions`; use source transcript remap only when every source segment maps cleanly into selected clips.
-- After applying captions, use `get_timeline_state` readback and verify text
-  elements include `content`, `startTime`, `duration`, and `style`.
-- Local video import through `import-media --file-path` must produce
-  `duration`, `width`, and `height`; local image import used as project cover
-  must produce `width` and `height`; local audio import must produce `duration`.
-  Verify with `list_media_assets` or `get_timeline_state`
-  `includeReferencedMedia` before authoring project cover, intro cover,
-  sourceCrop, or export-sensitive plans.
+Read `references/execution-contract.md` before handling visual QA, captions,
+project covers, intro covers, timeline readback, export proof, or plugin
+freshness. Do not copy those gates into this router.
 
 ## Planning References
 
@@ -273,42 +198,8 @@ Read only what matches the task:
 
 ## Completion Standard
 
-For editing execution, completion requires:
-
-- successful validation/application result
-- `get_timeline_state` readback
-- expected track, element, duration, trim range, and media source proof
-- a visual QA verdict recorded under
-  `.codecut-workspace/projects/<projectId>/06-verification/visual-qa/<runId>/`
-- editor URL for human preview
-- explicit statement when MP4 export was not produced
-
-`inspect_timeline` and `build_video_quality_report` only generate evidence.
-They are not a visual pass by themselves. Before reporting completion, Codex
-must inspect the timeline contact sheet and report a verdict that includes:
-contact sheet path, frame count, sampled timestamps, pass/fail status, issues
-found, and whether each issue was fixed.
-
-`export_timeline_frame` writes a requested local PNG frame file. It is not a
-visual QA verdict and does not replace contact-sheet inspection when reporting
-edit success or export readiness.
-
-For MP4 delivery, Codex must also sample frames from the exported MP4 with
-`codecut-workspace extract-export-frames`, inspect the export contact sheet,
-compare it against the timeline preview, and record the final verdict with
-`codecut-workspace record-visual-qa`. Timeline frames prove editor state; export
-frames prove the delivered file. They are not interchangeable.
-
-The required visual QA checks are:
-
-- `first_frame_not_black`
-- `title_not_clipped`
-- `text_layers_not_overlapping`
-- `subject_not_cropped_by_cover`
-- `bottom_safe_area_clear`
-- `ending_normal`
-- `export_matches_timeline_preview`
-
-`export_matches_timeline_preview` may be `not_applicable` only when no MP4
-export was requested; in that case the final report must explicitly say that
-no MP4 was produced.
+For editing execution, completion follows the success contract table in
+`references/execution-contract.md`. The short rule is: do not claim completion
+without the workspace/project proof, timeline readback after mutation, visual
+QA verdict when preview quality matters, and export proof when a file was
+requested.

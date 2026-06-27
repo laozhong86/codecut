@@ -212,47 +212,66 @@ describe("Codecut plugin startup guidance", () => {
 			join(pluginRoot, "skills", "codecut-executor-apply", "SKILL.md"),
 			"utf8",
 		);
+		const executionContract = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut",
+				"references",
+				"execution-contract.md",
+			),
+			"utf8",
+		);
 		const agentCard = await readFile(
 			join(pluginRoot, "skills", "codecut", "agents", "openai.yaml"),
 			"utf8",
 		);
 		const normalizedSkill = skill.replace(/\s+/g, " ");
 		const normalizedExecutorSkill = executorSkill.replace(/\s+/g, " ");
+		const normalizedExecutionContract = executionContract.replace(/\s+/g, " ");
 
 		expect(agentCard).toContain("Codex in-app browser");
 		expect(agentCard).toContain(
 			"Whenever Codecut creates a project and receives an editorUrl",
 		);
-		expect(skill).toContain("setupBrowserRuntime");
-		expect(skill).toContain('agent.browsers.get("iab")');
-		expect(skill).toContain('browser.capabilities.get("visibility")');
-		expect(skill).toContain(
+		expect(skill).toContain("references/execution-contract.md");
+		expect(normalizedSkill).toContain(
+			"the Codex in-app browser is only for human preview",
+		);
+		expect(executionContract).toContain("setupBrowserRuntime");
+		expect(executionContract).toContain('agent.browsers.get("iab")');
+		expect(executionContract).toContain('browser.capabilities.get("visibility")');
+		expect(executionContract).toContain(
 			'await (await browser.capabilities.get("visibility")).set(true);',
 		);
-		expect(skill).toContain("browser.tabs.selected()");
-		expect(skill).toContain("browser.tabs.new()");
-		expect(skill).toContain("await tab.goto(previewUrl);");
-		expect(skill).toContain("if ((await tab.url()) !== previewUrl)");
-		expect(skill).toContain("http://127.0.0.1:4100/en/projects");
-		expect(skill).toContain("the `editorUrl` returned by `create-project`");
-		expect(normalizedSkill).toContain(
+		expect(executionContract).toContain("browser.tabs.selected()");
+		expect(executionContract).toContain("browser.tabs.new()");
+		expect(executionContract).toContain("await tab.goto(previewUrl);");
+		expect(executionContract).toContain("if ((await tab.url()) !== previewUrl)");
+		expect(executionContract).toContain("http://127.0.0.1:4100/en/projects");
+		expect(executionContract).toContain(
+			"the `editorUrl` returned by `create-project`",
+		);
+		expect(normalizedExecutionContract).toContain(
 			"Whenever a Codecut project is created and an `editorUrl` is returned",
 		);
-		expect(normalizedSkill).toContain(
+		expect(normalizedExecutionContract).toContain(
 			"open that exact `editorUrl` in the Codex in-app browser before reporting the project ready",
 		);
 		expect(normalizedExecutorSkill).toContain(
 			"After `create-project` returns an `editorUrl`, open that exact URL in the Codex in-app browser before the next executor step",
 		);
-		expect(skill).toContain(
+		expect(executionContract).toContain(
 			"Do not reconstruct a bare `/editor/<projectId>` URL for executor projects",
 		);
-		expect(skill).toContain(
+		expect(normalizedExecutionContract).toContain(
 			"Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview URL",
 		);
-		expect(skill).toContain("Browser is not the Agent runtime");
-		expect(skill).not.toContain("osascript");
-		expect(skill).not.toContain("View -> Open Browser Tab");
+		expect(executionContract).toContain("Browser is not the Agent runtime");
+		for (const content of [skill, executionContract]) {
+			expect(content).not.toContain("osascript");
+			expect(content).not.toContain("View -> Open Browser Tab");
+		}
 	});
 
 	test("routes new creative intake through the workspace widget before text fallback", async () => {
@@ -648,6 +667,10 @@ describe("Codecut plugin startup guidance", () => {
 	test("requires visual preflight for horizontal sources converted to vertical shorts", async () => {
 		const skillRoot = join(pluginRoot, "skills", "codecut");
 		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
+		const executionContract = await readFile(
+			join(skillRoot, "references", "execution-contract.md"),
+			"utf8",
+		);
 		const longToShort = await readFile(
 			join(skillRoot, "references", "workflow-recipes", "long-to-short.md"),
 			"utf8",
@@ -665,7 +688,8 @@ describe("Codecut plugin startup guidance", () => {
 			"utf8",
 		);
 
-		for (const content of [skill, longToShort, platformPresets]) {
+		expect(skill).toContain("references/execution-contract.md");
+		for (const content of [executionContract, longToShort, platformPresets]) {
 			expect(content).toContain("visual preflight");
 			expect(content).toContain(
 				"vertical_face_safe_crop_above_burned_captions",
@@ -686,6 +710,10 @@ describe("Codecut plugin startup guidance", () => {
 	test("requires post-cut caption timing and video-type caption preset routing", async () => {
 		const skillRoot = join(pluginRoot, "skills", "codecut");
 		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
+		const executionContract = await readFile(
+			join(skillRoot, "references", "execution-contract.md"),
+			"utf8",
+		);
 		const subtitlePass = await readFile(
 			join(skillRoot, "references", "workflow-recipes", "subtitle-pass.md"),
 			"utf8",
@@ -703,10 +731,12 @@ describe("Codecut plugin startup guidance", () => {
 			"utf8",
 		);
 
-		for (const content of [skill, subtitlePass, workflow]) {
-			expect(content).toContain("post-cut caption source");
-			expect(content).toContain("source transcript remap");
-			expect(content).toContain("edited audio transcription");
+		expect(skill).toContain("references/execution-contract.md");
+		for (const content of [executionContract, subtitlePass, workflow]) {
+			const normalizedContent = content.replace(/\s+/g, " ");
+			expect(normalizedContent).toContain("post-cut caption source");
+			expect(normalizedContent).toContain("source transcript remap");
+			expect(normalizedContent).toContain("edited audio transcription");
 			expect(content).toContain("build-post-cut-captions");
 		}
 

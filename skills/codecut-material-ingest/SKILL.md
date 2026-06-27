@@ -31,6 +31,14 @@ export intent, download or save the source outside the CodeCut creative
 workspace path and stop after local source facts are recorded. Do not open the
 creative editing widget and do not run CodeCut executor mutation commands.
 
+## Progressive Load Map
+
+| Situation | Read first | Stop before continuing | Required readback |
+| --- | --- | --- | --- |
+| Source needs copy, download, probe, or workspace filing | `../codecut/references/workflow-stage-contract.md` supporting file map | Confirmed setup token is missing for a creative job | Asset manifest and `02-inventory/material-audit.md` |
+| TikTok source is involved | `../codecut-tiktok-downloader/SKILL.md` | TikTok access, rights, author count, or manifest proof is missing | `download_manifest.json` before ffprobe audit resumes |
+| Source facts affect planning or export | `../codecut/references/execution-contract.md` success contract table | Duration, width/height, audio presence, or absolute local path cannot be proved | `list_media_assets` or `get_timeline_state includeReferencedMedia` after executor import |
+
 ## Stage Ownership
 
 This skill owns source material facts only: local file reachability, remote

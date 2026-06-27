@@ -17,6 +17,14 @@ derive reference strategy, or bypass strict plan validation.
 
 Executor apply mutates Codecut state. Use it only after requirement intake passes for new creative jobs.
 
+## Progressive Load Map
+
+| Situation | Read first | Stop before continuing | Required readback |
+| --- | --- | --- | --- |
+| Service readiness, bridge env, import, validate, preview, apply, or export is needed | `../codecut/references/execution-contract.md` success contract table | Requirement intake, setup token, project ID, bridge env, doctor, validation, preview, apply, readback, or export proof is missing | `get_timeline_state` after timeline mutation; export proof after MP4/still export |
+| Current command syntax or executor behavior is needed | `../../docs/codex-driven-editing.md` | Callable tool or command is not implemented in the current runtime | Command result plus field-level readback |
+| Human preview or visual QA is required | `../codecut/references/execution-contract.md` human preview and visual QA sections | Browser-control blocker, contact sheet, or verdict path is missing | Visual QA verdict under `06-verification/visual-qa/<runId>/` |
+
 ## Stage Ownership
 
 This skill owns executor readiness and execution: fixed local runtime checks,

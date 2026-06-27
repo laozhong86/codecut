@@ -11,6 +11,14 @@ Reference templates are planning data for Codex. They do not replace
 requirement intake, material evidence, strict EditPlan/NarratedRemixPlan
 validation, executor apply, or `get_timeline_state` readback.
 
+## Progressive Load Map
+
+| Situation | Read first | Stop before continuing | Required readback |
+| --- | --- | --- | --- |
+| User wants to learn, draft, import, or apply a reference template | `../codecut/references/workflow-stage-contract.md` supporting file map | Reference purpose, future material type, or required evidence is missing | Draft files are proof only until confirmed import |
+| Speech, subtitles, or visible copy drive the reference | `references/template-script-contract.md` and the derive workflow below | Transcript/copy evidence is missing for an import-ready draft | `reference-analysis.md`, `local-template-script.json`, and `template-fields.md` |
+| User confirms import or execution | `../codecut/references/execution-contract.md` success contract table | User has not confirmed the exact draft or executor readiness is unproven | Imported system template proof or `get_timeline_state` after applying a plan |
+
 ## Stage Ownership
 
 This skill owns reference-derived template evidence, draft structure, import
