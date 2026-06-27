@@ -201,6 +201,46 @@ describe("Codecut MCP server contract", () => {
 		expect(tool?.inputSchema.ranges.safeParse([[1, 3]]).success).toBe(false);
 	});
 
+	test("requires editor font options for text mutation tools", () => {
+		const addTexts = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "add_texts",
+		);
+		const setClipProperties = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "set_clip_properties",
+		);
+
+		expect(
+			addTexts?.inputSchema.entries.safeParse([
+				{
+					startTime: 0,
+					duration: 2,
+					content: "Hook",
+					fontFamily: "CodecutYanBoSong",
+				},
+			]).success,
+		).toBe(true);
+		expect(
+			addTexts?.inputSchema.entries.safeParse([
+				{
+					startTime: 0,
+					duration: 2,
+					content: "Hook",
+					fontFamily: "CodecutCJK",
+				},
+			]).success,
+		).toBe(false);
+		expect(
+			setClipProperties?.inputSchema.properties.safeParse({
+				fontFamily: "Inter",
+			}).success,
+		).toBe(true);
+		expect(
+			setClipProperties?.inputSchema.properties.safeParse({
+				fontFamily: "CodecutCJK",
+			}).success,
+		).toBe(false);
+	});
+
 	test("requires transcript granularity in the public MCP schema", () => {
 		const tool = CODECUT_MCP_TOOLS.find(
 			(candidate) => candidate.name === "get_transcript",

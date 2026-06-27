@@ -36,6 +36,7 @@ import {
 	cloneLocalSegmentAsrCapabilities,
 	cloneLocalSegmentAsrQuality,
 } from "@/lib/transcription/asr-provider-contract";
+import { CODECUT_YAN_BO_SONG_FONT_FAMILY } from "@/lib/codecut-fonts";
 import {
 	createExecutorProject,
 	executeCodexExecutorEnvelope,
@@ -2226,7 +2227,7 @@ describe("codex executor", () => {
 			duration: 2,
 			endTime: 3,
 			style: {
-				fontFamily: "CodecutCJK",
+				fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 				fontSize: 5.2,
 				color: "#ffffff",
 				backgroundColor: "#0f172a",
@@ -2364,7 +2365,7 @@ describe("codex executor", () => {
 			startTime: 5,
 			duration: 2,
 			style: {
-				fontFamily: "CodecutCJK",
+				fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 				fontSize: 5.2,
 				color: "#ffffff",
 				backgroundColor: "#0f172a",
@@ -8036,6 +8037,63 @@ describe("codex executor", () => {
 		expect(await getExecutorProjectState({ projectId })).toEqual(beforeInvalid);
 	});
 
+	test("set_clip_properties rejects unsupported editor font families", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "text",
+					name: "Text Track",
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "text-1",
+							type: "text",
+							name: "Caption",
+							content: "Opening line",
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+							fontSize: 6,
+							fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+							color: "#ffffff",
+							backgroundColor: "transparent",
+							textAlign: "center",
+							fontWeight: "bold",
+							fontStyle: "normal",
+							textDecoration: "none",
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+		const beforeInvalid = await getExecutorProjectState({ projectId });
+
+		const invalid = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_clip_properties",
+				args: {
+					elementId: "text-1",
+					properties: { fontFamily: "CodecutCJK" },
+				},
+			}),
+		});
+
+		expect(invalid.results[0]).toMatchObject({ success: false });
+		expect(
+			String((invalid.results[0] as { message?: unknown }).message),
+		).toContain("fontFamily");
+		expect(await getExecutorProjectState({ projectId })).toEqual(beforeInvalid);
+	});
+
 	test("ripple_delete_ranges rejects ranges without an explicit scope", async () => {
 		await seedDraftState({
 			tracks: [
@@ -8474,6 +8532,33 @@ describe("codex executor", () => {
 		expect(state.revision).toBe(2);
 	});
 
+	test("add_texts rejects unsupported editor font families", async () => {
+		await seedDraftState({ tracks: [] });
+		const beforeInvalid = await getExecutorProjectState({ projectId });
+
+		const invalid = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_texts",
+				args: {
+					entries: [
+						{
+							startTime: 0.5,
+							duration: 2,
+							content: "Hook line",
+							fontFamily: "CodecutCJK",
+						},
+					],
+				},
+			}),
+		});
+
+		expect(invalid.results[0]).toMatchObject({ success: false });
+		expect(
+			String((invalid.results[0] as { message?: unknown }).message),
+		).toContain("fontFamily");
+		expect(await getExecutorProjectState({ projectId })).toEqual(beforeInvalid);
+	});
+
 	test("add_texts fails fast for incompatible tracks without mutating revision", async () => {
 		await seedDraftState({
 			tracks: [
@@ -8588,7 +8673,7 @@ describe("codex executor", () => {
 			content: "hello world",
 			startTime: 11,
 			duration: 1,
-			fontFamily: "CodecutCJK",
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 5.2,
 			fontWeight: "bold",
 			color: "#ffffff",

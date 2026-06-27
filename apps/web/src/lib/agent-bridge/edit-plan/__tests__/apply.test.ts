@@ -10,7 +10,6 @@ import type {
 } from "@/types/timeline";
 import {
 	CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
-	CODECUT_CJK_FONT_FAMILY,
 	CODECUT_JETBRAINS_MONO_FONT_FAMILY,
 	CODECUT_MONTSERRAT_FONT_FAMILY,
 	CODECUT_OUTFIT_FONT_FAMILY,
@@ -547,7 +546,7 @@ describe("applyEditPlanToEditor", () => {
 		});
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 6,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -586,7 +585,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -628,7 +627,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: "CodecutCJK",
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 5.2,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -762,7 +761,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "short-form-bold",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 6,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -773,7 +772,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "black-bar",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -784,7 +783,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "talking-head-pop",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5.2,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -802,7 +801,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "tutorial-clean",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "normal",
 					color: "#ffffff",
@@ -813,7 +812,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "documentary-soft",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "bold",
 					color: "#f8fafc",
@@ -824,7 +823,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "product-punch",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 6,
 					fontWeight: "bold",
 					color: "#ffe45c",
@@ -864,7 +863,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "social-highlight",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5.6,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -876,7 +875,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "comment-bubble",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5.2,
 					fontWeight: "bold",
 					color: "#111827",
