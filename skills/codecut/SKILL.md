@@ -37,7 +37,7 @@ repair timeline state.
 
 - Selected route: source acquisition, requirement intake, material ingest,
   reference-template, cover generation, edit planning, executor apply,
-  inspection, or implementation work.
+  methodology capture, inspection, or implementation work.
 - A stage handoff statement using `Stage`, `Status`, `Proof`, `Next`, and
   `Risk` when reporting progress or blockers.
 - No timeline, workspace, template, or export mutation.
@@ -89,7 +89,9 @@ Use this skill as a map, not as the execution manual.
 | Need to classify the request or explain stages | `references/workflow-stage-contract.md` | A handoff, blocker, or user-facing status needs stage ownership | No loadable owner is available or routing would choose a side-effect stage by guess | None; router does not mutate state |
 | Need executor commands, readback, export, captions, visual QA, or plugin freshness proof | `references/execution-contract.md` | The task will mutate timeline state, verify export, or report completion | Required proof is missing or current executor/tool surface cannot produce it | `get_timeline_state` after timeline mutation; export proof after MP4/still export |
 | Need a project cover, short-video poster, thumbnail prompt, cover evidence-frame selection, generated cover image import, or cover readback | `../codecut-cover-generation/SKILL.md` | The user asks for a project cover/poster/thumbnail or setup requested a generated cover outside the video timeline | Platform ratio, visual evidence, image generation capability, imported image dimensions, or cover readback is missing | `get_project_info` or `get_timeline_state` proves project `cover`; duration is unchanged |
+| Opening a new edit plan with confirmed local preferences | `../codecut-methodology-capture/SKILL.md` only for the private store contract, then `../codecut-edit-planning/SKILL.md` | A workspace already has `.codecut-workspace/user-methodology/` files | Current user instructions conflict with stored methodology | Read-only local methodology context; no mutation |
 | Need transcript, VideoContext, candidate clips, decision ledger, or an EditPlan/NarratedRemixPlan draft | `../codecut-edit-planning/SKILL.md` | Material evidence or planning strategy affects the edit | Required evidence is missing or unsupported by current Codecut contracts | Use executor readback only after `codecut-executor-apply` runs |
+| Need to remember feedback, update preferences, capture a correction, or produce post-project learning | `../codecut-methodology-capture/SKILL.md` | The user says "remember this", "以后按这个", "更新偏好", "刚才这里剪错了", or a completed project needs a methodology proposal | User confirmation is missing for long-term preference updates | Proposal under `08-learning/`; confirmed updates under `.codecut-workspace/user-methodology/` |
 | Need implementation work inside Codecut code | `../../docs/codex-driven-editing.md` and focused tests | A runtime/tool/schema change is required | Source/cache/session proof is stale for plugin-facing changes | Run the touched contract test and plugin freshness check |
 
 ## Required Stage Routing
@@ -124,6 +126,9 @@ export.
 | Project cover, short-video poster, thumbnail, cover prompt, cover image, cover evidence-frame selection, or setting an independent project cover outside the timeline | **REQUIRED SUB-SKILL:** Use `codecut-cover-generation` before image generation, media import, or `set_project_cover`. |
 | Transcript, VideoContext, candidate clips, decision ledger, or EditPlan/NarratedRemixPlan authoring | **REQUIRED SUB-SKILL:** Use `codecut-edit-planning` before executor validation or mutation. |
 | Executor service, env, doctor, import, apply, caption build, timeline readback | **REQUIRED SUB-SKILL:** Use `codecut-executor-apply`. |
+| Opening a new planning pass after workspace init | Read `.codecut-workspace/user-methodology/profile.md` and `rules.md` if they exist, then use `codecut-edit-planning`. Current user instructions override stored methodology. |
+| User says "remember this", "以后按这个", "更新偏好", "刚才这里剪错了", or gives reusable editing feedback | **REQUIRED SUB-SKILL:** Use `codecut-methodology-capture`. First generate a project proposal; do not update long-term preferences without explicit user confirmation. |
+| Project completion after timeline/export verification | **REQUIRED SUB-SKILL:** Use `codecut-methodology-capture` to create `08-learning/methodology-proposal.md` and ask whether to update private methodology. |
 | Existing project inspection or export readiness | Use `codecut-edit-planning` to select the timeline-inspection recipe, then `codecut-executor-apply` for readback or export proof. |
 | Implementation work inside Codecut code | Inspect the current contract first, then write focused tests before edits. |
 
@@ -186,6 +191,11 @@ export.
 - Do not claim timeline frame export unless `export_timeline_frame` produced
   the requested local PNG file. `inspect_timeline` contact sheets are visual
   evidence, not the still-frame export product.
+- Private methodology capture must stay local under `.codecut-workspace/`.
+  Do not write personal editing preferences into `skills/**`, `docs/**`, plugin
+  manifests, or installed cache. Stored methodology is read-only input at the
+  start of planning; project completion may create a proposal, but long-term
+  updates require explicit user confirmation.
 
 ## Human Preview
 
@@ -208,6 +218,7 @@ Read only what matches the task:
 - Workspace spec: `../../docs/codecut-workspace.md`
 - Workflow stage contract: `references/workflow-stage-contract.md`
 - Edit planning: `../codecut-edit-planning/SKILL.md`
+- Methodology capture: `../codecut-methodology-capture/SKILL.md`
 - Tool contract: `references/codecut-agent-tool-contract.md`
 - EditPlan schema: `references/edit-plan-schema.md`
 - Project and intro cover prompt guide: `references/intro-cover-prompts.md`
@@ -219,4 +230,6 @@ For editing execution, completion follows the success contract table in
 `references/execution-contract.md`. The short rule is: do not claim completion
 without the workspace/project proof, timeline readback after mutation, visual
 QA verdict when preview quality matters, and export proof when a file was
-requested.
+requested. After verified project completion, route to
+`codecut-methodology-capture` to generate a project-scoped learning proposal
+and ask whether to update private methodology.

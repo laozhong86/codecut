@@ -1,0 +1,55 @@
+name: codecut-methodology-capture
+version: 1
+type: strategy
+primary_dimension: planning
+
+intent:
+  one_line: Capture Codecut editing feedback into private local methodology proposals and confirmed preferences.
+  target_user: Codex helping Codecut learn a user's editing preferences without leaking private methodology into plugin source or cache.
+  success_looks_like:
+    - Every completed project can produce a project-scoped methodology proposal before any long-term update.
+    - Long-term methodology changes require explicit user confirmation.
+    - Private preferences live only under .codecut-workspace/user-methodology.
+    - Reusable rules are integrated into profile or rules body sections while feedback-log records only events.
+
+known_failure_modes:
+  - mode: One project decision is stored as a global default.
+    severity: high
+    example: The agent treats a one-off pacing request as a permanent user preference without asking.
+  - mode: Private methodology is written into plugin source.
+    severity: high
+    example: A user's personal cutting taste is added to skills/codecut/references.
+  - mode: Feedback log becomes the rule store.
+    severity: medium
+    example: The agent appends lessons to feedback-log.md but never updates rules.md.
+  - mode: Learning skill mutates the edit.
+    severity: high
+    example: The agent calls apply-plan or export while trying to capture a retrospective.
+
+style_constraints:
+  must_have:
+    - Project proposal before long-term methodology update.
+    - Explicit user confirmation before changing .codecut-workspace/user-methodology.
+    - Body integration for reusable rules.
+    - Event-only feedback log.
+  must_not_have:
+    - Personal preferences in skills, docs, plugin manifests, or installed cache.
+    - executor, timeline, import, download, export, or publishing tool calls.
+    - Silent automatic learning.
+
+arena_config:
+  noise_band: 0.15
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-methodology-capture/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-methodology-capture/retrospective.jsonl
+  log_entry_note: Record project id, feedback source, proposal path, accepted update paths, and user confirmation. Do not fabricate user preferences.
+
+cold_start_mode: true

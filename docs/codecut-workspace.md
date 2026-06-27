@@ -34,6 +34,19 @@ documents for variants that share the same source pack.
 ## Folder Structure
 
 ```text
+.codecut-workspace/
+  user-methodology/
+    profile.md
+    rules.md
+    feedback-log.md
+  projects/
+    <projectId>/
+      ...
+```
+
+Project folder:
+
+```text
 .codecut-workspace/projects/<projectId>/
   workspace.json
   00-brief/
@@ -77,6 +90,9 @@ documents for variants that share the same source pack.
         visual-qa-verdict.json
         visual-qa-verdict.md
   07-exports/
+  08-learning/
+    methodology-proposal.md
+    accepted-updates.md
 ```
 
 ## Required Order
@@ -91,11 +107,17 @@ documents for variants that share the same source pack.
 7. Ask clarification questions with choices and one recommended option when
    requirement intake still needs them.
 8. Write route and planning documents.
-9. Create the Codecut executor project only when editing execution begins.
-10. Before reporting editing completion, record visual QA under
+9. At the start of edit planning, read confirmed local methodology from
+   `.codecut-workspace/user-methodology/` when present. Current user
+   instructions override stored methodology.
+10. Create the Codecut executor project only when editing execution begins.
+11. Before reporting editing completion, record visual QA under
     `06-verification/visual-qa/<runId>/`.
-11. After MP4 export, extract frames from the final exported file and update the
+12. After MP4 export, extract frames from the final exported file and update the
     visual QA verdict before reporting delivery.
+13. After verified completion, write a methodology proposal under
+    `08-learning/methodology-proposal.md` and ask the user whether to update
+    `.codecut-workspace/user-methodology/`.
 
 ## CLI
 
@@ -178,11 +200,17 @@ workflow-route
 editing-decision-ledger
 timeline-restructure
 edit-plan-notes
+methodology-proposal
+methodology-accepted-updates
 ```
 
 ## Boundaries
 
 - This workspace is local-only and excluded from git and plugin-cache sync.
+- User-specific methodology is private and must stay under
+  `.codecut-workspace/user-methodology/`.
+- Project learning proposals live under `08-learning/` and do not update
+  long-term preferences unless the user confirms.
 - It does not create, import into, or mutate a Codecut executor project.
 - It does not mutate tracks, media assets, project settings, derived assets, or
   timeline state.
