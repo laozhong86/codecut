@@ -222,6 +222,7 @@ enabled = true
 				"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=120000",
 				"CODECUT_AGENT_BRIDGE_INTERVAL_MS=1000",
 				"RUNNINGHUB_API_KEY=runninghub-secret",
+				"VOLCENGINE_OPEN_SPEECH_API_KEY=volcengine-secret",
 				"UNRELATED_PROVIDER_SECRET=do-not-copy",
 			].join("\n"),
 			"utf8",
@@ -257,6 +258,9 @@ enabled = true
 			expect(cachedEnv).toContain("CODECUT_AGENT_BRIDGE_TIMEOUT_MS=120000");
 			expect(cachedEnv).toContain("CODECUT_AGENT_BRIDGE_INTERVAL_MS=1000");
 			expect(cachedEnv).toContain("RUNNINGHUB_API_KEY=runninghub-secret");
+			expect(cachedEnv).toContain(
+				"VOLCENGINE_OPEN_SPEECH_API_KEY=volcengine-secret",
+			);
 			expect(cachedEnv).not.toContain("UNRELATED_PROVIDER_SECRET");
 			expect(cachedEnv).not.toContain("4102");
 			expect(result.bridgeEnv.keys).toEqual([
@@ -265,6 +269,7 @@ enabled = true
 				"CODECUT_AGENT_BRIDGE_TIMEOUT_MS",
 				"CODECUT_AGENT_BRIDGE_INTERVAL_MS",
 				"RUNNINGHUB_API_KEY",
+				"VOLCENGINE_OPEN_SPEECH_API_KEY",
 			]);
 			expect(result.verifiedChecksums).toEqual([
 				".codex-plugin/plugin.json",
