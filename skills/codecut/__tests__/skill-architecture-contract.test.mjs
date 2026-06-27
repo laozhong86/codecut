@@ -17,6 +17,7 @@ const stageSkills = [
 	"codecut-reference-template",
 	"codecut-executor-apply",
 	"codecut-cover-generation",
+	"codecut-edit-planning",
 ];
 const requiredSections = [
 	"## Core Boundary",
@@ -34,6 +35,7 @@ const expectedStageOwners = new Map([
 	["source-acquisition", ["codecut-material-ingest", "codecut-tiktok-downloader"]],
 	["material-ingest", ["codecut-material-ingest"]],
 	["reference-template", ["codecut-reference-template"]],
+	["edit-planning", ["codecut-edit-planning"]],
 	["executor-apply", ["codecut-executor-apply"]],
 	["cover-generation", ["codecut-cover-generation"]],
 ]);
@@ -145,7 +147,16 @@ describe("CodeCut skill architecture v1 contract", () => {
 			}
 		}
 		expect(workflowContract).toContain("Non-Skill Workflow Phases");
-		expect(workflowContract).toMatch(/not\s+loadable stage skills/);
+		expect(workflowContract).toContain(
+			"`evidence-build` is a Codex-side workflow phase",
+		);
+		expect(workflowContract).toContain("`codecut-edit-planning`");
+		expect(workflowContract).not.toMatch(
+			/`evidence-build` and `edit-planning` are Codex-side workflow phases/,
+		);
+		expect(workflowContract).not.toMatch(
+			/edit-planning` are Codex-side workflow phases/,
+		);
 	});
 
 	test("workflow contract defines the progressive supporting file map", () => {
