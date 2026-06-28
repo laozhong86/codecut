@@ -1504,7 +1504,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. When the user asks to keep the original duration, avoid trimming the total length, preserve the complete source, or avoid deleting source ranges, pass durationContract with totalDurationMode preserve_source and/or sourceCoverageMode full_source plus sourceDurationSeconds. Use durationGoalMode custom only for explicit duration ranges, and keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. When the user asks to keep the original duration, avoid trimming the total length, preserve the complete source, or avoid deleting source ranges, pass durationContract with totalDurationMode preserve_source and/or sourceCoverageMode full_source plus sourceDurationSeconds from ffprobe for local files. Do not set generateIntroCover true with preserve_source plus full_source; a timeline intro cover changes duration, so use a fixed title or project cover instead. Use durationGoalMode custom only for explicit duration ranges, and keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -1788,6 +1788,13 @@ export function openCodecutWorkspace(input = {}, { confirmationRoot } = {}) {
 	if (!durationContractCheck.ok) {
 		return buildCodecutSetupInvalidResult(durationContractCheck.message);
 	}
+	const introCoverDurationContractCheck =
+		validateWorkspaceIntroCoverDurationContract(intentDefaults);
+	if (!introCoverDurationContractCheck.ok) {
+		return buildCodecutSetupInvalidResult(
+			introCoverDurationContractCheck.message,
+		);
+	}
 	const pendingConfirmationId = createPendingCodecutConfirmation({
 		root: confirmationRoot,
 	});
@@ -1976,6 +1983,15 @@ async function validateCodecutSetupIntent(intent) {
 		"Intro cover",
 		typeof normalized.generateIntroCover === "boolean",
 		"Choose whether CodeCut should generate an opening cover image.",
+	);
+	const introCoverDurationContractCheck =
+		validateWorkspaceIntroCoverDurationContract(normalized);
+	pushCheck(
+		checks,
+		"intro-cover-duration-contract",
+		"Intro cover duration contract",
+		introCoverDurationContractCheck.ok,
+		introCoverDurationContractCheck.message,
 	);
 	pushCheck(
 		checks,
@@ -2694,6 +2710,21 @@ function validateWorkspaceDurationContract(normalized) {
 		};
 	}
 	return { ok: true, message: "Duration contract is valid." };
+}
+
+function validateWorkspaceIntroCoverDurationContract(normalized) {
+	if (
+		normalized.generateIntroCover === true &&
+		normalized.durationContract?.totalDurationMode === "preserve_source" &&
+		normalized.durationContract?.sourceCoverageMode === "full_source"
+	) {
+		return {
+			ok: false,
+			message:
+				"Timeline intro cover cannot be enabled when preserving the full source duration and full source coverage. Use a fixed title or project cover instead.",
+		};
+	}
+	return { ok: true, message: "Intro cover duration contract is valid." };
 }
 
 function normalizeWorkspaceMediaSource(mediaSource = {}) {

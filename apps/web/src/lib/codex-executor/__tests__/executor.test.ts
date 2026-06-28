@@ -146,14 +146,15 @@ function confirmedSetupFixture({
 	captionFont = "auto",
 	captionSize = "medium",
 	captionStylePreset = "creator-clean",
-	exportFormat = "mp4",
-	exportQuality = "high",
-	includeAudio = true,
-	durationContract = {
-		totalDurationMode: "auto",
-		sourceCoverageMode: "selected_segments",
-		toleranceSeconds: 0.2,
-	},
+		exportFormat = "mp4",
+		exportQuality = "high",
+		includeAudio = true,
+		generateIntroCover = true,
+		durationContract = {
+			totalDurationMode: "auto",
+			sourceCoverageMode: "selected_segments",
+			toleranceSeconds: 0.2,
+		},
 }: {
 	taskType?:
 		| "template_draft"
@@ -176,11 +177,12 @@ function confirmedSetupFixture({
 		| "social-highlight"
 		| "comment-bubble"
 		| "minimal-reel";
-	exportFormat?: "mp4" | "webm";
-	exportQuality?: "low" | "medium" | "high" | "very_high";
-	includeAudio?: boolean;
-	durationContract?: DurationContract;
-} = {}): ConfirmedSetup {
+		exportFormat?: "mp4" | "webm";
+		exportQuality?: "low" | "medium" | "high" | "very_high";
+		includeAudio?: boolean;
+		generateIntroCover?: boolean;
+		durationContract?: DurationContract;
+	} = {}): ConfirmedSetup {
 	return {
 		version: 1,
 		taskType,
@@ -188,12 +190,12 @@ function confirmedSetupFixture({
 		source: "codecut_setup_confirmation",
 		timelinePreferences: {
 			aspectRatio: "9:16",
-			durationGoal: { mode: "auto" },
-			durationContract,
-			transitionPreference: "auto",
-			generateIntroCover: true,
-			requirements: "Create a clear short video.",
-		},
+				durationGoal: { mode: "auto" },
+				durationContract,
+				transitionPreference: "auto",
+				generateIntroCover,
+				requirements: "Create a clear short video.",
+			},
 		captionPreferences: {
 			language: captionLanguage,
 			font: captionFont,
@@ -3387,11 +3389,12 @@ describe("codex executor", () => {
 	test("export fails before rendering when timeline violates duration contract", async () => {
 		await createExecutorProject({
 			projectId,
-			name: "Contracted export",
-			confirmedSetup: confirmedSetupFixture({
-				durationContract: {
-					totalDurationMode: "preserve_source",
-					sourceCoverageMode: "full_source",
+				name: "Contracted export",
+				confirmedSetup: confirmedSetupFixture({
+					generateIntroCover: false,
+					durationContract: {
+						totalDurationMode: "preserve_source",
+						sourceCoverageMode: "full_source",
 					sourceDurationSeconds: 28.866667,
 					toleranceSeconds: 0.2,
 				},
@@ -5504,11 +5507,12 @@ describe("codex executor", () => {
 	test("rejects narrated remix plans that violate confirmed duration contract", async () => {
 		await createExecutorProject({
 			projectId,
-			name: "Preserve source remix",
-			confirmedSetup: confirmedSetupFixture({
-				durationContract: {
-					totalDurationMode: "preserve_source",
-					sourceCoverageMode: "full_source",
+				name: "Preserve source remix",
+				confirmedSetup: confirmedSetupFixture({
+					generateIntroCover: false,
+					durationContract: {
+						totalDurationMode: "preserve_source",
+						sourceCoverageMode: "full_source",
 					sourceDurationSeconds: 28.866667,
 					toleranceSeconds: 0.2,
 				},
@@ -5597,11 +5601,12 @@ describe("codex executor", () => {
 	test("reports satisfied duration contract in timeline state", async () => {
 		await createExecutorProject({
 			projectId,
-			name: "Full source remix",
-			confirmedSetup: confirmedSetupFixture({
-				durationContract: {
-					totalDurationMode: "preserve_source",
-					sourceCoverageMode: "full_source",
+				name: "Full source remix",
+				confirmedSetup: confirmedSetupFixture({
+					generateIntroCover: false,
+					durationContract: {
+						totalDurationMode: "preserve_source",
+						sourceCoverageMode: "full_source",
 					sourceDurationSeconds: 28.866667,
 					toleranceSeconds: 0.2,
 				},
@@ -5704,11 +5709,12 @@ describe("codex executor", () => {
 	test("applies preserve-source narrated remix when narration is slightly shorter", async () => {
 		await createExecutorProject({
 			projectId,
-			name: "Short narration full source remix",
-			confirmedSetup: confirmedSetupFixture({
-				durationContract: {
-					totalDurationMode: "preserve_source",
-					sourceCoverageMode: "full_source",
+				name: "Short narration full source remix",
+				confirmedSetup: confirmedSetupFixture({
+					generateIntroCover: false,
+					durationContract: {
+						totalDurationMode: "preserve_source",
+						sourceCoverageMode: "full_source",
 					sourceDurationSeconds: 28.866667,
 					toleranceSeconds: 0.25,
 				},

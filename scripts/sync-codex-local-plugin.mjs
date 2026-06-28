@@ -30,6 +30,7 @@ const EXCLUDES = [
 	"outputs/",
 	"tmp/",
 	".DS_Store",
+	"*.tsbuildinfo",
 	".env.local",
 ];
 const POST_SYNC_CHECKSUM_FILES = [

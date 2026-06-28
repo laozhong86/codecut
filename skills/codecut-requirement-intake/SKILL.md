@@ -158,7 +158,7 @@ Check these fields for every new creative job:
 | Aspect ratio | yes when not implied by platform | Prevents accidental 9:16 crop. |
 | Duration | no if user gave a target | `1 minute` is sufficient for duration. |
 | Caption policy | yes when speech/subtitles are relevant | Prevents overlapping new captions with burned-in subtitles. |
-| Opening cover image | no | Widget defaults this to recommended on except full-source duration preservation, where it defaults off. A top fixed title is not an opening cover image. The confirmed intent must preserve `generateIntroCover` as `true` or `false`. |
+| Opening cover image | no | Widget defaults this to recommended on except full-source duration preservation, where it defaults off. Full-source duration preservation with full-source coverage cannot enable a timeline opening cover image. A top fixed title is not an opening cover image. The confirmed intent must preserve `generateIntroCover` as `true` or `false`. |
 | Video type | yes when style or selection depends on it | Prevents wrong selection strategy. |
 | Editing style | yes when output quality depends on it | Prevents arbitrary pacing. |
 | Business intent | yes for ads/conversion/offers | Prevents invented claims. |

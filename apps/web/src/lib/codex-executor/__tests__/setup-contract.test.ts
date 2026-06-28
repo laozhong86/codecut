@@ -65,6 +65,28 @@ describe("ConfirmedSetup durationContract", () => {
 		).toThrow("durationContract.sourceDurationSeconds is required");
 	});
 
+	test("rejects timeline intro cover for full-source preservation", () => {
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					timelinePreferences: {
+						aspectRatio: "9:16",
+						durationGoal: { mode: "auto" },
+						durationContract: {
+							totalDurationMode: "preserve_source",
+							sourceCoverageMode: "full_source",
+							sourceDurationSeconds: 28.866667,
+						},
+						transitionPreference: "auto",
+						generateIntroCover: true,
+						requirements:
+							"Keep the full source video and add a fixed top title.",
+					},
+				}),
+			),
+		).toThrow("generateIntroCover must be false");
+	});
+
 	test("requires a custom duration range when the contract uses custom_range", () => {
 		expect(() =>
 			ConfirmedSetupSchema.parse(
