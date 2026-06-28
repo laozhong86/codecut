@@ -1556,6 +1556,55 @@ describe("Codecut MCP server contract", () => {
 		});
 	});
 
+	test("disables intro cover by default for full-source duration preservation", () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "Preserve Source Cut",
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+			},
+		});
+
+		expect(result.structuredContent.intentDefaults).toMatchObject({
+			projectName: "Preserve Source Cut",
+			generateIntroCover: false,
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+			},
+		});
+		expect(result._meta.widgetData.intentDefaults).toMatchObject({
+			generateIntroCover: false,
+		});
+	});
+
+	test("keeps explicit intro cover choice for full-source preservation", () => {
+		const result = serverModule.openCodecutWorkspace({
+			projectName: "Preserve Source With Cover",
+			generateIntroCover: true,
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+			},
+		});
+
+		expect(result.structuredContent.intentDefaults).toMatchObject({
+			projectName: "Preserve Source With Cover",
+			generateIntroCover: true,
+			durationContract: {
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+				sourceDurationSeconds: 28.866667,
+			},
+		});
+		expect(result._meta.widgetData.intentDefaults).toMatchObject({
+			generateIntroCover: true,
+		});
+	});
+
 	test("opens the workspace with a manual transition animation preference", () => {
 		const result = serverModule.openCodecutWorkspace({
 			projectName: "Transition Cut",
@@ -2197,6 +2246,15 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				'"generateIntroCover":true',
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"Voice display names are not executable voiceType values",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"Stop before timeline mutation if the requested voice cannot be resolved",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"Intro cover changes the timeline structure",
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				'"captionStylePreset":"product-punch"',
@@ -3961,6 +4019,39 @@ describe("Codecut MCP server contract", () => {
 			ok: true,
 		});
 		expect(result.content[0].text).toContain("get_project_info completed");
+	});
+
+	test("marks executor envelopes with failed command results as MCP errors", () => {
+		const result = normalizeCliResult({
+			toolName: "generate_volcengine_cloned_voice",
+			stdout: JSON.stringify({
+				status: "completed",
+				results: [
+					{
+						tool: "generate_volcengine_cloned_voice",
+						success: false,
+						message: "Volcengine request failed: 403",
+					},
+				],
+			}),
+			stderr: "",
+		});
+
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toMatchObject({
+			status: "completed",
+			error: "Volcengine request failed: 403",
+			results: [
+				{
+					tool: "generate_volcengine_cloned_voice",
+					success: false,
+					message: "Volcengine request failed: 403",
+				},
+			],
+		});
+		expect(result.content[0].text).toContain(
+			"Codecut generate_volcengine_cloned_voice failed",
+		);
 	});
 
 	test("keeps non-JSON CLI stdout visible to the model", () => {

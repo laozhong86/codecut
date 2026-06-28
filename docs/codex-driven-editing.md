@@ -1364,6 +1364,10 @@ Do not start the render if either freshness gate fails.
 - If `verify_timeline` fails, Codex must inspect the returned mismatch fields and correct the plan or verification JSON. Do not treat a failed verification as success because `apply_edit_plan` completed.
 - If the timeline is not empty, Codex must pass `replaceExisting=true` only when replacing the current cut is intentional.
 - If BGM/SFX is requested, Codex must import or select valid audio assets before writing the EditPlan. Missing or non-audio assets must stop the workflow.
+- If provider-backed voice generation fails, report it as an external voice gate
+  and stop before timeline mutation. A display name such as a sound-library label
+  is not a substitute for an executable provider `voice_type` or a local
+  reference audio path.
 - If TTS, BGM, SFX, append mode, arbitrary CSS, or visual effects are requested for narrated remix, stop and report that the current `NarratedRemixPlan v1` path only supports existing narration audio, video or image B-roll, optional independent controlled text overlays, and captions.
 - If transitions are requested, Codex must generate adjacent clip timings before applying the EditPlan. Do not rely on Codecut to reposition clips.
 - A transition request is complete only after readback shows native
