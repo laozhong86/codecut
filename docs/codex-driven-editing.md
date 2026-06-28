@@ -1,8 +1,23 @@
-# Codex-Driven Codecut Editing
+# CodeCut Current Execution Contract
 
-This workflow keeps all LLM and agent reasoning outside Codecut. Codex operates Codecut through deterministic local CLI/executor tools. The browser editor is for human preview, manual adjustment, and live status visibility. Codex owns user intent, clip selection, EditPlan creation, retries, and user communication.
+This document describes the current implemented execution contract for CodeCut's
+Codex-operated editing path. For product positioning, read
+`docs/codecut-product-positioning.md`. For the target Agent visual production
+architecture, read `docs/codecut-agent-visual-production-architecture.md`.
 
-## Product Boundary
+CodeCut's product positioning is `Codex + CapCut`: an Agent-driven visual video
+production system. This file covers the narrower runtime truth underneath that
+positioning: how Codex operates the current local executor, how plans are
+validated, how the timeline is mutated, how readback proves state, and how
+export is verified when requested.
+
+The current implementation keeps LLM and Agent reasoning outside CodeCut.
+Codex operates CodeCut through deterministic local CLI/executor tools. The
+browser editor is the human-visible production surface for preview, manual
+adjustment, and live status. Codex owns user intent, material judgment, clip
+selection, plan creation, retries, and user communication.
+
+## Current Runtime Boundary
 
 Codecut does:
 
@@ -23,7 +38,9 @@ Codecut does not:
 - Understand natural-language editing requests.
 - Generate, complete, guess, or repair an EditPlan.
 
-Codex is the only LLM and Agent layer. Codecut is the visual executor and validator.
+Codex is the only LLM and Agent layer in the current implementation. CodeCut
+is the visual editor, local timeline runtime, validator, and readback surface.
+This is an implementation boundary, not the product headline.
 
 For a user-visible stage map that separates requirement intake, material ingest,
 evidence building, planning, executor application, verification/export, and
