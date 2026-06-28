@@ -1439,6 +1439,7 @@
           const durationGoal = collectDurationGoal();
           return {
             pendingConfirmationId: currentPendingConfirmationId,
+            confirmedByUser: true,
             projectId: currentProjectId || slugify(fields.projectName.value),
             projectName: fields.projectName.value.trim(),
             taskType: fields.taskType.value,

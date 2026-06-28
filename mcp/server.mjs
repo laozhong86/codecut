@@ -366,6 +366,12 @@ const confirmedSetupPatchSchema = z
 
 const workspaceIntentInputSchema = {
 	pendingConfirmationId: z.string().trim().optional(),
+	confirmedByUser: z
+		.boolean()
+		.optional()
+		.describe(
+			"Must be true only after the user explicitly confirmed creating this CodeCut project in the setup widget or chat.",
+		),
 	projectId: z.string().trim(),
 	projectName: z.string().trim(),
 	taskType: workspaceTaskTypeSchema,
@@ -1552,7 +1558,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "submit_codecut_setup",
 		title: "Submit CodeCut Workspace Setup",
 		description:
-			"Confirm a pending CodeCut workspace setup, create the executor project, import confirmed local media, persist the confirmed taskType setup contract, and return editor context. Codex may call this directly after open_codecut_workspace when the user request already provides complete setup fields; otherwise the CodeCut setup widget can call the same tool after the user edits and submits the form. Requires the pendingConfirmationId returned by open_codecut_workspace.",
+			"Confirm a pending CodeCut workspace setup, create the executor project, import confirmed local media, persist the confirmed taskType setup contract, and return editor context. Requires the pendingConfirmationId returned by open_codecut_workspace and confirmedByUser true after the user explicitly confirms creating this project in chat or submits the CodeCut setup widget.",
 		inputSchema: workspaceIntentInputSchema,
 		readOnly: false,
 		modelVisible: true,
@@ -1823,7 +1829,7 @@ export function openCodecutWorkspace(input = {}, { confirmationRoot } = {}) {
 		content: [
 			{
 				type: "text",
-				text: "Rendered CodeCut workspace setup confirmation widget. If the user request already provides complete setup fields, call submit_codecut_setup now with this pendingConfirmationId before reading files, running shell commands, importing media, or mutating timelines. If required setup fields are missing or the user needs to edit the form, wait for the user to submit the widget.",
+				text: "Rendered CodeCut workspace setup confirmation widget. Do not call submit_codecut_setup until the user explicitly confirms creating this project in chat or submits the widget. After confirmation, pass this pendingConfirmationId with confirmedByUser true before importing media or mutating timelines.",
 			},
 		],
 		structuredContent: {
@@ -2095,6 +2101,18 @@ export async function submitCodecutSetup(
 			intent: normalized,
 			error:
 				"pendingConfirmationId from open_codecut_workspace is required before setup submission.",
+		});
+	}
+	if (normalized.confirmedByUser !== true) {
+		return buildSetupBlockedResult({
+			status: "confirmation_required",
+			nextAction: "confirm_codecut_setup_before_submission",
+			projectId: normalized.projectId,
+			projectName: normalized.projectName,
+			pendingConfirmationId: normalized.pendingConfirmationId,
+			intent: normalized,
+			error:
+				"confirmedByUser must be true after explicit user confirmation before CodeCut setup submission.",
 		});
 	}
 	let confirmationToken;
@@ -2657,6 +2675,7 @@ function normalizeWorkspaceIntent(intent) {
 			intent.pendingConfirmationId === undefined
 				? undefined
 				: String(intent.pendingConfirmationId).trim(),
+		confirmedByUser: intent.confirmedByUser === true,
 		projectId: String(intent.projectId || "").trim(),
 		projectName: String(intent.projectName || "").trim(),
 		taskType: String(intent.taskType || "").trim(),

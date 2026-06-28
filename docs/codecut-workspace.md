@@ -111,9 +111,9 @@ Project folder:
 ## Required Order
 
 1. Understand the user message and write intent analysis.
-2. Call `open_codecut_workspace`, then call `submit_codecut_setup` in the same
-   turn when setup fields are complete. Wait for widget submission only when
-   the user must edit missing setup fields.
+2. Call `open_codecut_workspace`, then wait for explicit user confirmation in
+   chat or widget submission before calling `submit_codecut_setup` with
+   `confirmedByUser: true`.
 3. Use the workspace index created by `submit_codecut_setup`.
 4. Carry the returned confirmation token into all workspace side-effect
    commands.
