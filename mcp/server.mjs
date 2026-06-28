@@ -2256,6 +2256,11 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		[],
 	);
 	const hasExplicitRequirementOptions = input.requirementOptions !== undefined;
+	const durationGoalMode =
+		input.durationGoalMode === "custom" ? "custom" : "auto";
+	const durationContract = normalizeDurationContract(input.durationContract, {
+		durationGoalMode,
+	});
 	const defaults = {
 		projectId:
 			String(input.projectId || "").trim() ||
@@ -2271,7 +2276,7 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		mediaSource: mediaSources[0],
 		mediaSources,
 		targetAspectRatio: input.targetAspectRatio || "9:16",
-		durationGoalMode: input.durationGoalMode === "custom" ? "custom" : "auto",
+		durationGoalMode,
 		captionLanguage: String(input.captionLanguage || "auto"),
 		uiLanguage,
 		output: {
@@ -2288,12 +2293,13 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		generateIntroCover:
 			typeof input.generateIntroCover === "boolean"
 				? input.generateIntroCover
-				: true,
+				: shouldGenerateIntroCoverByDefault(durationContract),
 		transitionPreference: normalizeWorkspaceTransitionPreference(
 			input.transitionPreference,
 		),
 		requirements,
 		requirementOptions,
+		durationContract,
 	};
 	if (recommendedRequirementOptions.length) {
 		defaults.recommendedRequirementOptions = recommendedRequirementOptions;
@@ -2306,10 +2312,17 @@ function buildWorkspaceIntentDefaults(input = {}) {
 	if (durationGoalRangeSeconds) {
 		defaults.durationGoalRangeSeconds = durationGoalRangeSeconds;
 	}
-	defaults.durationContract = normalizeDurationContract(input.durationContract, {
-		durationGoalMode: defaults.durationGoalMode,
-	});
 	return defaults;
+}
+
+function shouldGenerateIntroCoverByDefault(durationContract) {
+	if (
+		durationContract?.totalDurationMode === "preserve_source" &&
+		durationContract?.sourceCoverageMode === "full_source"
+	) {
+		return false;
+	}
+	return true;
 }
 
 function buildWorkspaceOpenMediaSources(input = {}) {
@@ -2952,11 +2965,22 @@ function buildContinuePrompt({
 		].join("\n");
 	}
 
+	const guardrails = [
+		"Voice display names are not executable voiceType values. Use a real Volcengine voice_type, a local reference audio path for RunningHub cloning, or explicit user approval to use another available voice.",
+		"Stop before timeline mutation if the requested voice cannot be resolved or a voice generation tool returns a provider/runtime error.",
+	];
+	if (intent.generateIntroCover === true) {
+		guardrails.push(
+			"Intro cover changes the timeline structure. If the duration contract preserves the full source, handle the intro cover duration explicitly before authoring or applying any plan.",
+		);
+	}
+
 	return [
 		`Use $codecut to continue the real CodeCut editing chain for project "${projectName}" (${projectId}).`,
 		`Use --confirmation-token ${confirmationToken} for any CodeCut side-effect command that creates projects, imports media, initializes workspaces, adds assets, generates media, mutates timelines, or exports files.`,
 		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. Click this host-rendered link if manual preview is needed: [Open CodeCut editor](${editorUrl}). If the selected tab is already on that URL, do not reload it.`,
 		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state with projectId "${projectId}".`,
+		...guardrails,
 		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
 		`Deferred media sources: ${JSON.stringify(deferredMediaSources)}.`,
 		`Confirmed intent: ${JSON.stringify(intent)}.`,
@@ -3907,12 +3931,39 @@ function parseJsonIfPossible(stdout) {
 	}
 }
 
+function firstFailedExecutorResult(structuredContent) {
+	if (!Array.isArray(structuredContent?.results)) {
+		return undefined;
+	}
+	return structuredContent.results.find((result) => result?.success === false);
+}
+
 export function normalizeCliResult({ toolName, stdout = "", stderr = "" }) {
 	const structuredContent = parseJsonIfPossible(stdout);
 	if (stderr.trim()) {
 		structuredContent.stderr = stderr;
 	}
 	const visibleOutput = stdout.trim() || stderr.trim() || "No CLI output.";
+	const failedResult = firstFailedExecutorResult(structuredContent);
+	if (failedResult) {
+		const error =
+			typeof failedResult.message === "string" && failedResult.message.trim()
+				? failedResult.message.trim()
+				: `${toolName} failed.`;
+		return {
+			content: [
+				{
+					type: "text",
+					text: `Codecut ${toolName} failed.\n\n${visibleOutput}`,
+				},
+			],
+			structuredContent: {
+				...structuredContent,
+				error,
+			},
+			isError: true,
+		};
+	}
 	return {
 		content: [
 			{

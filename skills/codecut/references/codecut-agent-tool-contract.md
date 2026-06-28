@@ -29,6 +29,8 @@ Every MCP bridge result should keep the machine-readable payload in
 setup failures use explicit `status` values such as `create_failed`,
 `import_failed`, or `readback_failed`. Codex must branch on those fields instead
 of treating a text message as success.
+Executor envelopes that contain any `results[].success === false` are MCP
+failures even when the bridge process exits successfully.
 
 | Capability | Tools | Side Effect Boundary | Success Output | Failure Shape | Agent Next Action |
 | --- | --- | --- | --- | --- | --- |

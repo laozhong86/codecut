@@ -173,4 +173,21 @@ describe("Volcengine OpenSpeech provider", () => {
 			}),
 		).rejects.toThrow("Volcengine returned non-JSON response");
 	});
+
+	test("includes provider error details when voice synthesis is rejected", async () => {
+		await expect(
+			synthesizeVolcengineClonedVoice({
+				apiKey: "volc-key",
+				voiceType: "主播女 声音克隆",
+				text: "豆包语音",
+				fetchImpl: async () =>
+					Response.json(
+						{ message: "voice_type is unauthorized" },
+						{ status: 403 },
+					),
+			}),
+		).rejects.toThrow(
+			"Volcengine request failed: 403 - voice_type is unauthorized",
+		);
+	});
 });

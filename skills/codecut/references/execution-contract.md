@@ -97,6 +97,9 @@ preview URL.
   image through an available image generation capability outside Codecut
   runtime, import that image with `import_media`, and write `introCover` in the
   EditPlan.
+- For full-source duration preservation, `generateIntroCover` defaults to
+  `false` unless the user explicitly asks for a timeline opening image. A fixed
+  top title is a text/title layer and must not be treated as `introCover`.
 - Do not generate a timeline intro image when confirmed setup intent has
   `generateIntroCover: false`.
 - Do not silently downgrade cover work. If image generation capability is
@@ -254,3 +257,8 @@ If a bridge command stays pending until timeout, stop the editing loop. If the c
 - A feature that cannot be verified in editor state or browser preview is not complete.
 - A generated edit is not complete until the user can preview the applied result in Codecut and the timeline state verifies the requested tracks/elements.
 - If implementation requires a new abstraction, first show the repeated pattern or current ownership boundary that makes it necessary.
+- If a voice tool fails with a provider/runtime error, report that external
+  generation gate separately from editing correctness. Do not mutate the
+  timeline, apply a NarratedRemixPlan, or substitute a different voice unless
+  the user supplies a real executable voice id, a local reference audio path, or
+  explicit approval to use another available voice.

@@ -112,9 +112,26 @@ async function readVolcengineJson(response: Response): Promise<unknown> {
 		throw new Error("Volcengine returned non-JSON response");
 	}
 	if (!response.ok) {
-		throw new Error(`Volcengine request failed: ${response.status}`);
+		const detail = extractVolcengineErrorDetail(payload);
+		throw new Error(
+			`Volcengine request failed: ${response.status}${detail ? ` - ${detail}` : ""}`,
+		);
 	}
 	return payload;
+}
+
+function extractVolcengineErrorDetail(payload: unknown): string {
+	if (typeof payload !== "object" || payload === null) {
+		return "";
+	}
+	const record = payload as Record<string, unknown>;
+	for (const key of ["error", "message"]) {
+		const value = record[key];
+		if (typeof value === "string" && value.trim()) {
+			return value.trim();
+		}
+	}
+	return "";
 }
 
 function assertSuccessfulPayload(payload: unknown, context: string) {
