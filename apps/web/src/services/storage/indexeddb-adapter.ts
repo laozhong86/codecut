@@ -25,7 +25,18 @@ export class IndexedDBAdapter<T> implements StorageAdapter<T> {
 					: indexedDB.open(this.dbName, version);
 
 			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve(request.result);
+			request.onblocked = () =>
+				reject(
+					new DOMException(
+						"IndexedDB upgrade blocked by an open connection.",
+						"InvalidStateError",
+					),
+				);
+			request.onsuccess = () => {
+				const db = request.result;
+				db.onversionchange = () => db.close();
+				resolve(db);
+			};
 
 			request.onupgradeneeded = () => {
 				this.createStoreIfMissing(request.result);
