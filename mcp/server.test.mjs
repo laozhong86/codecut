@@ -2051,6 +2051,7 @@ describe("Codecut MCP server contract", () => {
 				{
 					bridgeToolImpl,
 					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
 				},
 			);
 
@@ -2152,7 +2153,11 @@ describe("Codecut MCP server contract", () => {
 						{ kind: "filePath", filePath: secondFilePath },
 					],
 				}),
-				{ bridgeToolImpl, confirmationRoot: directory },
+				{
+					bridgeToolImpl,
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+				},
 			);
 
 			expect(calls.map((call) => call.toolName)).toEqual([
@@ -2241,6 +2246,31 @@ describe("Codecut MCP server contract", () => {
 					{ id: "media-1", name: "source.mp4" },
 					{ id: "media-2", name: "second.mp4" },
 				],
+			});
+			const workspaceDirectory = join(
+				directory,
+				".codecut-workspace/projects/launch-cut-canonical",
+			);
+			expect(result.structuredContent.workspace).toMatchObject({
+				projectId: "launch-cut-canonical",
+				projectDirectory: workspaceDirectory,
+			});
+			expect(
+				JSON.parse(await readFile(join(workspaceDirectory, "workspace.json"), "utf8")),
+			).toMatchObject({
+				projectId: "launch-cut-canonical",
+				name: "Launch Cut",
+			});
+			expect(
+				JSON.parse(
+					await readFile(
+						join(workspaceDirectory, "02-inventory/asset-manifest.json"),
+						"utf8",
+					),
+				),
+			).toMatchObject({
+				projectId: "launch-cut-canonical",
+				assets: [],
 			});
 			expect(result.content[0].text).toContain(
 				"[Open CodeCut editor](http://127.0.0.1:4100/en/editor/launch-cut-canonical)",
@@ -2399,7 +2429,11 @@ describe("Codecut MCP server contract", () => {
 					],
 					requirements: "创建模板，学习参考视频结构。",
 				}),
-				{ bridgeToolImpl, confirmationRoot: directory },
+				{
+					bridgeToolImpl,
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+				},
 			);
 
 			const prompt = result.structuredContent.continuePrompt;
@@ -2469,7 +2503,11 @@ describe("Codecut MCP server contract", () => {
 						],
 						requirements: "Confirm this task.",
 					}),
-					{ bridgeToolImpl, confirmationRoot: directory },
+					{
+						bridgeToolImpl,
+						confirmationRoot: directory,
+						workspaceSourceRoot: directory,
+					},
 				);
 			} finally {
 				await rm(directory, {
@@ -2569,7 +2607,11 @@ describe("Codecut MCP server contract", () => {
 						{ kind: "filePath", filePath: "/tmp/missing.mp4" },
 					],
 				}),
-				{ bridgeToolImpl, confirmationRoot: directory },
+				{
+					bridgeToolImpl,
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+				},
 			);
 
 			expect(calls.map((call) => call.toolName)).toEqual([
@@ -2632,7 +2674,11 @@ describe("Codecut MCP server contract", () => {
 					pendingConfirmationId,
 					mediaSources: undefined,
 				}),
-				{ bridgeToolImpl, confirmationRoot: directory },
+				{
+					bridgeToolImpl,
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+				},
 			);
 
 			expect(calls.map((call) => call.toolName)).toEqual([
@@ -2694,7 +2740,11 @@ describe("Codecut MCP server contract", () => {
 						{ kind: "directoryPath", directoryPath: "/tmp/source-folder" },
 					],
 				}),
-				{ bridgeToolImpl, confirmationRoot: directory },
+				{
+					bridgeToolImpl,
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+				},
 			);
 
 			expect(calls.map((call) => call.toolName)).toEqual([
@@ -2760,7 +2810,11 @@ describe("Codecut MCP server contract", () => {
 					pendingConfirmationId,
 					mediaSources: [{ kind: "url", url: sourceUrl }],
 				}),
-				{ bridgeToolImpl, confirmationRoot: directory },
+				{
+					bridgeToolImpl,
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+				},
 			);
 
 			expect(calls.map((call) => call.toolName)).toEqual([
@@ -2813,6 +2867,7 @@ describe("Codecut MCP server contract", () => {
 				setupIntent({ mediaSources: [{ kind: "filePath", filePath }] }),
 				{
 					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
 					bridgeToolImpl: async (toolName, args) => {
 						calls.push({ toolName, args });
 						throw new Error("bridge must not run before widget confirmation");
@@ -2872,6 +2927,7 @@ describe("Codecut MCP server contract", () => {
 				{
 					bridgeToolImpl,
 					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
 				},
 			);
 

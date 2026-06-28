@@ -18,7 +18,7 @@ stage.
 
 Requirement intake is a blocking gate for new Codecut editing jobs.
 
-Before material ingest, workspace init/add-assets, doctor checks,
+Before material ingest, workspace add-assets/probe, doctor checks,
 `create-project`, `import-media`, generated media, timeline mutation, or export,
 classify the request and decide whether the user's intent is confirmed enough
 to execute.
@@ -95,7 +95,6 @@ Blocked commands before this gate passes:
 - `node scripts/codex-bridge.mjs build-video-context`
 - `node scripts/codex-bridge.mjs build-post-cut-captions`
 - `node scripts/codex-bridge.mjs apply-plan`
-- `node scripts/codecut-workspace.mjs init`
 - `node scripts/codecut-workspace.mjs add-assets`
 - `node scripts/codecut-workspace.mjs probe-assets`
 - `node scripts/codecut-workspace.mjs write-doc`
@@ -170,7 +169,7 @@ A remote URL is not the same as the local-file fast path.
 
 For YouTube or other remote URLs in a new creative job, confirm output form,
 platform, aspect ratio, and caption policy through the widget before download,
-probe, workspace init, or timeline mutation.
+probe, workspace asset filing, or timeline mutation.
 
 For TikTok video URLs, photo URLs, share links, author pages, or `@handle`
 inputs, use `codecut-tiktok-downloader` for source acquisition only after the

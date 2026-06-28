@@ -75,16 +75,18 @@ source pack; unrelated jobs should get separate project IDs.
 Required pre-edit order for user-provided materials:
 
 1. Understand the user message and write intent analysis.
-2. Reserve a concrete `projectId` and business project name.
-3. Initialize the workspace with `scripts/codecut-workspace.mjs`.
+2. Call `open_codecut_workspace` with a concrete `projectId` and business
+   project name, then wait for `submit_codecut_setup`.
+3. Use the workspace index initialized by `submit_codecut_setup`; do not rerun
+   `scripts/codecut-workspace.mjs init` for that project.
 4. Copy provided files into categorized local folders.
 5. Run ffprobe material inventory for video/audio assets.
 6. Ask clarification questions with concrete choices and exactly one
    recommended option per question.
 7. Write workflow route, content breakdown, hook selection, script documents,
    decision ledger, and timeline restructure notes when they are relevant.
-8. Create the Codecut executor project only after the workspace is ready and the
-   user-facing editing direction is clear.
+8. Continue with the Codecut executor project returned by setup only after the
+   workspace index exists and the user-facing editing direction is clear.
 
 Workspace files are local evidence and planning artifacts. They are not Codecut
 timeline state and are excluded from git and plugin-cache sync.
@@ -250,7 +252,7 @@ Before the first business bridge command, run:
 node scripts/codex-bridge.mjs doctor-install --project-id <id>
 ```
 
-`doctor-install` checks the source plugin, installed Codex plugin cache, source-to-cache sync state, `CODECUT_AGENT_BRIDGE_*` environment, the 4100 web service, and the executor project. It verifies that the token exists but never prints the token value. If `plugin_sync` fails, run `node scripts/sync-codex-local-plugin.mjs` from the plugin root, then rerun `doctor-install`.
+`doctor-install` checks the source plugin, installed Codex plugin cache, source-to-cache sync state, `CODECUT_AGENT_BRIDGE_*` environment, Node renderer support, Sharp/libvips native image support, the 4100 web service, and the executor project. It verifies that the token exists but never prints the token value. If `plugin_sync` fails, run `node scripts/sync-codex-local-plugin.mjs` from the plugin root, then rerun `doctor-install`. If `sharp_libvips` fails, fix the local dependency install before visual inspection, export-frame extraction, or quality-report work.
 
 Then run the executor readiness check:
 
@@ -855,21 +857,21 @@ When the request includes one absolute local media file and a concrete target su
 
 1. Reserve a readable `projectId` and business project name.
 2. Call `open_codecut_workspace` with the known setup fields and wait for
-   `submit_codecut_setup` to return the confirmed setup token.
+   `submit_codecut_setup` to create the executor project, initialize the
+   workspace index, and return the confirmed setup token.
    If the widget created the project but the Codex thread did not receive the
    follow-up prompt, call `recover_codecut_setup` with that `projectId` and the
    original `pendingConfirmationId` before opening another setup widget.
-3. Initialize `.codecut-workspace/projects/<projectId>` with
-   `--confirmation-token <token>`.
+3. Verify `.codecut-workspace/projects/<projectId>/workspace.json` exists from
+   setup. Do not rerun `codecut-workspace init`.
 4. Add the local file with `codecut-workspace add-assets
    --confirmation-token <token>`.
 5. Run `codecut-workspace probe-assets --confirmation-token <token>`.
 6. Ask any missing clarification questions with choices and one recommended option.
 7. Write workflow route, content breakdown, hook selection, and timeline restructure notes with the confirmed setup token.
 8. Confirm the local Codecut service is ready.
-9. Create the executor project with the same `projectId`, immediately open the
-   returned `editorUrl` in the Codex in-app browser, then run `doctor-install`
-   and `doctor`.
+9. Open the returned `editorUrl` in the Codex in-app browser, then run
+   `doctor-install` and `doctor`.
 10. Apply explicit project settings for vertical/square output.
 11. Import the local file with the confirmed setup token.
 12. List media and select the imported audio/video asset.

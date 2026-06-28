@@ -43,7 +43,7 @@ claiming a local plugin update is visible in Codex:
 | Codex CLI and app | Every visible Codex binary and version | `which -a codex`; `codex --version`; `/Applications/Codex.app/Contents/Resources/codex --version` when present | The release note records the binary actually used. Missing `codex plugin list --json` support is treated as CLI-version drift, not a Codecut plugin failure. |
 | Host tool surface | Current or fresh-session tool discovery | `tool_search` query: `open_codecut_workspace Codecut MCP workspace setup widget` | The callable tool `mcp__codecut_mcp.open_codecut_workspace` is visible after cache sync. |
 | Fresh-session proof | Real `@codecut` validation thread | `docs/codecut-widget-intake-fresh-thread.md`; `node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId>` | The thread contains a real `codecut_mcp.open_codecut_workspace` call and no shell, file write, media import, timeline mutation, or text fallback. |
-| Runtime readiness | Required only when editing execution is part of the release | `node scripts/codex-bridge.mjs doctor-install --project-id <id>`; `node scripts/codex-bridge.mjs doctor --project-id <id>` | Source, cache, bridge env, web service, executor project, and executor status all pass. Widget-only releases may mark this layer not applicable. |
+| Runtime readiness | Required only when editing execution is part of the release | `node scripts/codex-bridge.mjs doctor-install --project-id <id>`; `node scripts/codex-bridge.mjs doctor --project-id <id>` | Source, cache, bridge env, Node renderer, Sharp/libvips, web service, executor project, and executor status all pass. Widget-only releases may mark this layer not applicable. |
 
 ## Release Record Template
 

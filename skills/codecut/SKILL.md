@@ -127,13 +127,13 @@ export.
 | Cover title, video title, hook, voiceover script, spoken-word draft, or de-AI rewrite with no timeline mutation request | Use `codecut-scriptwriting`. Do not open the creative editing widget, create an executor project, import media, or mutate the timeline. If the user also asks to apply the copy into an edit, produce the copy brief first, then route through normal requirement intake and planning. |
 | New creative job with explicit setup fields already provided | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` before executor mutation. |
 | TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally for an editing job | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition only after widget submission and requirement intake pass. |
-| Source needs download, file copy, workspace init, or ffprobe audit for a creative editing job | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest` only after widget submission and requirement intake pass. |
+| Source needs download, file copy, workspace asset filing, or ffprobe audit for a creative editing job | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest` only after widget submission and requirement intake pass. |
 | Material understanding, material role labeling, "这些素材适合怎么用", "帮我理解素材", "给脚本匹配素材", replacement suitability, picture-in-picture suitability, split-screen suitability, or circular talking-head suitability before final editing decisions | **REQUIRED SUB-SKILL:** Use `codecut-material-understanding` after material ingest and before `codecut-edit-planning`. Do not mutate the timeline or choose the final edit recipe in this stage. |
 | Finished/reference videos, "learn this editing style", "复刻模板", reference-derived template draft/import/application | **REQUIRED SUB-SKILL:** Use `codecut-reference-template` before EditPlan authoring or executor mutation. |
 | Project cover, short-video poster, thumbnail, cover prompt, cover image, cover evidence-frame selection, or setting an independent project cover outside the timeline | **REQUIRED SUB-SKILL:** Use `codecut-cover-generation` before image generation, media import, or `set_project_cover`. |
 | Transcript, VideoContext, candidate clips, decision ledger, or EditPlan/NarratedRemixPlan authoring | **REQUIRED SUB-SKILL:** Use `codecut-edit-planning` before executor validation or mutation. If material roles, script matching, replacement, PIP, split-screen, or circular talking-head suitability affects the plan, require the material-understanding report first. |
 | Executor service, env, doctor, import, apply, caption build, timeline readback | **REQUIRED SUB-SKILL:** Use `codecut-executor-apply`. |
-| Opening a new planning pass after workspace init | Read `.codecut-workspace/user-methodology/profile.md` and `rules.md` if they exist, then use `codecut-edit-planning`. Current user instructions override stored methodology. |
+| Opening a new planning pass after setup-initialized workspace creation | Read `.codecut-workspace/user-methodology/profile.md` and `rules.md` if they exist, then use `codecut-edit-planning`. Current user instructions override stored methodology. |
 | User says "remember this", "以后按这个", "更新偏好", "刚才这里剪错了", or gives reusable editing feedback | **REQUIRED SUB-SKILL:** Use `codecut-methodology-capture`. First generate a project proposal; do not update long-term preferences without explicit user confirmation. |
 | Project completion after timeline/export verification | **REQUIRED SUB-SKILL:** Use `codecut-methodology-capture` to create `08-learning/methodology-proposal.md` and ask whether to update private methodology. |
 | Existing project inspection or export readiness | Use `codecut-edit-planning` to select the timeline-inspection recipe, then `codecut-executor-apply` for readback or export proof. |
@@ -146,9 +146,11 @@ export.
   `open_codecut_workspace`; a `service_unavailable` result is a blocker, not a
   rendered widget.
 - New creative jobs must pass through `open_codecut_workspace` and
-  `submit_codecut_setup` before material ingest, workspace init/add-assets,
-  doctor checks, executor project creation, media import, generated media,
-  timeline mutation, or export.
+  `submit_codecut_setup` before material ingest, workspace add-assets/probe,
+  doctor checks, generated media, timeline mutation, or export.
+- `submit_codecut_setup` creates the executor project and initializes
+  `.codecut-workspace/projects/<projectId>/workspace.json`. Do not rerun
+  `codecut-workspace init` for that project.
 - Before creating a new executor project, define a business project name. Use
   `create-project --project-id <id> --name "<business project name>"
   --confirmation-token <token>`.
