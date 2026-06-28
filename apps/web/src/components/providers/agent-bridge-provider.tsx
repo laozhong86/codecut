@@ -78,19 +78,26 @@ async function postHeartbeat({
 	projectId: string;
 	bridgeToken: string;
 	fetchImpl: BridgeFetch;
-}): Promise<void> {
-	const response = await fetchImpl("/api/agent-bridge/heartbeat", {
-		method: "POST",
-		headers: bridgeHeaders({
-			bridgeToken,
-			contentType: "application/json",
-		}),
-		body: JSON.stringify({ projectId }),
-	});
+}): Promise<boolean> {
+	let response: Response;
+	try {
+		response = await fetchImpl("/api/agent-bridge/heartbeat", {
+			method: "POST",
+			headers: bridgeHeaders({
+				bridgeToken,
+				contentType: "application/json",
+			}),
+			body: JSON.stringify({ projectId }),
+		});
+	} catch {
+		// The editor can outlive the local dev server; pause this bridge tick.
+		return false;
+	}
 
 	if (!response.ok) {
-		throw new Error(`Failed to publish bridge heartbeat: ${response.status}`);
+		return false;
 	}
+	return true;
 }
 
 export async function pollAgentBridgeOnce({
@@ -104,7 +111,14 @@ export async function pollAgentBridgeOnce({
 	fetchImpl?: BridgeFetch;
 	executeEnvelope?: ExecuteEnvelope;
 }): Promise<void> {
-	await postHeartbeat({ projectId, bridgeToken, fetchImpl });
+	const heartbeatPublished = await postHeartbeat({
+		projectId,
+		bridgeToken,
+		fetchImpl,
+	});
+	if (!heartbeatPublished) {
+		return;
+	}
 
 	const response = await fetchImpl(
 		`/api/agent-bridge/commands?projectId=${encodeURIComponent(projectId)}`,
