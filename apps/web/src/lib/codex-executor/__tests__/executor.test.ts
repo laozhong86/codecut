@@ -5056,6 +5056,132 @@ describe("codex executor", () => {
 		expect(captionText).not.toContain("The AMO that ASAP");
 	});
 
+	test("spreads Chinese scripted TTS captions across all ASR timing segments", async () => {
+		await seedDraftState({
+			mediaAssets: [
+				{
+					id: "tts-zh",
+					name: "runninghub-voice-clone.wav",
+					type: "audio",
+					mimeType: "audio/wav",
+					duration: 16.64,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/runninghub-voice-clone.wav",
+					spokenScript: {
+						source: "tts",
+						text: "这条视频的开头很狠：先让胡子一刷变黑，再提醒你别急着染发。中段马上给替代方案，展示刷头、上色和纸巾测试，证明它能盖白发还不容易掉。最后抛出颜色、优惠和包邮，把好奇心直接推到下单。它卖的不是一支刷子，而是怕显老的人想立刻变年轻。",
+						captions: [
+							"这条视频的开头很狠：先让胡子一刷变黑，再提醒你别急着染发。",
+							"中段马上给替代方案，展示刷头、上色和纸巾测试，证明它能盖白发还不容易掉。",
+							"最后抛出颜色、优惠和包邮，把好奇心直接推到下单。",
+							"它卖的不是一支刷子，而是怕显老的人想立刻变年轻。",
+						],
+						protectedTerms: ["白发"],
+						provider: "runninghub-voice-clone",
+						providerTaskId: "voice-task-1",
+					},
+				},
+			],
+			tracks: [
+				{
+					id: "audio-track-1",
+					type: "audio",
+					name: "Narration",
+					muted: false,
+					elements: [
+						{
+							id: "tts-clip-1",
+							type: "audio",
+							name: "Narration",
+							mediaId: "tts-zh",
+							startTime: 0,
+							duration: 16.64,
+							trimStart: 0,
+							trimEnd: 16.64,
+							sourceType: "upload",
+							volume: 1,
+							muted: false,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_post_cut_captions",
+				args: {
+					language: "zh-CN",
+					modelId: "whisper-base",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+						size: "medium",
+					},
+				},
+			}),
+			transcribeMediaRange: async ({ range, language, modelId }) => {
+				expect(range).toEqual({ start: 0, end: 16.64 });
+				return {
+					text: "這條視頻的開頭很狠 先讓胡子一刷便黑 再提醒你別急著染發",
+					language,
+					modelId,
+					segments: [
+						{ text: "這條視頻的開頭很狠", start: 0, end: 1.54 },
+						{ text: "先讓胡子一刷便黑", start: 1.54, end: 2.94 },
+						{ text: "再提醒你別急著染發", start: 2.94, end: 4.34 },
+						{ text: "中段馬上給替代方案", start: 4.34, end: 5.76 },
+						{ text: "展示刷頭上色和紙巾測試", start: 5.76, end: 8 },
+						{ text: "證明它能蓋白髮還不容易掉", start: 8, end: 9.78 },
+						{ text: "最後拋出顏色", start: 9.78, end: 10.92 },
+						{ text: "優惠和包油", start: 10.92, end: 11.76 },
+						{ text: "把耗積心直接推到下單", start: 11.76, end: 13.28 },
+						{ text: "它賣的不是一隻刷子", start: 13.28, end: 14.48 },
+						{ text: "而是怕閒老的人想立刻變年輕", start: 14.48, end: 16.46 },
+					],
+					...asrContractFields(),
+				};
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				source: "scripted_tts_audio",
+				voiceConsistency: {
+					provider: "runninghub-voice-clone",
+					providerTaskId: "voice-task-1",
+					scriptCaptionLineCount: 4,
+					protectedTermCount: 1,
+				},
+				captionQuality: {
+					ok: true,
+					issueCount: 0,
+				},
+			},
+		});
+		const data = resultData<{
+			captions: EditPlanCaption[];
+			trace: Array<{ captionCount: number }>;
+		}>(result.results[0]);
+		const captionText = data.captions.map((caption) => caption.text).join("");
+		const finalCaption = data.captions.at(-1);
+
+		expect(captionText).toContain("白发");
+		expect(captionText).toContain("优惠和包邮");
+		expect(captionText).toContain("立刻变年轻");
+		expect(captionText).not.toContain("白髮");
+		expect(captionText).not.toContain("包油");
+		expect(finalCaption?.startTime).toBeGreaterThan(14);
+		expect(
+			finalCaption
+				? Number((finalCaption.startTime + finalCaption.duration).toFixed(3))
+				: null,
+		).toBe(16.46);
+		expect(data.trace[0].captionCount).toBe(data.captions.length);
+	});
+
 	test("applies clip-only SpeechCleanup then rebuilds post-cut captions into the final EditPlan", async () => {
 		await createExecutorProject({ projectId, name: "Speech cleanup captions" });
 		const importResult = await executeCodexExecutorEnvelope({

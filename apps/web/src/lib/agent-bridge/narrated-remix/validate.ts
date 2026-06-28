@@ -205,6 +205,113 @@ function validateNarrationPlacement({
 	return { success: true };
 }
 
+function validateCaptionSource({
+	plan,
+	narrationAsset,
+}: {
+	plan: NarratedRemixPlan;
+	narrationAsset: MediaAsset;
+}): { success: true } | { success: false; message: string; path: string } {
+	const captionSource = plan.captionSource;
+	if (!captionSource) return { success: true };
+
+	if (captionSource.source !== "scripted_tts_audio") {
+		return { success: true };
+	}
+	const tracedCaptionCount = captionSource.trace.reduce(
+		(total, item) => total + item.captionCount,
+		0,
+	);
+	if (tracedCaptionCount !== plan.captions.length) {
+		return {
+			success: false,
+			message:
+				"NarratedRemixPlan captionSource trace captionCount does not match captions.",
+			path: "captionSource.trace",
+		};
+	}
+	if (!captionSource.voiceConsistency) {
+		return {
+			success: false,
+			message:
+				"NarratedRemixPlan scripted_tts_audio captionSource requires voiceConsistency.",
+			path: "captionSource.voiceConsistency",
+		};
+	}
+	if (!narrationAsset.spokenScript) {
+		return {
+			success: false,
+			message:
+				"NarratedRemixPlan scripted_tts_audio captionSource requires narration spokenScript.",
+			path: "captionSource.source",
+		};
+	}
+	if (
+		captionSource.trace.some(
+			(traceItem) => traceItem.mediaId !== plan.narration.mediaId,
+		)
+	) {
+		return {
+			success: false,
+			message:
+				"NarratedRemixPlan scripted_tts_audio captionSource trace must reference narration mediaId.",
+			path: "captionSource.trace",
+		};
+	}
+
+	const scriptCaptionLineCount = narrationAsset.spokenScript.captions
+		.map((caption) => caption.trim())
+		.filter(Boolean).length;
+	if (
+		captionSource.voiceConsistency.scriptCaptionLineCount !==
+		scriptCaptionLineCount
+	) {
+		return {
+			success: false,
+			message:
+				"NarratedRemixPlan scripted_tts_audio captionSource scriptCaptionLineCount does not match narration spokenScript.",
+			path: "captionSource.voiceConsistency.scriptCaptionLineCount",
+		};
+	}
+
+	const protectedTermCount =
+		narrationAsset.spokenScript.protectedTerms?.length ?? 0;
+	if (
+		captionSource.voiceConsistency.protectedTermCount !== protectedTermCount
+	) {
+		return {
+			success: false,
+			message:
+				"NarratedRemixPlan scripted_tts_audio captionSource protectedTermCount does not match narration spokenScript.",
+			path: "captionSource.voiceConsistency.protectedTermCount",
+		};
+	}
+
+	const expectedProvider =
+		narrationAsset.spokenScript.provider ?? "imported-tts";
+	if (captionSource.voiceConsistency.provider !== expectedProvider) {
+		return {
+			success: false,
+			message:
+				"NarratedRemixPlan scripted_tts_audio captionSource provider does not match narration spokenScript.",
+			path: "captionSource.voiceConsistency.provider",
+		};
+	}
+	if (
+		captionSource.voiceConsistency.providerTaskId !==
+		narrationAsset.spokenScript.providerTaskId
+	) {
+		return {
+			success: false,
+			message:
+				"NarratedRemixPlan scripted_tts_audio captionSource providerTaskId does not match narration spokenScript.",
+			path: "captionSource.voiceConsistency.providerTaskId",
+		};
+	}
+
+	return { success: true };
+}
+
 function normalizeCaptionsForQuality({
 	plan,
 }: {
@@ -473,6 +580,13 @@ export function validateNarratedRemixPlan({
 	});
 	if (!narrationPlacementValidation.success) {
 		return narrationPlacementValidation;
+	}
+	const captionSourceValidation = validateCaptionSource({
+		plan: normalizedPlan,
+		narrationAsset,
+	});
+	if (!captionSourceValidation.success) {
+		return captionSourceValidation;
 	}
 
 	let expectedTimelineStart = 0;

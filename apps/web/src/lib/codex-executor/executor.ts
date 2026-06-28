@@ -4406,6 +4406,13 @@ function normalizeSpokenScriptCaptionTexts({
 
 type TimedTextSegment = { text: string; start: number; end: number };
 
+const CJK_SCRIPT_RE =
+	/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+
+function containsCjkScript(text: string): boolean {
+	return CJK_SCRIPT_RE.test(text);
+}
+
 function timingSegmentWeight(segment: TimedTextSegment): number {
 	return Math.max(0, segment.end - segment.start);
 }
@@ -4495,6 +4502,24 @@ function groupWeightedItemsByTiming({
 	return chunks;
 }
 
+function scriptedCaptionItemsForTimingSegments({
+	captions,
+}: {
+	captions: string[];
+}): { items: string[]; joinItems: (items: string[]) => string } {
+	const joinedCaptions = captions.join(" ").trim();
+	if (containsCjkScript(joinedCaptions)) {
+		return {
+			items: Array.from(joinedCaptions.replace(/\s+/g, "")).filter(Boolean),
+			joinItems: (items) => items.join(""),
+		};
+	}
+	return {
+		items: joinedCaptions.split(/\s+/).filter(Boolean),
+		joinItems: (items) => items.join(" "),
+	};
+}
+
 function alignScriptedCaptionsToTimingSegments({
 	captions,
 	timingSegments,
@@ -4505,20 +4530,25 @@ function alignScriptedCaptionsToTimingSegments({
 	if (timingSegments.length === 0) {
 		return [];
 	}
-	const alignedTexts =
-		captions.length >= timingSegments.length
-			? groupWeightedItemsByTiming({
-					items: captions,
-					itemWeight: (caption) => caption.length,
-					joinItems: (items) => items.join(" "),
-					timingSegments,
-				})
-			: groupWeightedItemsByTiming({
-					items: captions.join(" ").split(/\s+/).filter(Boolean),
-					itemWeight: (word) => word.length,
-					joinItems: (items) => items.join(" "),
-					timingSegments,
-				});
+	let alignedTexts: string[];
+	if (captions.length >= timingSegments.length) {
+		alignedTexts = groupWeightedItemsByTiming({
+			items: captions,
+			itemWeight: (caption) => caption.length,
+			joinItems: (items) => items.join(" "),
+			timingSegments,
+		});
+	} else {
+		const scriptedItems = scriptedCaptionItemsForTimingSegments({
+			captions,
+		});
+		alignedTexts = groupWeightedItemsByTiming({
+			items: scriptedItems.items,
+			itemWeight: (word) => word.length,
+			joinItems: scriptedItems.joinItems,
+			timingSegments,
+		});
+	}
 	return timingSegments.map((segment, index) => ({
 		...segment,
 		text: alignedTexts[index] ?? "",

@@ -23,6 +23,13 @@ function audioAsset(overrides: Partial<MediaAsset> = {}): MediaAsset {
 		name: "Narration.mp3",
 		type: "audio",
 		duration: 40,
+		spokenScript: {
+			source: "tts",
+			text: "The key idea. The proof.",
+			captions: ["The key idea", "The proof"],
+			provider: "runninghub-voice-clone",
+			providerTaskId: "voice-task-1",
+		},
 		file: new File(["audio"], "narration.mp3", { type: "audio/mpeg" }),
 		...overrides,
 	});
@@ -98,6 +105,31 @@ function validPlan() {
 			},
 		},
 		rationale: "Uses existing narration over muted B-roll.",
+	};
+}
+
+function captionSourceForCaptionCount({
+	captionCount,
+	sourceStart = 2,
+	sourceEnd = 32,
+	timelineStart = 0,
+}: {
+	captionCount: number;
+	sourceStart?: number;
+	sourceEnd?: number;
+	timelineStart?: number;
+}) {
+	return {
+		...validPlan().captionSource,
+		trace: [
+			{
+				mediaId: "narration-1",
+				timelineStart,
+				sourceStart,
+				sourceEnd,
+				captionCount,
+			},
+		],
 	};
 }
 
@@ -257,6 +289,11 @@ describe("applyNarratedRemixPlanToEditor", () => {
 				],
 				narration: { mediaId: "narration-1", sourceStart: 0 },
 				captions: [{ text: "结果先出现", startTime: 0, duration: 3 }],
+				captionSource: captionSourceForCaptionCount({
+					captionCount: 1,
+					sourceStart: 0,
+					sourceEnd: 28.8,
+				}),
 			},
 			projectId: "project-1",
 			replaceExisting: true,
@@ -332,6 +369,12 @@ describe("applyNarratedRemixPlanToEditor", () => {
 					durationSec: 18,
 				},
 				captions: [{ text: "结果先出现", startTime: 5, duration: 3 }],
+				captionSource: captionSourceForCaptionCount({
+					captionCount: 1,
+					sourceStart: 1,
+					sourceEnd: 19,
+					timelineStart: 5,
+				}),
 			},
 			projectId: "project-1",
 			replaceExisting: true,
@@ -639,6 +682,7 @@ describe("applyNarratedRemixPlanToEditor", () => {
 					position: "lower-safe",
 					size: "medium",
 				},
+				captionSource: captionSourceForCaptionCount({ captionCount: 1 }),
 			},
 			projectId: "project-1",
 			replaceExisting: true,
@@ -740,6 +784,7 @@ describe("applyNarratedRemixPlanToEditor", () => {
 					position: "lower-safe",
 					size: "medium",
 				},
+				captionSource: captionSourceForCaptionCount({ captionCount: 1 }),
 			},
 			projectId: "project-1",
 			replaceExisting: true,
