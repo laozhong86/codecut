@@ -2552,7 +2552,7 @@ describe("Codecut MCP server contract", () => {
 		}
 	});
 
-	test("reports a clear error when setup recovery has no confirmed result", async () => {
+	test("reports pending setup recovery without a host tool error when no confirmed result exists", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
 
 		try {
@@ -2564,16 +2564,142 @@ describe("Codecut MCP server contract", () => {
 				{ confirmationRoot: directory },
 			);
 
-			expect(result.isError).toBe(true);
+			expect(result.isError).not.toBe(true);
 			expect(result.structuredContent).toMatchObject({
-				status: "recovery_unavailable",
-				nextAction: "open_codecut_workspace",
+				status: "confirmation_pending",
+				nextAction: "submit_current_workspace_widget",
 				projectId: "missing-cut",
 				pendingConfirmationId: "ccpending_000000000000000000000000",
 			});
 			expect(result.structuredContent.error).toContain(
 				"No confirmed CodeCut setup result found",
 			);
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("blocks setup submission without consuming confirmation when the service stops after widget render", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+
+		try {
+			const opened = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_workspace",
+				setupIntent(),
+				{
+					env: {
+						CODECUT_CONFIRMATION_ROOT: directory,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+			const pendingConfirmationId =
+				opened.structuredContent.pendingConfirmationId;
+
+			const blocked = await serverModule.callCodecutWorkspaceTool(
+				"submit_codecut_setup",
+				setupIntent({ pendingConfirmationId }),
+				{
+					env: {
+						CODECUT_CONFIRMATION_ROOT: directory,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => {
+						throw new Error("fetch failed");
+					},
+				},
+			);
+
+			expect(blocked.isError).not.toBe(true);
+			expect(blocked.structuredContent).toMatchObject({
+				status: "service_unavailable",
+				nextAction: "start_codecut_web_service_and_retry_widget_submission",
+				projectId: "launch-cut-001",
+				readinessUrl: "http://127.0.0.1:4100/en/projects",
+				error: "Codecut web service is not reachable: fetch failed",
+			});
+
+			const calls = [];
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({ pendingConfirmationId }),
+				{
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+					bridgeToolImpl: async (toolName) => {
+						calls.push(toolName);
+						if (toolName === "create_project") {
+							return {
+								structuredContent: {
+									projectId: "launch-cut-001",
+									name: "Launch Cut",
+									revision: 1,
+									editorUrl:
+										"http://127.0.0.1:4100/en/editor/launch-cut-001",
+								},
+							};
+						}
+						if (toolName === "get_project_info") {
+							return {
+								structuredContent: {
+									results: [{ success: true, data: { revision: 1 } }],
+								},
+							};
+						}
+						throw new Error(`Unexpected tool ${toolName}`);
+					},
+				},
+			);
+
+			expect(calls).toEqual(["create_project", "get_project_info"]);
+			expect(result.structuredContent).toMatchObject({
+				status: "created",
+				projectId: "launch-cut-001",
+			});
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("reports create project failure through setup status instead of host tool error", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const pendingConfirmationId = serverModule.openCodecutWorkspace(
+			setupIntent(),
+		).structuredContent.pendingConfirmationId;
+
+		try {
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({ pendingConfirmationId }),
+				{
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+					bridgeToolImpl: async (toolName) => {
+						if (toolName === "create_project") {
+							return {
+								isError: true,
+								structuredContent: {
+									error: "Codecut web service is not reachable: fetch failed",
+								},
+							};
+						}
+						throw new Error(`Unexpected tool ${toolName}`);
+					},
+				},
+			);
+
+			expect(result.isError).not.toBe(true);
+			expect(result.structuredContent).toMatchObject({
+				status: "create_failed",
+				nextAction: "open_codecut_workspace",
+				projectId: "launch-cut-001",
+				error: "Codecut web service is not reachable: fetch failed",
+			});
 		} finally {
 			await rm(directory, {
 				recursive: true,

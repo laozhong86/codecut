@@ -1882,6 +1882,18 @@ function buildCodecutServiceBlockedResult({ readinessUrl, error }) {
 	};
 }
 
+function buildCodecutServiceBlockedSetupResult(blocked, input) {
+	const content = blocked?.structuredContent || {};
+	return buildSetupBlockedResult({
+		...content,
+		projectId: String(input?.projectId || "").trim() || undefined,
+		projectName: String(input?.projectName || "").trim() || undefined,
+		intent: input,
+		nextAction: "start_codecut_web_service_and_retry_widget_submission",
+		error: content.error || "Codecut web service is not available.",
+	});
+}
+
 async function assertCodecutServiceReady({
 	cwd = pluginRoot,
 	env = process.env,
@@ -2098,8 +2110,9 @@ export async function submitCodecutSetup(
 		confirmedSetup: buildConfirmedSetupFromWorkspaceIntent(normalized),
 	});
 	if (createdResult?.isError) {
-		return buildSetupErrorResult({
+		return buildSetupBlockedResult({
 			status: "create_failed",
+			nextAction: "open_codecut_workspace",
 			projectId: normalized.projectId,
 			projectName: normalized.projectName,
 			intent: normalized,
@@ -2323,12 +2336,22 @@ export async function recoverCodecutSetup(input, { confirmationRoot } = {}) {
 			},
 		};
 	} catch (error) {
+		const errorMessage = extractErrorMessage(error);
+		if (errorMessage.startsWith("No confirmed CodeCut setup result found")) {
+			return buildSetupBlockedResult({
+				status: "confirmation_pending",
+				nextAction: "submit_current_workspace_widget",
+				projectId,
+				pendingConfirmationId,
+				error: errorMessage,
+			});
+		}
 		return buildSetupErrorResult({
 			status: "recovery_unavailable",
 			nextAction: "open_codecut_workspace",
 			projectId,
 			pendingConfirmationId,
-			error: extractErrorMessage(error),
+			error: errorMessage,
 		});
 	}
 }
@@ -3047,6 +3070,18 @@ function buildSetupErrorResult(content) {
 		],
 		structuredContent: content,
 		isError: true,
+	};
+}
+
+function buildSetupBlockedResult(content) {
+	return {
+		content: [
+			{
+				type: "text",
+				text: `CodeCut setup ${content.status} for ${content.projectId || "pending setup"}: ${content.error}`,
+			},
+		],
+		structuredContent: content,
 	};
 }
 
@@ -4344,6 +4379,8 @@ export async function callCodecutWorkspaceTool(
 		return recoverCodecutSetup(input, { confirmationRoot });
 	}
 	if (toolName === "submit_codecut_setup") {
+		const blocked = await assertCodecutServiceReady({ cwd, env, fetchImpl });
+		if (blocked) return buildCodecutServiceBlockedSetupResult(blocked, input);
 		return submitCodecutSetup(input, { confirmationRoot });
 	}
 	throw new Error(`Unsupported CodeCut workspace tool: ${toolName}`);
