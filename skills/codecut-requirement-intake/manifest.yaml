@@ -5,7 +5,7 @@ primary_dimension: functional
 
 intent:
   one_line: Decide whether a new CodeCut editing request has enough confirmed intent to enter execution.
-  target_user: Codex handling new CodeCut creative editing jobs after widget submission or when setup fields are already explicit.
+  target_user: Codex handling new CodeCut creative editing jobs after setup submission or when setup fields are already explicit.
   success_looks_like:
     - Two or more missing blocking fields stop execution with focused questions.
     - Explicit user answers are kept separate from assumptions.

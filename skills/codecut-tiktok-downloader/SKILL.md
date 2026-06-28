@@ -91,7 +91,7 @@ Use this skill only after one of these is true:
 | Situation | Required path |
 | --- | --- |
 | User explicitly asks only to download/save TikTok source material | Use this skill, then hand off to `codecut-material-ingest` for material audit. Do not open creative editing intake unless the user later asks for editing. |
-| New Codecut editing job includes a TikTok URL or @handle | Use `codecut-requirement-intake` first; do not download or probe before widget submission. |
+| New Codecut editing job includes a TikTok URL or @handle | Use `codecut-requirement-intake` first; do not download or probe before setup submission. |
 | Requirement intake already passed and source still needs local files | Use this skill, then hand off to `codecut-material-ingest`. |
 | Download fails because of login, region, private account, or platform blocking | Stop and ask for usable source access; do not switch to unrelated sources or silent fallback. |
 
