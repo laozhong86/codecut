@@ -117,6 +117,18 @@ const TimelinePreferencesSchema = TimelinePreferencesBaseSchema.superRefine(
 				path: ["durationGoal", "mode"],
 			});
 		}
+		if (
+			value.generateIntroCover &&
+			value.durationContract.totalDurationMode === "preserve_source" &&
+			value.durationContract.sourceCoverageMode === "full_source"
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"generateIntroCover must be false when preserving the full source duration and full source coverage.",
+				path: ["generateIntroCover"],
+			});
+		}
 	},
 );
 

@@ -23,6 +23,7 @@
     "worktree:cleanup": "node scripts/worktree-manager.mjs cleanup",
     "worktree:teardown": "node scripts/worktree-manager.mjs teardown",
     "plugin:freshness": "node scripts/codex-bridge.mjs plugin:freshness",
+    "env:status": "node scripts/codecut-env-status.mjs",
     "test": "bun test"
   },
   "dependencies": {

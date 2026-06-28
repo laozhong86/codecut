@@ -316,10 +316,15 @@ describe("CodeCut plugin startup guidance", () => {
 		expect(intakeSkill).toContain("tool_search");
 		expect(intakeSkill).toContain("mcp__codecut_mcp.open_codecut_workspace");
 		expect(intakeSkill).toContain("text-only questions");
-		expect(normalizedRouterSkill).toContain("before reading\nlocal files");
+		expect(normalizedRouterSkill).toContain("run `ffprobe` on that local file");
+		expect(normalizedRouterSkill).toContain(
+			"before loading stage skills, reading other local files",
+		);
 		expect(routerSkill).toContain("loading stage skills");
-		expect(routerSkill).toContain("running shell commands");
-		expect(routerSkill).toContain("before loading child skills or shell");
+		expect(normalizedRouterSkill).toContain("running unrelated shell\ncommands");
+		expect(routerSkill).toContain(
+			"before loading child skills or unrelated shell",
+		);
 		expect(routerSkill).not.toContain(
 			"Use `codecut-requirement-intake` first; it should open",
 		);

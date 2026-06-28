@@ -165,6 +165,17 @@ export CODECUT_AGENT_BRIDGE_INTERVAL_MS="1000"
 
 Do not pass the token as a CLI flag. Do not commit local tokens or `.env` files. `apps/web/.env.local` is the supported local env file for this repo; do not infer bridge settings from the shell alone or from a repository-root `.env.local`. `CODECUT_AGENT_BRIDGE_*` is the only supported prefix; missing keys must fail fast instead of being inferred from legacy names.
 
+Never inspect `.env.local` with `cat`, `sed`, `grep`, or `rg` when the goal is
+only to check whether keys exist; those commands can leak secret values into the
+Codex transcript. Use the redacted status command instead:
+
+```bash
+bun run env:status
+```
+
+The command reports key presence and value length only. It must not print raw
+bridge, RunningHub, or Volcengine values.
+
 Provider-backed Volcengine OpenSpeech tools read the API key only from:
 
 ```bash
@@ -191,7 +202,12 @@ If the readiness check fails, start the local Codecut web app from the plugin ro
 bun run dev:web
 ```
 
-Wait until the same readiness check succeeds. If the app cannot start or `http://127.0.0.1:4100/en/projects` remains unavailable, stop the workflow and report `P0 blocked: Codecut web service is not available on 127.0.0.1:4100`.
+Keep the dev server running in a persistent foreground/PTY session. Do not use a
+plain shell background `&` launch for this service gate, because the process can
+exit without a durable listener or useful logs. Wait until the same readiness
+check succeeds. If the app cannot start or
+`http://127.0.0.1:4100/en/projects` remains unavailable, stop the workflow and
+report `P0 blocked: Codecut web service is not available on 127.0.0.1:4100`.
 
 Do not render `open_codecut_workspace`, ask the user to open the Browser,
 import media, inspect bridge env, or send bridge commands until this service

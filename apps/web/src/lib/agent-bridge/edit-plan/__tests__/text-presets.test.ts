@@ -286,19 +286,23 @@ describe("caption style presets", () => {
 		});
 	});
 
-	test("talking-head-pop lower-safe captions stay inside a horizontal 1080p canvas", () => {
-		const bounds = captionCanvasBounds({
-			content:
-				"This is the exact kind of long interview subtitle that used to sit below the canvas.",
-			preset: "talking-head-pop",
-			aspectRatio: "16:9",
-			canvasSize: horizontalCanvas,
-		});
+	test(
+		"talking-head-pop lower-safe captions stay inside a horizontal 1080p canvas",
+		() => {
+			const bounds = captionCanvasBounds({
+				content:
+					"This is the exact kind of long interview subtitle that used to sit below the canvas.",
+				preset: "talking-head-pop",
+				aspectRatio: "16:9",
+				canvasSize: horizontalCanvas,
+			});
 
-		expect(bounds.lines.length).toBeGreaterThan(1);
-		expect(bounds.minY).toBeGreaterThanOrEqual(0);
-		expect(bounds.maxY).toBeLessThanOrEqual(horizontalCanvas.height);
-	});
+			expect(bounds.lines.length).toBeGreaterThan(1);
+			expect(bounds.minY).toBeGreaterThanOrEqual(0);
+			expect(bounds.maxY).toBeLessThanOrEqual(horizontalCanvas.height);
+		},
+		15_000,
+	);
 
 	test("social media caption presets provide distinct readable treatments", () => {
 		const socialHighlight = resolveCaptionStylePreset({

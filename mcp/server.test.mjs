@@ -1623,7 +1623,7 @@ describe("Codecut MCP server contract", () => {
 		});
 	});
 
-	test("keeps explicit intro cover choice for full-source preservation", () => {
+	test("rejects explicit intro cover for full-source preservation", () => {
 		const result = serverModule.openCodecutWorkspace({
 			projectName: "Preserve Source With Cover",
 			generateIntroCover: true,
@@ -1634,17 +1634,14 @@ describe("Codecut MCP server contract", () => {
 			},
 		});
 
-		expect(result.structuredContent.intentDefaults).toMatchObject({
-			projectName: "Preserve Source With Cover",
-			generateIntroCover: true,
-			durationContract: {
-				totalDurationMode: "preserve_source",
-				sourceCoverageMode: "full_source",
-				sourceDurationSeconds: 28.866667,
+		expect(result).toMatchObject({
+			isError: true,
+			structuredContent: {
+				status: "invalid_setup_request",
+				nextAction: "retry_open_codecut_workspace",
+				error:
+					"Timeline intro cover cannot be enabled when preserving the full source duration and full source coverage. Use a fixed title or project cover instead.",
 			},
-		});
-		expect(result._meta.widgetData.intentDefaults).toMatchObject({
-			generateIntroCover: true,
 		});
 	});
 
@@ -1826,6 +1823,7 @@ describe("Codecut MCP server contract", () => {
 						sourceCoverageMode: "full_source",
 						sourceDurationSeconds: 28.866667,
 					},
+					generateIntroCover: false,
 				}),
 				{ bridgeToolImpl },
 			);
@@ -1942,6 +1940,26 @@ describe("Codecut MCP server contract", () => {
 				ok: false,
 				detail:
 					"Choose whether CodeCut should generate an opening cover image.",
+			});
+
+			const conflictingIntroCover = await serverModule.inspectCodecutSetup(
+				setupIntent({
+					durationContract: {
+						totalDurationMode: "preserve_source",
+						sourceCoverageMode: "full_source",
+						sourceDurationSeconds: 28.866667,
+					},
+					generateIntroCover: true,
+				}),
+				{ bridgeToolImpl },
+			);
+			expect(conflictingIntroCover.status).toBe("blocked");
+			expect(conflictingIntroCover.checks).toContainEqual({
+				id: "intro-cover-duration-contract",
+				label: "Intro cover duration contract",
+				ok: false,
+				detail:
+					"Timeline intro cover cannot be enabled when preserving the full source duration and full source coverage. Use a fixed title or project cover instead.",
 			});
 
 			for (const [label, intent] of [

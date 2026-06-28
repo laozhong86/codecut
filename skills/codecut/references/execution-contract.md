@@ -97,9 +97,13 @@ preview URL.
   image through an available image generation capability outside CodeCut
   runtime, import that image with `import_media`, and write `introCover` in the
   EditPlan.
-- For full-source duration preservation, `generateIntroCover` defaults to
-  `false` unless the user explicitly asks for a timeline opening image. A fixed
-  top title is a text/title layer and must not be treated as `introCover`.
+- For full-source duration preservation, `generateIntroCover` must be `false`.
+  A timeline opening image consumes timeline duration and conflicts with
+  preserving the full source duration and full source coverage. If the user asks
+  for both, stop at intake and ask them to change the duration contract, use a
+  project cover outside the timeline, or use a fixed top title layer.
+- A fixed top title is a text/title layer and must not be treated as
+  `introCover`.
 - Do not generate a timeline intro image when confirmed setup intent has
   `generateIntroCover: false`.
 - Do not silently downgrade cover work. If image generation capability is

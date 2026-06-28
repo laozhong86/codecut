@@ -101,6 +101,17 @@ Do not switch ports.
 From plugin root:
 
 ```bash
+bun run env:status
+```
+
+This is the only allowed read-only command for checking whether bridge,
+RunningHub, or Volcengine env keys are present. It reports key presence and
+value length only. Do not use `cat`, `sed`, `grep`, `rg`, or similar commands on
+`.env.local` to check secrets, because raw values can leak into the transcript.
+
+When a CLI command needs the actual env values, load them without printing:
+
+```bash
 set -a
 source apps/web/.env.local
 set +a
