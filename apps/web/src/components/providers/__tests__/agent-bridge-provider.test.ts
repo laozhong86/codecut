@@ -136,6 +136,51 @@ describe("AgentBridgeProvider polling", () => {
 		expect(executeCount).toBe(0);
 	});
 
+	test("does not throw or execute commands when heartbeat cannot reach the service", async () => {
+		let executeCount = 0;
+
+		await pollAgentBridgeOnce({
+			projectId: "project-123",
+			bridgeToken: "browser-token-1",
+			fetchImpl: async () => {
+				throw new TypeError("Failed to fetch");
+			},
+			executeEnvelope: async ({ envelope }) => {
+				executeCount += 1;
+				return {
+					envelopeProjectId: envelope.projectId,
+					results: [],
+				};
+			},
+		});
+
+		expect(executeCount).toBe(0);
+	});
+
+	test("does not throw or execute commands when heartbeat is unauthorized", async () => {
+		let executeCount = 0;
+		let fetchCount = 0;
+
+		await pollAgentBridgeOnce({
+			projectId: "project-123",
+			bridgeToken: "stale-browser-token",
+			fetchImpl: async () => {
+				fetchCount += 1;
+				return jsonResponse({ error: "Unauthorized" }, 401);
+			},
+			executeEnvelope: async ({ envelope }) => {
+				executeCount += 1;
+				return {
+					envelopeProjectId: envelope.projectId,
+					results: [],
+				};
+			},
+		});
+
+		expect(fetchCount).toBe(1);
+		expect(executeCount).toBe(0);
+	});
+
 	test("editor runtime mounts the bridge provider for the active project", () => {
 		const editorProviderSource = readFileSync(
 			new URL("../editor-provider.tsx", import.meta.url),
