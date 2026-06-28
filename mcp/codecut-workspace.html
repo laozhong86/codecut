@@ -833,13 +833,26 @@
           );
         }
 
+        function pendingConfirmationIdFromPayload(payload) {
+          if (!payload || typeof payload !== "object") return "";
+          return (
+            payload.pendingConfirmationId ||
+            payload.widgetData?.pendingConfirmationId ||
+            payload.structuredContent?.pendingConfirmationId ||
+            payload._meta?.widgetData?.pendingConfirmationId ||
+            payload.toolResponseMetadata?.widgetData?.pendingConfirmationId ||
+            ""
+          );
+        }
+
         function initialDefaults() {
           const api = window.openai || {};
           currentPendingConfirmationId =
-            api.toolResponseMetadata?.widgetData?.pendingConfirmationId ||
-            api.widgetData?.pendingConfirmationId ||
-            api.toolOutput?.pendingConfirmationId ||
-            api.structuredContent?.pendingConfirmationId ||
+            pendingConfirmationIdFromPayload(api.toolResponseMetadata?.widgetData) ||
+            pendingConfirmationIdFromPayload(api.toolResponseMetadata) ||
+            pendingConfirmationIdFromPayload(api.widgetData) ||
+            pendingConfirmationIdFromPayload(api.toolOutput) ||
+            pendingConfirmationIdFromPayload(api.structuredContent) ||
             "";
           return (
             api.toolResponseMetadata?.widgetData?.intentDefaults ||
