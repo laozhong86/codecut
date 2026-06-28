@@ -4065,7 +4065,7 @@ async function runBuildVideoQualityReport({
 		exportedFile,
 	});
 	return {
-		success: true,
+		success: report.status !== "fail",
 		message: `Built VideoQualityReport: ${report.status}`,
 		data: report,
 	};

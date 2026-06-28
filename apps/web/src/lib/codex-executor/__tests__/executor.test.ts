@@ -4519,6 +4519,102 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("builds post-cut captions when confirmed caption language is zh-CN", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Chinese caption contract",
+			confirmedSetup: confirmedSetupFixture({
+				captionLanguage: "zh-CN",
+				captionStylePreset: "talking-head-pop",
+			}),
+		});
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 2,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 2, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 2,
+								timelineStart: 0,
+								reason: "Caption proof",
+							},
+						],
+						rationale: "Chinese caption language proof",
+					},
+				},
+			}),
+		});
+		const observedLanguages: string[] = [];
+
+		for (const requestedLanguage of ["zh-CN", "zh"] as const) {
+			const captionsResult = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "build_post_cut_captions",
+					args: {
+						language: requestedLanguage,
+						modelId: "whisper-base",
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+						},
+					},
+				}),
+				transcribeMediaRange: async ({ range, language, modelId }) => {
+					expect(range).toEqual({ start: 0, end: 2 });
+					observedLanguages.push(language);
+					return {
+						text: "中文成片字幕",
+						language,
+						modelId,
+						segments: [{ text: "中文成片字幕", start: 0, end: 1.5 }],
+						...asrContractFields(),
+					};
+				},
+			});
+
+			expect(captionsResult.results[0]).toMatchObject({
+				commandId: "cmd-1",
+				tool: "build_post_cut_captions",
+				success: true,
+				message: "Built 1 post-cut caption(s) from 1 video clip(s).",
+				data: {
+					source: "edited_video_clip_audio",
+					language: "zh",
+					modelId: "whisper-base",
+					captions: [{ text: "中文成片字幕", startTime: 0, duration: 1.5 }],
+				},
+			});
+		}
+
+		expect(observedLanguages).toEqual(["zh", "zh"]);
+	});
+
 	test("builds read-only caption diagnostics before caption generation", async () => {
 		await createExecutorProject({ projectId, name: "Caption diagnostics" });
 		const importResult = await executeCodexExecutorEnvelope({
@@ -6654,7 +6750,7 @@ describe("codex executor", () => {
 		}>(result.results[0]);
 
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				schemaVersion: 2,
@@ -6983,7 +7079,7 @@ describe("codex executor", () => {
 		});
 
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				schemaVersion: 2,
@@ -7041,7 +7137,7 @@ describe("codex executor", () => {
 			}),
 		});
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				status: "fail",
@@ -7083,7 +7179,7 @@ describe("codex executor", () => {
 		});
 
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				status: "fail",
@@ -7124,7 +7220,7 @@ describe("codex executor", () => {
 		});
 
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				status: "fail",
@@ -7160,7 +7256,7 @@ describe("codex executor", () => {
 		});
 
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				status: "fail",

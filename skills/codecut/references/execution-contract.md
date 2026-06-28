@@ -163,6 +163,11 @@ must inspect the timeline contact sheet and report a verdict that includes:
 contact sheet path, frame count, sampled timestamps, pass/fail status, issues
 found, and whether each issue was fixed.
 
+If `build_video_quality_report` reports `status: "fail"` or the tool call
+fails, stop and repair the plan or timeline before reporting completion.
+Do not downgrade critical checks such as `voiceConsistency.scriptedTts`,
+caption readback, text bounds, or transition readback into non-blocking risks.
+
 `export_timeline_frame` writes a requested local PNG frame file. It is not a
 visual QA verdict and does not replace contact-sheet inspection when reporting
 edit success or export readiness.
