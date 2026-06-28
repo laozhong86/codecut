@@ -20,6 +20,7 @@ function setupIntent(overrides = {}) {
 	return {
 		projectId: "launch-cut-001",
 		projectName: "Launch Cut",
+		confirmedByUser: true,
 		taskType: "edit_execution",
 		mediaSources: [{ kind: "filePath", filePath: "/tmp/source.mp4" }],
 		targetAspectRatio: "9:16",
@@ -513,7 +514,10 @@ describe("Codecut MCP server contract", () => {
 		expect(submitTool.readOnly).toBe(false);
 		expect(submitTool.modelVisible).toBe(true);
 		expect(submitTool.description).toContain(
-			"Codex may call this directly after open_codecut_workspace",
+			"confirmedByUser true after the user explicitly confirms",
+		);
+		expect(submitTool.inputSchema.confirmedByUser.safeParse(true).success).toBe(
+			true,
 		);
 		expect(submitTool.meta).toMatchObject({
 			ui: { visibility: ["model", "app"] },
@@ -670,6 +674,7 @@ describe("Codecut MCP server contract", () => {
 			'fields.mediaFilePicker.addEventListener("change", handlePickedFiles)',
 			'fields.mediaFolderPicker.addEventListener("change", handlePickedFolder)',
 			'callTool("submit_codecut_setup"',
+			"confirmedByUser: true",
 			"openExternal",
 			"renderEditorOpenError",
 			"await openEditor(payload.editorUrl)",
@@ -1413,10 +1418,10 @@ describe("Codecut MCP server contract", () => {
 			result.structuredContent.pendingConfirmationId,
 		);
 		expect(result.content[0].text).toContain(
-			"call submit_codecut_setup now",
+			"Do not call submit_codecut_setup until the user explicitly confirms",
 		);
 		expect(result.content[0].text).toContain(
-			"wait for the user to submit the widget",
+			"confirmedByUser true",
 		);
 		expect(result._meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
@@ -2640,6 +2645,84 @@ describe("Codecut MCP server contract", () => {
 			const calls = [];
 			const result = await serverModule.submitCodecutSetup(
 				setupIntent({ pendingConfirmationId }),
+				{
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+					bridgeToolImpl: async (toolName) => {
+						calls.push(toolName);
+						if (toolName === "create_project") {
+							return {
+								structuredContent: {
+									projectId: "launch-cut-001",
+									name: "Launch Cut",
+									revision: 1,
+									editorUrl:
+										"http://127.0.0.1:4100/en/editor/launch-cut-001",
+								},
+							};
+						}
+						if (toolName === "get_project_info") {
+							return {
+								structuredContent: {
+									results: [{ success: true, data: { revision: 1 } }],
+								},
+							};
+						}
+						throw new Error(`Unexpected tool ${toolName}`);
+					},
+				},
+			);
+
+			expect(calls).toEqual(["create_project", "get_project_info"]);
+			expect(result.structuredContent).toMatchObject({
+				status: "created",
+				projectId: "launch-cut-001",
+			});
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
+	test("blocks setup submission without explicit create-project confirmation", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const pendingConfirmationId = serverModule.openCodecutWorkspace(
+			setupIntent(),
+			{ confirmationRoot: directory },
+		).structuredContent.pendingConfirmationId;
+		const calls = [];
+
+		try {
+			const blocked = await serverModule.submitCodecutSetup(
+				setupIntent({
+					pendingConfirmationId,
+					confirmedByUser: undefined,
+				}),
+				{
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+					bridgeToolImpl: async (toolName) => {
+						calls.push(toolName);
+						throw new Error(`Unexpected tool ${toolName}`);
+					},
+				},
+			);
+
+			expect(blocked.isError).not.toBe(true);
+			expect(calls).toEqual([]);
+			expect(blocked.structuredContent).toMatchObject({
+				status: "confirmation_required",
+				nextAction: "confirm_codecut_setup_before_submission",
+				projectId: "launch-cut-001",
+				pendingConfirmationId,
+				error:
+					"confirmedByUser must be true after explicit user confirmation before CodeCut setup submission.",
+			});
+
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({ pendingConfirmationId, confirmedByUser: true }),
 				{
 					confirmationRoot: directory,
 					workspaceSourceRoot: directory,

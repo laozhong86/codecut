@@ -104,9 +104,9 @@ Allowed before this gate passes:
 
 - read the user request
 - inspect an existing project when the user asks for read-only inspection
-- call `open_codecut_workspace` and then either call `submit_codecut_setup`
-  when setup fields are complete, or wait for widget submission when the user
-  must edit the form
+- call `open_codecut_workspace`, then wait for the user to explicitly confirm
+  project creation in chat or submit the widget before calling
+  `submit_codecut_setup` with `confirmedByUser: true`
 - ask text-only setup questions only when the workspace widget tool is
   unavailable after tool discovery
 
@@ -126,12 +126,13 @@ workspace setup widget`, then call the returned
 `mcp__codecut_mcp.open_codecut_workspace` tool.
 
 The workspace widget is the primary review surface. `submit_codecut_setup` is
-the single setup submission path. Codex should call it directly when the user
-request already provides complete setup fields; otherwise the user can review,
-edit, and submit the widget. The tool returns the confirmed setup token, sends
-the follow-up prompt that opens the Codex in-app browser, and unlocks material
-ingest, doctor checks, project creation, import, generated media, timeline
-mutation, and export.
+the single setup submission path. Complete setup fields are not create-project
+confirmation. Codex should call it only after the user explicitly confirms
+creating the project in chat, or after the user reviews, edits, and submits the
+widget. The tool returns the confirmed setup token, sends the follow-up prompt
+that opens the Codex in-app browser, and unlocks material ingest, doctor
+checks, project creation, import, generated media, timeline mutation, and
+export.
 
 If the user reports that clicking the widget create button did not continue the
 Codex thread, first check whether the project was created and the pending

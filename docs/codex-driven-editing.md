@@ -93,9 +93,10 @@ Required pre-edit order for user-provided materials:
 
 1. Understand the user message and write intent analysis.
 2. Call `open_codecut_workspace` with a concrete `projectId` and business
-   project name. If the setup fields are complete, call `submit_codecut_setup`
-   in the same turn with the returned `pendingConfirmationId`; otherwise wait
-   for widget submission.
+   project name. Complete setup fields are not create-project confirmation.
+   Wait for the user to explicitly confirm creating the project in chat or
+   submit the widget, then call `submit_codecut_setup` with the returned
+   `pendingConfirmationId` and `confirmedByUser: true`.
 3. Use the workspace index initialized by `submit_codecut_setup`; do not rerun
    `scripts/codecut-workspace.mjs init` for that project.
 4. Copy provided files into categorized local folders.
@@ -891,11 +892,12 @@ node scripts/codex-bridge.mjs build-visual-context \
 When the request includes one absolute local media file and a concrete target such as "1 minute vertical short", Codex should execute directly:
 
 1. Reserve a readable `projectId` and business project name.
-2. Call `open_codecut_workspace` with the known setup fields, then call
-   `submit_codecut_setup` in the same turn with the returned
-   `pendingConfirmationId` so it can create the executor project, initialize
-   the workspace index, and return the confirmed setup token. Wait for widget
-   submission only when the user must review or edit missing setup fields.
+2. Call `open_codecut_workspace` with the known setup fields, then wait for the
+   user to explicitly confirm creating the project in chat or submit the
+   widget. After confirmation, call `submit_codecut_setup` with the returned
+   `pendingConfirmationId` and `confirmedByUser: true` so it can create the
+   executor project, initialize the workspace index, and return the confirmed
+   setup token.
    If the widget created the project but the Codex thread did not receive the
    follow-up prompt, call `recover_codecut_setup` with that `projectId` and the
    original `pendingConfirmationId` before opening another setup widget.
