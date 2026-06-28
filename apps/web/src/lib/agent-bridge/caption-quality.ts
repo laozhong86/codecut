@@ -1,6 +1,7 @@
 import { breakCaptionTextIntoLineRanges } from "@/lib/caption-line-breaking";
 import {
 	computeCaptionCharacterLimit,
+	POST_CUT_CAPTION_MIN_DURATION_SECONDS,
 	POST_CUT_CAPTION_MAX_LINES,
 } from "./edit-plan/caption-chunking";
 import type {
@@ -9,7 +10,8 @@ import type {
 	EditPlanCaptionStyle,
 } from "./edit-plan/schema";
 
-export const CAPTION_QUALITY_MIN_DURATION_SECONDS = 0.5;
+export const CAPTION_QUALITY_MIN_DURATION_SECONDS =
+	POST_CUT_CAPTION_MIN_DURATION_SECONDS;
 export const CAPTION_QUALITY_MAX_DURATION_SECONDS = 4;
 export const CAPTION_QUALITY_MAX_LINES = POST_CUT_CAPTION_MAX_LINES;
 export const CAPTION_QUALITY_MIN_LAST_LINE_CHARACTERS = 3;

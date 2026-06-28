@@ -7,6 +7,7 @@ import type {
 import { resolveCaptionStylePreset } from "./text-presets";
 
 const POST_CUT_CAPTION_MAX_DURATION_SECONDS = 4;
+export const POST_CUT_CAPTION_MIN_DURATION_SECONDS = 0.5;
 const POST_CUT_CAPTION_MAX_LATIN_CHARS = 52;
 const POST_CUT_CAPTION_MAX_CJK_CHARS = 8;
 export const POST_CUT_CAPTION_MAX_LINES = 2;
@@ -135,6 +136,28 @@ function defaultCaptionCharacterLimit(text: string): number {
 		: POST_CUT_CAPTION_MAX_LATIN_CHARS;
 }
 
+function mergeCaptionChunksToLimit({
+	chunks,
+	maxChunkCount,
+	joiner,
+}: {
+	chunks: string[];
+	maxChunkCount: number;
+	joiner: string;
+}): string[] {
+	if (chunks.length <= maxChunkCount) return chunks;
+
+	const merged: string[] = [];
+	let cursor = 0;
+	for (let index = 0; index < maxChunkCount; index += 1) {
+		const targetEnd = Math.round(((index + 1) * chunks.length) / maxChunkCount);
+		const end = Math.max(cursor + 1, targetEnd);
+		merged.push(chunks.slice(cursor, end).join(joiner).trim());
+		cursor = end;
+	}
+	return merged.filter(Boolean);
+}
+
 export function computeCaptionCharacterLimit({
 	text,
 	captionStyle,
@@ -219,14 +242,23 @@ export function buildPostCutCaptionEntries({
 	const displayChunks = chunks
 		.map(stripCaptionDisplayTrailingPunctuation)
 		.filter(Boolean);
+	const maxChunksByDuration = Math.max(
+		1,
+		Math.floor(duration / POST_CUT_CAPTION_MIN_DURATION_SECONDS),
+	);
+	const readableChunks = mergeCaptionChunksToLimit({
+		chunks: displayChunks,
+		maxChunkCount: maxChunksByDuration,
+		joiner: containsCjk(normalizedText) ? "" : " ",
+	});
 
 	let cursor = roundedStart;
-	return displayChunks.flatMap((chunk, index) => {
+	return readableChunks.flatMap((chunk, index) => {
 		const nextEnd =
-			index === displayChunks.length - 1
+			index === readableChunks.length - 1
 				? roundedEnd
 				: roundCaptionSeconds(
-						roundedStart + (duration * (index + 1)) / displayChunks.length,
+						roundedStart + (duration * (index + 1)) / readableChunks.length,
 					);
 		const chunkDuration = roundCaptionSeconds(nextEnd - cursor);
 		if (chunkDuration <= 0) return [];

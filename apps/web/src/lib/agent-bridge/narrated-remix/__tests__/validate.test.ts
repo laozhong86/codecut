@@ -132,6 +132,75 @@ describe("validateNarratedRemixPlan", () => {
 		});
 	});
 
+	test("rejects scripted TTS captionSource without narration spokenScript", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				captionSource: {
+					...validPlan().captionSource,
+					source: "scripted_tts_audio",
+					voiceConsistency: {
+						provider: "runninghub-voice-clone",
+						providerTaskId: "voice-task-1",
+						alignmentMethod: "scripted_captions_to_asr_segments",
+						scriptCaptionLineCount: 4,
+						protectedTermCount: 1,
+					},
+				},
+			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message:
+				"NarratedRemixPlan scripted_tts_audio captionSource requires narration spokenScript.",
+			path: "captionSource.source",
+		});
+	});
+
+	test("rejects scripted TTS captionSource when script metadata does not match narration", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				captionSource: {
+					...validPlan().captionSource,
+					source: "scripted_tts_audio",
+					voiceConsistency: {
+						provider: "runninghub-voice-clone",
+						providerTaskId: "voice-task-1",
+						alignmentMethod: "scripted_captions_to_asr_segments",
+						scriptCaptionLineCount: 5,
+						protectedTermCount: 1,
+					},
+				},
+			},
+			projectId: "project-1",
+			mediaAssets: [
+				mediaAsset(),
+				mediaAsset({ id: "video-2", name: "B-roll 2.mp4" }),
+				audioAsset({
+					spokenScript: {
+						source: "tts",
+						text: "第一句。第二句。",
+						captions: ["第一句。", "第二句。"],
+						protectedTerms: ["第一句"],
+						provider: "runninghub-voice-clone",
+						providerTaskId: "voice-task-1",
+					},
+				}),
+			],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message:
+				"NarratedRemixPlan scripted_tts_audio captionSource scriptCaptionLineCount does not match narration spokenScript.",
+			path: "captionSource.voiceConsistency.scriptCaptionLineCount",
+		});
+	});
+
 	test("rejects a plan that shortens a preserve-source duration contract", () => {
 		const result = validateNarratedRemixPlan({
 			plan: {
