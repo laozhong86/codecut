@@ -27,7 +27,7 @@ to execute.
 
 | Situation | Read first | Stop before continuing | Required readback |
 | --- | --- | --- | --- |
-| New creative job or missing setup fields | `../codecut/references/workflow-stage-contract.md` supporting file map | Two or more blocking fields are missing, or widget submission cannot pass | Confirmed setup token plus `00-brief/requirement-intake.md` when a project exists |
+| New creative job or missing setup fields | `../codecut/references/workflow-stage-contract.md` supporting file map | Two or more blocking fields are missing, or setup submission cannot pass | Confirmed setup token plus `00-brief/requirement-intake.md` when a project exists |
 | Widget or setup-token behavior is involved | `../../docs/codecut-workspace.md` and `../../docs/codex-driven-editing.md` | `open_codecut_workspace` or `submit_codecut_setup` is unavailable | Carry the returned confirmation token to later side-effect stages |
 | Requirement pass will lead to executor mutation | `../codecut/references/execution-contract.md` success contract table | Side-effect token, project ID, or required user decision is missing | Executor readback is owned by `codecut-executor-apply` after mutation |
 
@@ -104,7 +104,9 @@ Allowed before this gate passes:
 
 - read the user request
 - inspect an existing project when the user asks for read-only inspection
-- call `open_codecut_workspace` and wait for widget submission
+- call `open_codecut_workspace` and then either call `submit_codecut_setup`
+  when setup fields are complete, or wait for widget submission when the user
+  must edit the form
 - ask text-only setup questions only when the workspace widget tool is
   unavailable after tool discovery
 
@@ -123,11 +125,13 @@ surface, use `tool_search` with the query `open_codecut_workspace Codecut
 workspace setup widget`, then call the returned
 `mcp__codecut_mcp.open_codecut_workspace` tool.
 
-The workspace widget is the primary collection surface. It lets the user review
-and submit the setup, then `submit_codecut_setup` returns the confirmed setup
-token, sends the follow-up prompt that opens the Codex in-app browser, and
-unlocks material ingest, doctor checks, project creation, import, generated
-media, timeline mutation, and export.
+The workspace widget is the primary review surface. `submit_codecut_setup` is
+the single setup submission path. Codex should call it directly when the user
+request already provides complete setup fields; otherwise the user can review,
+edit, and submit the widget. The tool returns the confirmed setup token, sends
+the follow-up prompt that opens the Codex in-app browser, and unlocks material
+ingest, doctor checks, project creation, import, generated media, timeline
+mutation, and export.
 
 If the user reports that clicking the widget create button did not continue the
 Codex thread, first check whether the project was created and the pending
@@ -141,7 +145,7 @@ If the workspace widget tool is unavailable after tool discovery, report that
 widget intake is unavailable, then ask the required text-only questions with
 choices. Do not run shell commands, write planning/audit files, initialize a
 workspace, create, import, transcribe, generate media, mutate the timeline, or
-export before widget submission. If the widget is unavailable, explicit text
+export before setup submission. If the widget is unavailable, explicit text
 answers can pass requirement intake, but they do not mint a side-effect token;
 report that CodeCut execution is blocked until the widget path is available.
 

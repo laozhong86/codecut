@@ -24,7 +24,7 @@ For new creative jobs, material ingest is allowed only after
 `open_codecut_workspace` and `submit_codecut_setup` have produced a confirmed
 setup token and `codecut-requirement-intake` has passed. Do not initialize a
 workspace, copy files, probe assets, or write audit/planning files before that
-widget submission path. For widget-created jobs, `submit_codecut_setup`
+setup submission path. For setup-created jobs, `submit_codecut_setup`
 initializes `.codecut-workspace/projects/<projectId>`; this stage must not
 rerun `codecut-workspace init`.
 

@@ -1509,6 +1509,15 @@ const codecutWorkspaceAppOnlyMeta = {
 	"openai/widgetAccessible": true,
 };
 
+const codecutWorkspaceSubmitToolMeta = {
+	ui: {
+		visibility: ["model", "app"],
+	},
+	"openai/widgetAccessible": true,
+	"openai/toolInvocation/invoking": "Confirming CodeCut workspace setup...",
+	"openai/toolInvocation/invoked": "CodeCut workspace setup confirmed.",
+};
+
 export const CODECUT_WORKSPACE_TOOLS = [
 	{
 		name: "open_codecut_workspace",
@@ -1543,11 +1552,11 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "submit_codecut_setup",
 		title: "Submit CodeCut Workspace Setup",
 		description:
-			"Create a CodeCut executor project, import the confirmed media source, persist the confirmed taskType setup contract, and return editor context.",
+			"Confirm a pending CodeCut workspace setup, create the executor project, import confirmed local media, persist the confirmed taskType setup contract, and return editor context. Codex may call this directly after open_codecut_workspace when the user request already provides complete setup fields; otherwise the CodeCut setup widget can call the same tool after the user edits and submits the form. Requires the pendingConfirmationId returned by open_codecut_workspace.",
 		inputSchema: workspaceIntentInputSchema,
 		readOnly: false,
-		modelVisible: false,
-		meta: codecutWorkspaceAppOnlyMeta,
+		modelVisible: true,
+		meta: codecutWorkspaceSubmitToolMeta,
 	},
 ];
 
@@ -1814,7 +1823,7 @@ export function openCodecutWorkspace(input = {}, { confirmationRoot } = {}) {
 		content: [
 			{
 				type: "text",
-				text: "Rendered CodeCut workspace setup confirmation widget. Wait for the user to submit the widget before reading files, running shell commands, creating projects, importing media, or mutating timelines.",
+				text: "Rendered CodeCut workspace setup confirmation widget. If the user request already provides complete setup fields, call submit_codecut_setup now with this pendingConfirmationId before reading files, running shell commands, importing media, or mutating timelines. If required setup fields are missing or the user needs to edit the form, wait for the user to submit the widget.",
 			},
 		],
 		structuredContent: {

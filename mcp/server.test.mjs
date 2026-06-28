@@ -510,6 +510,15 @@ describe("Codecut MCP server contract", () => {
 		expect(recoverTool.readOnly).toBe(true);
 		expect(recoverTool.modelVisible).toBe(true);
 		expect(recoverTool.meta).toBeUndefined();
+		expect(submitTool.readOnly).toBe(false);
+		expect(submitTool.modelVisible).toBe(true);
+		expect(submitTool.description).toContain(
+			"Codex may call this directly after open_codecut_workspace",
+		);
+		expect(submitTool.meta).toMatchObject({
+			ui: { visibility: ["model", "app"] },
+			"openai/widgetAccessible": true,
+		});
 		expect(
 			recoverTool.inputSchema.pendingConfirmationId.safeParse("").success,
 		).toBe(false);
@@ -1403,7 +1412,12 @@ describe("Codecut MCP server contract", () => {
 		expect(result._meta.widgetData.pendingConfirmationId).toBe(
 			result.structuredContent.pendingConfirmationId,
 		);
-		expect(result.content[0].text).toContain("Wait for the user to submit");
+		expect(result.content[0].text).toContain(
+			"call submit_codecut_setup now",
+		);
+		expect(result.content[0].text).toContain(
+			"wait for the user to submit the widget",
+		);
 		expect(result._meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
