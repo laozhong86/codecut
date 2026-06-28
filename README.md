@@ -1,10 +1,10 @@
-# Codecut
+# CodeCut
 
 [中文](README.zh-CN.md)
 
 <p>
-  Local Agent video editor for self-media creators.<br />
-  Codex plans the edit; Codecut applies it to a local web timeline.
+  Codex + CapCut for Agent-driven visual video production.<br />
+  Codex performs the production work; CodeCut keeps it visible and editable.
 </p>
 
 [![GPLv3 License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
@@ -14,9 +14,9 @@
 
 ## At a Glance
 
-Codecut is a local Agent video editor for self-media creators. It is built on the Codex plugin: Codex understands the content, generates or selects assets, and writes a clear editing plan; Codecut then applies that plan to a local web timeline for creators to preview, adjust, and export.
+CodeCut is Codex + CapCut: an Agent-driven visual video production system. Codex performs the production work, while CodeCut shows progress, materials, timeline, preview, manual adjustment, and export in a local visual editor.
 
-## Why Codecut Exists
+## Why CodeCut Exists
 
 Self-media creators are already using AI for ideation, copywriting, image
 generation, and content planning, but the final video workflow is still broken:
@@ -31,16 +31,16 @@ generation, and content planning, but the final video workflow is still broken:
 - Third-party AI video APIs add another cost layer, require API keys, and make
   simple creator workflows feel like engineering projects.
 
-Codecut connects the two missing halves: Agent intelligence plus visual local
-editing.
+CodeCut connects the two missing halves: Agent production intelligence plus a
+visual local editor.
 
 The product bet is simple: creators should be able to use Codex / Claude to
-think, generate, and plan, then use Codecut to inspect, adjust, and export a
-real timeline.
+think, generate, and plan, then use CodeCut to inspect, adjust, and export a
+real editable timeline.
 
 ## Target Users
 
-Codecut is built first for AI-native self-media workers:
+CodeCut is built first for AI-native self-media workers:
 
 - Knowledge creators, AI tool creators, independent developers, consultants,
   course makers, and founder-led media operators.
@@ -58,21 +58,22 @@ approval, and cloud asset management.
 ## What You Can Do
 
 - Import local media into a project.
-- Let Codex inspect transcript and media context through local executor tools.
+- Let Codex understand the transcript, visuals, and project state.
 - Ask the Agent to cut a talking-head, course, interview, or demo video into a
   short-form draft.
-- Generate an explicit EditPlan that explains selected clips, captions, titles,
-  and target format.
-- Apply the plan to a visible timeline instead of receiving a black-box mp4.
+- Review a clear production plan for selected moments, captions, titles, and
+  target format.
+- See that plan become an editable timeline instead of only receiving a final
+  video file.
 - Preview, adjust, and export locally.
 
 The early flagship workflow is:
 
-> Give Codecut a local talking-head video and ask Codex to make a 30-90 second vertical short with cleaned speech, captions, a hook title, and optional generated visual assets.
+> Give CodeCut a local talking-head video and ask Codex to make a 30-90 second vertical short with cleaned speech, captions, a hook title, and optional generated visual assets.
 
 ## Product Principles
 
-- **Reuse existing Agent subscriptions.** Codecut should make Codex / Claude
+- **Reuse existing Agent subscriptions.** CodeCut should make Codex / Claude
   more useful for video work instead of forcing creators into another AI API
   stack. Image generation availability and usage limits depend on the user's
   Agent account and plan.
@@ -80,9 +81,9 @@ The early flagship workflow is:
   preview, and export should stay local whenever possible.
 - **Visible timeline over black-box output.** The Agent can draft, but the
   creator must be able to see and change the result.
-- **One explicit editing path.** Agent reasoning becomes a validated EditPlan;
-  Codecut applies that plan. No silent fallbacks, magic defaults, or hidden
-  auto-repair.
+- **One explicit editing path.** Agent reasoning becomes a validated editing
+  plan; CodeCut applies that plan. No silent fallbacks, magic defaults, or
+  hidden auto-repair.
 - **CapCut Pro AI workflow alternative, not full CapCut clone.** The first
   product does not compete on template volume. It competes on Agent-native
   control, lower repeated AI-tool cost, and explainable local editing.
@@ -96,12 +97,12 @@ The early flagship workflow is:
 
 ## Installation
 
-### Ask Codex To Install Codecut
+### Ask Codex To Install CodeCut
 
 Send this message to Codex:
 
 ```text
-Please install the Codecut Codex plugin from https://github.com/laozhong86/codecut.git.
+Please install the CodeCut Codex plugin from https://github.com/laozhong86/codecut.git.
 Clone the repository into ~/plugins/codecut, verify that .codex-plugin/plugin.json exists, run bun install, create apps/web/.env.local from apps/web/.env.example if it is missing, add the plugin to the personal marketplace, run codex plugin marketplace add ~, then run codex plugin add codecut@personal. After installing, validate the plugin and tell me whether I should start a fresh Codex conversation to load the new skills and MCP tools.
 ```
 
@@ -119,7 +120,7 @@ test -f apps/web/.env.local || cp apps/web/.env.example apps/web/.env.local
 bun run build:web
 ```
 
-Make sure `~/.agents/plugins/marketplace.json` contains a Codecut entry:
+Make sure `~/.agents/plugins/marketplace.json` contains a CodeCut entry:
 
 ```json
 {
@@ -156,22 +157,22 @@ tools load cleanly.
 
 ## Usage
 
-### Open Codecut
+### Open CodeCut
 
 Ask Codex:
 
 ```text
-Open Codecut and set up a local video editing workspace.
+Open CodeCut and set up an Agent-driven visual video production workspace.
 ```
 
-Codecut starts a local web editor at:
+CodeCut starts a local web editor at:
 
 ```text
 http://127.0.0.1:4100/en/projects
 ```
 
-Planning and execution artifacts are saved under the active project workspace,
-not inside the plugin repository:
+Planning records are saved under the active project workspace, not inside the
+plugin repository:
 
 ```text
 .codecut-workspace/projects/<project-id>/
@@ -182,28 +183,28 @@ not inside the plugin repository:
 Ask Codex:
 
 ```text
-Import my local video into Codecut and prepare a short-form edit.
+Import my local video into CodeCut and prepare a visible short-form timeline.
 ```
 
-Codex will use the Codecut plugin to inspect the file, collect the required
+Codex will use the CodeCut plugin to inspect the file, collect the required
 editing setup, and prepare a visible local timeline instead of returning a
-black-box video file.
+video file with no editable process.
 
 ### Create A Vertical Short
 
 Ask Codex:
 
 ```text
-Turn this source clip into a 30-90 second vertical short with captions.
+Turn this source clip into a 30-90 second vertical short with captions and preview.
 ```
 
-Codex writes the editing plan. Codecut applies the plan to the local web
-timeline, returns an `editorUrl`, and keeps the result available for creator
+Codex writes the editing plan. CodeCut applies the plan to the local web
+timeline, opens the editor link, and keeps the result available for creator
 preview, adjustment, and export.
 
 ## Publish And Verify Local Updates
 
-Codecut can run as a normal local app, but the Codex plugin release has four
+CodeCut can run as a normal local app, but the Codex plugin release has four
 separate layers: marketplace discovery, plugin enablement, installed cache, and
 the active Codex session. Do not treat a passing source test as proof that a
 fresh Codex thread can see the current plugin.
@@ -229,12 +230,12 @@ Before calling a plugin release ready, record the checklist in
   this source checkout.
 - Installed cache: source-to-cache sync is clean after the update.
 - Fresh Codex session: start a fresh Codex thread after install or cache sync.
-- Tool surface: use `tool_search` for `open_codecut_workspace Codecut MCP
+- Tool surface: use `tool_search` for `open_codecut_workspace CodeCut MCP
   workspace setup widget` and confirm `open_codecut_workspace` is callable.
 - Fresh-thread widget proof: follow `docs/codecut-widget-intake-fresh-thread.md`
   before claiming widget or MCP routing changes are visible.
 
-Codecut workspace data, imported media, generated planning artifacts, timeline
+CodeCut workspace data, imported media, generated planning artifacts, timeline
 state, and exports belong to the user's project or executor workspace. They are
 not plugin source files and must not be used as proof that the plugin bundle is
 published.

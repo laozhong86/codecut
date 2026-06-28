@@ -25,8 +25,8 @@
     ],
     "defaultPrompt": [
       "Open CodeCut and set up an Agent-driven visual video production workspace.",
-      "Import my local video into CodeCut and prepare a short-form edit with visible timeline progress.",
-      "Turn this source clip into a 30-90 second vertical short with captions, preview, and editable timeline."
+      "Import my local video into CodeCut and prepare a visible short-form timeline.",
+      "Turn this source clip into a 30-90 second vertical short with captions and preview."
     ],
     "brandColor": "#2563EB",
     "composerIcon": "./assets/codecut-logo-flat-dynamic.svg",

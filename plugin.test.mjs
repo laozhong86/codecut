@@ -13,29 +13,32 @@ function sectionBetween(content, startHeading, nextHeadingLevel = "##") {
 	return next === -1 ? content.slice(start) : content.slice(start, next);
 }
 
-describe("Codecut plugin startup guidance", () => {
-	test("states the self-media local Agent editor positioning in plugin and README copy", async () => {
+describe("CodeCut plugin startup guidance", () => {
+	test("states the Agent-driven visual video production positioning in plugin and README copy", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
 		);
 		const readme = await readFile(join(pluginRoot, "README.md"), "utf8");
 		const zhReadme = await readFile(join(pluginRoot, "README.zh-CN.md"), "utf8");
 		const englishPositioning =
-			"Codecut is a local Agent video editor for self-media creators. It is built on the Codex plugin: Codex understands the content, generates or selects assets, and writes a clear editing plan; Codecut then applies that plan to a local web timeline for creators to preview, adjust, and export.";
+			"CodeCut is Codex + CapCut: an Agent-driven visual video production system. Codex performs the production work, while CodeCut shows progress, materials, timeline, preview, manual adjustment, and export in a local visual editor.";
+		const englishLongDescription =
+			"CodeCut is Codex + CapCut: an Agent-driven visual video production system. Codex understands the user's video goal, plans the production work, uses tools and artifacts to build the edit, and CodeCut presents the process in a local visual editor with media, timeline, preview, manual adjustment, and export.";
 		const chinesePositioning =
-			"Codecut 是面向自媒体工作者的本地 Agent 视频编辑器。它依托于 Codex 插件，让 Codex 负责理解内容、生成或选择素材、写出明确的剪辑方案，再由 Codecut 把计划应用到本地网页时间线，供创作者预览、修改和导出。";
+			"CodeCut = Codex + CapCut。CodeCut 是 Agent 驱动的可视化视频生产系统：Codex 负责视频生产工作，CodeCut 通过本地可视化编辑器展示进度、素材、时间线、预览、人工调整和导出。";
 
 		expect(readme).toContain(englishPositioning);
 		expect(zhReadme).toContain(chinesePositioning);
 		expect(pluginManifest.description).toBe(englishPositioning);
+		expect(pluginManifest.interface.displayName).toBe("CodeCut");
 		expect(pluginManifest.interface.shortDescription).toBe(
-			"Local Agent video editor for self-media creators.",
+			"Codex + CapCut for Agent-driven visual video production.",
 		);
-		expect(pluginManifest.interface.longDescription).toBe(englishPositioning);
+		expect(pluginManifest.interface.longDescription).toBe(englishLongDescription);
 		expect(readme).not.toContain("The first positioning is narrow:");
-		expect(readme).not.toContain("Codecut is a Codex plugin + CapCut Pro AI workflow alternative");
+		expect(readme).not.toContain("Codex plugin + CapCut Pro AI workflow alternative");
 		expect(zhReadme).not.toContain("更短的定位：");
-		expect(zhReadme).not.toContain("Codecut = Codex 插件 + CapCut / 剪映平替");
+		expect(zhReadme).not.toContain("Codex 插件 + CapCut / 剪映平替");
 	});
 
 	test("exposes user-clickable starter prompts and plugin icons", async () => {
@@ -45,17 +48,17 @@ describe("Codecut plugin startup guidance", () => {
 		const pluginInterface = pluginManifest.interface;
 
 		expect(pluginInterface.defaultPrompt).toEqual([
-			"Open Codecut and set up a local video editing workspace.",
-			"Import my local video into Codecut and prepare a short-form edit.",
-			"Turn this source clip into a 30-90 second vertical short with captions.",
+			"Open CodeCut and set up an Agent-driven visual video production workspace.",
+			"Import my local video into CodeCut and prepare a visible short-form timeline.",
+			"Turn this source clip into a 30-90 second vertical short with captions and preview.",
 		]);
 		expect(pluginInterface.capabilities).toEqual([
-			"Local editing workspace",
-			"Media import and probing",
-			"Transcript-aware planning",
-			"Validated EditPlan timeline updates",
-			"Timeline readback and preview",
-			"Export readiness checks",
+			"Agent-driven video production workflow",
+			"Visual editing workspace with media and timeline",
+			"Trackable production records",
+			"Transcript and visual-evidence planning",
+			"Validated timeline updates and readback",
+			"Preview, manual adjustment, and export proof",
 		]);
 		for (const prompt of pluginInterface.defaultPrompt) {
 			expect(prompt.length).toBeLessThanOrEqual(90);
@@ -136,12 +139,12 @@ describe("Codecut plugin startup guidance", () => {
 		}
 
 		for (const content of [usageSection, zhUsageSection]) {
-			expect(content).toContain("Open Codecut and set up a local video editing workspace.");
+			expect(content).toContain("Open CodeCut and set up an Agent-driven visual video production workspace.");
 			expect(content).toContain("http://127.0.0.1:4100/en/projects");
 			expect(content).toContain(".codecut-workspace/projects/<project-id>/");
-			expect(content).toContain("Import my local video into Codecut and prepare a short-form edit.");
+			expect(content).toContain("Import my local video into CodeCut and prepare a visible short-form timeline.");
 			expect(content).toContain(
-				"Turn this source clip into a 30-90 second vertical short with captions.",
+				"Turn this source clip into a 30-90 second vertical short with captions and preview.",
 			);
 		}
 
@@ -166,7 +169,7 @@ describe("Codecut plugin startup guidance", () => {
 		}
 	});
 
-	test("declares a local web server app for the Codecut preview", async () => {
+	test("declares a local web server app for the CodeCut preview", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
 		);
@@ -185,7 +188,7 @@ describe("Codecut plugin startup guidance", () => {
 		});
 	});
 
-	test("declares the bundled Codecut MCP server", async () => {
+	test("declares the bundled CodeCut MCP server", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
 		);
@@ -195,8 +198,9 @@ describe("Codecut plugin startup guidance", () => {
 
 		expect(pluginManifest.mcpServers).toBe("./.mcp.json");
 		expect(mcpManifest.mcpServers.codecut_mcp).toEqual({
-			title: "Codecut MCP",
-			description: "Expose stable Codecut local executor tools through MCP.",
+			title: "CodeCut MCP",
+			description:
+				"CodeCut MCP tools for local editor setup, timeline readback, and verified editing operations.",
 			cwd: ".",
 			command: "node",
 			args: ["./mcp/server.mjs"],
@@ -231,9 +235,9 @@ describe("Codecut plugin startup guidance", () => {
 		const normalizedExecutionContract = executionContract.replace(/\s+/g, " ");
 
 		expect(agentCard).toContain("Codex in-app browser");
-		expect(agentCard).toContain(
-			"Whenever Codecut creates a project and receives an editorUrl",
-		);
+			expect(agentCard).toContain(
+				"Whenever CodeCut creates a project and receives an editorUrl",
+			);
 		expect(skill).toContain("references/execution-contract.md");
 		expect(normalizedSkill).toContain(
 			"the Codex in-app browser is only for human preview",
@@ -252,9 +256,9 @@ describe("Codecut plugin startup guidance", () => {
 		expect(executionContract).toContain(
 			"the `editorUrl` returned by `create-project`",
 		);
-		expect(normalizedExecutionContract).toContain(
-			"Whenever a Codecut project is created and an `editorUrl` is returned",
-		);
+			expect(normalizedExecutionContract).toContain(
+				"Whenever a CodeCut project is created and an `editorUrl` is returned",
+			);
 		expect(normalizedExecutionContract).toContain(
 			"open that exact `editorUrl` in the Codex in-app browser before reporting the project ready",
 		);
@@ -337,7 +341,7 @@ describe("Codecut plugin startup guidance", () => {
 		expect(checklist).toContain(
 			"Use tool_search only if open_codecut_workspace is not visible",
 		);
-		expect(checklist).toContain("The only allowed Codecut MCP tool call is");
+			expect(checklist).toContain("The only allowed CodeCut MCP tool call is");
 	});
 
 	test("keeps bridge env command details on the executor surface", async () => {
@@ -456,9 +460,9 @@ describe("Codecut plugin startup guidance", () => {
 		}
 
 		for (const rule of [
-			"Do not use FFmpeg, shell scripts, or subtitle burn-in as the Codecut editing path.",
+			"Do not use FFmpeg, shell scripts, or subtitle burn-in as the CodeCut editing path.",
 			"Do not let MCP tools choose the workflow.",
-			"Do not treat a local MP4 as completion without matching Codecut timeline readback.",
+			"Do not treat a local MP4 as completion without matching CodeCut timeline readback.",
 		]) {
 			expect(contract).toContain(rule);
 		}
