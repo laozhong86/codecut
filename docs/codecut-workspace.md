@@ -2,13 +2,19 @@
 
 ## Purpose
 
-The pre-edit workspace is the local project folder for user intent, source
-materials, material inventory, clarification answers, and editing plans before
-Codecut mutates a timeline.
+The CodeCut workspace is the local production record for an Agent-driven visual
+video project.
 
-It prevents a common failure mode: creating an editor project too early, then
-discovering that the platform, aspect ratio, duration, source quality, or story
-route was wrong.
+It stores user intent, source materials, material inventory, clarification
+answers, scripts, scene plans, generated or selected assets, edit decisions,
+timeline plans, execution files, verification notes, export proof, and project
+learning proposals before and around CodeCut timeline mutation.
+
+This workspace is where CodeCut absorbs OpenMontage-style process artifacts and
+checkpoints while still delivering through the CodeCut visual editor. It
+prevents a common failure mode: creating an editor project too early, then
+discovering that the platform, aspect ratio, duration, source quality, story
+route, or production evidence was wrong.
 
 ## Project ID Rule
 
@@ -30,6 +36,13 @@ project. That gives one stable ID for:
 
 Use a new `projectId` for unrelated jobs. Use subfolders or additional planning
 documents for variants that share the same source pack.
+
+The workspace is not only a pre-edit scratch folder. It is the shared project context
+for the Agent, local tools, and visual editor. Early folders record requirements,
+source evidence, and planning. Later folders record timeline execution, visual QA,
+export proof, and learning proposals. The editable CodeCut timeline remains the
+primary visual delivery surface, while this workspace preserves why the timeline was
+built that way.
 
 ## Folder Structure
 

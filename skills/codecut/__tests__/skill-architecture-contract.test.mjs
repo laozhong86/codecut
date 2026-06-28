@@ -122,7 +122,7 @@ describe("CodeCut skill architecture v1 contract", () => {
 		}
 		expect(workflowContract).toContain("skill-local `.artifacts`");
 		expect(workflowContract).toMatch(
-			/must not\s+become the primary Codecut artifact path/,
+			/must not\s+become the primary CodeCut artifact path/,
 		);
 	});
 

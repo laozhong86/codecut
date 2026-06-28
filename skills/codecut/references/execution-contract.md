@@ -2,13 +2,13 @@
 
 ## Current Stage
 
-The current deliverable is an installed Codex-only Codecut editing MVP. The browser bridge, deterministic tool whitelist, EditPlan validation/preview/application/verification path, local export command contract, and codex-bridge CLI exist.
+The current deliverable is an installed Codex-only CodeCut editing MVP. The browser bridge, deterministic tool whitelist, EditPlan validation/preview/application/verification path, local export command contract, and codex-bridge CLI exist.
 
 Use this contract to operate and extend the current MVP. Use implemented snake_case executor tools, not future camelCase product-direction names.
 
 ## Success Standard
 
-A Codecut editing task is complete only when the creator outcome is visible and the editor state contract is verified.
+A CodeCut editing task is complete only when the creator outcome is visible and the editor state contract is verified.
 
 Define success before coding:
 
@@ -44,7 +44,7 @@ as a substitute for the other.
 Browser is not the Agent runtime. The local executor draft and readback are the
 agent proof; the Codex in-app browser is only for human preview.
 
-Whenever a Codecut project is created and an `editorUrl` is returned, open that
+Whenever a CodeCut project is created and an `editorUrl` is returned, open that
 exact `editorUrl` in the Codex in-app browser before reporting the project
 ready. This is mandatory for setup-widget project creation and direct executor
 `create-project` runs. If browser control is unavailable, report the
@@ -84,7 +84,7 @@ preview URL.
   image with `import_media` and calling `set_project_cover`. Do not represent a
   project cover with `introCover`, and do not shift timeline clips for it.
 - If the user asks for a short-video cover/poster, use the video first frame or
-  visual evidence to create an image outside Codecut runtime, route through
+  visual evidence to create an image outside CodeCut runtime, route through
   `codecut-cover-generation` before importing the image, then call
   `set_project_cover` with the imported image `mediaId`, title text, prompt,
   and style preset metadata. Verify with `get_project_info` or
@@ -94,7 +94,7 @@ preview URL.
   Determine the final first clip's `sourceStart`, inspect that source frame or a
   tight range with `inspect_video_range`, choose a prompt from
   `references/intro-cover-prompts.md` based on video type, generate a separate
-  image through an available image generation capability outside Codecut
+  image through an available image generation capability outside CodeCut
   runtime, import that image with `import_media`, and write `introCover` in the
   EditPlan.
 - For full-source duration preservation, `generateIntroCover` defaults to
@@ -111,7 +111,7 @@ preview URL.
   clip's `timelineStart` must equal `introCover.duration`.
 - For project covers, baked title text is expected when the user asks for
   short-video cover style. For timeline intro images, prefer adding titles
-  through Codecut text/title layers unless the user explicitly needs image text.
+  through CodeCut text/title layers unless the user explicitly needs image text.
 - For horizontal sources converted to vertical shorts, use
   `vertical_face_safe_crop_above_burned_captions` only when current visual
   evidence supports that policy.
@@ -123,7 +123,7 @@ preview URL.
 - Subtitle styling has one generated-edit path: `EditPlan.captions[]` plus
   top-level `captionStyle`. Do not put `fontFamily`, `fontSize`, `color`, CSS,
   per-caption style objects, or external subtitle renderer settings in an
-  EditPlan. Codecut caption presets resolve to controlled local renderer
+  EditPlan. CodeCut caption presets resolve to controlled local renderer
   styles and curated local CJK renderer fonts.
 - Route Chinese captions by content type. Use `talking-head-pop` for spoken
   talking-head and opinion clips because it uses white text, translucent dark
@@ -199,7 +199,7 @@ no MP4 was produced.
 3. For Codex-generated edits, use the current callable MCP path: `get_project_info`, `list_media_assets`, optional `import_media`, `transcribe_media`, `build_video_context` when transcript-first planning needs source-timestamped context, Codex-generated implemented `EditPlan`, `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `verify_timeline`, then `get_timeline_state`.
 4. If the user outcome requires canvas, FPS, or background mutation and no current callable project-settings tool is visible, stop and report that runtime gap instead of naming an unavailable tool.
 5. Write or run a failing validation first for implementation code.
-6. Use existing Codecut paths:
+6. Use existing CodeCut paths:
    - actions for user-facing triggers
    - commands for undoable state changes
    - managers for editor domain operations
@@ -257,10 +257,10 @@ If a bridge command stays pending until timeout, stop the editing loop. If the c
 
 ## Product Guardrails
 
-- Preserve Codecut's local-first, privacy-first positioning.
+- Preserve CodeCut's local-first, privacy-first positioning.
 - Prefer creator workflow value over broad platform abstraction.
 - A feature that cannot be verified in editor state or browser preview is not complete.
-- A generated edit is not complete until the user can preview the applied result in Codecut and the timeline state verifies the requested tracks/elements.
+- A generated edit is not complete until the user can preview the applied result in CodeCut and the timeline state verifies the requested tracks/elements.
 - If implementation requires a new abstraction, first show the repeated pattern or current ownership boundary that makes it necessary.
 - If a voice tool fails with a provider/runtime error, report that external
   generation gate separately from editing correctness. Do not mutate the

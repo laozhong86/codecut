@@ -2,8 +2,8 @@
   "apps": {
     "codecut": {
       "id": "codecut",
-      "displayName": "Codecut",
-      "description": "Local Codecut preview for project browsing, editor inspection, and manual adjustment.",
+      "displayName": "CodeCut",
+      "description": "CodeCut local visual editor for project browsing, timeline preview, and manual adjustment.",
       "launch": {
         "type": "local-web-server",
         "command": "bun",
