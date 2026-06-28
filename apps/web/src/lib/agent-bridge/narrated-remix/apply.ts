@@ -18,10 +18,16 @@ import {
 	buildUploadAudioElement,
 	buildVideoElement,
 } from "@/lib/timeline/element-utils";
-import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
+import { CODECUT_EDITOR_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
 import { generateUUID } from "@/utils/id";
 import type { NarratedRemixPlan } from "./schema";
-import { validateNarratedRemixPlan } from "./validate";
+import {
+	type NarratedRemixDurationContract,
+	type NarratedRemixDurationContractSummary,
+	type NarratedRemixDurationGoal,
+	resolveNarratedRemixNarrationPlacement,
+	validateNarratedRemixPlan,
+} from "./validate";
 
 export interface NarratedRemixEditor {
 	media: {
@@ -41,9 +47,10 @@ export type ApplyNarratedRemixPlanResult =
 				imageBeatCount: number;
 				audioElementCount: number;
 				captionCount: number;
-				cardTextElementCount: number;
+				textOverlayElementCount: number;
 				totalDuration: number;
 				rationale: string;
+				durationContract?: NarratedRemixDurationContractSummary;
 			};
 	  }
 	| { success: false; message: string; path?: string };
@@ -71,6 +78,9 @@ type NarratedRemixImageBeat = Extract<
 	NarratedRemixVisualBeat,
 	{ mediaType: "image" }
 >;
+type NarratedRemixTextOverlay = NonNullable<
+	NarratedRemixPlan["textOverlays"]
+>[number];
 
 function isImageBeat(
 	visualBeat: NarratedRemixVisualBeat,
@@ -192,6 +202,18 @@ function buildNarrationElement({
 	plan: NarratedRemixPlan;
 	mediaAssets: MediaAsset[];
 }): UploadAudioElement {
+	const narrationAsset = mediaAssets.find(
+		(candidate) => candidate.id === plan.narration.mediaId,
+	);
+	if (!narrationAsset) {
+		throw new Error(
+			`NarratedRemixPlan media asset "${plan.narration.mediaId}" disappeared.`,
+		);
+	}
+	const placement = resolveNarratedRemixNarrationPlacement({
+		plan,
+		narrationAsset,
+	});
 	return {
 		...buildUploadAudioElement({
 			mediaId: plan.narration.mediaId,
@@ -199,12 +221,12 @@ function buildNarrationElement({
 				mediaAssets,
 				mediaId: plan.narration.mediaId,
 			}),
-			duration: plan.target.durationSec,
-			startTime: 0,
+			duration: placement.durationSec,
+			startTime: placement.timelineStart,
 		}),
 		id: generateUUID(),
-		trimStart: plan.narration.sourceStart,
-		trimEnd: plan.narration.sourceStart + plan.target.durationSec,
+		trimStart: placement.sourceStart,
+		trimEnd: placement.sourceEnd,
 		volume: 1,
 		muted: false,
 	};
@@ -242,101 +264,52 @@ function buildCaptionElement({
 	return { ...element, id: generateUUID() };
 }
 
-function buildCardTextElement({
-	name,
-	content,
-	startTime,
-	duration,
-	raw,
+function buildTextOverlayElement({
+	overlay,
 }: {
-	name: string;
-	content: string;
-	startTime: number;
-	duration: number;
-	raw: Parameters<typeof buildTextElement>[0]["raw"];
+	overlay: NarratedRemixTextOverlay;
 }): TextElement {
 	const element = buildTextElement({
 		raw: {
-			...raw,
-			name,
-			content,
-			duration,
+			name: overlay.name,
+			content: overlay.text,
+			duration: overlay.duration,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
+			fontSize: overlay.fontSize,
+			color: overlay.color,
+			backgroundColor: overlay.backgroundColor,
+			backgroundOpacity: overlay.backgroundOpacity,
+			backgroundPaddingX: overlay.backgroundPaddingX,
+			backgroundPaddingY: overlay.backgroundPaddingY,
+			backgroundBorderRadius: overlay.backgroundBorderRadius,
+			boxWidth: overlay.boxWidth,
+			textAlign: overlay.textAlign,
+			fontWeight: overlay.fontWeight,
+			fontStyle: "normal",
+			textDecoration: "none",
+			opacity: 1,
+			transform: {
+				scale: 1,
+				position: overlay.position,
+				rotate: 0,
+			},
 		},
-		startTime,
+		startTime: overlay.startTime,
 	});
 	if (element.type !== "text") {
-		throw new Error("Card text builder returned a non-text element.");
+		throw new Error("Text overlay builder returned a non-text element.");
 	}
 	return { ...element, id: generateUUID() };
 }
 
-function buildCardTextElements({
-	visualBeat,
+function buildTextOverlayElements({
+	plan,
 }: {
-	visualBeat: NarratedRemixImageBeat;
+	plan: NarratedRemixPlan;
 }): TextElement[] {
-	const base = {
-		fontFamily: CODECUT_CJK_FONT_FAMILY,
-		textAlign: "center" as const,
-		fontWeight: "bold" as const,
-		fontStyle: "normal" as const,
-		textDecoration: "none" as const,
-		opacity: 1,
-		boxWidth: 52,
-	};
-	return [
-		buildCardTextElement({
-			name: "Card title",
-			content: visualBeat.cardText.title,
-			startTime: visualBeat.timelineStart,
-			duration: visualBeat.duration,
-			raw: {
-				...base,
-				fontSize: 5.6,
-				color: "#ffffff",
-				backgroundColor: "#000000",
-				backgroundOpacity: 0.86,
-				backgroundPaddingX: 22,
-				backgroundPaddingY: 10,
-				backgroundBorderRadius: 8,
-				transform: { scale: 1, position: { x: 0, y: -780 }, rotate: 0 },
-			},
-		}),
-		buildCardTextElement({
-			name: "Card info",
-			content: visualBeat.cardText.info,
-			startTime: visualBeat.timelineStart,
-			duration: visualBeat.duration,
-			raw: {
-				...base,
-				fontSize: 4.8,
-				color: "#141414",
-				backgroundColor: "#ffca21",
-				backgroundOpacity: 0.92,
-				backgroundPaddingX: 20,
-				backgroundPaddingY: 9,
-				backgroundBorderRadius: 8,
-				transform: { scale: 1, position: { x: 0, y: -710 }, rotate: 0 },
-			},
-		}),
-		buildCardTextElement({
-			name: "Card bottomText",
-			content: visualBeat.cardText.bottomText,
-			startTime: visualBeat.timelineStart,
-			duration: visualBeat.duration,
-			raw: {
-				...base,
-				fontSize: 5.2,
-				color: "#ffffff",
-				backgroundColor: "#000000",
-				backgroundOpacity: 0.84,
-				backgroundPaddingX: 22,
-				backgroundPaddingY: 12,
-				backgroundBorderRadius: 10,
-				transform: { scale: 1, position: { x: 0, y: 430 }, rotate: 0 },
-			},
-		}),
-	];
+	return (plan.textOverlays ?? []).map((overlay) =>
+		buildTextOverlayElement({ overlay }),
+	);
 }
 
 function buildNarratedRemixTracks({
@@ -370,17 +343,15 @@ function buildNarratedRemixTracks({
 		elements: [buildNarrationElement({ plan, mediaAssets })],
 	};
 
-	const cardTextElements = plan.visualBeats
-		.filter(isImageBeat)
-		.flatMap((visualBeat) => buildCardTextElements({ visualBeat }));
-	const cardTextTrack: TextTrack | null =
-		cardTextElements.length > 0
+	const textOverlayElements = buildTextOverlayElements({ plan });
+	const textOverlayTrack: TextTrack | null =
+		textOverlayElements.length > 0
 			? {
 					id: generateUUID(),
 					type: "text",
-					name: "Card Text",
+					name: "Text Overlays",
 					hidden: false,
-					elements: cardTextElements,
+					elements: textOverlayElements,
 				}
 			: null;
 
@@ -402,7 +373,7 @@ function buildNarratedRemixTracks({
 	return [
 		videoTrack,
 		audioTrack,
-		...(cardTextTrack ? [cardTextTrack] : []),
+		...(textOverlayTrack ? [textOverlayTrack] : []),
 		textTrack,
 	];
 }
@@ -412,17 +383,23 @@ export function applyNarratedRemixPlanToEditor({
 	projectId,
 	replaceExisting,
 	editor,
+	durationContract,
+	durationGoal,
 }: {
 	plan: unknown;
 	projectId: string;
 	replaceExisting: boolean;
 	editor: NarratedRemixEditor;
+	durationContract?: NarratedRemixDurationContract;
+	durationGoal?: NarratedRemixDurationGoal;
 }): ApplyNarratedRemixPlanResult {
 	const mediaAssets = editor.media.getAssets();
 	const validation = validateNarratedRemixPlan({
 		plan,
 		projectId,
 		mediaAssets,
+		durationContract,
+		durationGoal,
 	});
 	if (!validation.success) {
 		return validation;
@@ -451,10 +428,12 @@ export function applyNarratedRemixPlanToEditor({
 			imageBeatCount: normalizedPlan.visualBeats.filter(isImageBeat).length,
 			audioElementCount: 1,
 			captionCount: normalizedPlan.captions.length,
-			cardTextElementCount:
-				normalizedPlan.visualBeats.filter(isImageBeat).length * 3,
+			textOverlayElementCount: normalizedPlan.textOverlays?.length ?? 0,
 			totalDuration: calculateTotalDuration({ tracks: nextTracks }),
 			rationale: normalizedPlan.rationale,
+			...(validation.durationContract
+				? { durationContract: validation.durationContract }
+				: {}),
 		},
 	};
 }

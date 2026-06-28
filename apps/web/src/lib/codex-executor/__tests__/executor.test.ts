@@ -27,7 +27,6 @@ import type {
 	EditPlanCaption,
 	EditPlanCaptionStyle,
 } from "@/lib/agent-bridge/edit-plan/schema";
-import type { TextElement } from "@/types/timeline";
 import {
 	rebuildTimelineFromSpeechCleanup,
 	type SpeechCleanupPlan,
@@ -37,6 +36,7 @@ import {
 	cloneLocalSegmentAsrCapabilities,
 	cloneLocalSegmentAsrQuality,
 } from "@/lib/transcription/asr-provider-contract";
+import { CODECUT_YAN_BO_SONG_FONT_FAMILY } from "@/lib/codecut-fonts";
 import {
 	createExecutorProject,
 	executeCodexExecutorEnvelope,
@@ -45,6 +45,7 @@ import {
 	getExecutorProjectState,
 	getExecutorStatus,
 } from "../executor";
+import type { ConfirmedSetup, DurationContract } from "../setup-contract";
 
 const projectId = "project-1";
 
@@ -55,6 +56,7 @@ function envelope({
 	tool:
 		| "get_project_info"
 		| "update_project_settings"
+		| "update_project_preferences"
 		| "list_media_assets"
 		| "import_media_file"
 		| "set_project_cover"
@@ -64,13 +66,19 @@ function envelope({
 		| "build_visual_context"
 		| "build_video_quality_report"
 		| "inspect_timeline"
+		| "export_timeline_frame"
 		| "get_transcript"
 		| "inspect_video_range"
+		| "build_caption_diagnostics"
 		| "build_post_cut_captions"
 		| "add_texts"
 		| "add_captions"
+		| "import_subtitles"
 		| "list_models"
 		| "set_keyframes"
+		| "add_transitions"
+		| "update_transition"
+		| "remove_transition"
 		| "search_media"
 		| "insert_clips"
 		| "move_clips"
@@ -87,6 +95,9 @@ function envelope({
 		| "generate_digital_human"
 		| "generate_runninghub_voice_design"
 		| "generate_runninghub_voice_clone"
+		| "generate_volcengine_cloned_voice"
+		| "transcribe_volcengine_url"
+		| "build_volcengine_url_captions"
 		| "export_project"
 		| "verify_timeline"
 		| "get_timeline_state";
@@ -126,6 +137,75 @@ function wordAsrContractFields() {
 			confidence: null,
 			warnings: [],
 		},
+	};
+}
+
+function confirmedSetupFixture({
+	taskType = "edit_execution",
+	captionLanguage = "auto",
+	captionFont = "auto",
+	captionSize = "medium",
+	captionStylePreset = "creator-clean",
+	exportFormat = "mp4",
+	exportQuality = "high",
+	includeAudio = true,
+	durationContract = {
+		totalDurationMode: "auto",
+		sourceCoverageMode: "selected_segments",
+		toleranceSeconds: 0.2,
+	},
+}: {
+	taskType?:
+		| "template_draft"
+		| "template_import"
+		| "template_apply_sample"
+		| "edit_execution";
+	captionLanguage?: string;
+	captionFont?: string;
+	captionSize?: "small" | "medium" | "large";
+	captionStylePreset?:
+		| "creator-clean"
+		| "short-form-bold"
+		| "black-bar"
+		| "talking-head-pop"
+		| "tutorial-clean"
+		| "documentary-soft"
+		| "product-punch"
+		| "lifestyle-warm"
+		| "cinematic-serif"
+		| "social-highlight"
+		| "comment-bubble"
+		| "minimal-reel";
+	exportFormat?: "mp4" | "webm";
+	exportQuality?: "low" | "medium" | "high" | "very_high";
+	includeAudio?: boolean;
+	durationContract?: DurationContract;
+} = {}): ConfirmedSetup {
+	return {
+		version: 1,
+		taskType,
+		confirmedAt: "2026-06-26T00:00:00.000Z",
+		source: "codecut_setup_confirmation",
+		timelinePreferences: {
+			aspectRatio: "9:16",
+			durationGoal: { mode: "auto" },
+			durationContract,
+			transitionPreference: "auto",
+			generateIntroCover: true,
+			requirements: "Create a clear short video.",
+		},
+		captionPreferences: {
+			language: captionLanguage,
+			font: captionFont,
+			size: captionSize,
+			stylePreset: captionStylePreset,
+		},
+		exportPreferences: {
+			format: exportFormat,
+			quality: exportQuality,
+			includeAudio,
+		},
+		changes: [],
 	};
 }
 
@@ -219,7 +299,6 @@ async function createFixtureBareAudio({
 	duration?: number;
 	sampleRate?: number;
 }): Promise<Buffer> {
-	installFixtureWebCodecsGlobals();
 	const channels = 2;
 	const frameCount = Math.ceil(duration * sampleRate);
 	const samples = new Float32Array(frameCount * channels);
@@ -229,6 +308,31 @@ async function createFixtureBareAudio({
 		samples[i * channels + 1] = sample;
 	}
 
+	if (format === "wav") {
+		const bytesPerSample = 2;
+		const dataSize = frameCount * channels * bytesPerSample;
+		const buffer = Buffer.alloc(44 + dataSize);
+		buffer.write("RIFF", 0, "ascii");
+		buffer.writeUInt32LE(36 + dataSize, 4);
+		buffer.write("WAVE", 8, "ascii");
+		buffer.write("fmt ", 12, "ascii");
+		buffer.writeUInt32LE(16, 16);
+		buffer.writeUInt16LE(1, 20);
+		buffer.writeUInt16LE(channels, 22);
+		buffer.writeUInt32LE(sampleRate, 24);
+		buffer.writeUInt32LE(sampleRate * channels * bytesPerSample, 28);
+		buffer.writeUInt16LE(channels * bytesPerSample, 32);
+		buffer.writeUInt16LE(bytesPerSample * 8, 34);
+		buffer.write("data", 36, "ascii");
+		buffer.writeUInt32LE(dataSize, 40);
+		for (let index = 0; index < samples.length; index += 1) {
+			const sample = Math.max(-1, Math.min(1, samples[index] ?? 0));
+			buffer.writeInt16LE(Math.round(sample * 32767), 44 + index * 2);
+		}
+		return buffer;
+	}
+
+	installFixtureWebCodecsGlobals();
 	const target = new BufferTarget();
 	const outputFormat =
 		format === "flac"
@@ -424,6 +528,281 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("creates a project with confirmedSetup and reads it back from project info and snapshot", async () => {
+		const confirmedSetup = confirmedSetupFixture({
+			taskType: "template_draft",
+			captionSize: "large",
+			captionStylePreset: "product-punch",
+			exportFormat: "mp4",
+			exportQuality: "high",
+		});
+		await createExecutorProject({
+			projectId,
+			name: "Confirmed setup cut",
+			confirmedSetup,
+		});
+
+		const infoResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_project_info", args: {} }),
+		});
+		const info = resultData<{ confirmedSetup: unknown }>(infoResult.results[0]);
+		const snapshot = await getExecutorProjectSnapshot({ projectId });
+
+		expect(info.confirmedSetup).toEqual(confirmedSetup);
+		expect((info.confirmedSetup as ConfirmedSetup).taskType).toBe(
+			"template_draft",
+		);
+		expect(snapshot.confirmedSetup).toEqual(confirmedSetup);
+	});
+
+	test("add_captions reads caption preferences from confirmedSetup and writes scaled font size", async () => {
+		await seedDraftState({
+			confirmedSetup: confirmedSetupFixture({
+				captionLanguage: "zh",
+				captionSize: "large",
+				captionStylePreset: "product-punch",
+			}),
+			mediaAssets: [
+				{
+					id: "video-1",
+					name: "source.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 8,
+					width: 1080,
+					height: 1920,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/source.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Main",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Source",
+							mediaId: "video-1",
+							startTime: 0,
+							duration: 8,
+							trimStart: 0,
+							trimEnd: 8,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_captions",
+				args: { modelId: "whisper-tiny" },
+			}),
+			transcribeMediaRange: async ({ language }) => ({
+				text: "字幕合同字号验证",
+				segments: [{ text: "字幕合同字号验证", start: 0.5, end: 3.5 }],
+				language,
+				modelId: "whisper-tiny",
+				...asrContractFields(),
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+		const timeline = resultData<{
+			tracks: Array<{ elements: Array<Record<string, unknown>> }>;
+		}>(timelineResult.results[0]);
+		const caption = timeline.tracks
+			.flatMap((track) => track.elements)
+			.find((element) => element.type === "text");
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				captionStyle: {
+					preset: "product-punch",
+					position: "lower-safe",
+					size: "large",
+				},
+			},
+		});
+		expect(caption).toMatchObject({
+			content: "字幕合同",
+			style: { fontSize: 6.578 },
+		});
+	});
+
+	test("add_captions rejects explicit caption style that conflicts with confirmedSetup", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Confirmed setup conflict",
+			confirmedSetup: confirmedSetupFixture({
+				captionStylePreset: "product-punch",
+			}),
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_captions",
+				args: {
+					language: "auto",
+					modelId: "whisper-tiny",
+					captionStyle: { preset: "creator-clean", position: "lower-safe" },
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: false,
+			message:
+				"captionStyle.preset conflicts with confirmedSetup.captionPreferences.stylePreset: expected product-punch.",
+		});
+	});
+
+	test("update_project_preferences rejects stale revisions", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Confirmed setup stale revision",
+			confirmedSetup: confirmedSetupFixture(),
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_project_preferences",
+				args: {
+					projectId,
+					baseRevision: 2,
+					confirmationToken: "ccconfirmed_test",
+					patch: {
+						captionPreferences: { size: "large" },
+					},
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: false,
+			message: "baseRevision is stale: expected 1, received 2.",
+		});
+	});
+
+	test("update_project_preferences updates existing caption elements and confirmedSetup", async () => {
+		await seedDraftState({
+			confirmedSetup: confirmedSetupFixture({
+				captionLanguage: "zh",
+				captionSize: "medium",
+				captionStylePreset: "product-punch",
+			}),
+			mediaAssets: [
+				{
+					id: "video-1",
+					name: "source.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 8,
+					width: 1080,
+					height: 1920,
+					size: 5,
+					lastModified: 1,
+					path: "/tmp/source.mp4",
+				},
+			],
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Main",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "clip-1",
+							type: "video",
+							name: "Source",
+							mediaId: "video-1",
+							startTime: 0,
+							duration: 8,
+							trimStart: 0,
+							trimEnd: 8,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_captions",
+				args: { modelId: "whisper-tiny" },
+			}),
+			transcribeMediaRange: async ({ language }) => ({
+				text: "字幕偏好修改验证",
+				segments: [{ text: "字幕偏好修改验证", start: 0.5, end: 3.5 }],
+				language,
+				modelId: "whisper-tiny",
+				...asrContractFields(),
+			}),
+		});
+		const beforeUpdate = await getExecutorProjectState({ projectId });
+
+		const updateResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_project_preferences",
+				args: {
+					projectId,
+					baseRevision: beforeUpdate.revision,
+					confirmationToken: "ccconfirmed_test",
+					patch: {
+						captionPreferences: { size: "small" },
+					},
+					reason: "user_requested_smaller_captions",
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+		const timeline = resultData<{
+			tracks: Array<{ elements: Array<Record<string, unknown>> }>;
+		}>(timelineResult.results[0]);
+		const caption = timeline.tracks
+			.flatMap((track) => track.elements)
+			.find((element) => element.type === "text");
+
+		expect(updateResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				confirmedSetup: {
+					captionPreferences: { size: "small" },
+					changes: [
+						expect.objectContaining({
+							field: "captionPreferences.size",
+							oldValue: "medium",
+							newValue: "small",
+							reason: "user_requested_smaller_captions",
+						}),
+					],
+				},
+				requiresReplan: false,
+			},
+		});
+		expect(caption).toMatchObject({
+			content: "字幕偏好修改验证",
+			style: { fontSize: 4.212 },
+		});
+	});
+
 	test("sets and clears an independent project cover without adding timeline frames", async () => {
 		await createExecutorProject({ projectId, name: "Project cover cut" });
 		const coverImport = await executeCodexExecutorEnvelope({
@@ -503,7 +882,7 @@ describe("codex executor", () => {
 		const timelineResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2" },
+				args: {},
 			}),
 		});
 		const projectInfoResult = await executeCodexExecutorEnvelope({
@@ -750,7 +1129,7 @@ describe("codex executor", () => {
 		const timelineResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2", includeReferencedMedia: true },
+				args: { includeReferencedMedia: true },
 			}),
 		});
 
@@ -799,9 +1178,11 @@ describe("codex executor", () => {
 	async function seedDraftState({
 		tracks,
 		mediaAssets = [],
+		confirmedSetup,
 	}: {
 		tracks: Array<Record<string, unknown>>;
 		mediaAssets?: Array<Record<string, unknown>>;
+		confirmedSetup?: ReturnType<typeof confirmedSetupFixture>;
 	}) {
 		await createExecutorProject({ projectId, name: "Verifiable edit loop" });
 		const now = "2026-06-22T00:00:00.000Z";
@@ -825,6 +1206,7 @@ describe("codex executor", () => {
 					mediaAssets,
 					derivedAssets: [],
 					tracks,
+					...(confirmedSetup ? { confirmedSetup } : {}),
 				},
 				null,
 				2,
@@ -1443,6 +1825,169 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("generate_volcengine_cloned_voice creates a local audio media asset", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const voiceBytes = await createFixtureBareAudio({ format: "wav" });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_volcengine_cloned_voice",
+				args: {
+					voiceType: "voice-clone-1",
+					text: "豆包语音复刻测试",
+					protectedTerms: ["豆包语音"],
+				},
+			}),
+			env: { VOLCENGINE_OPEN_SPEECH_API_KEY: "volc-key" },
+			generateVolcengineClonedVoice: async ({ apiKey, voiceType, text }) => {
+				expect(apiKey).toBe("volc-key");
+				expect(voiceType).toBe("voice-clone-1");
+				expect(text).toBe("豆包语音复刻测试");
+				return {
+					taskId: "volc-task-1",
+					audioBytes: voiceBytes,
+					mimeType: "audio/wav",
+				};
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "generate_volcengine_cloned_voice",
+			success: true,
+			message:
+				"Generated Volcengine voice 'volcengine-voice-clone-volc-task-1.wav'",
+			data: {
+				taskId: "volc-task-1",
+				provider: "volcengine-voice-clone",
+				name: "volcengine-voice-clone-volc-task-1.wav",
+				voiceConsistency: {
+					provider: "volcengine-voice-clone",
+					providerTaskId: "volc-task-1",
+					scriptCaptionLineCount: 1,
+					protectedTermCount: 1,
+				},
+			},
+		});
+		const state = await getExecutorProjectState({ projectId });
+		const asset = state.mediaAssets.find(
+			(item) =>
+				item.id === resultData<{ mediaId: string }>(result.results[0]).mediaId,
+		);
+		expect(asset?.spokenScript).toMatchObject({
+			source: "tts",
+			text: "豆包语音复刻测试",
+			captions: ["豆包语音复刻测试"],
+			protectedTerms: ["豆包语音"],
+			provider: "volcengine-voice-clone",
+			providerTaskId: "volc-task-1",
+		});
+	});
+
+	test("generate_volcengine_cloned_voice rejects a missing API key", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "generate_volcengine_cloned_voice",
+				args: {
+					voiceType: "voice-clone-1",
+					text: "豆包语音复刻测试",
+				},
+			}),
+			env: {},
+			generateVolcengineClonedVoice: async () => {
+				throw new Error("should not run");
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: false,
+			message: "VOLCENGINE_OPEN_SPEECH_API_KEY is required",
+		});
+	});
+
+	test("transcribe_volcengine_url returns transcript data without mutating project state", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "transcribe_volcengine_url",
+				args: {
+					mediaUrl: "https://example.com/audio.mp3",
+					requestId: "asr-request-1",
+				},
+			}),
+			env: { VOLCENGINE_OPEN_SPEECH_API_KEY: "volc-key" },
+			transcribeVolcengineUrl: async ({ apiKey, mediaUrl, requestId }) => {
+				expect(apiKey).toBe("volc-key");
+				expect(mediaUrl).toBe("https://example.com/audio.mp3");
+				expect(requestId).toBe("asr-request-1");
+				return {
+					taskId: "asr-request-1",
+					status: "succeeded",
+					text: "豆包语音",
+					language: "zh-CN",
+					modelId: "volcengine-bigmodel",
+					segments: [{ text: "豆包语音", start: 0, end: 1.23 }],
+					...asrContractFields(),
+				};
+			},
+		});
+
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		expect(result.results[0]).toMatchObject({
+			tool: "transcribe_volcengine_url",
+			success: true,
+			data: {
+				taskId: "asr-request-1",
+				text: "豆包语音",
+				segments: [{ text: "豆包语音", start: 0, end: 1.23 }],
+			},
+		});
+	});
+
+	test("build_volcengine_url_captions returns editable captions without mutating project state", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_volcengine_url_captions",
+				args: {
+					mediaUrl: "https://example.com/video.mp4",
+				},
+			}),
+			env: { VOLCENGINE_OPEN_SPEECH_API_KEY: "volc-key" },
+			buildVolcengineUrlCaptions: async ({ apiKey, mediaUrl }) => {
+				expect(apiKey).toBe("volc-key");
+				expect(mediaUrl).toBe("https://example.com/video.mp4");
+				return {
+					taskId: "subtitle-task-1",
+					status: "succeeded",
+					captions: [
+						{ text: "第一句", startTime: 0, duration: 0.9 },
+						{ text: "第二句", startTime: 0.9, duration: 0.9 },
+					],
+				};
+			},
+		});
+
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		expect(result.results[0]).toMatchObject({
+			tool: "build_volcengine_url_captions",
+			success: true,
+			data: {
+				source: "volcengine_url_subtitle",
+				taskId: "subtitle-task-1",
+				captions: [
+					{ text: "第一句", startTime: 0, duration: 0.9 },
+					{ text: "第二句", startTime: 0.9, duration: 0.9 },
+				],
+			},
+		});
+	});
+
 	test("applies an EditPlan and exposes timeline state plus run status", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 		const importResult = await executeCodexExecutorEnvelope({
@@ -1503,8 +2048,11 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				revision: state.revision,
-				totalDuration: 12,
+				schemaVersion: 2,
+				project: {
+					revision: state.revision,
+					totalDuration: 12,
+				},
 				tracks: [
 					{
 						type: "text",
@@ -1542,14 +2090,14 @@ describe("codex executor", () => {
 			projectId,
 			status: "succeeded",
 			tool: "get_timeline_state",
-			message: "Timeline has 2 track(s), total duration: 12.00s",
+			message: "Timeline has 2 track(s), 2 returned element(s)",
 			revision: state.revision,
 		});
 		expect(state.revision).toBeGreaterThan(1);
 	});
 
-	test("keeps get_timeline_state v1 default and exposes explicit v2 orientation data", async () => {
-		await createExecutorProject({ projectId, name: "Timeline v2 proof" });
+	test("returns canonical rich get_timeline_state readback by default", async () => {
+		await createExecutorProject({ projectId, name: "Timeline readback proof" });
 		const importVideoResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "import_media_file",
@@ -1615,70 +2163,100 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
-							size: "medium",
+							size: "large",
 						},
-						rationale: "Timeline v2 proof",
+						rationale: "Timeline readback proof",
 					},
 				},
 			}),
 		});
 		const state = await getExecutorProjectState({ projectId });
 
-		const v1Result = await executeCodexExecutorEnvelope({
+		const defaultResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({ tool: "get_timeline_state", args: {} }),
 		});
-		const v1Data = resultData<Record<string, unknown>>(v1Result.results[0]);
-		expect("schemaVersion" in v1Data).toBe(false);
-		expect(v1Result.results[0]).toMatchObject({
+		const defaultData = resultData<{
+			tracks: Array<{
+				type: string;
+				elements: Array<Record<string, unknown>>;
+			}>;
+		}>(defaultResult.results[0]);
+		expect(defaultResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				revision: state.revision,
-				totalDuration: 10,
+				schemaVersion: 2,
+				project: {
+					id: projectId,
+					name: "Timeline readback proof",
+					revision: state.revision,
+					settings: {
+						fps: 30,
+						canvasSize: { width: 1080, height: 1920 },
+						background: { type: "color", color: "#000000" },
+					},
+				},
+				window: {
+					startTime: 0,
+					endTime: 10,
+					totalElementCount: 4,
+					returnedElementCount: 4,
+				},
+				summary: {
+					trackCount: 2,
+					elementCount: 4,
+					returnedElementCount: 4,
+					transitionCount: 0,
+					derivedAssetCount: 0,
+					trackTypeCounts: {
+						video: 1,
+						text: 1,
+						audio: 0,
+						sticker: 0,
+					},
+				},
 				derivedAssets: [],
 			},
 		});
-		expect(v1Data.tracks).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					type: "text",
-					elements: expect.arrayContaining([
-						expect.objectContaining({ content: "Opening claim" }),
-					]),
-				}),
-				expect.objectContaining({
-					type: "video",
-					elements: expect.arrayContaining([
-						expect.objectContaining({ mediaId }),
-					]),
-				}),
-			]),
+		expect(
+			"revision" in
+				resultData<Record<string, unknown>>(defaultResult.results[0]),
+		).toBe(false);
+		expect(
+			"totalDuration" in
+				resultData<Record<string, unknown>>(defaultResult.results[0]),
+		).toBe(false);
+		const defaultTextTrack = defaultData.tracks.find(
+			(track) => track.type === "text",
 		);
-		const v1TextTrack = (
-			v1Data.tracks as Array<{
-				type?: string;
-				elements?: Array<Record<string, unknown>>;
-			}>
-		).find((track) => track.type === "text");
-		expect(v1TextTrack?.elements?.[0]).toMatchObject({
+		expect(defaultTextTrack?.elements[0]).toMatchObject({
 			content: "Opening claim",
 			startTime: 1,
 			duration: 2,
+			endTime: 3,
 			style: {
-				fontFamily: "CodecutCJK",
-				fontSize: 4.8,
-				color: "#fff3b0",
-				stroke: { color: "#101010", width: 3 },
-				backgroundColor: "transparent",
-				boxWidth: 44,
+				fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+				fontSize: 5.720000000000001,
+				color: "#ffffff",
+				backgroundColor: "#0f172a",
+				backgroundOpacity: 0.42,
+				backgroundPaddingX: 24,
+				backgroundPaddingY: 12,
+				backgroundBorderRadius: 8,
+				shadow: {
+					color: "rgba(0,0,0,0.72)",
+					offsetX: 0,
+					offsetY: 3,
+					blur: 10,
+				},
+				boxWidth: 50,
 				transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
 			},
 		});
 
-		const v2Result = await executeCodexExecutorEnvelope({
+		const windowResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
 				args: {
-					format: "v2",
 					startTime: 3,
 					endTime: 7,
 					includeFrames: true,
@@ -1687,19 +2265,14 @@ describe("codex executor", () => {
 			}),
 		});
 
-		expect(v2Result.results[0]).toMatchObject({
+		expect(windowResult.results[0]).toMatchObject({
 			success: true,
 			data: {
 				schemaVersion: 2,
 				project: {
 					id: projectId,
-					name: "Timeline v2 proof",
+					name: "Timeline readback proof",
 					revision: state.revision,
-					settings: {
-						fps: 30,
-						canvasSize: { width: 1080, height: 1920 },
-						background: { type: "color", color: "#000000" },
-					},
 					totalDuration: 10,
 					totalFrames: 300,
 				},
@@ -1710,19 +2283,6 @@ describe("codex executor", () => {
 					endFrame: 210,
 					totalElementCount: 4,
 					returnedElementCount: 3,
-				},
-				summary: {
-					trackCount: 2,
-					elementCount: 4,
-					returnedElementCount: 3,
-					transitionCount: 0,
-					derivedAssetCount: 0,
-					trackTypeCounts: {
-						video: 1,
-						text: 1,
-						audio: 0,
-						sticker: 0,
-					},
 				},
 				tracks: [
 					{
@@ -1795,38 +2355,53 @@ describe("codex executor", () => {
 						height: 1080,
 					},
 				},
-				derivedAssets: [],
 			},
 		});
-		const v2Data = resultData<{
+		const windowData = resultData<{
 			tracks: Array<{
 				type: string;
 				elements: Array<Record<string, unknown>>;
 			}>;
 			referencedMedia?: Record<string, { name: string }>;
-		}>(v2Result.results[0]);
-		const v2TextTrack = v2Data.tracks.find((track) => track.type === "text");
-		expect(v2TextTrack?.elements[0]).toMatchObject({
+		}>(windowResult.results[0]);
+		const windowTextTrack = windowData.tracks.find(
+			(track) => track.type === "text",
+		);
+		expect(windowTextTrack?.elements[0]).toMatchObject({
 			content: "Proof point",
 			startTime: 5,
 			duration: 2,
 			style: {
-				fontFamily: "CodecutCJK",
-				fontSize: 4.8,
-				color: "#fff3b0",
-				stroke: { color: "#101010", width: 3 },
-				backgroundColor: "transparent",
-				boxWidth: 44,
+				fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+				fontSize: 5.720000000000001,
+				color: "#ffffff",
+				backgroundColor: "#0f172a",
+				backgroundOpacity: 0.42,
+				backgroundPaddingX: 24,
+				backgroundPaddingY: 12,
+				backgroundBorderRadius: 8,
+				shadow: {
+					color: "rgba(0,0,0,0.72)",
+					offsetX: 0,
+					offsetY: 3,
+					blur: 10,
+				},
+				boxWidth: 50,
 				transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
 			},
 		});
 		expect(
-			Object.values(v2Data.referencedMedia ?? {}).map((asset) => asset.name),
+			Object.values(windowData.referencedMedia ?? {}).map(
+				(asset) => asset.name,
+			),
 		).toEqual(["source.mp4"]);
 	});
 
-	test("omits derived frame fields from get_timeline_state v2 unless requested", async () => {
-		await createExecutorProject({ projectId, name: "Timeline v2 seconds" });
+	test("omits derived frame fields from canonical get_timeline_state unless requested", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Timeline readback seconds",
+		});
 		const now = "2026-06-22T00:00:00.000Z";
 		await writeFile(
 			join(stateDir, "projects", projectId, "project.json"),
@@ -1836,7 +2411,7 @@ describe("codex executor", () => {
 					revision: 2,
 					project: {
 						id: projectId,
-						name: "Timeline v2 seconds",
+						name: "Timeline readback seconds",
 						settings: {
 							canvasSize: { width: 1080, height: 1920 },
 							fps: 30,
@@ -1892,7 +2467,7 @@ describe("codex executor", () => {
 		const result = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2" },
+				args: {},
 			}),
 		});
 		const data = resultData<{
@@ -1938,16 +2513,16 @@ describe("codex executor", () => {
 		expect(element.trimEndFrame).toBeUndefined();
 	});
 
-	test("rejects get_timeline_state v2 windows where endTime is before startTime", async () => {
+	test("rejects get_timeline_state windows where endTime is before startTime", async () => {
 		await createExecutorProject({
 			projectId,
-			name: "Timeline v2 invalid window",
+			name: "Timeline readback invalid window",
 		});
 
 		const result = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2", startTime: 5, endTime: 4 },
+				args: { startTime: 5, endTime: 4 },
 			}),
 		});
 		const state = await getExecutorProjectState({ projectId });
@@ -1957,8 +2532,34 @@ describe("codex executor", () => {
 			tool: "get_timeline_state",
 			success: false,
 			message:
-				"get_timeline_state v2 endTime must be greater than or equal to startTime.",
+				"get_timeline_state endTime must be greater than or equal to startTime.",
 		});
+		expect(state.revision).toBe(1);
+	});
+
+	test("rejects the removed get_timeline_state format selector", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Timeline readback rejects format",
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: { format: "v2" },
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(result.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "get_timeline_state",
+			success: false,
+		});
+		const message =
+			"message" in result.results[0] ? result.results[0].message : "";
+		expect(message).toContain("Unrecognized key");
+		expect(message).toContain("format");
 		expect(state.revision).toBe(1);
 	});
 
@@ -2011,7 +2612,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
-							size: "medium",
+							size: "large",
 						},
 						rationale: "Draft truth proof",
 					},
@@ -2794,6 +3395,87 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("export fails before rendering when timeline violates duration contract", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Contracted export",
+			confirmedSetup: confirmedSetupFixture({
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
+					sourceDurationSeconds: 28.866667,
+					toleranceSeconds: 0.2,
+				},
+			}),
+		});
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 28.866667,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 16.8, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "short-clip",
+								sourceStart: 0,
+								sourceEnd: 16.8,
+								timelineStart: 0,
+								sourceCrop: { x: 0, y: 0, width: 1080, height: 1920 },
+								reason: "Shortened source.",
+							},
+						],
+						rationale: "This timeline violates the confirmed contract.",
+					},
+				},
+			}),
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_project",
+				args: {
+					format: "mp4",
+					quality: "high",
+					includeAudio: true,
+					outputFile: join(stateDir, "contract-out.mp4"),
+					overwrite: false,
+				},
+			}),
+			exportProject: async () => {
+				throw new Error("should not run");
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			tool: "export_project",
+			success: false,
+			message:
+				"Timeline violates confirmed duration contract: totalDurationMatches=false, sourceCoverageMatches=false.",
+		});
+	});
+
 	test("verify_timeline returns explicit mismatch fields", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 
@@ -2805,6 +3487,7 @@ describe("codex executor", () => {
 						totalDuration: 10,
 						trackCount: 1,
 						clipCount: 1,
+						transitionCount: 1,
 						captionCount: 0,
 						audioCount: 0,
 						mediaIds: ["media-1"],
@@ -2821,6 +3504,7 @@ describe("codex executor", () => {
 					{ field: "totalDuration", expected: 10, actual: 0 },
 					{ field: "trackCount", expected: 1, actual: 0 },
 					{ field: "clipCount", expected: 1, actual: 0 },
+					{ field: "transitionCount", expected: 1, actual: 0 },
 					{ field: "mediaIds", expected: ["media-1"], actual: [] },
 				],
 			},
@@ -3025,7 +3709,13 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				totalDuration: 10,
+				schemaVersion: 2,
+				project: {
+					totalDuration: 10,
+				},
+				summary: {
+					transitionCount: 1,
+				},
 				tracks: [
 					{
 						type: "text",
@@ -3046,8 +3736,10 @@ describe("codex executor", () => {
 									fontWeight: "bold",
 									backgroundColor: "#000000",
 									backgroundOpacity: 0.78,
-									backgroundPaddingX: 24,
-									backgroundPaddingY: 12,
+									backgroundPaddingX: 26,
+									backgroundPaddingY: 13,
+									fontSize: 7.2,
+									boxWidth: 40,
 								},
 							},
 						],
@@ -3756,6 +4448,11 @@ describe("codex executor", () => {
 				args: {
 					language: "zh",
 					modelId: "whisper-base",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+						size: "large",
+					},
 				},
 			}),
 			transcribeMediaRange: async ({ range, language, modelId }) => {
@@ -3799,7 +4496,7 @@ describe("codex executor", () => {
 				captionStyle: {
 					preset: "talking-head-pop",
 					position: "lower-safe",
-					size: "medium",
+					size: "large",
 				},
 				captions: [
 					{ text: "第一句", startTime: 1, duration: 1.25 },
@@ -3831,6 +4528,228 @@ describe("codex executor", () => {
 						sourceEnd: 35,
 						captionCount: 1,
 					},
+				],
+			},
+		});
+	});
+
+	test("builds post-cut captions when confirmed caption language is zh-CN", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Chinese caption contract",
+			confirmedSetup: confirmedSetupFixture({
+				captionLanguage: "zh-CN",
+				captionStylePreset: "talking-head-pop",
+			}),
+		});
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 2,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 2, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 2,
+								timelineStart: 0,
+								reason: "Caption proof",
+							},
+						],
+						rationale: "Chinese caption language proof",
+					},
+				},
+			}),
+		});
+		const observedLanguages: string[] = [];
+
+		for (const requestedLanguage of ["zh-CN", "zh"] as const) {
+			const captionsResult = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "build_post_cut_captions",
+					args: {
+						language: requestedLanguage,
+						modelId: "whisper-base",
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+							size: "medium",
+						},
+					},
+				}),
+				transcribeMediaRange: async ({ range, language, modelId }) => {
+					expect(range).toEqual({ start: 0, end: 2 });
+					observedLanguages.push(language);
+					return {
+						text: "中文成片字幕",
+						language,
+						modelId,
+						segments: [{ text: "中文成片字幕", start: 0, end: 1.5 }],
+						...asrContractFields(),
+					};
+				},
+			});
+
+			expect(captionsResult.results[0]).toMatchObject({
+				commandId: "cmd-1",
+				tool: "build_post_cut_captions",
+				success: true,
+				message: "Built 1 post-cut caption(s) from 1 video clip(s).",
+				data: {
+					source: "edited_video_clip_audio",
+					language: "zh",
+					modelId: "whisper-base",
+					captions: [{ text: "中文成片字幕", startTime: 0, duration: 1.5 }],
+				},
+			});
+		}
+
+		expect(observedLanguages).toEqual(["zh", "zh"]);
+	});
+
+	test("builds read-only caption diagnostics before caption generation", async () => {
+		await createExecutorProject({ projectId, name: "Caption diagnostics" });
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 30,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 6, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 3,
+								sourceEnd: 9,
+								timelineStart: 0,
+								reason: "Hook",
+							},
+						],
+						rationale: "Caption diagnostics proof",
+					},
+				},
+			}),
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const diagnosticsResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_caption_diagnostics",
+				args: {
+					language: "zh",
+					modelId: "whisper-base",
+					captionStyle: {
+						preset: "creator-clean",
+						position: "lower-safe",
+						size: "medium",
+					},
+				},
+			}),
+			transcribeMediaRange: async ({ language, modelId }) => ({
+				text: "diagnostic caption",
+				language,
+				modelId,
+				segments: [{ text: "诊断字幕", start: 0.5, end: 2, confidence: 0.42 }],
+				...asrContractFields(),
+				quality: {
+					confidence: 0.42,
+					warnings: [],
+				},
+				capabilities: {
+					segments: true,
+					words: false,
+					timestamps: { segments: true, words: false },
+					confidence: true,
+				},
+			}),
+		});
+
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		expect(diagnosticsResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "build_caption_diagnostics",
+			success: true,
+			message:
+				"Caption diagnostics warning: 1 candidate caption(s), 1 low-confidence item(s).",
+			data: {
+				status: "warning",
+				revision: before.revision,
+				sourceCoverage: {
+					eligibleClipCount: 1,
+					skippedClipCount: 0,
+					eligibleClips: [
+						{
+							clipId: expect.any(String),
+							mediaId,
+							timelineStart: 0,
+							sourceStart: 3,
+							sourceEnd: 9,
+						},
+					],
+				},
+				transcription: {
+					attemptedClipCount: 1,
+					successfulClipCount: 1,
+					errorCount: 0,
+				},
+				confidence: {
+					confidenceAvailable: true,
+					averageConfidence: 0.42,
+					lowConfidenceItems: [
+						{
+							clipId: expect.any(String),
+							mediaId,
+							text: "诊断字幕",
+							confidence: 0.42,
+						},
+					],
+				},
+				candidateCaptions: [
+					{ text: "诊断字幕", startTime: 0.5, duration: 1.5 },
 				],
 			},
 		});
@@ -3887,6 +4806,11 @@ describe("codex executor", () => {
 				args: {
 					language: "en",
 					modelId: "whisper-base",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+						size: "medium",
+					},
 				},
 			}),
 			transcribeMediaRange: async ({ language, modelId }) => ({
@@ -3982,6 +4906,11 @@ describe("codex executor", () => {
 				args: {
 					language: "en",
 					modelId: "whisper-small",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+						size: "medium",
+					},
 				},
 			}),
 			transcribeMediaRange: async ({ mediaAsset, range }) => {
@@ -4010,11 +4939,6 @@ describe("codex executor", () => {
 			success: true,
 			data: {
 				source: "scripted_tts_audio",
-				captionStyle: {
-					preset: "talking-head-pop",
-					position: "lower-safe",
-					size: "medium",
-				},
 				voiceConsistency: {
 					provider: "imported-tts",
 					alignmentMethod: "scripted_captions_to_asr_segments",
@@ -4029,106 +4953,6 @@ describe("codex executor", () => {
 				],
 			},
 		});
-	});
-
-	test("keeps scripted Chinese captions when accented ASR text is wrong", async () => {
-		await seedDraftState({
-			mediaAssets: [
-				{
-					id: "sichuan-tts-1",
-					name: "chengdu-property-tts.mp3",
-					type: "audio",
-					mimeType: "audio/mpeg",
-					duration: 8,
-					size: 5,
-					lastModified: 1,
-					path: "/tmp/chengdu-property-tts.mp3",
-					spokenScript: {
-						source: "tts",
-						text: "天府新区双华麓港，套三双卫，总价一百八十六万。",
-						captions: ["天府新区双华麓港", "套三双卫", "总价一百八十六万"],
-						protectedTerms: ["双华麓港", "套三双卫", "一百八十六万"],
-						provider: "runninghub-voice-design",
-						providerTaskId: "voice-task-cn-1",
-					},
-				},
-			],
-			tracks: [
-				{
-					id: "audio-track-1",
-					type: "audio",
-					name: "Narration",
-					muted: false,
-					elements: [
-						{
-							id: "sichuan-clip-1",
-							type: "audio",
-							name: "Narration",
-							mediaId: "sichuan-tts-1",
-							startTime: 0,
-							duration: 8,
-							trimStart: 0,
-							trimEnd: 8,
-							sourceType: "upload",
-							volume: 1,
-							muted: false,
-						},
-					],
-				},
-			],
-		});
-
-		const result = await executeCodexExecutorEnvelope({
-			envelope: envelope({
-				tool: "build_post_cut_captions",
-				args: {
-					language: "zh",
-					modelId: "whisper-small",
-					captionStyle: {
-						preset: "property-clean-yellow",
-						position: "lower-safe",
-						size: "medium",
-					},
-				},
-			}),
-			transcribeMediaRange: async () => ({
-				text: "天府新区双滑鹿港，套三双为，总价一百八十六嘛。",
-				language: "zh",
-				modelId: "whisper-small",
-				segments: [
-					{ text: "天府新区双滑鹿港", start: 0, end: 2.4 },
-					{ text: "套三双为", start: 2.4, end: 4.2 },
-					{ text: "总价一百八十六嘛", start: 4.2, end: 7.2 },
-				],
-				...asrContractFields(),
-			}),
-		});
-
-		expect(result.results[0]).toMatchObject({
-			success: true,
-			data: {
-				source: "scripted_tts_audio",
-				captionStyle: {
-					preset: "property-clean-yellow",
-					position: "lower-safe",
-					size: "medium",
-				},
-				voiceConsistency: {
-					provider: "runninghub-voice-design",
-					providerTaskId: "voice-task-cn-1",
-					alignmentMethod: "scripted_captions_to_asr_segments",
-					scriptCaptionLineCount: 3,
-					protectedTermCount: 3,
-				},
-				captions: [
-					{ text: "天府新区双华麓港", startTime: 0 },
-					{ text: "套三双卫", startTime: 2.4 },
-					{ text: "总价一百八十六万", startTime: 4.2 },
-				],
-			},
-		});
-		expect(JSON.stringify(result.results[0])).not.toContain("双滑鹿港");
-		expect(JSON.stringify(result.results[0])).not.toContain("套三双为");
 	});
 
 	test("aligns scripted TTS captions when ASR timing segment count differs", async () => {
@@ -4187,6 +5011,11 @@ describe("codex executor", () => {
 				args: {
 					language: "en",
 					modelId: "whisper-small",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+						size: "medium",
+					},
 				},
 			}),
 			transcribeMediaRange: async () => ({
@@ -4322,6 +5151,11 @@ describe("codex executor", () => {
 				args: {
 					language: "zh",
 					modelId: "whisper-base",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+						size: "medium",
+					},
 				},
 			}),
 			transcribeMediaRange: async ({ range, language, modelId }) => {
@@ -4385,7 +5219,10 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				totalDuration: 5,
+				schemaVersion: 2,
+				project: {
+					totalDuration: 5,
+				},
 				tracks: [
 					{
 						type: "text",
@@ -4482,13 +5319,43 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				totalDuration: 12,
+				schemaVersion: 2,
+				project: {
+					totalDuration: 12,
+				},
 				tracks: [
 					{
 						type: "video",
 						elements: [{ type: "video", mediaId }],
 					},
 				],
+			},
+		});
+	});
+
+	test("updates the executor project background from a project settings command", async () => {
+		await createExecutorProject({ projectId, name: "Background sync" });
+
+		const updateResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_project_settings",
+				args: {
+					background: { type: "color", color: "#fed7aa" },
+				},
+			}),
+		});
+		const infoResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_project_info", args: {} }),
+		});
+
+		expect(updateResult.results[0]).toMatchObject({
+			success: true,
+			message: "Project settings updated: background",
+		});
+		expect(infoResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				background: { type: "color", color: "#fed7aa" },
 			},
 		});
 	});
@@ -4585,20 +5452,6 @@ describe("codex executor", () => {
 							position: "lower-safe",
 							size: "medium",
 						},
-						captionSource: {
-							type: "post-cut-audio",
-							tool: "build-post-cut-captions",
-							source: "edited_timeline_audio",
-							trace: [
-								{
-									mediaId: narrationId,
-									timelineStart: 0,
-									sourceStart: 0,
-									sourceEnd: 30,
-									captionCount: 2,
-								},
-							],
-						},
 						rationale: "Narration-led B-roll remix",
 					},
 				},
@@ -4623,7 +5476,10 @@ describe("codex executor", () => {
 		expect(timelineResult.results[0]).toMatchObject({
 			success: true,
 			data: {
-				totalDuration: 30,
+				schemaVersion: 2,
+				project: {
+					totalDuration: 30,
+				},
 			},
 		});
 		const timeline = resultData<{
@@ -4666,8 +5522,324 @@ describe("codex executor", () => {
 		});
 	});
 
-	test("keeps image card text editable through timeline readback", async () => {
-		await createExecutorProject({ projectId, name: "Narrated image cards" });
+	test("rejects narrated remix plans that violate confirmed duration contract", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Preserve source remix",
+			confirmedSetup: confirmedSetupFixture({
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
+					sourceDurationSeconds: 28.866667,
+					toleranceSeconds: 0.2,
+				},
+			}),
+		});
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 28.866667,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const narrationImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("narration").toString("base64"),
+					size: 9,
+					lastModified: 1,
+					duration: 16.8,
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
+			narrationImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_narrated_remix_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 16.8, aspectRatio: "9:16" },
+						visualBeats: [
+							{
+								id: "compressed",
+								mediaId: videoId,
+								sourceStart: 0,
+								sourceEnd: 16.8,
+								timelineStart: 0,
+								muted: true,
+								reason: "Compressed source video.",
+							},
+						],
+						narration: { mediaId: narrationId, sourceStart: 0 },
+						captions: [{ text: "Compressed cut", startTime: 0, duration: 3 }],
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+							size: "medium",
+						},
+						rationale: "This should be rejected by duration contract.",
+					},
+				},
+			}),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "apply_narrated_remix_plan",
+			success: false,
+			message: "NarratedRemixPlan violates preserve_source duration contract.",
+			data: {
+				path: "target.durationSec",
+			},
+		});
+	});
+
+	test("reports satisfied duration contract in timeline state", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Full source remix",
+			confirmedSetup: confirmedSetupFixture({
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
+					sourceDurationSeconds: 28.866667,
+					toleranceSeconds: 0.2,
+				},
+			}),
+		});
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 28.866667,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const narrationImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("narration").toString("base64"),
+					size: 9,
+					lastModified: 1,
+					duration: 28.866667,
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
+			narrationImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_narrated_remix_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 28.866667, aspectRatio: "9:16" },
+						visualBeats: [
+							{
+								id: "full-source",
+								mediaId: videoId,
+								sourceStart: 0,
+								sourceEnd: 28.866667,
+								timelineStart: 0,
+								muted: true,
+								reason: "Full source coverage.",
+							},
+						],
+						narration: { mediaId: narrationId, sourceStart: 0 },
+						captions: [],
+						rationale: "Preserve full source duration.",
+					},
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				totalDuration: 28.866667,
+				durationContract: {
+					totalDurationMatches: true,
+					sourceCoverageMatches: true,
+				},
+			},
+		});
+		expect(timelineResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				summary: {
+					durationContract: {
+						totalDurationMode: "preserve_source",
+						sourceCoverageMode: "full_source",
+						actualDurationSec: 28.866667,
+						sourceDurationSeconds: 28.866667,
+						toleranceSeconds: 0.2,
+						totalDurationMatches: true,
+						sourceCoverageMatches: true,
+					},
+				},
+			},
+		});
+	});
+
+	test("applies preserve-source narrated remix when narration is slightly shorter", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Short narration full source remix",
+			confirmedSetup: confirmedSetupFixture({
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
+					sourceDurationSeconds: 28.866667,
+					toleranceSeconds: 0.25,
+				},
+			}),
+		});
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 28.866667,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const narrationImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("narration").toString("base64"),
+					size: 9,
+					lastModified: 1,
+					duration: 28.8,
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
+			narrationImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_narrated_remix_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 28.866667, aspectRatio: "9:16" },
+						visualBeats: [
+							{
+								id: "full-source",
+								mediaId: videoId,
+								sourceStart: 0,
+								sourceEnd: 28.866667,
+								timelineStart: 0,
+								muted: true,
+								reason: "Full source coverage.",
+							},
+						],
+						narration: { mediaId: narrationId, sourceStart: 0 },
+						captions: [],
+						rationale:
+							"Preserve full source duration with real narration length.",
+					},
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				totalDuration: 28.866667,
+				durationContract: {
+					totalDurationMatches: true,
+					sourceCoverageMatches: true,
+				},
+			},
+		});
+		const timelineData = resultData<{
+			project: { totalDuration: number };
+			tracks: Array<{
+				type: string;
+				elements: Array<Record<string, unknown>>;
+			}>;
+		}>(timelineResult.results[0]);
+		const audioTrack = timelineData.tracks.find(
+			(track) => track.type === "audio",
+		);
+		expect(timelineData.project.totalDuration).toBe(28.866667);
+		expect(audioTrack).toMatchObject({
+			type: "audio",
+			elements: [
+				{
+					type: "audio",
+					duration: 28.8,
+					startTime: 0,
+					trimEnd: 28.8,
+				},
+			],
+		});
+		expect(timelineResult.results[0]).toMatchObject({
+			success: true,
+		});
+	});
+
+	test("keeps text overlays editable through timeline readback", async () => {
+		await createExecutorProject({ projectId, name: "Narrated text overlays" });
 		const videoImport = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "import_media_file",
@@ -4741,17 +5913,65 @@ describe("codex executor", () => {
 							},
 							{
 								mediaType: "image",
-								id: "property-card",
+								id: "property-image",
 								mediaId: imageId,
 								timelineStart: 10,
 								duration: 20,
 								fit: "cover",
-								cardText: {
-									title: "天府新区双华麓港",
-									info: "117.55㎡ 套三双卫 总价186万",
-									bottomText: "地铁口商圈边",
-								},
-								reason: "Editable property qualification card",
+								reason: "Image B-roll with explicit editable overlays",
+							},
+						],
+						textOverlays: [
+							{
+								name: "Property title",
+								text: "天府新区双华麓港",
+								startTime: 10,
+								duration: 20,
+								fontSize: 5.6,
+								color: "#ffffff",
+								backgroundColor: "#000000",
+								backgroundOpacity: 0.86,
+								backgroundPaddingX: 22,
+								backgroundPaddingY: 10,
+								backgroundBorderRadius: 8,
+								boxWidth: 52,
+								position: { x: 0, y: -780 },
+								textAlign: "center",
+								fontWeight: "bold",
+							},
+							{
+								name: "Property info",
+								text: "117.55㎡ 套三双卫 总价186万",
+								startTime: 10,
+								duration: 20,
+								fontSize: 4.8,
+								color: "#141414",
+								backgroundColor: "#ffca21",
+								backgroundOpacity: 0.92,
+								backgroundPaddingX: 20,
+								backgroundPaddingY: 9,
+								backgroundBorderRadius: 8,
+								boxWidth: 52,
+								position: { x: 0, y: -710 },
+								textAlign: "center",
+								fontWeight: "bold",
+							},
+							{
+								name: "Property selling point",
+								text: "地铁口商圈边",
+								startTime: 10,
+								duration: 20,
+								fontSize: 5.2,
+								color: "#ffffff",
+								backgroundColor: "#000000",
+								backgroundOpacity: 0.84,
+								backgroundPaddingX: 22,
+								backgroundPaddingY: 12,
+								backgroundBorderRadius: 10,
+								boxWidth: 52,
+								position: { x: 0, y: 430 },
+								textAlign: "center",
+								fontWeight: "bold",
 							},
 						],
 						narration: { mediaId: narrationId, sourceStart: 0 },
@@ -4763,21 +5983,7 @@ describe("codex executor", () => {
 							position: "lower-safe",
 							size: "medium",
 						},
-						captionSource: {
-							type: "post-cut-audio",
-							tool: "build-post-cut-captions",
-							source: "edited_timeline_audio",
-							trace: [
-								{
-									mediaId: narrationId,
-									timelineStart: 0,
-									sourceStart: 0,
-									sourceEnd: 30,
-									captionCount: 1,
-								},
-							],
-						},
-						rationale: "Narration-led image card remix",
+						rationale: "Narration-led image overlay remix",
 					},
 				},
 			}),
@@ -4785,7 +5991,7 @@ describe("codex executor", () => {
 		const timelineResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2", includeReferencedMedia: true },
+				args: { includeReferencedMedia: true },
 			}),
 		});
 
@@ -4794,7 +6000,7 @@ describe("codex executor", () => {
 			data: {
 				visualBeatCount: 2,
 				imageBeatCount: 1,
-				cardTextElementCount: 3,
+				textOverlayElementCount: 3,
 				captionCount: 1,
 			},
 		});
@@ -4818,8 +6024,8 @@ describe("codex executor", () => {
 			}>;
 		}>(timelineResult.results[0]);
 		const visualTrack = timeline.tracks.find((track) => track.type === "video");
-		const cardTextTrack = timeline.tracks.find(
-			(track) => track.name === "Card Text",
+		const textOverlayTrack = timeline.tracks.find(
+			(track) => track.name === "Text Overlays",
 		);
 		const captionTrack = timeline.tracks.find(
 			(track) => track.name === "Captions",
@@ -4829,13 +6035,15 @@ describe("codex executor", () => {
 				expect.objectContaining({ type: "image", mediaId: imageId }),
 			]),
 		);
-		expect(cardTextTrack?.elements.map((element) => element.content)).toEqual([
+		expect(
+			textOverlayTrack?.elements.map((element) => element.content),
+		).toEqual([
 			"天府新区双华麓港",
 			"117.55㎡ 套三双卫 总价186万",
 			"地铁口商圈边",
 		]);
 		expect(
-			cardTextTrack?.elements.every(
+			textOverlayTrack?.elements.every(
 				(element) => element.startTime === 10 && element.duration === 20,
 			),
 		).toBe(true);
@@ -4862,8 +6070,8 @@ describe("codex executor", () => {
 			},
 		});
 
-		const infoElementId = cardTextTrack?.elements.find(
-			(element) => element.name === "Card info",
+		const infoElementId = textOverlayTrack?.elements.find(
+			(element) => element.name === "Property info",
 		)?.id;
 		expect(infoElementId).toBeString();
 		await executeCodexExecutorEnvelope({
@@ -4878,7 +6086,7 @@ describe("codex executor", () => {
 		const updatedTimelineResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2", includeReferencedMedia: true },
+				args: { includeReferencedMedia: true },
 			}),
 		});
 		const updatedTimeline = resultData<{
@@ -4902,11 +6110,11 @@ describe("codex executor", () => {
 		const updatedVisualTrack = updatedTimeline.tracks.find(
 			(track) => track.type === "video",
 		);
-		const updatedCardTextTrack = updatedTimeline.tracks.find(
-			(track) => track.name === "Card Text",
+		const updatedTextOverlayTrack = updatedTimeline.tracks.find(
+			(track) => track.name === "Text Overlays",
 		);
 		expect(
-			updatedCardTextTrack?.elements.map((element) => element.content),
+			updatedTextOverlayTrack?.elements.map((element) => element.content),
 		).toEqual(
 			expect.arrayContaining([
 				"天府新区双华麓港",
@@ -5333,6 +6541,215 @@ describe("codex executor", () => {
 		expect(after).toEqual(before);
 	});
 
+	test("export_timeline_frame writes one PNG frame without mutating project state", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "text-track-1",
+					type: "text",
+					name: "Captions",
+					hidden: false,
+					elements: [
+						{
+							id: "caption-1",
+							type: "text",
+							name: "Caption",
+							content: "Frame export",
+							richSpans: [],
+							fontSize: 96,
+							fontFamily: "Inter",
+							color: "#ffffff",
+							backgroundColor: "transparent",
+							textAlign: "center",
+							fontWeight: "bold",
+							fontStyle: "normal",
+							textDecoration: "none",
+							hidden: false,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+						},
+					],
+				},
+			],
+		});
+		const outputFile = join(stateDir, "frame.png");
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 1,
+					format: "png",
+					outputFile,
+					overwrite: false,
+				},
+			}),
+		});
+		const after = await getExecutorProjectState({ projectId });
+		const outputBytes = await readFile(outputFile);
+
+		expect(outputBytes.byteLength).toBeGreaterThan(0);
+		expect(outputBytes.subarray(1, 4).toString("ascii")).toBe("PNG");
+		expect(result.results[0]).toMatchObject({
+			tool: "export_timeline_frame",
+			success: true,
+			message: `Exported png frame at 1s to ${outputFile}`,
+			data: {
+				outputFile,
+				byteLength: outputBytes.byteLength,
+				format: "png",
+				timeSeconds: 1,
+				revision: 1,
+				canvasSize: { width: 1080, height: 1920 },
+				artifact: {
+					kind: "timeline_frame",
+					path: outputFile,
+					mimeType: "image/png",
+					width: 1080,
+					height: 1920,
+				},
+			},
+		});
+		expect(after).toEqual(before);
+	});
+
+	test("export_timeline_frame fails fast for unsafe frame export inputs", async () => {
+		await createExecutorProject({ projectId, name: "Frame export" });
+		const emptyTimeline = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 0,
+					format: "png",
+					outputFile: join(stateDir, "empty.png"),
+					overwrite: false,
+				},
+			}),
+		});
+		expect(emptyTimeline.results[0]).toMatchObject({
+			success: false,
+			message: "Cannot export a frame from an empty timeline.",
+		});
+
+		await seedDraftState({
+			tracks: [
+				{
+					id: "text-track-1",
+					type: "text",
+					name: "Captions",
+					hidden: false,
+					elements: [
+						{
+							id: "caption-1",
+							type: "text",
+							name: "Caption",
+							content: "Frame export",
+							richSpans: [],
+							fontSize: 96,
+							fontFamily: "Inter",
+							color: "#ffffff",
+							backgroundColor: "transparent",
+							textAlign: "center",
+							fontWeight: "bold",
+							fontStyle: "normal",
+							textDecoration: "none",
+							hidden: false,
+							transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
+							opacity: 1,
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+						},
+					],
+				},
+			],
+		});
+		const existingOutputFile = join(stateDir, "existing-frame.png");
+		await writeFile(existingOutputFile, "existing");
+		const relativeOutput = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 1,
+					format: "png",
+					outputFile: "relative.png",
+					overwrite: false,
+				},
+			}),
+		});
+		const existingOutput = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 1,
+					format: "png",
+					outputFile: existingOutputFile,
+					overwrite: false,
+				},
+			}),
+		});
+		const unsupportedFormat = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 1,
+					format: "jpg",
+					outputFile: join(stateDir, "frame.jpg"),
+					overwrite: false,
+				},
+			}),
+		});
+		const negativeTime = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: -0.1,
+					format: "png",
+					outputFile: join(stateDir, "negative.png"),
+					overwrite: false,
+				},
+			}),
+		});
+		const outOfRangeTime = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "export_timeline_frame",
+				args: {
+					timeSeconds: 2.1,
+					format: "png",
+					outputFile: join(stateDir, "out-of-range.png"),
+					overwrite: false,
+				},
+			}),
+		});
+
+		expect(relativeOutput.results[0]).toMatchObject({
+			success: false,
+			message: "--output-file must be an absolute path",
+		});
+		expect(existingOutput.results[0]).toMatchObject({
+			success: false,
+			message: "Output file already exists. Set overwrite=true to replace it.",
+		});
+		expect(unsupportedFormat.results[0]).toMatchObject({
+			success: false,
+			message: "--format must be png",
+		});
+		expect(negativeTime.results[0]).toMatchObject({
+			success: false,
+			message: "timeSeconds must be greater than or equal to 0.",
+		});
+		expect(outOfRangeTime.results[0]).toMatchObject({
+			success: false,
+			message: "timeSeconds must be less than or equal to total duration 2.",
+		});
+	});
+
 	test("build_video_quality_report returns validation failure without rendering a contact sheet", async () => {
 		await createExecutorProject({ projectId, name: "Quality report cut" });
 
@@ -5355,7 +6772,7 @@ describe("codex executor", () => {
 		}>(result.results[0]);
 
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				schemaVersion: 2,
@@ -5684,7 +7101,7 @@ describe("codex executor", () => {
 		});
 
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				schemaVersion: 2,
@@ -5743,7 +7160,7 @@ describe("codex executor", () => {
 			}),
 		});
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				status: "fail",
@@ -5758,137 +7175,6 @@ describe("codex executor", () => {
 					}),
 				]),
 			},
-		});
-	});
-
-	test("build_video_quality_report fails for oversized caption visual footprint", async () => {
-		const { plan } = await createAppliedQualityFixture();
-		const state = await getExecutorProjectState({ projectId });
-		let captionElement: TextElement | undefined;
-		for (const track of state.tracks) {
-			if (track.type !== "text") continue;
-			captionElement = track.elements.find(
-				(element) => element.content === "Caption proof",
-			);
-			if (captionElement) break;
-		}
-		if (!captionElement) {
-			throw new Error("Expected caption text element.");
-		}
-		captionElement.fontSize = 12;
-		captionElement.stroke = { color: "#000000", width: 5 };
-		await writeDraftState(state);
-
-		const result = await executeCodexExecutorEnvelope({
-			envelope: envelope({
-				tool: "build_video_quality_report",
-				args: {
-					plan,
-					inspection: { startTime: 0, endTime: 1, frameCount: 1 },
-				},
-			}),
-		});
-
-		expect(result.results[0]).toMatchObject({
-			success: true,
-			message: "Built VideoQualityReport: fail",
-			data: {
-				status: "fail",
-			},
-		});
-		const report = resultData<{
-			checks: Array<{
-				id: string;
-				category?: string;
-				status?: string;
-				severity?: string;
-				evidence?: {
-					offendingCaptions?: Array<{
-						id: string;
-						content: string;
-						fontPx: number;
-						strokePx: number;
-						heightRatio: number;
-					}>;
-				};
-			}>;
-		}>(result.results[0]);
-		const visualCheck = report.checks.find(
-			(check) => check.id === "captionStyle.visualFootprint",
-		);
-		expect(visualCheck).toMatchObject({
-			category: "layout",
-			status: "fail",
-			severity: "critical",
-		});
-		const offendingCaption = visualCheck?.evidence?.offendingCaptions?.[0];
-		expect(offendingCaption).toMatchObject({
-			id: captionElement.id,
-			content: "Caption proof",
-			strokePx: 10,
-		});
-		expect(offendingCaption?.fontPx).toBeGreaterThan(250);
-		expect(offendingCaption?.heightRatio).toBeGreaterThan(0.16);
-	});
-
-	test("build_video_quality_report passes property-clean-yellow medium captions", async () => {
-		const { plan } = await createAppliedQualityFixture();
-		const propertyPlan = {
-			...plan,
-			captionStyle: {
-				preset: "property-clean-yellow",
-				position: "lower-safe",
-				size: "medium",
-			},
-		};
-		const applyResult = await executeCodexExecutorEnvelope({
-			envelope: envelope({
-				tool: "apply_edit_plan",
-				args: {
-					replaceExisting: true,
-					plan: propertyPlan,
-				},
-			}),
-		});
-		expect(applyResult.results[0]).toMatchObject({ success: true });
-
-		const result = await executeCodexExecutorEnvelope({
-			envelope: envelope({
-				tool: "build_video_quality_report",
-				args: {
-					plan: propertyPlan,
-					inspection: { startTime: 0, endTime: 1, frameCount: 1 },
-				},
-			}),
-		});
-
-		expect(result.results[0]).toMatchObject({
-			success: true,
-			data: {
-				status: "pass",
-			},
-		});
-		const report = resultData<{
-			checks: Array<{
-				id: string;
-				status?: string;
-				evidence?: {
-					captions?: Array<{
-						content: string;
-						fontPx: number;
-						strokePx: number;
-					}>;
-				};
-			}>;
-		}>(result.results[0]);
-		const visualCheck = report.checks.find(
-			(check) => check.id === "captionStyle.visualFootprint",
-		);
-		expect(visualCheck?.status).toBe("pass");
-		expect(visualCheck?.evidence?.captions?.[0]).toMatchObject({
-			content: "Caption proof",
-			fontPx: 102.4,
-			strokePx: 4,
 		});
 	});
 
@@ -5916,7 +7202,7 @@ describe("codex executor", () => {
 		});
 
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				status: "fail",
@@ -5957,7 +7243,7 @@ describe("codex executor", () => {
 		});
 
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				status: "fail",
@@ -5993,7 +7279,7 @@ describe("codex executor", () => {
 		});
 
 		expect(result.results[0]).toMatchObject({
-			success: true,
+			success: false,
 			message: "Built VideoQualityReport: fail",
 			data: {
 				status: "fail",
@@ -6192,6 +7478,11 @@ describe("codex executor", () => {
 				args: {
 					language: "auto",
 					modelId: "whisper-tiny",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+						size: "medium",
+					},
 				},
 			}),
 		});
@@ -6867,6 +8158,63 @@ describe("codex executor", () => {
 		expect(await getExecutorProjectState({ projectId })).toEqual(beforeInvalid);
 	});
 
+	test("set_clip_properties rejects unsupported editor font families", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "text",
+					name: "Text Track",
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "text-1",
+							type: "text",
+							name: "Caption",
+							content: "Opening line",
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+							fontSize: 6,
+							fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+							color: "#ffffff",
+							backgroundColor: "transparent",
+							textAlign: "center",
+							fontWeight: "bold",
+							fontStyle: "normal",
+							textDecoration: "none",
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+		const beforeInvalid = await getExecutorProjectState({ projectId });
+
+		const invalid = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_clip_properties",
+				args: {
+					elementId: "text-1",
+					properties: { fontFamily: "CodecutCJK" },
+				},
+			}),
+		});
+
+		expect(invalid.results[0]).toMatchObject({ success: false });
+		expect(
+			String((invalid.results[0] as { message?: unknown }).message),
+		).toContain("fontFamily");
+		expect(await getExecutorProjectState({ projectId })).toEqual(beforeInvalid);
+	});
+
 	test("ripple_delete_ranges rejects ranges without an explicit scope", async () => {
 		await seedDraftState({
 			tracks: [
@@ -7305,6 +8653,33 @@ describe("codex executor", () => {
 		expect(state.revision).toBe(2);
 	});
 
+	test("add_texts rejects unsupported editor font families", async () => {
+		await seedDraftState({ tracks: [] });
+		const beforeInvalid = await getExecutorProjectState({ projectId });
+
+		const invalid = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_texts",
+				args: {
+					entries: [
+						{
+							startTime: 0.5,
+							duration: 2,
+							content: "Hook line",
+							fontFamily: "CodecutCJK",
+						},
+					],
+				},
+			}),
+		});
+
+		expect(invalid.results[0]).toMatchObject({ success: false });
+		expect(
+			String((invalid.results[0] as { message?: unknown }).message),
+		).toContain("fontFamily");
+		expect(await getExecutorProjectState({ projectId })).toEqual(beforeInvalid);
+	});
+
 	test("add_texts fails fast for incompatible tracks without mutating revision", async () => {
 		await seedDraftState({
 			tracks: [
@@ -7420,10 +8795,22 @@ describe("codex executor", () => {
 			content: "hello world",
 			startTime: 11,
 			duration: 1,
-			fontFamily: "CodecutCJK",
-			fontSize: 4.8,
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+			fontSize: 5.2,
 			fontWeight: "bold",
-			color: "#fff3b0",
+			color: "#ffffff",
+			backgroundColor: "#0f172a",
+			backgroundOpacity: 0.42,
+			backgroundPaddingX: 24,
+			backgroundPaddingY: 12,
+			backgroundBorderRadius: 8,
+			boxWidth: 50,
+			shadow: {
+				color: "rgba(0,0,0,0.72)",
+				offsetX: 0,
+				offsetY: 3,
+				blur: 10,
+			},
 			transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
 		});
 	});
@@ -7477,6 +8864,11 @@ describe("codex executor", () => {
 				args: {
 					language: "auto",
 					modelId: "whisper-tiny",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+						size: "medium",
+					},
 				},
 			}),
 			transcribeMediaRange: async () => ({
@@ -7504,6 +8896,241 @@ describe("codex executor", () => {
 			},
 		});
 		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
+	test("import_subtitles writes strict SRT captions through editor text layers", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "codecut-srt-"));
+		const filePath = join(tempDir, "captions.srt");
+
+		try {
+			await writeFile(
+				filePath,
+				[
+					"1",
+					"00:00:00,500 --> 00:00:02,500",
+					"First imported line",
+					"",
+					"2",
+					"00:00:03,000 --> 00:00:05,000",
+					"Second imported line",
+					"",
+				].join("\n"),
+				"utf8",
+			);
+			await seedDraftState({
+				tracks: [],
+				confirmedSetup: confirmedSetupFixture({
+					captionStylePreset: "talking-head-pop",
+				}),
+			});
+
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "import_subtitles",
+					args: {
+						filePath,
+						format: "srt",
+						trackName: "Imported Captions",
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+							size: "medium",
+						},
+					},
+				}),
+			});
+			const state = await getExecutorProjectState({ projectId });
+			const textTrack = state.tracks.find((track) => track.type === "text");
+
+			expect(result.results[0]).toMatchObject({
+				success: true,
+				data: {
+					sourceFormat: "srt",
+					captionCount: 2,
+					createdTrackId: expect.any(String),
+					createdElementIds: [expect.any(String), expect.any(String)],
+					revision: 2,
+				},
+			});
+			expect(textTrack).toMatchObject({
+				name: "Imported Captions",
+				type: "text",
+				elements: [
+					{
+						type: "text",
+						name: "Imported Subtitle 1",
+						content: "First imported line",
+						startTime: 0.5,
+						duration: 2,
+						fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+						transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
+					},
+					{
+						type: "text",
+						name: "Imported Subtitle 2",
+						content: "Second imported line",
+						startTime: 3,
+						duration: 2,
+						fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+						transform: { scale: 1, position: { x: 0, y: 520 }, rotate: 0 },
+					},
+				],
+			});
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	test("import_subtitles rejects unreadable imported captions before mutating", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "codecut-srt-"));
+		const filePath = join(tempDir, "captions.srt");
+
+		try {
+			await writeFile(
+				filePath,
+				["1", "00:00:00,000 --> 00:00:00,200", "too fast", ""].join("\n"),
+				"utf8",
+			);
+			await seedDraftState({ tracks: [] });
+			const before = await getExecutorProjectState({ projectId });
+
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "import_subtitles",
+					args: {
+						filePath,
+						format: "srt",
+						trackName: "Imported Captions",
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+							size: "large",
+						},
+					},
+				}),
+			});
+
+			expect(result.results[0]).toMatchObject({
+				success: false,
+				message: "Imported subtitles failed caption quality validation.",
+				data: {
+					captionQuality: {
+						ok: false,
+						issues: [
+							expect.objectContaining({
+								code: "caption_too_short",
+								path: "captions[0].duration",
+							}),
+						],
+					},
+				},
+			});
+			expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	test("import_subtitles rejects blank track names before mutating", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "codecut-srt-"));
+		const filePath = join(tempDir, "captions.srt");
+
+		try {
+			await writeFile(
+				filePath,
+				["1", "00:00:00,500 --> 00:00:02,500", "Readable caption", ""].join(
+					"\n",
+				),
+				"utf8",
+			);
+			await seedDraftState({ tracks: [] });
+			const before = await getExecutorProjectState({ projectId });
+
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "import_subtitles",
+					args: {
+						filePath,
+						format: "srt",
+						trackName: "   ",
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+							size: "medium",
+						},
+					},
+				}),
+			});
+
+			expect(result.results[0]).toMatchObject({
+				success: false,
+				message: expect.stringContaining("trackName must not be blank"),
+			});
+			expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	test("import_subtitles validates caption quality against confirmed final text style", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "codecut-srt-"));
+		const filePath = join(tempDir, "captions.srt");
+
+		try {
+			await writeFile(
+				filePath,
+				[
+					"1",
+					"00:00:00,500 --> 00:00:03,500",
+					"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuv",
+					"",
+				].join("\n"),
+				"utf8",
+			);
+			await seedDraftState({
+				tracks: [],
+				confirmedSetup: confirmedSetupFixture({
+					captionSize: "large",
+					captionStylePreset: "talking-head-pop",
+				}),
+			});
+			const before = await getExecutorProjectState({ projectId });
+
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "import_subtitles",
+					args: {
+						filePath,
+						format: "srt",
+						trackName: "Imported Captions",
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+							size: "large",
+						},
+					},
+				}),
+			});
+
+			expect(result.results[0]).toMatchObject({
+				success: false,
+				message: "Imported subtitles failed caption quality validation.",
+				data: {
+					captionQuality: {
+						ok: false,
+						issues: [
+							expect.objectContaining({
+								code: "caption_line_break_failed",
+								path: "captions[0].text",
+							}),
+						],
+					},
+				},
+			});
+			expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	test("add_captions writes segment-level captions from edited audio clips", async () => {
@@ -7551,6 +9178,11 @@ describe("codex executor", () => {
 				args: {
 					language: "auto",
 					modelId: "whisper-tiny",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+						size: "medium",
+					},
 				},
 			}),
 			transcribeMediaRange: async ({ mediaAsset, range }) => {
@@ -7621,7 +9253,7 @@ describe("codex executor", () => {
 		expect(await getExecutorProjectState({ projectId })).toEqual(before);
 	});
 
-	test("set_keyframes writes visual keyframes and exposes them in timeline state v2", async () => {
+	test("set_keyframes writes visual keyframes and exposes them in canonical timeline state", async () => {
 		await seedDraftState({
 			tracks: [
 				{
@@ -7674,7 +9306,7 @@ describe("codex executor", () => {
 		const readback = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2" },
+				args: {},
 			}),
 		});
 
@@ -7769,7 +9401,7 @@ describe("codex executor", () => {
 		const readback = await executeCodexExecutorEnvelope({
 			envelope: envelope({
 				tool: "get_timeline_state",
-				args: { format: "v2" },
+				args: {},
 			}),
 		});
 
@@ -7827,6 +9459,282 @@ describe("codex executor", () => {
 				],
 			},
 		});
+	});
+
+	test("add update and remove native transitions through executor repair tools", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Video",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "image-1",
+							type: "image",
+							name: "Image 1",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+							opacity: 1,
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+						},
+						{
+							id: "image-2",
+							type: "image",
+							name: "Image 2",
+							mediaId: "media-2",
+							startTime: 2,
+							duration: 2,
+							trimStart: 0,
+							trimEnd: 0,
+							opacity: 1,
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const addResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_transitions",
+				args: {
+					entries: [
+						{
+							trackId: "video-track-1",
+							fromElementId: "image-1",
+							toElementId: "image-2",
+							type: "fade",
+							duration: 0.4,
+						},
+					],
+				},
+			}),
+		});
+		const addedTransition = resultData<{
+			transitions: Array<{ id: string; type: string; duration: number }>;
+		}>(addResult.results[0]).transitions[0];
+
+		expect(addResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				revision: 2,
+				trackId: "video-track-1",
+				transitionCount: 1,
+				transitions: [
+					{
+						type: "fade",
+						duration: 0.4,
+						fromElementId: "image-1",
+						toElementId: "image-2",
+					},
+				],
+			},
+		});
+
+		const updateResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_transition",
+				args: {
+					trackId: "video-track-1",
+					transitionId: addedTransition.id,
+					type: "slide-left",
+					duration: 0.25,
+				},
+			}),
+		});
+		expect(updateResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				revision: 3,
+				trackId: "video-track-1",
+				transitionCount: 1,
+				transition: {
+					id: addedTransition.id,
+					type: "slide-left",
+					duration: 0.25,
+				},
+			},
+		});
+
+		const removeResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "remove_transition",
+				args: {
+					trackId: "video-track-1",
+					transitionId: addedTransition.id,
+				},
+			}),
+		});
+		const readback = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "get_timeline_state",
+				args: {},
+			}),
+		});
+
+		expect(removeResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				revision: 4,
+				trackId: "video-track-1",
+				transitionCount: 0,
+				removedTransition: {
+					id: addedTransition.id,
+					type: "slide-left",
+					duration: 0.25,
+				},
+			},
+		});
+		expect(readback.results[0]).toMatchObject({
+			success: true,
+			data: {
+				summary: { transitionCount: 0 },
+				tracks: [
+					{
+						id: "video-track-1",
+						transitions: [],
+					},
+				],
+			},
+		});
+	});
+
+	test("transition repair tools fail fast without mutating revision", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "video-track-1",
+					type: "video",
+					name: "Video",
+					isMain: true,
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "image-1",
+							type: "image",
+							name: "Image 1",
+							mediaId: "media-1",
+							startTime: 0,
+							duration: 1,
+							trimStart: 0,
+							trimEnd: 0,
+							opacity: 1,
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+						},
+						{
+							id: "image-2",
+							type: "image",
+							name: "Image 2",
+							mediaId: "media-2",
+							startTime: 1,
+							duration: 1,
+							trimStart: 0,
+							trimEnd: 0,
+							opacity: 1,
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+						},
+						{
+							id: "image-3",
+							type: "image",
+							name: "Image 3",
+							mediaId: "media-3",
+							startTime: 3,
+							duration: 1,
+							trimStart: 0,
+							trimEnd: 0,
+							opacity: 1,
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+						},
+					],
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const nonAdjacent = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_transitions",
+				args: {
+					entries: [
+						{
+							trackId: "video-track-1",
+							fromElementId: "image-1",
+							toElementId: "image-3",
+							type: "fade",
+							duration: 0.2,
+						},
+					],
+				},
+			}),
+		});
+		const tooLong = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_transitions",
+				args: {
+					entries: [
+						{
+							trackId: "video-track-1",
+							fromElementId: "image-1",
+							toElementId: "image-2",
+							type: "fade",
+							duration: 2,
+						},
+					],
+				},
+			}),
+		});
+		const missingTransition = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_transition",
+				args: {
+					trackId: "video-track-1",
+					transitionId: "missing-transition",
+					duration: 0.2,
+				},
+			}),
+		});
+
+		expect(nonAdjacent.results[0]).toMatchObject({
+			success: false,
+			message: "Transition elements must be adjacent.",
+		});
+		expect(tooLong.results[0]).toMatchObject({
+			success: false,
+			message: "Transition duration exceeds neighboring element duration.",
+		});
+		expect(missingTransition.results[0]).toMatchObject({
+			success: false,
+			message: 'Transition "missing-transition" was not found.',
+		});
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
 	});
 
 	test("search_media finds metadata and cached spoken transcript hits", async () => {

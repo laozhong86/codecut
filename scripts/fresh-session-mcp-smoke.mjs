@@ -23,12 +23,18 @@ export const REQUIRED_MCP_TOOLS = [
 	"list_models",
 	"search_media",
 	"set_keyframes",
+	"add_transitions",
+	"update_transition",
+	"remove_transition",
 	"import_media",
+	"list_system_template_scripts",
+	"get_system_template_script",
+	"resolve_system_template_script",
 	"import_system_template_script",
 	"update_system_template_script",
 	"delete_system_template_script",
 	"apply_edit_plan",
-	"get_timeline_state_v2",
+	"get_timeline_state",
 ];
 
 const searchablePhrase =
@@ -122,6 +128,48 @@ export function assertFreshMcpToolSurface({ tools }) {
 		);
 	}
 
+	const templateListProperties = schemaProperties(
+		requireTool({ toolsByName, name: "list_system_template_scripts" }),
+	);
+	if (
+		!templateListProperties ||
+		typeof templateListProperties !== "object" ||
+		Object.hasOwn(templateListProperties, "templateId") ||
+		Object.hasOwn(templateListProperties, "requestedTemplate") ||
+		Object.hasOwn(templateListProperties, "triggerType")
+	) {
+		throw new Error(
+			"list_system_template_scripts input schema must expose no template lookup inputs.",
+		);
+	}
+
+	const templateGetProperties = schemaProperties(
+		requireTool({ toolsByName, name: "get_system_template_script" }),
+	);
+	if (
+		!templateGetProperties ||
+		typeof templateGetProperties !== "object" ||
+		!Object.hasOwn(templateGetProperties, "templateId")
+	) {
+		throw new Error(
+			"get_system_template_script input schema must expose templateId.",
+		);
+	}
+
+	const templateResolveProperties = schemaProperties(
+		requireTool({ toolsByName, name: "resolve_system_template_script" }),
+	);
+	if (
+		!templateResolveProperties ||
+		typeof templateResolveProperties !== "object" ||
+		!Object.hasOwn(templateResolveProperties, "requestedTemplate") ||
+		!Object.hasOwn(templateResolveProperties, "triggerType")
+	) {
+		throw new Error(
+			"resolve_system_template_script input schema must expose requestedTemplate and triggerType.",
+		);
+	}
+
 	const templateUpdateProperties = schemaProperties(
 		requireTool({ toolsByName, name: "update_system_template_script" }),
 	);
@@ -154,7 +202,10 @@ export function assertFreshMcpToolSurface({ tools }) {
 		toolNames: REQUIRED_MCP_TOOLS,
 		importMediaInputs: importMediaInputs.sort(),
 		templateDeleteInputs: ["confirmedByUser", "templateId"],
+		templateGetInputs: ["templateId"],
 		templateImportInputs: ["confirmedByUser", "templateJsonFile"],
+		templateListInputs: [],
+		templateResolveInputs: ["requestedTemplate", "triggerType"],
 		templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
 	};
 }
@@ -181,7 +232,7 @@ export function buildAudioEditPlan({ projectId, mediaId, duration }) {
 	};
 }
 
-export function summarizeTimelineV2(data) {
+export function summarizeTimelineReadback(data) {
 	const textTracks = (data.tracks ?? []).filter(
 		(track) => track.type === "text",
 	);
@@ -412,15 +463,14 @@ export async function runFreshSessionMcpSmoke({
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
-						size: "medium",
 					},
 				},
 			}),
 		);
 		const timeline = firstBridgeResult(
-			await callCodecutTool(client, {
-				name: "get_timeline_state_v2",
-				arguments: {
+				await callCodecutTool(client, {
+					name: "get_timeline_state",
+					arguments: {
 					projectId,
 					includeReferencedMedia: true,
 					includeFrames: false,
@@ -460,7 +510,7 @@ export async function runFreshSessionMcpSmoke({
 			mediaId,
 			captionCount: captions.data.captionCount,
 			createdElementIds: captions.data.createdElementIds,
-			timeline: summarizeTimelineV2(timeline.data),
+				timeline: summarizeTimelineReadback(timeline.data),
 			search: {
 				searchable: searchable.data,
 				transcript: transcript.data,

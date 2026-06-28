@@ -1,6 +1,6 @@
 ---
 name: codecut-material-ingest
-description: Use when Codecut source material must be downloaded, copied, classified, probed, or organized before editing, including remote URLs, YouTube sources, local media files, workspace init, asset filing, and ffprobe material audit.
+description: Use when Codecut source material must be downloaded, copied, classified, probed, or organized before editing, including remote URLs, YouTube sources, local media files, workspace asset filing, and ffprobe material audit.
 ---
 
 # Codecut Material Ingest
@@ -24,12 +24,22 @@ For new creative jobs, material ingest is allowed only after
 `open_codecut_workspace` and `submit_codecut_setup` have produced a confirmed
 setup token and `codecut-requirement-intake` has passed. Do not initialize a
 workspace, copy files, probe assets, or write audit/planning files before that
-widget submission path.
+widget submission path. For widget-created jobs, `submit_codecut_setup`
+initializes `.codecut-workspace/projects/<projectId>`; this stage must not
+rerun `codecut-workspace init`.
 
 For source-only acquisition requests with no editing, timeline, template, or
 export intent, download or save the source outside the CodeCut creative
 workspace path and stop after local source facts are recorded. Do not open the
 creative editing widget and do not run CodeCut executor mutation commands.
+
+## Progressive Load Map
+
+| Situation | Read first | Stop before continuing | Required readback |
+| --- | --- | --- | --- |
+| Source needs copy, download, probe, or workspace filing | `../codecut/references/workflow-stage-contract.md` supporting file map | Confirmed setup token is missing for a creative job | Asset manifest and `02-inventory/material-audit.md` |
+| TikTok source is involved | `../codecut-tiktok-downloader/SKILL.md` | TikTok access, rights, author count, or manifest proof is missing | `download_manifest.json` before ffprobe audit resumes |
+| Source facts affect planning or export | `../codecut/references/execution-contract.md` success contract table | Duration, width/height, audio presence, or absolute local path cannot be proved | `list_media_assets` or `get_timeline_state includeReferencedMedia` after executor import |
 
 ## Stage Ownership
 
@@ -38,7 +48,8 @@ download/probe limitations, workspace asset filing, ffprobe inventory, and
 material-audit handoff.
 
 It does not pass requirement intake, choose creative strategy, infer platform or
-aspect ratio defaults, write EditPlans, import into the executor, mutate the
+aspect ratio defaults, understand material roles, match script segments, assess
+composition affordances, write EditPlans, import into the executor, mutate the
 timeline, or verify completed edits. If material facts reveal missing business
 or output decisions, hand back to `codecut-requirement-intake`.
 
@@ -72,6 +83,8 @@ path.
 ## Stop Conditions
 
 - Confirmed setup token is missing or invalid for a creative job.
+- `.codecut-workspace/projects/<projectId>/workspace.json` is missing after
+  setup recovery.
 - Remote source cannot be accessed or downloaded.
 - Local media path is not absolute.
 - Probe cannot read positive duration for required video or audio assets.
@@ -80,15 +93,18 @@ path.
 
 Report `Stage`, `Status`, `Proof`, `Next`, and `Risk`. Hand back to
 `codecut-requirement-intake` if source facts reveal missing decisions; otherwise
-hand off to `codecut-reference-template` for reference derivation or to Codex
-planning with workflow recipes before `codecut-executor-apply`. This skill does
-not own those planning phases.
+hand off to `codecut-material-understanding` when material roles, content
+meaning, script matching, or composition suitability matter. Hand off to
+`codecut-reference-template` for reference derivation or to
+`codecut-edit-planning` only when source facts are enough and no separate
+material-understanding pass is needed. This skill does not own those later
+phases.
 
 ## Responsibilities
 
 - Use the confirmed project ID from widget setup.
-- Initialize `.codecut-workspace/projects/<projectId>` with the confirmed setup
-  token.
+- Verify `.codecut-workspace/projects/<projectId>/workspace.json` already
+  exists from `submit_codecut_setup`; do not rerun `codecut-workspace init`.
 - Save the original request.
 - Copy local source files into `01-assets/`.
 - Download remote source material only when explicitly requested or needed for material audit.
@@ -104,7 +120,6 @@ Use the complete `codecut-workspace` command contract in
 `../../docs/codex-driven-editing.md`. This stage may run only these workspace
 actions, and each requires the confirmed setup token:
 
-- `codecut-workspace init --confirmation-token <token>`
 - `codecut-workspace add-assets --confirmation-token <token>`
 - `codecut-workspace probe-assets --confirmation-token <token>`
 - `codecut-workspace write-doc --confirmation-token <token>`

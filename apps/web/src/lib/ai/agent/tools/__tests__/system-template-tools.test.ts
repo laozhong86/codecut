@@ -8,7 +8,10 @@ import {
 import { getToolByName } from "../index";
 import {
 	executeDeleteSystemTemplateScriptTool,
+	executeGetSystemTemplateScriptTool,
 	executeImportSystemTemplateScriptTool,
+	executeListSystemTemplateScriptsTool,
+	executeResolveSystemTemplateScriptTool,
 	executeUpdateSystemTemplateScriptTool,
 } from "../system-template-tools";
 
@@ -353,5 +356,146 @@ describe("system template script tools", () => {
 			},
 		});
 		expect(await service.listTemplates()).toEqual([]);
+	});
+
+	test("registers read-only system template query tools for Codex bridge use", () => {
+		expect(getToolByName({ name: "list_system_template_scripts" })).toMatchObject({
+			name: "list_system_template_scripts",
+			requiresConfirmation: false,
+		});
+		expect(getToolByName({ name: "get_system_template_script" })).toMatchObject({
+			name: "get_system_template_script",
+			requiresConfirmation: false,
+		});
+		expect(
+			getToolByName({ name: "resolve_system_template_script" }),
+		).toMatchObject({
+			name: "resolve_system_template_script",
+			requiresConfirmation: false,
+		});
+	});
+
+	test("lists system template summaries without mutating the library", async () => {
+		const service = new LocalTemplateScriptService({
+			adapter: new MemoryAdapter<LocalTemplateScriptRecord>(),
+		});
+		await service.registerTemplate({ template: buildTemplate() });
+
+		const result = await executeListSystemTemplateScriptsTool({
+			args: {},
+			service,
+		});
+
+		expect(result).toEqual({
+			success: true,
+			message: "Listed 1 Codecut system template script.",
+			data: {
+				templateCount: 1,
+				sourceOfTruth: "codecut-system-template-library",
+				templates: [
+					{
+						templateId: "proof-demo-cut",
+						name: "Proof demo cut",
+						description: "A proof-led system template script.",
+						triggerTypes: ["product-proof-ad"],
+						defaultForTypes: [],
+						aliases: ["proof demo"],
+						stepCount: 1,
+						verificationCount: 1,
+						sourceOfTruth: "codecut-system-template-library",
+					},
+				],
+			},
+		});
+		expect((await service.listTemplates()).map((template) => template.id)).toEqual([
+			"proof-demo-cut",
+		]);
+	});
+
+	test("gets one complete system template script by ID", async () => {
+		const service = new LocalTemplateScriptService({
+			adapter: new MemoryAdapter<LocalTemplateScriptRecord>(),
+		});
+		const template = buildTemplate();
+		await service.registerTemplate({ template });
+
+		const result = await executeGetSystemTemplateScriptTool({
+			args: { templateId: "proof-demo-cut" },
+			service,
+		});
+
+		expect(result).toEqual({
+			success: true,
+			message: 'Read system template script "Proof demo cut" (proof-demo-cut).',
+			data: {
+				template,
+				sourceOfTruth: "codecut-system-template-library",
+			},
+		});
+	});
+
+	test("fails when getting a missing system template script", async () => {
+		const service = new LocalTemplateScriptService({
+			adapter: new MemoryAdapter<LocalTemplateScriptRecord>(),
+		});
+
+		const result = await executeGetSystemTemplateScriptTool({
+			args: { templateId: "missing-template" },
+			service,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message: "System template script not found: missing-template.",
+		});
+	});
+
+	test("resolves a system template script by alias or default trigger", async () => {
+		const service = new LocalTemplateScriptService({
+			adapter: new MemoryAdapter<LocalTemplateScriptRecord>(),
+		});
+		const template = {
+			...buildTemplate(),
+			trigger: {
+				types: ["product-proof-ad" as const],
+				defaultForTypes: ["product-proof-ad" as const],
+				aliases: ["proof demo"],
+			},
+		};
+		await service.registerTemplate({ template });
+
+		await expect(
+			executeResolveSystemTemplateScriptTool({
+				args: { requestedTemplate: "proof demo" },
+				service,
+			}),
+		).resolves.toEqual({
+			success: true,
+			message: 'Resolved system template script "Proof demo cut" (proof-demo-cut).',
+			data: {
+				template,
+				sourceOfTruth: "codecut-system-template-library",
+				match: {
+					requestedTemplate: "proof demo",
+				},
+			},
+		});
+
+		await expect(
+			executeResolveSystemTemplateScriptTool({
+				args: { triggerType: "product-proof-ad" },
+				service,
+			}),
+		).resolves.toMatchObject({
+			success: true,
+			data: {
+				template: {
+					id: "proof-demo-cut",
+				},
+				match: {
+					triggerType: "product-proof-ad",
+				},
+			},
+		});
 	});
 });

@@ -22,37 +22,51 @@ export const BridgeToolNameSchema = z.enum([
 	"generate_digital_human",
 	"generate_runninghub_voice_design",
 	"generate_runninghub_voice_clone",
+	"generate_volcengine_cloned_voice",
+	"transcribe_volcengine_url",
+	"build_volcengine_url_captions",
+	"list_system_template_scripts",
+	"get_system_template_script",
+	"resolve_system_template_script",
 	"import_system_template_script",
 	"update_system_template_script",
 	"delete_system_template_script",
 ]);
 
-export const BridgeCommandSchema = z.object({
-	id: z.string().min(1),
-	tool: BridgeToolNameSchema,
-	args: z.record(z.string(), z.unknown()),
-}).strict();
+export const BridgeCommandSchema = z
+	.object({
+		id: z.string().min(1),
+		tool: BridgeToolNameSchema,
+		args: z.record(z.string(), z.unknown()),
+	})
+	.strict();
 
-export const BridgeEnvelopeSchema = z.object({
-	version: z.literal(1),
-	projectId: z.string().min(1),
-	source: z.literal("codex"),
-	commands: z.array(BridgeCommandSchema).min(1).max(20),
-}).strict();
+export const BridgeEnvelopeSchema = z
+	.object({
+		version: z.literal(1),
+		projectId: z.string().min(1),
+		source: z.literal("codex"),
+		commands: z.array(BridgeCommandSchema).min(1).max(20),
+	})
+	.strict();
 
-export const BridgeCommandResultSchema = z.object({
-	commandId: z.string().min(1),
-	tool: BridgeToolNameSchema,
-	success: z.boolean(),
-	message: z.string(),
-	data: z.record(z.string(), z.unknown()).optional(),
-	skipped: z.boolean().optional(),
-}).strict();
+export const BridgeCommandResultSchema = z
+	.object({
+		commandId: z.string().min(1),
+		tool: BridgeToolNameSchema,
+		success: z.boolean(),
+		message: z.string(),
+		data: z.record(z.string(), z.unknown()).optional(),
+		skipped: z.boolean().optional(),
+	})
+	.strict();
 
-export const BridgeEnvelopeResultSchema = z.object({
-	envelopeProjectId: z.string().min(1),
-	results: z.array(BridgeCommandResultSchema),
-}).strict();
+export const BridgeEnvelopeResultSchema = z
+	.object({
+		envelopeProjectId: z.string().min(1),
+		results: z.array(BridgeCommandResultSchema),
+	})
+	.strict();
 
 export type BridgeToolName = z.infer<typeof BridgeToolNameSchema>;
 export type BridgeCommand = z.infer<typeof BridgeCommandSchema>;

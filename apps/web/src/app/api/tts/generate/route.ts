@@ -1,12 +1,34 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import {
+	synthesizeVolcengineClonedVoice,
+	VOLCENGINE_VOICE_CLONE_PROVIDER_ID,
+} from "@/lib/ai/providers/volcengine-openspeech";
 
 const TTS_API_BASE = "https://api.milorapart.top/apis/mbAIsc";
 
-const requestSchema = z.object({
-	text: z.string().min(1, "Text is required").max(2000, "Text too long"),
-	voice: z.string().optional(),
-});
+const requestSchema = z
+	.object({
+		text: z.string().min(1, "Text is required").max(2000, "Text too long"),
+		voice: z.string().optional(),
+		provider: z
+			.enum(["legacy-tts", VOLCENGINE_VOICE_CLONE_PROVIDER_ID])
+			.optional(),
+		voiceType: z.string().trim().optional(),
+		speedRatio: z.number().positive().optional(),
+	})
+	.superRefine((value, context) => {
+		if (
+			value.provider === VOLCENGINE_VOICE_CLONE_PROVIDER_ID &&
+			!value.voiceType?.trim()
+		) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["voiceType"],
+				message: "Volcengine voice_type is required",
+			});
+		}
+	});
 
 const upstreamResponseSchema = z.object({
 	code: z.number(),
@@ -28,7 +50,28 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const { text } = validation.data;
+		const { provider, text } = validation.data;
+		if (provider === VOLCENGINE_VOICE_CLONE_PROVIDER_ID) {
+			const apiKey = process.env.VOLCENGINE_OPEN_SPEECH_API_KEY?.trim();
+			if (!apiKey) {
+				return NextResponse.json(
+					{ error: "VOLCENGINE_OPEN_SPEECH_API_KEY is required" },
+					{ status: 503 },
+				);
+			}
+			const result = await synthesizeVolcengineClonedVoice({
+				apiKey,
+				voiceType: validation.data.voiceType,
+				text,
+				speedRatio: validation.data.speedRatio,
+			});
+			return NextResponse.json({
+				audio: result.audioBytes.toString("base64"),
+				provider: VOLCENGINE_VOICE_CLONE_PROVIDER_ID,
+				providerTaskId: result.taskId,
+			});
+		}
+
 		const upstreamUrl = `${TTS_API_BASE}?${new URLSearchParams({ text, format: "mp3" })}`;
 		const upstreamResponse = await fetch(upstreamUrl);
 

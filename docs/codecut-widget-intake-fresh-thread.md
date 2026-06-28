@@ -1,6 +1,6 @@
-# Codecut Widget Intake Fresh-Thread Verification
+# CodeCut Widget Intake Fresh-Thread Verification
 
-Use this checklist after any change to Codecut plugin prompts, skills, MCP tool
+Use this checklist after any change to CodeCut plugin prompts, skills, MCP tool
 schemas, MCP resources, widgets, or Codex-host tool routing.
 
 This is the required fresh-thread proof for widget intake changes.
@@ -11,7 +11,7 @@ The change is verified only when a fresh `@codecut` thread produces a real
 `codecut_mcp.open_codecut_workspace` MCP call. Source files, installed cache
 contents, and unit tests are necessary but not sufficient.
 
-Before running the fresh-thread widget proof, the local Codecut web service must
+Before running the fresh-thread widget proof, the local CodeCut web service must
 already be reachable at `http://127.0.0.1:4100/en/projects`. If
 `open_codecut_workspace` returns `service_unavailable`, the runtime is blocked;
 that result is not a rendered widget and does not satisfy widget intake proof.
@@ -24,8 +24,12 @@ fallback questions.
 confirmation ID for the setup widget.
 Only `submit_codecut_setup` can exchange that pending ID for a confirmed setup
 token. Side-effect tools must not run until that confirmed token exists.
+If a confirmed project exists but the app follow-up message does not appear in
+the Codex thread, `recover_codecut_setup` is the recovery path. It requires the
+same `projectId` and `pendingConfirmationId` and returns the confirmed setup
+token that `submit_codecut_setup` already produced.
 
-For missing setup fields, the expected first Codecut action is the widget MCP
+For missing setup fields, the expected first CodeCut action is the widget MCP
 call itself. Reading local skill files first is a failure because it means
 startup routing has not given Codex enough instruction to enter widget intake
 without shell.
@@ -53,7 +57,7 @@ that subcommand. Before using it as a readback, confirm support with:
 codex plugin --help
 ```
 
-If `list` is missing from the help output, do not treat that as a Codecut plugin
+If `list` is missing from the help output, do not treat that as a CodeCut plugin
 failure. Record the `codex --version` output in the release matrix and continue
 with `plugin:freshness`, installed-cache readback, and fresh-session tool
 discovery.
@@ -65,7 +69,7 @@ node scripts/sync-codex-local-plugin.mjs
 ```
 
 The JSON output must show `sourceRoot` as the active source path and
-`cacheRoot` as the installed Codecut cache.
+`cacheRoot` as the installed CodeCut cache.
 
 For release-level changes, record the exact Git SHA, plugin version, cache path,
 Codex CLI/App versions, and fresh-session proof in
@@ -83,13 +87,13 @@ rg -n "open_codecut_workspace|pendingConfirmationId|confirmationToken" /Users/x/
 Use `tool_search` with:
 
 ```text
-open_codecut_workspace Codecut workspace setup widget
+open_codecut_workspace CodeCut workspace setup widget
 ```
 
 The expected callable tool is
 `mcp__codecut_mcp.open_codecut_workspace`.
 
-5. Confirm the local Codecut web service is ready before opening the widget:
+5. Confirm the local CodeCut web service is ready before opening the widget:
 
 ```bash
 curl -fsS -o /dev/null http://127.0.0.1:4100/en/projects
@@ -109,8 +113,8 @@ bun run dev:web
 video to edit into one 1-minute short. Do not download, do not edit, do not
 write files, do not inspect skills, do not read local files, and do not run
 shell commands. Use tool_search only if open_codecut_workspace is not visible.
-The only allowed Codecut MCP tool call is codecut_mcp.open_codecut_workspace.
-If editing setup fields are missing, use the normal Codecut plugin intake path
+The only allowed CodeCut MCP tool call is codecut_mcp.open_codecut_workspace.
+If editing setup fields are missing, use the normal CodeCut plugin intake path
 and render the setup widget instead of sending text questions.
 ```
 
@@ -129,6 +133,13 @@ as `直接回复` or `C/A/A/A/A`.
 node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId>
 ```
 
+After clicking the setup widget's create-project button, require a visible
+continuation message in the thread:
+
+```bash
+node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId> --require-follow-up true
+```
+
 If the local session file is not discoverable by thread id, export the
 `read_thread` JSON or use the session JSONL directly:
 
@@ -138,7 +149,7 @@ node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId> --se
 
 ## Failure Meaning
 
-- `service_unavailable`: the local Codecut web service was not ready before
+- `service_unavailable`: the local CodeCut web service was not ready before
   widget intake; start `bun run dev:web`, wait for the readiness curl to pass,
   and rerun the fresh-thread proof.
 - Missing `open_codecut_workspace`: the agent did not enter widget intake.

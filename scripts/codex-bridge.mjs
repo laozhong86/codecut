@@ -3,7 +3,14 @@
 import { access, readFile, stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
-import { basename, extname, isAbsolute, join, relative, resolve } from "node:path";
+import {
+	basename,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -20,47 +27,75 @@ const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
 const execFileAsync = promisify(execFile);
 const importBytesBase64MaxBytes = 15 * 1024 * 1024;
+const captionStylePresetValues = [
+	"creator-clean",
+	"short-form-bold",
+	"black-bar",
+	"talking-head-pop",
+	"tutorial-clean",
+	"documentary-soft",
+	"product-punch",
+	"lifestyle-warm",
+	"cinematic-serif",
+	"social-highlight",
+	"comment-bubble",
+	"minimal-reel",
+];
+const captionPositionValues = ["lower-safe", "center"];
+const captionMotionPresetValues = ["slam-in", "soft-reveal", "pop-bounce"];
 const confirmationGatedCommands = new Set([
 	"create-project",
 	"rename-project",
 	"delete-project",
 	"import-media",
 	"export",
+	"export-timeline-frame",
 	"generate-digital-human",
 	"generate-runninghub-voice-design",
 	"generate-runninghub-voice-clone",
+	"generate-volcengine-cloned-voice",
 	"apply-plan",
 	"apply-narrated-remix-plan",
 	"add-texts",
 	"add-captions",
+	"import-subtitles",
 	"insert-clips",
 	"move-clips",
 	"remove-clips",
 	"split-clip",
 	"set-clip-properties",
 	"set-keyframes",
+	"add-transitions",
+	"update-transition",
+	"remove-transition",
 	"ripple-delete-ranges",
 ]);
 const confirmationGatedSendTools = new Set([
 	"set_project_cover",
 	"clear_project_cover",
+	"update_project_preferences",
 	"add_texts",
 	"add_captions",
+	"import_subtitles",
 	"insert_clips",
 	"move_clips",
 	"remove_clips",
 	"split_clip",
 	"set_clip_properties",
 	"set_keyframes",
+	"add_transitions",
+	"update_transition",
+	"remove_transition",
 	"ripple_delete_ranges",
 	"create_text_background_effect",
 	"create_human_pip_effect",
+	"export_timeline_frame",
 ]);
 
 function usage() {
 	return [
 		"Usage:",
-		"  node scripts/codex-bridge.mjs create-project --project-id <id> --name <name> --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs create-project --project-id <id> --name <name> --confirmation-token <token> [--confirmed-setup-json-file <file>]",
 		"  node scripts/codex-bridge.mjs plugin:freshness",
 		"  node scripts/codex-bridge.mjs doctor-install --project-id <id>",
 		"  node scripts/codex-bridge.mjs doctor --project-id <id>",
@@ -72,34 +107,41 @@ function usage() {
 		"  node scripts/codex-bridge.mjs build-video-context --project-id <id> --media-id <id> --language <auto|code> --model-id <model>",
 		"  node scripts/codex-bridge.mjs build-visual-context --project-id <id> --media-id <id> --target-aspect-ratio <9:16|16:9|1:1>",
 		"  node scripts/codex-bridge.mjs inspect-video-range --project-id <id> --media-id <id> --start-seconds <seconds> --end-seconds <seconds> [--frame-count <1..16>]",
-		"  node scripts/codex-bridge.mjs get-timeline-state-v2 --project-id <id> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>] [--include-referenced-media <true|false>]",
+		"  node scripts/codex-bridge.mjs get-timeline-state --project-id <id> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>] [--include-referenced-media <true|false>]",
 		"  node scripts/codex-bridge.mjs inspect-timeline --project-id <id> --start-time <seconds> [--end-time <seconds>] [--frame-count <1..16>]",
 		"  node scripts/codex-bridge.mjs build-video-quality-report --project-id <id> --plan-json-file /absolute/path/edit-plan.json --start-time <seconds> --end-time <seconds> --frame-count <1..16> [--title-rubric-json-file /absolute/path/title-rubric.json] [--output-file /absolute/path/export.mp4 --format <mp4|webm> --include-audio <true|false>]",
 		"  node scripts/codex-bridge.mjs get-transcript --project-id <id> --granularity <segment|word> --language <auto|code> --model-id <model> [--start-time <seconds>] [--end-time <seconds>] [--include-frames <true|false>]",
 		"  node scripts/codex-bridge.mjs add-texts --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs add-captions --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs import-subtitles --project-id <id> --file-path /absolute/path/captions.srt --format <srt|ass> --track-name <name> [--caption-style-json '<json>'] --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs insert-clips --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs move-clips --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs remove-clips --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs split-clip --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs set-clip-properties --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs set-keyframes --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs add-transitions --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs update-transition --project-id <id> --args-json '<json>' --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs remove-transition --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs ripple-delete-ranges --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs list-models --project-id <id> [--type <transcription|digital_human>]",
 		"  node scripts/codex-bridge.mjs search-media --project-id <id> --args-json '<json>'",
 		"  node scripts/codex-bridge.mjs import-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs update-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs delete-system-template-script --project-id <id> --template-id <id> --confirmed-by-user true",
+		"  node scripts/codex-bridge.mjs build-caption-diagnostics --project-id <id> --language <auto|code> --model-id <model> --caption-style-preset <preset> --caption-position <lower-safe|center> [--caption-motion-preset <preset>]",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
 		'  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text "..." --motion-prompt "..." --width 1280 --height 720 --fps 25 --confirmation-token <token>',
 		'  node scripts/codex-bridge.mjs generate-runninghub-voice-design --project-id <id> --text "..." --emotion-prompt "..." --confirmation-token <token>',
 		'  node scripts/codex-bridge.mjs generate-runninghub-voice-clone --project-id <id> --audio-path /absolute/path/reference.wav --text "..." --confirmation-token <token>',
+		'  node scripts/codex-bridge.mjs generate-volcengine-cloned-voice --project-id <id> --voice-type <voice_type> --text "..." --confirmation-token <token>',
 		"  node scripts/codex-bridge.mjs validate-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs preview-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs apply-narrated-remix-plan --project-id <id> --plan-json-file /absolute/path/remix-plan.json --replace-existing <true|false> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs verify-timeline --project-id <id> --verification-json-file /absolute/path/verification.json",
 		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --output-file /absolute/path/out.mp4 --overwrite <true|false> --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs export-timeline-frame --project-id <id> --time-seconds <seconds> --format png --output-file /absolute/path/frame.png --overwrite <true|false> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs list-projects",
 		"  node scripts/codex-bridge.mjs rename-project --project-id <id> --name <name> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs delete-project --project-id <id> --confirmation-token <token>",
@@ -137,6 +179,30 @@ function parseFlags(argv) {
 		index += 1;
 	}
 	return flags;
+}
+
+function formatCliFlagName(key) {
+	return `--${key.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`)}`;
+}
+
+function assertOnlyFlags(flags, allowedKeys, command) {
+	const unexpected = Object.keys(flags).filter((key) => !allowedKeys.has(key));
+	if (unexpected.length > 0) {
+		throw new Error(
+			`${command} does not accept flag(s): ${unexpected
+				.map(formatCliFlagName)
+				.join(", ")}`,
+		);
+	}
+}
+
+function assertOnlyOptions(options, allowedKeys, context) {
+	const unexpected = Object.keys(options).filter((key) => !allowedKeys.has(key));
+	if (unexpected.length > 0) {
+		throw new Error(
+			`${context} does not accept option(s): ${unexpected.join(", ")}`,
+		);
+	}
 }
 
 function assertNoTokenFlags(flags) {
@@ -233,10 +299,7 @@ async function readPluginManifest(path) {
 
 async function checkSourcePlugin({ cwd }) {
 	const manifestPath = join(cwd, ".codex-plugin/plugin.json");
-	const skillPath = join(
-		cwd,
-		"skills/codecut/SKILL.md",
-	);
+	const skillPath = join(cwd, "skills/codecut/SKILL.md");
 
 	let manifest;
 	try {
@@ -316,10 +379,7 @@ async function checkCachePlugin({ homeDir, sourceManifest }) {
 		sourceManifest.version,
 	);
 	const manifestPath = join(cacheRoot, ".codex-plugin/plugin.json");
-	const skillPath = join(
-		cacheRoot,
-		"skills/codecut/SKILL.md",
-	);
+	const skillPath = join(cacheRoot, "skills/codecut/SKILL.md");
 	let manifest;
 	try {
 		manifest = await readPluginManifest(manifestPath);
@@ -471,8 +531,7 @@ async function checkCacheBridgeEnv({ cwd, cacheRoot, sourceOk, cacheOk }) {
 			return doctorCheck({
 				id: "cache_bridge_env",
 				ok: false,
-				message:
-					"Source and installed cache bridge env files must both exist.",
+				message: "Source and installed cache bridge env files must both exist.",
 				data: {
 					sourceEnvPath,
 					cacheEnvPath,
@@ -631,6 +690,27 @@ function expectedMarketplaceSourcePath({ marketplaceRoot, cwd }) {
 	return relativePath.startsWith(".") ? relativePath : `./${relativePath}`;
 }
 
+function expectedMarketplaceSourcePaths({ marketplaceRoot, cwd }) {
+	const expectedPaths = [
+		expectedMarketplaceSourcePath({
+			marketplaceRoot,
+			cwd,
+		}),
+	];
+	const normalizedCwd = resolve(cwd).replaceAll("\\", "/");
+	const worktreeMarker = "/.worktrees/";
+	const markerIndex = normalizedCwd.lastIndexOf(worktreeMarker);
+	if (markerIndex !== -1) {
+		expectedPaths.push(
+			expectedMarketplaceSourcePath({
+				marketplaceRoot,
+				cwd: normalizedCwd.slice(0, markerIndex),
+			}),
+		);
+	}
+	return [...new Set(expectedPaths)];
+}
+
 async function checkPluginConfig({ cwd, homeDir, sourceManifest }) {
 	const pluginName = sourceManifest?.name ?? "codecut";
 	const configPath = join(homeDir, ".codex/config.toml");
@@ -763,24 +843,27 @@ async function checkPluginConfig({ cwd, homeDir, sourceManifest }) {
 		? marketplace.plugins.find((plugin) => plugin?.name === pluginName)
 		: null;
 	const sourcePath = entry?.source?.path;
-	const expectedSourcePath = expectedMarketplaceSourcePath({
+	const expectedSourcePaths = expectedMarketplaceSourcePaths({
 		marketplaceRoot,
 		cwd,
 	});
+	const configMatchesSource =
+		Boolean(entry) && expectedSourcePaths.includes(sourcePath);
 	checks.push(
 		doctorCheck({
 			id: "marketplace_entry",
-			ok: Boolean(entry) && sourcePath === expectedSourcePath,
+			ok: configMatchesSource,
 			message: !entry
 				? `Marketplace entry for ${pluginName} is missing.`
-				: sourcePath === expectedSourcePath
+				: configMatchesSource
 					? `Marketplace entry for ${pluginName} points to the active source checkout.`
-					: `Marketplace entry for ${pluginName} points to ${String(sourcePath)}, expected ${expectedSourcePath}.`,
+					: `Marketplace entry for ${pluginName} points to ${String(sourcePath)}, expected one of ${expectedSourcePaths.join(", ")}.`,
 			data: {
 				marketplaceJsonPath,
 				pluginName,
 				sourcePath: sourcePath ?? null,
-				expectedSourcePath,
+				expectedSourcePath: expectedSourcePaths[0],
+				expectedSourcePaths,
 			},
 		}),
 	);
@@ -796,7 +879,8 @@ async function checkPluginConfig({ cwd, homeDir, sourceManifest }) {
 			marketplaceRoot,
 			marketplaceJsonPath,
 			sourcePath: sourcePath ?? null,
-			expectedSourcePath,
+			expectedSourcePath: expectedSourcePaths[0],
+			expectedSourcePaths,
 		},
 	};
 }
@@ -1086,6 +1170,42 @@ async function checkNodeRenderer({ cwd }) {
 	}
 }
 
+export async function checkSharpRuntime({ cwd, requireImpl } = {}) {
+	try {
+		const requireFromWeb =
+			requireImpl || createRequire(join(cwd, "apps/web/package.json"));
+		const sharp = requireFromWeb("sharp");
+		const buffer = await sharp({
+			create: {
+				width: 1,
+				height: 1,
+				channels: 4,
+				background: { r: 0, g: 0, b: 0, alpha: 1 },
+			},
+		})
+			.png()
+			.toBuffer();
+		if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+			throw new Error("Sharp generated an empty probe image.");
+		}
+		return doctorCheck({
+			id: "sharp_libvips",
+			ok: true,
+			message: "Sharp/libvips runtime is available.",
+			data: {
+				sharp: sharp.versions?.sharp,
+				libvips: sharp.versions?.vips,
+			},
+		});
+	} catch (error) {
+		return doctorCheck({
+			id: "sharp_libvips",
+			ok: false,
+			message: `Sharp/libvips check failed: ${error instanceof Error ? error.message : String(error)}`,
+		});
+	}
+}
+
 export async function runInstallDoctor({
 	projectId,
 	cwd = process.cwd(),
@@ -1094,6 +1214,7 @@ export async function runInstallDoctor({
 	fetchImpl = fetch,
 	execFileImpl = execFileAsync,
 	nodeRendererProbe = checkNodeRenderer,
+	sharpRuntimeProbe = checkSharpRuntime,
 }) {
 	const source = await checkSourcePlugin({ cwd });
 	const cache = await checkCachePlugin({
@@ -1119,6 +1240,7 @@ export async function runInstallDoctor({
 		}),
 		environment.check,
 		await nodeRendererProbe({ cwd }),
+		await sharpRuntimeProbe({ cwd }),
 		await checkWebService({ config: environment.config, fetchImpl }),
 		await checkExecutorProject({
 			projectId,
@@ -1282,15 +1404,16 @@ function optionalTimelineWindow({ startTime, endTime, frameCount }) {
 	return args;
 }
 
-export function buildGetTimelineStateV2Envelope({
+export function buildGetTimelineStateEnvelope({
 	projectId,
 	startTime,
 	endTime,
 	includeFrames,
 	includeReferencedMedia,
+	...options
 }) {
+	assertOnlyOptions(options, new Set(), "get_timeline_state");
 	const args = {
-		format: "v2",
 		...optionalTimelineWindow({ startTime, endTime }),
 		...(includeFrames === undefined ? {} : { includeFrames }),
 		...(includeReferencedMedia === undefined ? {} : { includeReferencedMedia }),
@@ -1458,11 +1581,11 @@ export function buildFreshSessionSmokeReport({
 	const timelineOk =
 		timelineData.ok === true && timelineData.data?.schemaVersion === 2;
 	checks.push({
-		id: "timeline_v2",
+		id: "timeline_readback",
 		ok: timelineOk,
 		message: timelineOk
-			? "Timeline v2 readback returned structured state"
-			: "Timeline v2 readback did not return schemaVersion 2",
+			? "Timeline readback returned structured state"
+			: "Timeline readback did not return schemaVersion 2",
 		data: {
 			schemaVersion: timelineData.data?.schemaVersion,
 			revision:
@@ -1486,7 +1609,7 @@ export function buildFreshSessionSmokeReport({
 					expectedCaptionLineCount,
 					expectedProtectedTermCount,
 				})
-			: "Timeline v2 or scripted media asset check did not pass";
+			: "Timeline readback or scripted media asset check did not pass";
 	checks.push({
 		id: "referenced_scripted_media",
 		ok: !referencedScriptedAssetError,
@@ -1709,6 +1832,37 @@ export function buildAddCaptionsEnvelope({
 	});
 }
 
+export function buildImportSubtitlesEnvelope({
+	projectId,
+	filePath,
+	format,
+	trackName,
+	captionStyle,
+}) {
+	if (!filePath) {
+		throw new Error("--file-path is required");
+	}
+	if (!isAbsolute(filePath)) {
+		throw new Error("--file-path must be an absolute path");
+	}
+	if (format !== "srt" && format !== "ass") {
+		throw new Error("--format must be srt or ass");
+	}
+	if (!trackName) {
+		throw new Error("--track-name is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "import_subtitles",
+		args: {
+			filePath,
+			format,
+			trackName,
+			...(captionStyle === undefined ? {} : { captionStyle }),
+		},
+	});
+}
+
 export function buildListModelsEnvelope({ projectId, type }) {
 	if (
 		type !== undefined &&
@@ -1824,6 +1978,63 @@ export function buildSetKeyframesEnvelope({
 		projectId,
 		tool: "set_keyframes",
 		args: { elementId, property, keyframes },
+	});
+}
+
+export function buildAddTransitionsEnvelope({ projectId, entries }) {
+	if (!Array.isArray(entries) || entries.length === 0) {
+		throw new Error("--entries must contain at least one transition entry");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "add_transitions",
+		args: { entries },
+	});
+}
+
+export function buildUpdateTransitionEnvelope({
+	projectId,
+	trackId,
+	transitionId,
+	type,
+	duration,
+}) {
+	if (!trackId) {
+		throw new Error("--track-id is required");
+	}
+	if (!transitionId) {
+		throw new Error("--transition-id is required");
+	}
+	if (type === undefined && duration === undefined) {
+		throw new Error("--type or --duration is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "update_transition",
+		args: {
+			trackId,
+			transitionId,
+			...(type === undefined ? {} : { type }),
+			...(duration === undefined ? {} : { duration }),
+		},
+	});
+}
+
+export function buildRemoveTransitionEnvelope({
+	projectId,
+	trackId,
+	transitionId,
+}) {
+	if (!trackId) {
+		throw new Error("--track-id is required");
+	}
+	if (!transitionId) {
+		throw new Error("--transition-id is required");
+	}
+	return buildCommandEnvelope({
+		projectId,
+		tool: "remove_transition",
+		args: { trackId, transitionId },
 	});
 }
 
@@ -1948,15 +2159,6 @@ export function buildExportEnvelope({
 	outputFile,
 	overwrite,
 }) {
-	if (!format) {
-		throw new Error("--format is required");
-	}
-	if (!quality) {
-		throw new Error("--quality is required");
-	}
-	if (typeof includeAudio !== "boolean") {
-		throw new Error("--include-audio is required");
-	}
 	if (!outputFile) {
 		throw new Error("--output-file is required");
 	}
@@ -1971,9 +2173,44 @@ export function buildExportEnvelope({
 		projectId,
 		tool: "export_project",
 		args: {
+			...(format === undefined ? {} : { format }),
+			...(quality === undefined ? {} : { quality }),
+			...(includeAudio === undefined ? {} : { includeAudio }),
+			outputFile,
+			overwrite,
+		},
+	});
+}
+
+export function buildExportTimelineFrameEnvelope({
+	projectId,
+	timeSeconds,
+	format,
+	outputFile,
+	overwrite,
+}) {
+	if (timeSeconds === undefined) {
+		throw new Error("--time-seconds is required");
+	}
+	if (!format) {
+		throw new Error("--format is required");
+	}
+	if (!outputFile) {
+		throw new Error("--output-file is required");
+	}
+	if (!isAbsolute(outputFile)) {
+		throw new Error("--output-file must be an absolute path");
+	}
+	if (typeof overwrite !== "boolean") {
+		throw new Error("--overwrite is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "export_timeline_frame",
+		args: {
+			timeSeconds,
 			format,
-			quality,
-			includeAudio,
 			outputFile,
 			overwrite,
 		},
@@ -2098,9 +2335,6 @@ export function buildInspectVideoRangeEnvelope({
 }
 
 export function buildPostCutCaptionsEnvelope({ projectId, language, modelId }) {
-	if (!language) {
-		throw new Error("--language is required");
-	}
 	if (!modelId) {
 		throw new Error("--model-id is required");
 	}
@@ -2109,8 +2343,67 @@ export function buildPostCutCaptionsEnvelope({ projectId, language, modelId }) {
 		projectId,
 		tool: "build_post_cut_captions",
 		args: {
+			...(language === undefined ? {} : { language }),
+			modelId,
+		},
+	});
+}
+
+function requireOneOf(value, flagName, allowedValues) {
+	if (!value) {
+		throw new Error(`--${flagName} is required`);
+	}
+	if (!allowedValues.includes(value)) {
+		throw new Error(
+			`--${flagName} must be one of ${allowedValues.join(", ")}`,
+		);
+	}
+	return value;
+}
+
+export function buildCaptionDiagnosticsEnvelope({
+	projectId,
+	language,
+	modelId,
+	captionStylePreset,
+	captionPosition,
+	captionMotionPreset,
+}) {
+	if (!language) {
+		throw new Error("--language is required");
+	}
+	if (!modelId) {
+		throw new Error("--model-id is required");
+	}
+	const captionStyle = {
+		preset: requireOneOf(
+			captionStylePreset,
+			"caption-style-preset",
+			captionStylePresetValues,
+		),
+		position: requireOneOf(
+			captionPosition,
+			"caption-position",
+			captionPositionValues,
+		),
+		...(captionMotionPreset === undefined
+			? {}
+			: {
+					motionPreset: requireOneOf(
+						captionMotionPreset,
+						"caption-motion-preset",
+						captionMotionPresetValues,
+					),
+				}),
+	};
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "build_caption_diagnostics",
+		args: {
 			language,
 			modelId,
+			captionStyle,
 		},
 	});
 }
@@ -2227,6 +2520,32 @@ export function buildRunningHubVoiceCloneEnvelope({
 	});
 }
 
+export function buildVolcengineClonedVoiceEnvelope({
+	projectId,
+	voiceType,
+	text,
+	protectedTerms,
+}) {
+	if (!voiceType?.trim()) {
+		throw new Error("--voice-type is required");
+	}
+	if (!text?.trim()) {
+		throw new Error("--text is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "generate_volcengine_cloned_voice",
+		args: {
+			voiceType: voiceType.trim(),
+			text: text.trim(),
+			...(protectedTerms === undefined
+				? {}
+				: { protectedTerms: normalizeProtectedTerms({ protectedTerms }) }),
+		},
+	});
+}
+
 async function readJsonObjectFile({ filePath, flagName }) {
 	if (!filePath) {
 		throw new Error(`--${flagName} is required`);
@@ -2244,6 +2563,12 @@ async function readJsonObjectFile({ filePath, flagName }) {
 function requireRunningHubApiKey({ env }) {
 	if (!env.RUNNINGHUB_API_KEY) {
 		throw new Error("RUNNINGHUB_API_KEY is required");
+	}
+}
+
+function requireVolcengineOpenSpeechApiKey({ env }) {
+	if (!env.VOLCENGINE_OPEN_SPEECH_API_KEY) {
+		throw new Error("VOLCENGINE_OPEN_SPEECH_API_KEY is required");
 	}
 }
 
@@ -2307,7 +2632,9 @@ function normalizeMediaMetadata({ duration, width, height }) {
 		...(duration === undefined
 			? {}
 			: { duration: parsePositiveNumber(duration, "duration") }),
-		...(width === undefined ? {} : { width: parsePositiveNumber(width, "width") }),
+		...(width === undefined
+			? {}
+			: { width: parsePositiveNumber(width, "width") }),
 		...(height === undefined
 			? {}
 			: { height: parsePositiveNumber(height, "height") }),
@@ -2577,7 +2904,9 @@ async function fetchAgentBridgeHeartbeat({ config, projectId, fetchImpl }) {
 	);
 	const text = await response.text();
 	if (!response.ok) {
-		throw new Error(`Agent bridge heartbeat failed: ${response.status} ${text}`);
+		throw new Error(
+			`Agent bridge heartbeat failed: ${response.status} ${text}`,
+		);
 	}
 	return JSON.parse(text);
 }
@@ -2586,7 +2915,11 @@ async function waitForAgentBridge({ config, projectId, fetchImpl }) {
 	if (!projectId) {
 		throw new Error("--project-id is required");
 	}
-	const status = await fetchAgentBridgeHeartbeat({ config, projectId, fetchImpl });
+	const status = await fetchAgentBridgeHeartbeat({
+		config,
+		projectId,
+		fetchImpl,
+	});
 	if (status.mounted !== true) {
 		throw new Error(
 			`Agent bridge is not mounted for project ${projectId}. Open the editor URL before importing system templates.`,
@@ -2650,7 +2983,13 @@ async function postAgentBridgeEnvelopeAndWait({ config, envelope, fetchImpl }) {
 	return waitForAgentBridgeResult({ config, id: item.id, fetchImpl });
 }
 
-async function postExecutorProject({ config, projectId, name, fetchImpl }) {
+async function postExecutorProject({
+	config,
+	projectId,
+	name,
+	confirmedSetup,
+	fetchImpl,
+}) {
 	const response = await fetchImpl(
 		`${config.baseUrl}/api/codex-executor/projects`,
 		{
@@ -2659,7 +2998,11 @@ async function postExecutorProject({ config, projectId, name, fetchImpl }) {
 				Authorization: `Bearer ${config.token}`,
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({ projectId, name }),
+			body: JSON.stringify({
+				projectId,
+				name,
+				...(confirmedSetup === undefined ? {} : { confirmedSetup }),
+			}),
 		},
 	);
 	const text = await response.text();
@@ -2700,7 +3043,9 @@ async function patchExecutorProject({ config, projectId, name, fetchImpl }) {
 	);
 	const text = await response.text();
 	if (!response.ok) {
-		throw new Error(`Executor project rename failed: ${response.status} ${text}`);
+		throw new Error(
+			`Executor project rename failed: ${response.status} ${text}`,
+		);
 	}
 	return JSON.parse(text);
 }
@@ -2719,7 +3064,9 @@ async function deleteExecutorProject({ config, projectId, fetchImpl }) {
 	);
 	const text = await response.text();
 	if (!response.ok) {
-		throw new Error(`Executor project delete failed: ${response.status} ${text}`);
+		throw new Error(
+			`Executor project delete failed: ${response.status} ${text}`,
+		);
 	}
 	return JSON.parse(text);
 }
@@ -2787,7 +3134,8 @@ export async function runCli({
 
 	if (
 		confirmationGatedCommands.has(command) ||
-		(command === "send" && confirmationGatedSendTools.has(String(flags.tool || "")))
+		(command === "send" &&
+			confirmationGatedSendTools.has(String(flags.tool || "")))
 	) {
 		await assertCodecutConfirmationToken({
 			root: env?.CODECUT_CONFIRMATION_ROOT,
@@ -2809,6 +3157,12 @@ export async function runCli({
 			config,
 			projectId: flags.projectId,
 			name: flags.name,
+			confirmedSetup: flags.confirmedSetupJsonFile
+				? await readJsonObjectFile({
+						filePath: flags.confirmedSetupJsonFile,
+						flagName: "confirmed-setup-json-file",
+					})
+				: undefined,
 			fetchImpl,
 		});
 		stdout(JSON.stringify(result, null, 2));
@@ -2914,14 +3268,14 @@ export async function runCli({
 			}),
 			fetchImpl,
 		});
-		const timelineResult = await postEnvelope({
-			config,
-			envelope: buildGetTimelineStateV2Envelope({
-				projectId: flags.projectId,
-				includeReferencedMedia: true,
-			}),
-			fetchImpl,
-		});
+			const timelineResult = await postEnvelope({
+				config,
+				envelope: buildGetTimelineStateEnvelope({
+					projectId: flags.projectId,
+					includeReferencedMedia: true,
+				}),
+				fetchImpl,
+			});
 		const report = buildFreshSessionSmokeReport({
 			projectId: flags.projectId,
 			installDoctorResult,
@@ -2942,14 +3296,26 @@ export async function runCli({
 			args: parseArgsJsonFlag(flags),
 		});
 	} else if (command === "export") {
-			envelope = buildExportEnvelope({
-				projectId: flags.projectId,
-				format: flags.format,
-				quality: flags.quality,
-				includeAudio: parseBoolean(flags.includeAudio, "includeAudio"),
-				outputFile: flags.outputFile,
-				overwrite: parseBoolean(flags.overwrite, "overwrite"),
-			});
+		envelope = buildExportEnvelope({
+			projectId: flags.projectId,
+			format: flags.format,
+			quality: flags.quality,
+			includeAudio:
+				flags.includeAudio === undefined
+					? undefined
+					: parseBoolean(flags.includeAudio, "includeAudio"),
+			outputFile: flags.outputFile,
+			overwrite: parseBoolean(flags.overwrite, "overwrite"),
+		});
+	} else if (command === "export-timeline-frame") {
+		envelope = buildExportTimelineFrameEnvelope({
+			projectId: flags.projectId,
+			timeSeconds:
+				flags.timeSeconds === undefined ? undefined : Number(flags.timeSeconds),
+			format: flags.format,
+			outputFile: flags.outputFile,
+			overwrite: parseBoolean(flags.overwrite, "overwrite"),
+		});
 	} else if (command === "import-media") {
 		const flagMetadata = normalizeMediaMetadata({
 			duration: flags.duration,
@@ -3005,33 +3371,44 @@ export async function runCli({
 			mediaId: flags.mediaId,
 			targetAspectRatio: flags.targetAspectRatio,
 		});
-	} else if (command === "inspect-video-range") {
-		envelope = buildInspectVideoRangeEnvelope({
-			projectId: flags.projectId,
-			mediaId: flags.mediaId,
-			startSeconds: Number(flags.startSeconds),
-			endSeconds: Number(flags.endSeconds),
-			frameCount:
-				flags.frameCount === undefined ? undefined : Number(flags.frameCount),
-		});
-	} else if (command === "get-timeline-state-v2") {
-		envelope = buildGetTimelineStateV2Envelope({
-			projectId: flags.projectId,
-			startTime:
-				flags.startTime === undefined ? undefined : Number(flags.startTime),
-			endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
-			includeFrames:
-				flags.includeFrames === undefined
-					? undefined
-					: parseBoolean(flags.includeFrames, "includeFrames"),
-			includeReferencedMedia:
-				flags.includeReferencedMedia === undefined
-					? undefined
-					: parseBoolean(
-							flags.includeReferencedMedia,
-							"includeReferencedMedia",
-						),
-		});
+		} else if (command === "inspect-video-range") {
+			envelope = buildInspectVideoRangeEnvelope({
+				projectId: flags.projectId,
+				mediaId: flags.mediaId,
+				startSeconds: Number(flags.startSeconds),
+				endSeconds: Number(flags.endSeconds),
+				frameCount:
+					flags.frameCount === undefined ? undefined : Number(flags.frameCount),
+			});
+		} else if (command === "get-timeline-state") {
+			assertOnlyFlags(
+				flags,
+				new Set([
+					"projectId",
+					"startTime",
+					"endTime",
+					"includeFrames",
+					"includeReferencedMedia",
+				]),
+				command,
+			);
+			envelope = buildGetTimelineStateEnvelope({
+				projectId: flags.projectId,
+				startTime:
+					flags.startTime === undefined ? undefined : Number(flags.startTime),
+				endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
+				includeFrames:
+					flags.includeFrames === undefined
+						? undefined
+						: parseBoolean(flags.includeFrames, "includeFrames"),
+				includeReferencedMedia:
+					flags.includeReferencedMedia === undefined
+						? undefined
+						: parseBoolean(
+								flags.includeReferencedMedia,
+								"includeReferencedMedia",
+							),
+			});
 	} else if (command === "inspect-timeline") {
 		envelope = buildInspectTimelineEnvelope({
 			projectId: flags.projectId,
@@ -3083,6 +3460,17 @@ export async function runCli({
 			projectId: flags.projectId,
 			...payload,
 		});
+	} else if (command === "import-subtitles") {
+		envelope = buildImportSubtitlesEnvelope({
+			projectId: flags.projectId,
+			filePath: flags.filePath,
+			format: flags.format,
+			trackName: flags.trackName,
+			captionStyle:
+				flags.captionStyleJson === undefined
+					? undefined
+					: JSON.parse(flags.captionStyleJson),
+		});
 	} else if (command === "list-models") {
 		envelope = buildListModelsEnvelope({
 			projectId: flags.projectId,
@@ -3098,28 +3486,19 @@ export async function runCli({
 		envelope = await buildImportSystemTemplateScriptEnvelope({
 			projectId: flags.projectId,
 			templateJsonFile: flags.templateJsonFile,
-			confirmedByUser: parseBoolean(
-				flags.confirmedByUser,
-				"confirmedByUser",
-			),
+			confirmedByUser: parseBoolean(flags.confirmedByUser, "confirmedByUser"),
 		});
 	} else if (command === "update-system-template-script") {
 		envelope = await buildUpdateSystemTemplateScriptEnvelope({
 			projectId: flags.projectId,
 			templateJsonFile: flags.templateJsonFile,
-			confirmedByUser: parseBoolean(
-				flags.confirmedByUser,
-				"confirmedByUser",
-			),
+			confirmedByUser: parseBoolean(flags.confirmedByUser, "confirmedByUser"),
 		});
 	} else if (command === "delete-system-template-script") {
 		envelope = buildDeleteSystemTemplateScriptEnvelope({
 			projectId: flags.projectId,
 			templateId: flags.templateId,
-			confirmedByUser: parseBoolean(
-				flags.confirmedByUser,
-				"confirmedByUser",
-			),
+			confirmedByUser: parseBoolean(flags.confirmedByUser, "confirmedByUser"),
 		});
 	} else if (command === "insert-clips") {
 		const payload = parseArgsJsonFlag(flags);
@@ -3157,11 +3536,38 @@ export async function runCli({
 			projectId: flags.projectId,
 			...payload,
 		});
+	} else if (command === "add-transitions") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildAddTransitionsEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "update-transition") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildUpdateTransitionEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "remove-transition") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildRemoveTransitionEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
 	} else if (command === "ripple-delete-ranges") {
 		const payload = parseArgsJsonFlag(flags);
 		envelope = buildRippleDeleteRangesEnvelope({
 			projectId: flags.projectId,
 			...payload,
+		});
+	} else if (command === "build-caption-diagnostics") {
+		envelope = buildCaptionDiagnosticsEnvelope({
+			projectId: flags.projectId,
+			language: flags.language,
+			modelId: flags.modelId,
+			captionStylePreset: flags.captionStylePreset,
+			captionPosition: flags.captionPosition,
+			captionMotionPreset: flags.captionMotionPreset,
 		});
 	} else if (command === "build-post-cut-captions") {
 		envelope = buildPostCutCaptionsEnvelope({
@@ -3194,6 +3600,14 @@ export async function runCli({
 		envelope = buildRunningHubVoiceCloneEnvelope({
 			projectId: flags.projectId,
 			audioPath: flags.audioPath,
+			text: flags.text,
+			protectedTerms: flags.protectedTerm,
+		});
+	} else if (command === "generate-volcengine-cloned-voice") {
+		requireVolcengineOpenSpeechApiKey({ env });
+		envelope = buildVolcengineClonedVoiceEnvelope({
+			projectId: flags.projectId,
+			voiceType: flags.voiceType,
 			text: flags.text,
 			protectedTerms: flags.protectedTerm,
 		});

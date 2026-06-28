@@ -18,10 +18,18 @@ stage.
 
 Requirement intake is a blocking gate for new Codecut editing jobs.
 
-Before material ingest, workspace init/add-assets, doctor checks,
+Before material ingest, workspace add-assets/probe, doctor checks,
 `create-project`, `import-media`, generated media, timeline mutation, or export,
 classify the request and decide whether the user's intent is confirmed enough
 to execute.
+
+## Progressive Load Map
+
+| Situation | Read first | Stop before continuing | Required readback |
+| --- | --- | --- | --- |
+| New creative job or missing setup fields | `../codecut/references/workflow-stage-contract.md` supporting file map | Two or more blocking fields are missing, or widget submission cannot pass | Confirmed setup token plus `00-brief/requirement-intake.md` when a project exists |
+| Widget or setup-token behavior is involved | `../../docs/codecut-workspace.md` and `../../docs/codex-driven-editing.md` | `open_codecut_workspace` or `submit_codecut_setup` is unavailable | Carry the returned confirmation token to later side-effect stages |
+| Requirement pass will lead to executor mutation | `../codecut/references/execution-contract.md` success contract table | Side-effect token, project ID, or required user decision is missing | Executor readback is owned by `codecut-executor-apply` after mutation |
 
 ## Stage Ownership
 
@@ -87,7 +95,6 @@ Blocked commands before this gate passes:
 - `node scripts/codex-bridge.mjs build-video-context`
 - `node scripts/codex-bridge.mjs build-post-cut-captions`
 - `node scripts/codex-bridge.mjs apply-plan`
-- `node scripts/codecut-workspace.mjs init`
 - `node scripts/codecut-workspace.mjs add-assets`
 - `node scripts/codecut-workspace.mjs probe-assets`
 - `node scripts/codecut-workspace.mjs write-doc`
@@ -122,6 +129,14 @@ token, sends the follow-up prompt that opens the Codex in-app browser, and
 unlocks material ingest, doctor checks, project creation, import, generated
 media, timeline mutation, and export.
 
+If the user reports that clicking the widget create button did not continue the
+Codex thread, first check whether the project was created and the pending
+confirmation was consumed. When the project exists but the follow-up message did
+not reach the thread, call `recover_codecut_setup` with the `projectId` and
+`pendingConfirmationId` from the original `open_codecut_workspace` result. Do
+not open a second setup widget until recovery proves there is no confirmed
+setup result.
+
 If the workspace widget tool is unavailable after tool discovery, report that
 widget intake is unavailable, then ask the required text-only questions with
 choices. Do not run shell commands, write planning/audit files, initialize a
@@ -143,7 +158,7 @@ Check these fields for every new creative job:
 | Aspect ratio | yes when not implied by platform | Prevents accidental 9:16 crop. |
 | Duration | no if user gave a target | `1 minute` is sufficient for duration. |
 | Caption policy | yes when speech/subtitles are relevant | Prevents overlapping new captions with burned-in subtitles. |
-| Opening cover image | no | Widget defaults this to recommended on. The user can turn it off; the confirmed intent must preserve `generateIntroCover` as `true` or `false`. |
+| Opening cover image | no | Widget defaults this to recommended on except full-source duration preservation, where it defaults off. A top fixed title is not an opening cover image. The confirmed intent must preserve `generateIntroCover` as `true` or `false`. |
 | Video type | yes when style or selection depends on it | Prevents wrong selection strategy. |
 | Editing style | yes when output quality depends on it | Prevents arbitrary pacing. |
 | Business intent | yes for ads/conversion/offers | Prevents invented claims. |
@@ -154,7 +169,7 @@ A remote URL is not the same as the local-file fast path.
 
 For YouTube or other remote URLs in a new creative job, confirm output form,
 platform, aspect ratio, and caption policy through the widget before download,
-probe, workspace init, or timeline mutation.
+probe, workspace asset filing, or timeline mutation.
 
 For TikTok video URLs, photo URLs, share links, author pages, or `@handle`
 inputs, use `codecut-tiktok-downloader` for source acquisition only after the

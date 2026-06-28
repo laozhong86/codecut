@@ -1,5 +1,8 @@
+import { resolve } from "node:path";
 import type { NextConfig } from "next";
 import { withBotId } from "botid/next/config";
+
+const repositoryRoot = resolve(__dirname, "../..");
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
@@ -9,8 +12,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   productionBrowserSourceMaps: true,
   output: "standalone",
+  outputFileTracingRoot: repositoryRoot,
   outputFileTracingIncludes: {
     "/**": ["./public/locales/**/*"],
+  },
+  turbopack: {
+    root: repositoryRoot,
   },
   serverExternalPackages: ["@napi-rs/canvas", "@napi-rs/webcodecs"],
   images: {

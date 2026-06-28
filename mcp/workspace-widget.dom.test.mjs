@@ -1,0 +1,317 @@
+import { expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
+import vm from "node:vm";
+
+function extractBetween(value, startMarker, endMarker) {
+	const start = value.indexOf(startMarker);
+	if (start === -1) {
+		throw new Error(`Missing start marker: ${startMarker}`);
+	}
+	const end = value.indexOf(endMarker, start);
+	if (end === -1) {
+		throw new Error(`Missing end marker: ${endMarker}`);
+	}
+	return value.slice(start, end);
+}
+
+function buildToolHarness(html, timeoutMs) {
+	const normalizedHtml = html.replace(/\r\n?/g, "\n");
+	const i18n = extractBetween(
+		normalizedHtml,
+		"const WORKSPACE_I18N =",
+		"\n\n        const fields =",
+	);
+	const translation = extractBetween(
+		normalizedHtml,
+		"function normalizeUiLanguage",
+		"\n\n        function applyLanguage",
+	);
+	const toolBridge = extractBetween(
+		normalizedHtml,
+		"const hostToolTimeoutMs =",
+		"\n\n        function structuredContent",
+	).replace(/const hostToolTimeoutMs = \d+;/, `const hostToolTimeoutMs = ${timeoutMs};`);
+	const context = vm.createContext({
+		clearTimeout,
+		Error,
+		Promise,
+		setTimeout,
+		String,
+		window: { openai: {} },
+	});
+
+	vm.runInContext(
+		`
+${i18n}
+let activeLanguage = "en";
+${translation}
+${toolBridge}
+globalThis.setLanguage = (value) => {
+	activeLanguage = normalizeUiLanguage(value);
+};
+globalThis.callWorkspaceTool = callTool;
+`,
+		context,
+	);
+	return context;
+}
+
+function createFakeElement() {
+	return {
+		children: [],
+		classList: {
+			add() {},
+			remove() {},
+		},
+		innerHTML: "",
+		textContent: "",
+		type: "",
+		addEventListener() {},
+		append(...children) {
+			this.children.push(...children);
+			this.innerHTML += children
+				.map((child) => child?.innerHTML || child?.textContent || "")
+				.join("");
+		},
+	};
+}
+
+function buildFollowUpHarness(html) {
+	const normalizedHtml = html.replace(/\r\n?/g, "\n");
+	const i18n = extractBetween(
+		normalizedHtml,
+		"const WORKSPACE_I18N =",
+		"\n\n        const fields =",
+	);
+	const translation = extractBetween(
+		normalizedHtml,
+		"function normalizeUiLanguage",
+		"\n\n        function applyLanguage",
+	);
+	const followUp = extractBetween(
+		normalizedHtml,
+		"async function sendFollowUp",
+		"\n\n        function escapeAttribute",
+	);
+	const followUpElement = createFakeElement();
+	const context = vm.createContext({
+		Error,
+		String,
+		document: {
+			createElement: createFakeElement,
+		},
+		fields: {
+			followUp: followUpElement,
+		},
+		window: {
+			openai: {
+				sendFollowUpMessage: async () => ({}),
+			},
+		},
+	});
+
+	vm.runInContext(
+		`
+${i18n}
+let activeLanguage = "en";
+${translation}
+${followUp}
+globalThis.setLanguage = (value) => {
+	activeLanguage = normalizeUiLanguage(value);
+};
+globalThis.sendWidgetFollowUp = sendFollowUp;
+globalThis.followUpHtml = () => fields.followUp.innerHTML;
+`,
+		context,
+	);
+	return context;
+}
+
+function buildMediaHarness(html) {
+	const normalizedHtml = html.replace(/\r\n?/g, "\n");
+	const mediaNormalization = extractBetween(
+		normalizedHtml,
+		"function normalizeMediaFileSources",
+		"\n\n        function appendMediaFileRow",
+	);
+	const mediaCollection = extractBetween(
+		normalizedHtml,
+		"function collectMediaSources",
+		"\n\n        function appendPickedFileRows",
+	);
+	const context = vm.createContext({
+		Array,
+		Boolean,
+		String,
+		fields: {
+			mediaSources: {
+				querySelectorAll() {
+					return [];
+				},
+			},
+		},
+	});
+
+	vm.runInContext(
+		`
+${mediaNormalization}
+${mediaCollection}
+globalThis.normalizeWidgetMediaSources = normalizeMediaFileSources;
+globalThis.collectWidgetMediaSources = (rows) => {
+	fields.mediaSources = {
+		querySelectorAll() {
+			return rows;
+		},
+	};
+	return collectMediaSources();
+};
+`,
+		context,
+	);
+	return context;
+}
+
+function buildInitialDefaultsHarness(html, openai) {
+	const normalizedHtml = html.replace(/\r\n?/g, "\n");
+	const initialDefaults = extractBetween(
+		normalizedHtml,
+		"function intentDefaultsFromPayload",
+		"\n\n        function slugify",
+	);
+	const context = vm.createContext({
+		window: { openai },
+	});
+
+	vm.runInContext(
+		`
+let currentPendingConfirmationId = "";
+${initialDefaults}
+globalThis.readWorkspaceDefaults = () => {
+	currentPendingConfirmationId = "";
+	const defaults = initialDefaults();
+	return { pendingConfirmationId: currentPendingConfirmationId, defaults };
+};
+`,
+		context,
+	);
+	return context;
+}
+
+test("workspace widget preserves URL media sources through normalization and collection", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const harness = buildMediaHarness(html);
+	const url =
+		"https://www.tiktok.com/@ayusbangga2/video/7638536445577235732";
+
+	expect(
+		harness.normalizeWidgetMediaSources([
+			{ kind: "url", url },
+		]),
+	).toEqual([{ kind: "url", url }]);
+	expect(
+		harness.collectWidgetMediaSources([
+			{
+				dataset: {
+					kind: "url",
+					url,
+				},
+			},
+		]),
+	).toEqual([{ kind: "url", url }]);
+});
+
+test("workspace widget reads pending confirmation ID from nested structured tool output", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const pendingConfirmationId = "ccpending_9b09e4e51995cc3ef774b965";
+	const harness = buildInitialDefaultsHarness(html, {
+		toolOutput: {
+			structuredContent: {
+				pendingConfirmationId,
+				intentDefaults: {
+					projectName: "22号素材解说口播原时长版",
+				},
+			},
+		},
+	});
+
+	expect(harness.readWorkspaceDefaults()).toEqual({
+		pendingConfirmationId,
+		defaults: {
+			projectName: "22号素材解说口播原时长版",
+		},
+	});
+});
+
+test("workspace widget does not claim follow-up delivery without showing recovery identifiers", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const harness = buildFollowUpHarness(html);
+
+	harness.setLanguage("zh-CN");
+	await harness.sendWidgetFollowUp("Continue editing prompt", {
+		projectId: "project-123",
+		intent: { pendingConfirmationId: "ccpending_123" },
+	});
+
+	const rendered = harness.followUpHtml();
+	expect(rendered).toContain("已请求 Codex 继续");
+	expect(rendered).toContain("recover_codecut_setup");
+	expect(rendered).toContain("project-123");
+	expect(rendered).toContain("ccpending_123");
+	expect(rendered).not.toContain("已发送后续任务给 Codex");
+});
+
+test("workspace widget host tool calls fail fast when the host bridge never returns", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const windowsHtml = html.replace(/\r\n?/g, "\n").replace(/\n/g, "\r\n");
+	const harness = buildToolHarness(windowsHtml, 50);
+
+	harness.setLanguage("zh-CN");
+	harness.window.openai.callTool = () => new Promise(() => {});
+
+	try {
+		await harness.callWorkspaceTool("submit_codecut_setup", {});
+		throw new Error("Expected host bridge timeout");
+	} catch (error) {
+		expect(error).toBeInstanceOf(Error);
+		expect(error.message).toBe("宿主工具没有返回结果。");
+	}
+});
+
+test("workspace widget host tool calls still pass through successful host responses", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const harness = buildToolHarness(html, 50);
+
+	harness.window.openai.callServerTool = (payload) => ({
+		receivedName: payload.name,
+		receivedArguments: payload.arguments,
+	});
+
+	const result = await harness.callWorkspaceTool("submit_codecut_setup", {
+		projectName: "demo",
+	});
+
+	expect(result).toEqual({
+		receivedName: "submit_codecut_setup",
+		receivedArguments: { projectName: "demo" },
+	});
+});
+
+test("workspace widget prefers callServerTool when both host APIs are present", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const harness = buildToolHarness(html, 50);
+
+	harness.window.openai.callTool = () => new Promise(() => {});
+	harness.window.openai.callServerTool = (payload) => ({
+		receivedName: payload.name,
+		receivedArguments: payload.arguments,
+	});
+
+	const result = await harness.callWorkspaceTool("submit_codecut_setup", {
+		projectName: "demo",
+	});
+
+	expect(result).toEqual({
+		receivedName: "submit_codecut_setup",
+		receivedArguments: { projectName: "demo" },
+	});
+});

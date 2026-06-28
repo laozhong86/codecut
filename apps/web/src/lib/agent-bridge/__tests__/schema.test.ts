@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-	BridgeEnvelopeSchema,
-	BridgeToolNameSchema,
-} from "../schema";
+import { BridgeEnvelopeSchema, BridgeToolNameSchema } from "../schema";
 
 describe("agent bridge schema", () => {
 	test("accepts a valid command envelope", () => {
@@ -59,10 +56,24 @@ describe("agent bridge schema", () => {
 
 	test("accepts the independent RunningHub voice generation tools", () => {
 		expect(
-			BridgeToolNameSchema.safeParse("generate_runninghub_voice_design").success,
+			BridgeToolNameSchema.safeParse("generate_runninghub_voice_design")
+				.success,
 		).toBe(true);
 		expect(
 			BridgeToolNameSchema.safeParse("generate_runninghub_voice_clone").success,
+		).toBe(true);
+	});
+
+	test("accepts the Volcengine OpenSpeech tools", () => {
+		expect(
+			BridgeToolNameSchema.safeParse("generate_volcengine_cloned_voice")
+				.success,
+		).toBe(true);
+		expect(
+			BridgeToolNameSchema.safeParse("transcribe_volcengine_url").success,
+		).toBe(true);
+		expect(
+			BridgeToolNameSchema.safeParse("build_volcengine_url_captions").success,
 		).toBe(true);
 	});
 
@@ -85,6 +96,18 @@ describe("agent bridge schema", () => {
 			"delete_system_template_script",
 		);
 		expect(result.success).toBe(true);
+	});
+
+	test("accepts the system template query tools", () => {
+		expect(BridgeToolNameSchema.safeParse("list_system_template_scripts").success).toBe(
+			true,
+		);
+		expect(BridgeToolNameSchema.safeParse("get_system_template_script").success).toBe(
+			true,
+		);
+		expect(
+			BridgeToolNameSchema.safeParse("resolve_system_template_script").success,
+		).toBe(true);
 	});
 
 	test("rejects non-Codex sources", () => {

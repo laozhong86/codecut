@@ -1,4 +1,5 @@
 import {
+	LocalTemplateTriggerTypeSchema,
 	LocalTemplateScriptSchema,
 	localTemplateScriptService,
 	type LocalTemplateScriptRecord,
@@ -28,6 +29,124 @@ interface SystemTemplateScriptService {
 	}): Promise<LocalTemplateScriptRecord | null>;
 	deleteTemplate({ id }: { id: string }): Promise<void>;
 	listTemplates(): Promise<LocalTemplateScriptRecord[]>;
+	resolveTemplate({
+		requestedTemplate,
+		triggerType,
+	}: {
+		requestedTemplate?: string;
+		triggerType?: LocalTemplateScriptRecord["trigger"]["types"][number];
+	}): Promise<LocalTemplateScriptRecord>;
+}
+
+function templateSummary(template: LocalTemplateScriptRecord) {
+	return {
+		templateId: template.id,
+		name: template.name,
+		description: template.description,
+		triggerTypes: template.trigger.types,
+		defaultForTypes: template.trigger.defaultForTypes,
+		aliases: template.trigger.aliases,
+		stepCount: template.script.steps.length,
+		verificationCount: template.script.verification.length,
+		sourceOfTruth: "codecut-system-template-library",
+	};
+}
+
+function requireTemplateId(args: Record<string, unknown>): string {
+	if (typeof args.templateId !== "string" || args.templateId.trim() === "") {
+		throw new Error("templateId is required to read a Codecut system template.");
+	}
+	return args.templateId.trim();
+}
+
+function optionalStringArg(
+	args: Record<string, unknown>,
+	key: string,
+): string | undefined {
+	if (args[key] === undefined) return undefined;
+	if (typeof args[key] !== "string") {
+		throw new Error(`${key} must be a string.`);
+	}
+	const value = args[key].trim();
+	return value === "" ? undefined : value;
+}
+
+export async function executeListSystemTemplateScriptsTool({
+	service = localTemplateScriptService,
+}: {
+	args?: Record<string, unknown>;
+	service?: SystemTemplateScriptService;
+}): Promise<AgentToolResult> {
+	const templates = await service.listTemplates();
+	return {
+		success: true,
+		message: `Listed ${templates.length} Codecut system template script${
+			templates.length === 1 ? "" : "s"
+		}.`,
+		data: {
+			templateCount: templates.length,
+			sourceOfTruth: "codecut-system-template-library",
+			templates: templates.map(templateSummary),
+		},
+	};
+}
+
+export async function executeGetSystemTemplateScriptTool({
+	args,
+	service = localTemplateScriptService,
+}: {
+	args: Record<string, unknown>;
+	service?: SystemTemplateScriptService;
+}): Promise<AgentToolResult> {
+	const templateId = requireTemplateId(args);
+	const template = await service.getTemplate({ id: templateId });
+	if (!template) {
+		return {
+			success: false,
+			message: `System template script not found: ${templateId}.`,
+		};
+	}
+
+	return {
+		success: true,
+		message: `Read system template script "${template.name}" (${template.id}).`,
+		data: {
+			template,
+			sourceOfTruth: "codecut-system-template-library",
+		},
+	};
+}
+
+export async function executeResolveSystemTemplateScriptTool({
+	args,
+	service = localTemplateScriptService,
+}: {
+	args: Record<string, unknown>;
+	service?: SystemTemplateScriptService;
+}): Promise<AgentToolResult> {
+	const requestedTemplate = optionalStringArg(args, "requestedTemplate");
+	const rawTriggerType = optionalStringArg(args, "triggerType");
+	const triggerType =
+		rawTriggerType === undefined
+			? undefined
+			: LocalTemplateTriggerTypeSchema.parse(rawTriggerType);
+	const template = await service.resolveTemplate({
+		requestedTemplate,
+		triggerType,
+	});
+
+	return {
+		success: true,
+		message: `Resolved system template script "${template.name}" (${template.id}).`,
+		data: {
+			template,
+			sourceOfTruth: "codecut-system-template-library",
+			match: {
+				...(requestedTemplate === undefined ? {} : { requestedTemplate }),
+				...(triggerType === undefined ? {} : { triggerType }),
+			},
+		},
+	};
 }
 
 export async function executeImportSystemTemplateScriptTool({
@@ -193,6 +312,75 @@ export const importSystemTemplateScriptTool: AgentTool = {
 	},
 };
 
+export const listSystemTemplateScriptsTool: AgentTool = {
+	name: "list_system_template_scripts",
+	description:
+		"List Codecut system template scripts from the browser local Templates UI library. Use this before explaining available named templates, using a saved template, or falling back to built-in video template IDs.",
+	requiresConfirmation: false,
+	parameters: {
+		type: "object",
+		properties: {},
+		required: [],
+	},
+	async execute(args) {
+		return executeListSystemTemplateScriptsTool({ args });
+	},
+};
+
+export const getSystemTemplateScriptTool: AgentTool = {
+	name: "get_system_template_script",
+	description:
+		"Read one complete Codecut system template script by exact template ID from the browser local Templates UI library.",
+	requiresConfirmation: false,
+	parameters: {
+		type: "object",
+		properties: {
+			templateId: {
+				type: "string",
+				description: "The exact Codecut system template script ID to read.",
+			},
+		},
+		required: ["templateId"],
+	},
+	async execute(args) {
+		return executeGetSystemTemplateScriptTool({ args });
+	},
+};
+
+export const resolveSystemTemplateScriptTool: AgentTool = {
+	name: "resolve_system_template_script",
+	description:
+		"Resolve one Codecut system template script by ID, name, alias, or default trigger type from the browser local Templates UI library.",
+	requiresConfirmation: false,
+	parameters: {
+		type: "object",
+		properties: {
+			requestedTemplate: {
+				type: "string",
+				description: "Template ID, exact name, or alias mentioned by the user.",
+			},
+			triggerType: {
+				type: "string",
+				enum: [
+					"talking-head-short",
+					"tutorial-demo",
+					"product-proof-ad",
+					"narrated-broll",
+					"subtitle-pass",
+					"timeline-inspection",
+					"custom",
+				],
+				description:
+					"Template trigger type to use when no explicit template name was provided.",
+			},
+		},
+		required: [],
+	},
+	async execute(args) {
+		return executeResolveSystemTemplateScriptTool({ args });
+	},
+};
+
 export const updateSystemTemplateScriptTool: AgentTool = {
 	name: "update_system_template_script",
 	description:
@@ -245,6 +433,9 @@ export const deleteSystemTemplateScriptTool: AgentTool = {
 };
 
 export const systemTemplateTools: AgentTool[] = [
+	listSystemTemplateScriptsTool,
+	getSystemTemplateScriptTool,
+	resolveSystemTemplateScriptTool,
 	importSystemTemplateScriptTool,
 	updateSystemTemplateScriptTool,
 	deleteSystemTemplateScriptTool,

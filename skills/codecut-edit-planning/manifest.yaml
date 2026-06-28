@@ -1,0 +1,57 @@
+name: codecut-edit-planning
+version: 1
+type: functional
+primary_dimension: functional
+
+intent:
+  one_line: Turn confirmed CodeCut requirements and source evidence into strict plan drafts without executing the edit.
+  target_user: Codex preparing candidate clips, decision ledgers, EditPlan drafts, NarratedRemixPlan drafts, and verification specs before CodeCut executor apply.
+  success_looks_like:
+    - One primary workflow recipe is selected from confirmed intent and material evidence.
+    - Material-understanding reports are used before material replacement, picture-in-picture, split-screen, circular talking-head, or script-match decisions.
+    - Candidate clips are compared before the final plan draft when story, platform, tutorial, product proof, or broad highlight judgment affects the edit.
+    - Planning artifacts live under the CodeCut project workspace.
+    - Unsupported requested behavior is reported as a blocker instead of being weakened into a different edit.
+
+known_failure_modes:
+  - mode: Planning is treated as executor approval.
+    severity: high
+    example: A ledger draft leads directly to timeline mutation without codecut-executor-apply validation and readback.
+  - mode: Missing platform, aspect ratio, caption, or output decisions are filled by the planning stage.
+    severity: high
+    example: A broad short-video request becomes a vertical TikTok edit without a confirmed destination or aspect ratio.
+  - mode: Multiple recipes are merged into one broad workflow.
+    severity: medium
+    example: A subtitle request, product ad rewrite, narration remix, and export check are planned as one unverified pass.
+  - mode: Material suitability is guessed by planning.
+    severity: high
+    example: A clip is chosen for circular PIP without a material-understanding report proving talking-head suitability and crop risk.
+
+style_constraints:
+  must_have:
+    - Planning artifacts are tied to requirement intake, material audit, and evidence.
+    - Material-understanding evidence is cited when material roles, matching, or composition suitability matters.
+    - Handoff names the exact plan draft and verification spec for executor apply.
+    - Runtime gaps are reported directly.
+  must_not_have:
+    - Executor commands, timeline mutation, import, export, or completion claims.
+    - Hidden defaults for platform, aspect ratio, caption policy, output form, or duration.
+    - Weaker replacement edits when the requested plan cannot be represented safely.
+    - Material role, script-match, or composition-suitability guesses from filenames.
+
+arena_config:
+  noise_band: 0.15
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-edit-planning/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-edit-planning/retrospective.jsonl
+  log_entry_note: Record selected recipe, evidence inputs, material-understanding report path when used, candidate clip decisions, blockers, plan draft path, verification spec path, and user corrections. Do not fabricate usage data.
+
+cold_start_mode: false

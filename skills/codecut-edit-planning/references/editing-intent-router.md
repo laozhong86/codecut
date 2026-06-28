@@ -1,6 +1,6 @@
 # Editing Intent Router
 
-Use this reference before designing or executing any Codex-driven Codecut editing workflow. The goal is to map a user's broad editing request to one primary workflow, one expected context contract, and one acceptance standard.
+Use this reference before designing any Codex-driven Codecut edit plan. The goal is to map a user's broad editing request to one primary workflow, one expected context contract, and one acceptance standard.
 
 Do not make the router a hard runtime enum. It is a planning tool for Codex and future Codecut agent tools.
 
@@ -8,9 +8,15 @@ Do not make the router a hard runtime enum. It is a planning tool for Codex and 
 
 Pick the narrowest workflow that satisfies the user outcome. If the user asks for "make this video better", classify by the business result, not by the available code path.
 
-When the user provides local materials for a new creative job, route only after the pre-edit workspace has intent analysis and material inventory. The order is: user intent -> `.codecut-workspace` init -> asset filing -> ffprobe material audit -> clarification with choices and one recommended option -> workflow route -> Codecut executor project.
+When the user provides local materials for a new creative job, route only after
+requirement intake and material inventory are available. The order is: user
+intent -> requirement intake -> asset filing -> ffprobe material audit ->
+needed clarification with choices and one recommended option -> workflow route
+-> planning artifacts -> `codecut-executor-apply` handoff.
 
-After classifying the request, read the matching workflow recipe before generating an EditPlan or sending bridge commands. Recipes are execution guidance for the current Codecut MVP; they do not imply new bridge tools.
+After classifying the request, read the matching workflow recipe before
+generating an EditPlan or NarratedRemixPlan draft. Recipes are planning
+guidance for the current Codecut MVP; they do not imply new bridge tools.
 
 Before writing an EditingDecisionLedger, EditPlan, or NarratedRemixPlan, resolve a P0 video template when the request matches one of the implemented manifests in `apps/web/src/lib/video-templates/registry.ts`. The template is a planning constraint, not a runtime fallback. If required evidence is missing, stop and report the template stop condition instead of choosing a weaker template.
 
@@ -19,7 +25,7 @@ P0 template ids:
 - `talking-head-short`: transcript-backed talking-head cleanup or short-form polish.
 - `tutorial-demo`: transcript plus visible step evidence for tutorial or software demo.
 - `product-proof-ad`: product facts plus visual proof for UGC/product conversion.
-- `narrated-broll`: existing narration audio plus imported video B-roll through NarratedRemixPlan v1 only.
+- `narrated-broll`: existing narration audio plus imported visual B-roll through NarratedRemixPlan v1 only.
 
 ## Clip Selection Quality Rule
 
@@ -52,14 +58,14 @@ choosing a generic highlight edit.
 | UGC/product ad | `product-proof-ad` | "商品短视频", "带货", "广告", "转化", "转化型短视频" | Proof and conversion | visual proof, transcript claims, product context | [long-to-short](workflow-recipes/long-to-short.md) plus claim guardrails | Requires EditingDecisionLedger; gated when proof or offer facts are missing |
 | AI video re-edit | None in P0 | "AI 视频二创", "AI 成片修一下" | Remove artifacts and tighten story | keyframes/contact sheet, transcript if any | [timeline-inspection](workflow-recipes/timeline-inspection.md) before any edit | Gated until visual context exists |
 | Subtitle/caption pass | None in P0 | "加字幕", "字幕好看点", "翻译字幕" | Readability | transcript or supplied captions | [subtitle-pass](workflow-recipes/subtitle-pass.md) | Implemented within EditPlan v1 caption limits |
-| Voiceover/narration | `narrated-broll` when existing narration and video B-roll exist | "配音", "旁白", "讲解" | Narrative clarity | script, existing audio path, target duration | [voiceover-remix](workflow-recipes/voiceover-remix.md) | Existing audio insertion is implemented; bridge-exposed speech generation and multi-source remix are gated |
+| Voiceover/narration | `narrated-broll` when narration audio and visual B-roll exist | "配音", "旁白", "讲解" | Narrative clarity | approved script, existing or generated audio, target duration | [voiceover-remix](workflow-recipes/voiceover-remix.md) | Existing audio insertion and provider-backed speech generation are exposed; multi-source remix remains gated |
 | Timeline inspection | None in P0 | "看看项目里有什么", "验证剪辑结果", "能导出吗" | Confidence before mutation/export | active editor project, timeline state | [timeline-inspection](workflow-recipes/timeline-inspection.md) | Implemented read-only |
 | Template/style application | Only if expressible as a P0 manifest or Codecut system template script | "套模板", "像这个风格", "统一样式", "复刻这个剪辑手法" | Reusable visual language | system template, style reference, existing timeline or accessible finished reference videos | Use `codecut-reference-template` for reference-derived drafts/imports, then [timeline-inspection](workflow-recipes/timeline-inspection.md) before mutation | Gated unless expressible in system template script guidance plus current EditPlan v1/NarratedRemixPlan v1 |
 | Batch variants | Resolve per variant | "批量剪", "多个版本", "不同角度" | Scale | shared assets, variant goals | [long-to-short](workflow-recipes/long-to-short.md) per variant | Gated; run one verified variant before scaling |
 
 ## Recipe Selection Rule
 
-Use one primary recipe per execution run.
+Use one primary recipe per planning run.
 
 | Situation | Route |
 | --- | --- |
@@ -67,15 +73,17 @@ Use one primary recipe per execution run.
 | User emphasizes removing filler or tightening speech | `talking-head-polish` |
 | User asks only about subtitles or caption quality | `subtitle-pass` |
 | User asks what exists, what changed, or whether export is safe | `timeline-inspection` |
-| User asks for narration, B-roll, BGM, or voiceover | `voiceover-remix`, then stop if no approved path can import/place narration audio or compose the requested sources |
+| User asks for narration, B-roll, BGM, or voiceover | `voiceover-remix`, then stop if no approved path can import/generate/place narration audio or compose the requested sources |
 
-If a request combines multiple outcomes, execute the stable core first: inspect or cut the timeline, verify it, then handle subtitles or narration only if the current tool surface supports the next step.
+If a request combines multiple outcomes, choose one primary recipe for this
+planning pass. Hand off later phases only after the core plan is validated and
+read back by `codecut-executor-apply`.
 
-## Default Workflow By Intent
+## Planning Workflow By Intent
 
 ### Long-to-short
 
-Read [long-to-short](workflow-recipes/long-to-short.md) before executing.
+Read [long-to-short](workflow-recipes/long-to-short.md) before planning.
 
 1. Identify target length and platform.
 2. Build planning context from transcript and duration.
@@ -84,13 +92,16 @@ Read [long-to-short](workflow-recipes/long-to-short.md) before executing.
 5. Generate a short-form EditPlan.
 6. Validate source ranges and final duration.
 
-Default for MVP: 30-60 seconds, transcript-first, no visual highlighter required.
+Use a confirmed target length and transcript-first context. If target length,
+platform, or visual evidence changes the product result and is missing, hand
+back to requirement intake or material ingest instead of filling the gap here.
 
 ### Talking-head polish
 
 P0 template: `talking-head-short`.
 
-Read [talking-head-polish](workflow-recipes/talking-head-polish.md) before executing.
+Read [talking-head-polish](workflow-recipes/talking-head-polish.md) before
+planning.
 
 1. Use transcript and silence spans.
 2. Remove greetings, repeated setup, filler, and dead air.
@@ -150,7 +161,7 @@ Acceptance: no obvious AI artifact in selected ranges.
 
 ### Subtitle/caption pass
 
-Read [subtitle-pass](workflow-recipes/subtitle-pass.md) before executing.
+Read [subtitle-pass](workflow-recipes/subtitle-pass.md) before planning.
 
 1. Confirm captions are transcript-derived or user-supplied.
 2. Keep caption timing inside the current or generated timeline.
@@ -160,13 +171,13 @@ Acceptance: captions are readable, timed, and verified through timeline state.
 
 ### Voiceover/narration
 
-P0 template: `narrated-broll` only when existing narration audio and imported video B-roll are both available.
+P0 template: `narrated-broll` only when existing narration audio and imported visual B-roll are both available.
 
-Read [voiceover-remix](workflow-recipes/voiceover-remix.md) before planning or executing.
+Read [voiceover-remix](workflow-recipes/voiceover-remix.md) before planning.
 
 1. Separate planning from execution.
 2. Confirm the narration script before mutating the timeline when it changes the user's message.
-3. Stop if current bridge tools cannot import/place narration audio or if speech generation is required but not exposed through the bridge.
+3. Stop if current bridge tools cannot import/generate/place narration audio, if the required provider key is missing, or if the requested voice ID is unknown.
 
 Acceptance: audio, captions, and visual sequence align; if unsupported, the missing tool capability is reported directly.
 
@@ -195,11 +206,13 @@ Ask before proceeding only when the answer changes the product result:
 
 For new jobs with provided materials, ask these questions after the material audit, not before it. Every clarification question must include concrete choices and exactly one recommended option.
 
-Do not ask when a safe MVP assumption is enough:
+Hand back to requirement intake when missing choices change the product result:
 
-- default short-form length can be 30-60 seconds
-- default long-video MVP can be transcript-first
-- default vertical platform can be 1080x1920 when user says TikTok/Reels/Shorts, but execution must use project settings rather than relying on `EditPlan.target.aspectRatio`
+- target length is missing and source length affects the selected structure
+- transcript-first planning is impossible because speech content is required but
+  no transcript exists
+- platform or aspect ratio is missing and crop, captions, safe zones, or canvas
+  settings depend on it
 
 ## Common Mistakes
 

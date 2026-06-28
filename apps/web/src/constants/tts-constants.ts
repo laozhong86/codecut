@@ -1,7 +1,7 @@
 export interface VoicePack {
 	id: string;
 	name: string;
-	provider: "legacy-tts" | "runninghub-voice-clone";
+	provider: "legacy-tts" | "runninghub-voice-clone" | "volcengine-voice-clone";
 	referenceAudioUrl?: string;
 	referenceAudioFileName?: string;
 	referenceAudioMimeType?: string;
@@ -24,6 +24,11 @@ export const VOICE_PACKS: VoicePack[] = [
 		referenceAudioUrl: "/voices/podcast-male.mp3",
 		referenceAudioFileName: "podcast-male.mp3",
 		referenceAudioMimeType: "audio/mpeg",
+	},
+	{
+		id: "volcengine-voice-clone",
+		name: "火山复刻音色",
+		provider: "volcengine-voice-clone",
 	},
 ];
 

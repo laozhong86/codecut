@@ -13,29 +13,32 @@ function sectionBetween(content, startHeading, nextHeadingLevel = "##") {
 	return next === -1 ? content.slice(start) : content.slice(start, next);
 }
 
-describe("Codecut plugin startup guidance", () => {
-	test("states the self-media local Agent editor positioning in plugin and README copy", async () => {
+describe("CodeCut plugin startup guidance", () => {
+	test("states the Agent-driven visual video production positioning in plugin and README copy", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
 		);
 		const readme = await readFile(join(pluginRoot, "README.md"), "utf8");
 		const zhReadme = await readFile(join(pluginRoot, "README.zh-CN.md"), "utf8");
 		const englishPositioning =
-			"Codecut is a local Agent video editor for self-media creators. It is built on the Codex plugin: Codex understands the content, generates or selects assets, and writes a clear editing plan; Codecut then applies that plan to a local web timeline for creators to preview, adjust, and export.";
+			"CodeCut is Codex + CapCut: an Agent-driven visual video production system. Codex performs the production work, while CodeCut shows progress, materials, timeline, preview, manual adjustment, and export in a local visual editor.";
+		const englishLongDescription =
+			"CodeCut is Codex + CapCut: an Agent-driven visual video production system. Codex understands the user's video goal, plans the production work, uses tools and artifacts to build the edit, and CodeCut presents the process in a local visual editor with media, timeline, preview, manual adjustment, and export.";
 		const chinesePositioning =
-			"Codecut 是面向自媒体工作者的本地 Agent 视频编辑器。它依托于 Codex 插件，让 Codex 负责理解内容、生成或选择素材、写出明确的剪辑方案，再由 Codecut 把计划应用到本地网页时间线，供创作者预览、修改和导出。";
+			"CodeCut = Codex + CapCut。CodeCut 是 Agent 驱动的可视化视频生产系统：Codex 负责视频生产工作，CodeCut 通过本地可视化编辑器展示进度、素材、时间线、预览、人工调整和导出。";
 
 		expect(readme).toContain(englishPositioning);
 		expect(zhReadme).toContain(chinesePositioning);
 		expect(pluginManifest.description).toBe(englishPositioning);
+		expect(pluginManifest.interface.displayName).toBe("CodeCut");
 		expect(pluginManifest.interface.shortDescription).toBe(
-			"Local Agent video editor for self-media creators.",
+			"Codex + CapCut for Agent-driven visual video production.",
 		);
-		expect(pluginManifest.interface.longDescription).toBe(englishPositioning);
+		expect(pluginManifest.interface.longDescription).toBe(englishLongDescription);
 		expect(readme).not.toContain("The first positioning is narrow:");
-		expect(readme).not.toContain("Codecut is a Codex plugin + CapCut Pro AI workflow alternative");
+		expect(readme).not.toContain("Codex plugin + CapCut Pro AI workflow alternative");
 		expect(zhReadme).not.toContain("更短的定位：");
-		expect(zhReadme).not.toContain("Codecut = Codex 插件 + CapCut / 剪映平替");
+		expect(zhReadme).not.toContain("Codex 插件 + CapCut / 剪映平替");
 	});
 
 	test("exposes user-clickable starter prompts and plugin icons", async () => {
@@ -45,17 +48,17 @@ describe("Codecut plugin startup guidance", () => {
 		const pluginInterface = pluginManifest.interface;
 
 		expect(pluginInterface.defaultPrompt).toEqual([
-			"Open Codecut and set up a local video editing workspace.",
-			"Import my local video into Codecut and prepare a short-form edit.",
-			"Turn this source clip into a 30-90 second vertical short with captions.",
+			"Open CodeCut and set up an Agent-driven visual video production workspace.",
+			"Import my local video into CodeCut and prepare a visible short-form timeline.",
+			"Turn this source clip into a 30-90 second vertical short with captions and preview.",
 		]);
 		expect(pluginInterface.capabilities).toEqual([
-			"Local editing workspace",
-			"Media import and probing",
-			"Transcript-aware planning",
-			"Validated EditPlan timeline updates",
-			"Timeline readback and preview",
-			"Export readiness checks",
+			"Agent-driven video production workflow",
+			"Visual editing workspace with media and timeline",
+			"Trackable production records",
+			"Transcript and visual-evidence planning",
+			"Validated timeline updates and readback",
+			"Preview, manual adjustment, and export proof",
 		]);
 		for (const prompt of pluginInterface.defaultPrompt) {
 			expect(prompt.length).toBeLessThanOrEqual(90);
@@ -136,12 +139,12 @@ describe("Codecut plugin startup guidance", () => {
 		}
 
 		for (const content of [usageSection, zhUsageSection]) {
-			expect(content).toContain("Open Codecut and set up a local video editing workspace.");
+			expect(content).toContain("Open CodeCut and set up an Agent-driven visual video production workspace.");
 			expect(content).toContain("http://127.0.0.1:4100/en/projects");
 			expect(content).toContain(".codecut-workspace/projects/<project-id>/");
-			expect(content).toContain("Import my local video into Codecut and prepare a short-form edit.");
+			expect(content).toContain("Import my local video into CodeCut and prepare a visible short-form timeline.");
 			expect(content).toContain(
-				"Turn this source clip into a 30-90 second vertical short with captions.",
+				"Turn this source clip into a 30-90 second vertical short with captions and preview.",
 			);
 		}
 
@@ -166,7 +169,7 @@ describe("Codecut plugin startup guidance", () => {
 		}
 	});
 
-	test("declares a local web server app for the Codecut preview", async () => {
+	test("declares a local web server app for the CodeCut preview", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
 		);
@@ -185,7 +188,7 @@ describe("Codecut plugin startup guidance", () => {
 		});
 	});
 
-	test("declares the bundled Codecut MCP server", async () => {
+	test("declares the bundled CodeCut MCP server", async () => {
 		const pluginManifest = JSON.parse(
 			await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
 		);
@@ -195,8 +198,9 @@ describe("Codecut plugin startup guidance", () => {
 
 		expect(pluginManifest.mcpServers).toBe("./.mcp.json");
 		expect(mcpManifest.mcpServers.codecut_mcp).toEqual({
-			title: "Codecut MCP",
-			description: "Expose stable Codecut local executor tools through MCP.",
+			title: "CodeCut MCP",
+			description:
+				"CodeCut MCP tools for local editor setup, timeline readback, and verified editing operations.",
 			cwd: ".",
 			command: "node",
 			args: ["./mcp/server.mjs"],
@@ -212,47 +216,66 @@ describe("Codecut plugin startup guidance", () => {
 			join(pluginRoot, "skills", "codecut-executor-apply", "SKILL.md"),
 			"utf8",
 		);
+		const executionContract = await readFile(
+			join(
+				pluginRoot,
+				"skills",
+				"codecut",
+				"references",
+				"execution-contract.md",
+			),
+			"utf8",
+		);
 		const agentCard = await readFile(
 			join(pluginRoot, "skills", "codecut", "agents", "openai.yaml"),
 			"utf8",
 		);
 		const normalizedSkill = skill.replace(/\s+/g, " ");
 		const normalizedExecutorSkill = executorSkill.replace(/\s+/g, " ");
+		const normalizedExecutionContract = executionContract.replace(/\s+/g, " ");
 
 		expect(agentCard).toContain("Codex in-app browser");
-		expect(agentCard).toContain(
-			"Whenever Codecut creates a project and receives an editorUrl",
+			expect(agentCard).toContain(
+				"Whenever CodeCut creates a project and receives an editorUrl",
+			);
+		expect(skill).toContain("references/execution-contract.md");
+		expect(normalizedSkill).toContain(
+			"the Codex in-app browser is only for human preview",
 		);
-		expect(skill).toContain("setupBrowserRuntime");
-		expect(skill).toContain('agent.browsers.get("iab")');
-		expect(skill).toContain('browser.capabilities.get("visibility")');
-		expect(skill).toContain(
+		expect(executionContract).toContain("setupBrowserRuntime");
+		expect(executionContract).toContain('agent.browsers.get("iab")');
+		expect(executionContract).toContain('browser.capabilities.get("visibility")');
+		expect(executionContract).toContain(
 			'await (await browser.capabilities.get("visibility")).set(true);',
 		);
-		expect(skill).toContain("browser.tabs.selected()");
-		expect(skill).toContain("browser.tabs.new()");
-		expect(skill).toContain("await tab.goto(previewUrl);");
-		expect(skill).toContain("if ((await tab.url()) !== previewUrl)");
-		expect(skill).toContain("http://127.0.0.1:4100/en/projects");
-		expect(skill).toContain("the `editorUrl` returned by `create-project`");
-		expect(normalizedSkill).toContain(
-			"Whenever a Codecut project is created and an `editorUrl` is returned",
+		expect(executionContract).toContain("browser.tabs.selected()");
+		expect(executionContract).toContain("browser.tabs.new()");
+		expect(executionContract).toContain("await tab.goto(previewUrl);");
+		expect(executionContract).toContain("if ((await tab.url()) !== previewUrl)");
+		expect(executionContract).toContain("http://127.0.0.1:4100/en/projects");
+		expect(executionContract).toContain(
+			"the `editorUrl` returned by `create-project`",
 		);
-		expect(normalizedSkill).toContain(
+			expect(normalizedExecutionContract).toContain(
+				"Whenever a CodeCut project is created and an `editorUrl` is returned",
+			);
+		expect(normalizedExecutionContract).toContain(
 			"open that exact `editorUrl` in the Codex in-app browser before reporting the project ready",
 		);
 		expect(normalizedExecutorSkill).toContain(
 			"After `create-project` returns an `editorUrl`, open that exact URL in the Codex in-app browser before the next executor step",
 		);
-		expect(skill).toContain(
+		expect(executionContract).toContain(
 			"Do not reconstruct a bare `/editor/<projectId>` URL for executor projects",
 		);
-		expect(skill).toContain(
+		expect(normalizedExecutionContract).toContain(
 			"Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview URL",
 		);
-		expect(skill).toContain("Browser is not the Agent runtime");
-		expect(skill).not.toContain("osascript");
-		expect(skill).not.toContain("View -> Open Browser Tab");
+		expect(executionContract).toContain("Browser is not the Agent runtime");
+		for (const content of [skill, executionContract]) {
+			expect(content).not.toContain("osascript");
+			expect(content).not.toContain("View -> Open Browser Tab");
+		}
 	});
 
 	test("routes new creative intake through the workspace widget before text fallback", async () => {
@@ -318,7 +341,7 @@ describe("Codecut plugin startup guidance", () => {
 		expect(checklist).toContain(
 			"Use tool_search only if open_codecut_workspace is not visible",
 		);
-		expect(checklist).toContain("The only allowed Codecut MCP tool call is");
+			expect(checklist).toContain("The only allowed CodeCut MCP tool call is");
 	});
 
 	test("keeps bridge env command details on the executor surface", async () => {
@@ -408,13 +431,19 @@ describe("Codecut plugin startup guidance", () => {
 				"source-acquisition",
 				"material-ingest",
 				"reference-template",
+				"edit-planning",
 				"executor-apply",
 			]) {
 				expect(contract).toContain(`\`${stage}\``);
 			}
 			expect(contract).toContain("Non-Skill Workflow Phases");
-			expect(contract).toContain("`evidence-build` and `edit-planning`");
-			expect(contract).toMatch(/not\s+loadable stage skills/);
+			expect(contract).toContain(
+				"`evidence-build` is a Codex-side workflow phase",
+			);
+			expect(contract).toContain(
+				"Edit-planning is a loadable stage skill owned by `codecut-edit-planning`.",
+			);
+			expect(contract).not.toContain("`evidence-build` and `edit-planning`");
 			expect(contract).toContain(
 				'"Timeline updated", "Verified in timeline", or "Export produced"',
 			);
@@ -431,9 +460,9 @@ describe("Codecut plugin startup guidance", () => {
 		}
 
 		for (const rule of [
-			"Do not use FFmpeg, shell scripts, or subtitle burn-in as the Codecut editing path.",
+			"Do not use FFmpeg, shell scripts, or subtitle burn-in as the CodeCut editing path.",
 			"Do not let MCP tools choose the workflow.",
-			"Do not treat a local MP4 as completion without matching Codecut timeline readback.",
+			"Do not treat a local MP4 as completion without matching CodeCut timeline readback.",
 		]) {
 			expect(contract).toContain(rule);
 		}
@@ -489,7 +518,7 @@ describe("Codecut plugin startup guidance", () => {
 			["skills", "codecut", "references", "round-trip-editing-contract.md"],
 			[
 				"skills",
-				"codecut",
+				"codecut-edit-planning",
 				"references",
 				"workflow-recipes",
 				"long-to-short.md",
@@ -524,6 +553,7 @@ describe("Codecut plugin startup guidance", () => {
 			"codecut",
 			"codecut-requirement-intake",
 			"codecut-material-ingest",
+			"codecut-edit-planning",
 			"codecut-executor-apply",
 			"codecut-reference-template",
 			"codecut-tiktok-downloader",
@@ -625,7 +655,12 @@ describe("Codecut plugin startup guidance", () => {
 				"scripts",
 				"download_tiktok.py",
 			),
-		]);
+		], {
+			encoding: "utf8",
+			timeout: 20_000,
+		});
+		expect(pySyntaxCheck.error).toBeUndefined();
+		expect(pySyntaxCheck.stderr).toBe("");
 		expect(pySyntaxCheck.status).toBe(0);
 
 		for (const content of [
@@ -638,13 +673,23 @@ describe("Codecut plugin startup guidance", () => {
 		}
 
 		expect(startupPrompt).not.toContain("$codecut-tiktok-downloader");
-	});
+	}, 30_000);
 
 	test("requires visual preflight for horizontal sources converted to vertical shorts", async () => {
 		const skillRoot = join(pluginRoot, "skills", "codecut");
+		const planningSkillRoot = join(pluginRoot, "skills", "codecut-edit-planning");
 		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
+		const executionContract = await readFile(
+			join(skillRoot, "references", "execution-contract.md"),
+			"utf8",
+		);
 		const longToShort = await readFile(
-			join(skillRoot, "references", "workflow-recipes", "long-to-short.md"),
+			join(
+				planningSkillRoot,
+				"references",
+				"workflow-recipes",
+				"long-to-short.md",
+			),
 			"utf8",
 		);
 		const platformPresets = await readFile(
@@ -660,7 +705,8 @@ describe("Codecut plugin startup guidance", () => {
 			"utf8",
 		);
 
-		for (const content of [skill, longToShort, platformPresets]) {
+		expect(skill).toContain("references/execution-contract.md");
+		for (const content of [executionContract, longToShort, platformPresets]) {
 			expect(content).toContain("visual preflight");
 			expect(content).toContain(
 				"vertical_face_safe_crop_above_burned_captions",
@@ -680,9 +726,19 @@ describe("Codecut plugin startup guidance", () => {
 
 	test("requires post-cut caption timing and video-type caption preset routing", async () => {
 		const skillRoot = join(pluginRoot, "skills", "codecut");
+		const planningSkillRoot = join(pluginRoot, "skills", "codecut-edit-planning");
 		const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
+		const executionContract = await readFile(
+			join(skillRoot, "references", "execution-contract.md"),
+			"utf8",
+		);
 		const subtitlePass = await readFile(
-			join(skillRoot, "references", "workflow-recipes", "subtitle-pass.md"),
+			join(
+				planningSkillRoot,
+				"references",
+				"workflow-recipes",
+				"subtitle-pass.md",
+			),
 			"utf8",
 		);
 		const platformPresets = await readFile(
@@ -698,10 +754,12 @@ describe("Codecut plugin startup guidance", () => {
 			"utf8",
 		);
 
-		for (const content of [skill, subtitlePass, workflow]) {
-			expect(content).toContain("post-cut caption source");
-			expect(content).toContain("source transcript remap");
-			expect(content).toContain("edited audio transcription");
+		expect(skill).toContain("references/execution-contract.md");
+		for (const content of [executionContract, subtitlePass, workflow]) {
+			const normalizedContent = content.replace(/\s+/g, " ");
+			expect(normalizedContent).toContain("post-cut caption source");
+			expect(normalizedContent).toContain("source transcript remap");
+			expect(normalizedContent).toContain("edited audio transcription");
 			expect(content).toContain("build-post-cut-captions");
 		}
 
@@ -717,7 +775,7 @@ describe("Codecut plugin startup guidance", () => {
 			join(
 				pluginRoot,
 				"skills",
-				"codecut",
+				"codecut-edit-planning",
 				"references",
 				"workflow-recipes",
 				"subtitle-pass.md",

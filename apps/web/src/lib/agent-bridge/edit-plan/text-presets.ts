@@ -1,6 +1,10 @@
 import type { buildTextElement } from "@/lib/timeline/element-utils";
 import {
-	CODECUT_CJK_FONT_FAMILY,
+	CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
+	CODECUT_EDITOR_CJK_FONT_FAMILY,
+	CODECUT_JETBRAINS_MONO_FONT_FAMILY,
+	CODECUT_MONTSERRAT_FONT_FAMILY,
+	CODECUT_OUTFIT_FONT_FAMILY,
 	CODECUT_SMILEY_SANS_FONT_FAMILY,
 	CODECUT_WEN_KAI_FONT_FAMILY,
 	CODECUT_YAN_BO_SONG_FONT_FAMILY,
@@ -78,7 +82,7 @@ export function resolveTitleStylePreset({
 
 	if (preset === "lower_title") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
 			fontSize: 8,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -96,7 +100,7 @@ export function resolveTitleStylePreset({
 
 	if (preset === "social_hook") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
 			fontSize: 11,
 			fontWeight: "bold",
 			color: "#ffe45c",
@@ -114,7 +118,7 @@ export function resolveTitleStylePreset({
 
 	if (preset === "product_badge") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_MONTSERRAT_FONT_FAMILY,
 			fontSize: 7,
 			fontWeight: "bold",
 			color: "#111827",
@@ -135,7 +139,7 @@ export function resolveTitleStylePreset({
 
 	if (preset === "chapter_bumper") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_JETBRAINS_MONO_FONT_FAMILY,
 			fontSize: 8.5,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -157,7 +161,7 @@ export function resolveTitleStylePreset({
 
 	if (preset === "hook_title") {
 		return {
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_OUTFIT_FONT_FAMILY,
 			fontSize: 10,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -213,7 +217,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "black-bar") {
 		return resolve({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -229,21 +233,24 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "talking-head-pop") {
 		return resolve({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
-			fontSize: 4.8,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
+			fontSize: 5.2,
 			fontWeight: "bold",
-			color: "#fff3b0",
-			stroke: { color: "#101010", width: 3 },
-			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 5 },
-			backgroundColor: "transparent",
-			boxWidth,
+			color: "#ffffff",
+			backgroundColor: "#0f172a",
+			backgroundOpacity: 0.42,
+			backgroundPaddingX: 24,
+			backgroundPaddingY: 12,
+			backgroundBorderRadius: 8,
+			shadow: { color: "rgba(0,0,0,0.72)", offsetX: 0, offsetY: 3, blur: 10 },
+			boxWidth: Math.max(boxWidth, 50),
 			transform,
 		});
 	}
 
 	if (captionStyle.preset === "tutorial-clean") {
 		return resolve({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "normal",
 			color: "#ffffff",
@@ -259,7 +266,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "documentary-soft") {
 		return resolve({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#f8fafc",
@@ -273,7 +280,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "property-clean-yellow") {
 		return resolve({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
 			fontSize: 4.8,
 			fontWeight: "bold",
 			color: "#ffe45c",
@@ -287,7 +294,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "product-punch") {
 		return resolve({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
 			fontSize: 5.2,
 			fontWeight: "bold",
 			color: "#ffe45c",
@@ -321,8 +328,12 @@ export function resolveCaptionStylePreset({
 			fontSize: 5.1,
 			fontWeight: "normal",
 			color: "#f8fafc",
-			shadow: { color: "rgba(0,0,0,0.45)", offsetX: 0, offsetY: 2, blur: 6 },
-			backgroundColor: "transparent",
+			shadow: { color: "rgba(0,0,0,0.58)", offsetX: 0, offsetY: 2, blur: 8 },
+			backgroundColor: "#111827",
+			backgroundOpacity: 0.32,
+			backgroundPaddingX: 20,
+			backgroundPaddingY: 10,
+			backgroundBorderRadius: 6,
 			boxWidth,
 			transform,
 		});
@@ -330,7 +341,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "short-form-bold") {
 		return resolve({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
 			fontSize: 6,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -344,7 +355,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "social-highlight") {
 		return resolve({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
 			fontSize: 5.6,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -362,7 +373,7 @@ export function resolveCaptionStylePreset({
 
 	if (captionStyle.preset === "comment-bubble") {
 		return resolve({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_EDITOR_CJK_FONT_FAMILY,
 			fontSize: 5.2,
 			fontWeight: "bold",
 			color: "#111827",
@@ -383,8 +394,12 @@ export function resolveCaptionStylePreset({
 			fontSize: 4.6,
 			fontWeight: "normal",
 			color: "#f8fafc",
-			backgroundColor: "transparent",
-			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 6 },
+			backgroundColor: "#0f172a",
+			backgroundOpacity: 0.38,
+			backgroundPaddingX: 18,
+			backgroundPaddingY: 8,
+			backgroundBorderRadius: 6,
+			shadow: { color: "rgba(0,0,0,0.64)", offsetX: 0, offsetY: 2, blur: 8 },
 			boxWidth,
 			transform,
 		});

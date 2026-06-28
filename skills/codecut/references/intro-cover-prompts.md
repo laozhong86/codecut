@@ -1,39 +1,15 @@
-# Project And Intro Cover Prompt Guide
+# Timeline Intro Cover Prompt Guide
 
-Use this guide when creating a project cover poster or, separately, a timeline
-opening image. Codecut runtime does not generate images. Codex generates the
-cover through an available image generation capability, then imports the
-resulting image with `import_media`.
+Use this guide when creating a timeline opening image. Codecut runtime does not
+generate images. Codex generates the image through an available image generation
+capability, then imports the resulting image with `import_media`.
 
-Project cover is outside the timeline and must be set with `set_project_cover`.
+Project cover posters now route through `../codecut-cover-generation/SKILL.md`.
+This file is only for a timeline opening image that intentionally becomes part
+of the exported video.
+
 `EditPlan.introCover` is only for a timeline opening image that becomes an
 actual image element at the start of the video.
-
-## Required Project Cover Workflow
-
-1. Decide the final first video clip before cover generation.
-2. Use that clip's `sourceMediaId` and `sourceStart` as the first-frame target.
-   Inspect a still frame or a tight source range with `inspect_video_range`.
-3. Classify the video type into one of the prompt families below.
-4. Generate a separate image from the inspected first-frame evidence. Preserve
-   the recognizable person, product, place, or screen state unless the user
-   asked for a different concept.
-5. Import the generated image with `import_media`.
-6. Call `set_project_cover` with the imported image `mediaId`, title text,
-   prompt, and style preset metadata. Verify the cover is present without
-   changing timeline duration:
-
-```json
-{
-  "mediaId": "imported-cover-image-id",
-  "title": "这里替换标题文本内容",
-  "prompt": "竖版 9:16 短视频封面，标题设计是画面核心，超大中文标题占据顶部或中部，2-3 行错落排版，粗宋体与粗黑体混排，文字带厚描边、强投影、高对比，关键词使用亮黄、红色、绿色或橙色跳色强调，可加入半透明色块、标签底板、括号、话题符号作为标题装饰，背景真实、有轻微虚化和景深，主体居中或偏下，给标题保留充足留白，暖色自然光，清晰商业感，适合知识、情感、教育、带货、工具教程等多类型短视频封面，多元丰富但统一为爆款中文标题封面风格。标题：这里替换标题文本内容",
-  "stylePreset": "viral_chinese_title_cover"
-}
-```
-
-Project cover must not create timeline elements and must not change exported
-video duration.
 
 ## Timeline Intro Image Workflow
 

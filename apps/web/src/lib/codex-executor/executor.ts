@@ -18,7 +18,12 @@ import { validateEditPlan } from "@/lib/agent-bridge/edit-plan/validate";
 import { auditCaptions } from "@/lib/agent-bridge/caption-quality";
 import { KEYFRAME_INTERPOLATIONS } from "@/lib/timeline/keyframe-values";
 import {
+	EditPlanCaptionPositionSchema,
+	EditPlanCaptionSizeSchema,
 	EditPlanCaptionStyleSchema,
+	EditPlanCaptionStylePresetSchema,
+	EditPlanTextMotionPresetSchema,
+	EditPlanTransitionTypeSchema,
 	type EditPlanCaptionStyle,
 } from "@/lib/agent-bridge/edit-plan/schema";
 import { buildPostCutCaptionEntries } from "@/lib/agent-bridge/edit-plan/caption-chunking";
@@ -30,8 +35,14 @@ import {
 } from "@/lib/codex-executor/video-context";
 import { buildVisualContextWithInspector } from "@/lib/codex-executor/visual-context";
 import { inspectVideoRange as inspectVideoRangeWithNodeRuntime } from "@/lib/codex-executor/video-range-inspection";
-import { inspectTimelineWithNodeRenderer } from "@/lib/codex-executor/timeline-inspection";
+import {
+	exportTimelineFrameWithNodeRenderer,
+	inspectTimelineWithNodeRenderer,
+} from "@/lib/codex-executor/timeline-inspection";
 import { buildVideoQualityReport } from "@/lib/codex-executor/video-quality-report";
+import { buildCaptionDiagnosticsReport } from "@/lib/caption-diagnostics/caption-diagnostics";
+import { parseControlledSubtitles } from "@/lib/subtitles/controlled-import";
+import type { TBackground } from "@/types/project";
 import {
 	addTextElements,
 	insertClips,
@@ -51,6 +62,18 @@ import {
 	transcribeMediaRangeWithNodeRuntime,
 	transcribeMediaWithNodeRuntime,
 } from "@/lib/codex-executor/transcription";
+import {
+	ConfirmedSetupSchema,
+	UpdateProjectPreferencesArgsSchema,
+	applyCaptionPreferencesToTextRaw,
+	applyConfirmedSetupPatch,
+	resolveCaptionLanguageForContract,
+	resolveCaptionStyleForContract,
+	resolveExportPreferencesForContract,
+	type ConfirmedSetup,
+	type DurationContract,
+	type DurationGoal,
+} from "@/lib/codex-executor/setup-contract";
 import { assertAsrProviderResult } from "@/lib/transcription/asr-provider-contract";
 import {
 	type RunningHubExecutorMediaAsset,
@@ -68,6 +91,15 @@ import {
 	type RunningHubGeneratedVoiceDesign,
 } from "@/lib/ai/providers/runninghub-voice-design-server";
 import { RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID } from "@/lib/ai/providers/runninghub-voice-design";
+import {
+	queryVolcengineAsrTask,
+	queryVolcengineSubtitleTask,
+	submitVolcengineAsrTask,
+	submitVolcengineSubtitleTask,
+	synthesizeVolcengineClonedVoice,
+	VOLCENGINE_VOICE_CLONE_PROVIDER_ID,
+	type VolcengineCaption,
+} from "@/lib/ai/providers/volcengine-openspeech";
 import type {
 	DigitalHumanGenerationRequest,
 	VoiceCloneRequest,
@@ -78,6 +110,7 @@ import {
 	TRANSCRIPTION_LANGUAGES,
 	TRANSCRIPTION_MODELS,
 } from "@/constants/transcription-constants";
+import { isFontFamilyOption } from "@/constants/font-constants";
 import { buildTtsSpokenScript } from "@/lib/tts/spoken-script";
 import {
 	createHumanPipEffect,
@@ -89,6 +122,7 @@ import {
 	addTransitionToTrack,
 	areElementsAdjacent,
 	buildTrackTransition,
+	removeTransitionFromTrack,
 } from "@/lib/timeline/transition-utils";
 import { buildEmptyTrack } from "@/lib/timeline/track-utils";
 import { calculateTotalDuration } from "@/lib/timeline";
@@ -97,8 +131,10 @@ import type { DerivedAsset, ProjectCover } from "@/types/project";
 import type {
 	AudioElement,
 	CreateTimelineElement,
+	ImageElement,
 	PositionKeyframe,
 	ScalarKeyframe,
+	TextElement,
 	TimelineElement,
 	TimelineElementKeyframes,
 	TimelineTrack,
@@ -115,6 +151,7 @@ const execFileAsync = promisify(execFile);
 type ExecutorToolName =
 	| "get_project_info"
 	| "update_project_settings"
+	| "update_project_preferences"
 	| "list_media_assets"
 	| "import_media_file"
 	| "set_project_cover"
@@ -124,13 +161,19 @@ type ExecutorToolName =
 	| "build_visual_context"
 	| "inspect_video_range"
 	| "inspect_timeline"
+	| "export_timeline_frame"
 	| "build_video_quality_report"
 	| "get_transcript"
+	| "build_caption_diagnostics"
 	| "build_post_cut_captions"
 	| "add_texts"
 	| "add_captions"
+	| "import_subtitles"
 	| "list_models"
 	| "set_keyframes"
+	| "add_transitions"
+	| "update_transition"
+	| "remove_transition"
 	| "search_media"
 	| "validate_edit_plan"
 	| "preview_edit_plan"
@@ -147,6 +190,9 @@ type ExecutorToolName =
 	| "generate_digital_human"
 	| "generate_runninghub_voice_design"
 	| "generate_runninghub_voice_clone"
+	| "generate_volcengine_cloned_voice"
+	| "transcribe_volcengine_url"
+	| "build_volcengine_url_captions"
 	| "export_project"
 	| "verify_timeline"
 	| "get_timeline_state";
@@ -174,7 +220,8 @@ interface ExecutorSpokenScript {
 	provider?:
 		| "imported-tts"
 		| "runninghub-voice-design"
-		| "runninghub-voice-clone";
+		| "runninghub-voice-clone"
+		| "volcengine-voice-clone";
 	providerTaskId?: string;
 }
 
@@ -188,7 +235,7 @@ export interface ExecutorProjectState {
 		settings: {
 			canvasSize: { width: number; height: number };
 			fps: number;
-			background: { type: "color"; color: string };
+			background: TBackground;
 		};
 		createdAt: string;
 		updatedAt: string;
@@ -197,6 +244,7 @@ export interface ExecutorProjectState {
 	derivedAssets: DerivedAsset[];
 	cover?: ProjectCover;
 	tracks: TimelineTrack[];
+	confirmedSetup?: ConfirmedSetup;
 }
 
 export type CodecutDraftV1 = ExecutorProjectState;
@@ -222,12 +270,15 @@ const DEFAULT_POST_CUT_CAPTION_STYLE = {
 	size: "medium",
 } satisfies EditPlanCaptionStyle;
 
+const DURATION_CONTRACT_TIME_EPSILON = 0.001;
+
 const commandSchema = z
 	.object({
 		id: z.string().min(1),
 		tool: z.enum([
 			"get_project_info",
 			"update_project_settings",
+			"update_project_preferences",
 			"list_media_assets",
 			"import_media_file",
 			"set_project_cover",
@@ -237,13 +288,19 @@ const commandSchema = z
 			"build_visual_context",
 			"inspect_video_range",
 			"inspect_timeline",
+			"export_timeline_frame",
 			"build_video_quality_report",
 			"get_transcript",
+			"build_caption_diagnostics",
 			"build_post_cut_captions",
 			"add_texts",
 			"add_captions",
+			"import_subtitles",
 			"list_models",
 			"set_keyframes",
+			"add_transitions",
+			"update_transition",
+			"remove_transition",
 			"search_media",
 			"validate_edit_plan",
 			"preview_edit_plan",
@@ -260,6 +317,9 @@ const commandSchema = z
 			"generate_digital_human",
 			"generate_runninghub_voice_design",
 			"generate_runninghub_voice_clone",
+			"generate_volcengine_cloned_voice",
+			"transcribe_volcengine_url",
+			"build_volcengine_url_captions",
 			"export_project",
 			"verify_timeline",
 			"get_timeline_state",
@@ -298,6 +358,7 @@ const importMediaArgsSchema = z
 						"imported-tts",
 						"runninghub-voice-design",
 						"runninghub-voice-clone",
+						"volcengine-voice-clone",
 					])
 					.optional(),
 				providerTaskId: z.string().min(1).optional(),
@@ -323,6 +384,22 @@ const updateProjectSettingsArgsSchema = z
 		height: z.number().positive().optional(),
 		fps: z.number().positive().optional(),
 		backgroundColor: z.string().min(1).optional(),
+		background: z
+			.discriminatedUnion("type", [
+				z
+					.object({
+						type: z.literal("color"),
+						color: z.string().min(1),
+					})
+					.strict(),
+				z
+					.object({
+						type: z.literal("blur"),
+						blurIntensity: z.number().nonnegative(),
+					})
+					.strict(),
+			])
+			.optional(),
 	})
 	.strict();
 
@@ -386,6 +463,15 @@ const inspectTimelineArgsSchema = z
 	})
 	.strict();
 
+const exportTimelineFrameArgsSchema = z
+	.object({
+		timeSeconds: z.number(),
+		format: z.string().min(1),
+		outputFile: z.string().min(1),
+		overwrite: z.boolean(),
+	})
+	.strict();
+
 const videoQualityTitleRubricSchema = z
 	.object({
 		platform: z.enum(["youtube", "tiktok", "instagram", "linkedin", "generic"]),
@@ -435,11 +521,28 @@ const transformSchema = z
 	})
 	.strict();
 
+const executorCaptionStyleSchema = z
+	.object({
+		preset: EditPlanCaptionStylePresetSchema,
+		position: EditPlanCaptionPositionSchema,
+		size: EditPlanCaptionSizeSchema.optional(),
+		motionPreset: EditPlanTextMotionPresetSchema.optional(),
+	})
+	.strict();
+
 const buildPostCutCaptionsArgsSchema = z
 	.object({
 		language: z.unknown(),
 		modelId: z.unknown(),
-		captionStyle: EditPlanCaptionStyleSchema.optional(),
+		captionStyle: executorCaptionStyleSchema.optional(),
+	})
+	.strict();
+
+const buildCaptionDiagnosticsArgsSchema = z
+	.object({
+		language: z.unknown(),
+		modelId: z.unknown(),
+		captionStyle: EditPlanCaptionStyleSchema,
 	})
 	.strict();
 
@@ -459,6 +562,14 @@ const textShadowSchema = z
 	})
 	.strict();
 
+const editorFontFamilySchema = z
+	.string()
+	.trim()
+	.min(1)
+	.refine(isFontFamilyOption, {
+		message: "fontFamily must be one of CodeCut's editor font options.",
+	});
+
 const addTextEntrySchema = z
 	.object({
 		startTime: z.number().nonnegative(),
@@ -468,7 +579,7 @@ const addTextEntrySchema = z
 		transform: transformSchema.optional(),
 		opacity: z.number().min(0).max(1).optional(),
 		fontSize: z.number().positive().optional(),
-		fontFamily: z.string().min(1).optional(),
+		fontFamily: editorFontFamilySchema.optional(),
 		color: z.string().min(1).optional(),
 		backgroundColor: z.string().min(1).optional(),
 		textAlign: z.enum(["left", "center", "right"]).optional(),
@@ -496,7 +607,18 @@ const addCaptionsArgsSchema = z
 	.object({
 		language: z.unknown(),
 		modelId: z.unknown(),
-		captionStyle: EditPlanCaptionStyleSchema.optional(),
+		captionStyle: executorCaptionStyleSchema.optional(),
+	})
+	.strict();
+
+const importSubtitlesArgsSchema = z
+	.object({
+		filePath: z.string().min(1).refine(isAbsolute, {
+			message: "filePath must be an absolute path.",
+		}),
+		format: z.enum(["srt", "ass"]),
+		trackName: z.string().trim().min(1, "trackName must not be blank."),
+		captionStyle: executorCaptionStyleSchema.optional(),
 	})
 	.strict();
 
@@ -517,9 +639,8 @@ const getTranscriptArgsSchema = z
 	})
 	.strict();
 
-const getTimelineStateV2ArgsSchema = z
+const getTimelineStateArgsSchema = z
 	.object({
-		format: z.literal("v2"),
 		startTime: z.number().nonnegative().optional(),
 		endTime: z.number().nonnegative().optional(),
 		includeFrames: z.boolean().optional(),
@@ -597,7 +718,7 @@ const setClipPropertiesArgsSchema = z
 				transform: transformSchema.optional(),
 				content: z.string().optional(),
 				fontSize: z.number().positive().optional(),
-				fontFamily: z.string().min(1).optional(),
+				fontFamily: editorFontFamilySchema.optional(),
 				color: z.string().min(1).optional(),
 				backgroundColor: z.string().min(1).optional(),
 				textAlign: z.enum(["left", "center", "right"]).optional(),
@@ -652,6 +773,42 @@ const setKeyframesArgsSchema = z
 		elementId: z.string().min(1),
 		property: keyframePropertySchema,
 		keyframes: z.array(z.union([scalarKeyframeSchema, positionKeyframeSchema])),
+	})
+	.strict();
+
+const addTransitionEntrySchema = z
+	.object({
+		trackId: z.string().min(1),
+		fromElementId: z.string().min(1),
+		toElementId: z.string().min(1),
+		type: EditPlanTransitionTypeSchema,
+		duration: z.number().positive(),
+	})
+	.strict();
+
+const addTransitionsArgsSchema = z
+	.object({
+		entries: z.array(addTransitionEntrySchema).min(1),
+	})
+	.strict();
+
+const updateTransitionArgsSchema = z
+	.object({
+		trackId: z.string().min(1),
+		transitionId: z.string().min(1),
+		type: EditPlanTransitionTypeSchema.optional(),
+		duration: z.number().positive().optional(),
+	})
+	.strict()
+	.refine(
+		(value) => value.type !== undefined || value.duration !== undefined,
+		"type or duration is required",
+	);
+
+const removeTransitionArgsSchema = z
+	.object({
+		trackId: z.string().min(1),
+		transitionId: z.string().min(1),
 	})
 	.strict();
 
@@ -745,11 +902,32 @@ const generateVoiceCloneArgsSchema = z
 	})
 	.strict();
 
+const generateVolcengineClonedVoiceArgsSchema = z
+	.object({
+		voiceType: z.string().trim().min(1),
+		text: z.string().trim().min(1),
+		protectedTerms: z.array(z.string().trim().min(1)).optional(),
+	})
+	.strict();
+
+const volcengineUrlArgsSchema = z
+	.object({
+		mediaUrl: z
+			.string()
+			.trim()
+			.url()
+			.refine((value) => new URL(value).protocol === "https:", {
+				message: "mediaUrl must use https",
+			}),
+		requestId: z.string().trim().min(1).optional(),
+	})
+	.strict();
+
 const exportProjectArgsSchema = z
 	.object({
-		format: z.string().min(1),
-		quality: z.string().min(1),
-		includeAudio: z.boolean(),
+		format: z.string().min(1).optional(),
+		quality: z.string().min(1).optional(),
+		includeAudio: z.boolean().optional(),
 		outputFile: z.string().min(1),
 		overwrite: z.boolean(),
 	})
@@ -764,6 +942,7 @@ const verifyTimelineArgsSchema = z
 				clipCount: z.number().int().nonnegative().optional(),
 				captionCount: z.number().int().nonnegative().optional(),
 				audioCount: z.number().int().nonnegative().optional(),
+				transitionCount: z.number().int().nonnegative().optional(),
 				mediaIds: z.array(z.string().min(1)).optional(),
 			})
 			.strict(),
@@ -787,6 +966,31 @@ export type ExecutorGenerateVoiceClone = (params: {
 	referenceAudioPath: string;
 	request: VoiceCloneRequest;
 }) => Promise<RunningHubGeneratedVoiceClone>;
+
+export type ExecutorGenerateVolcengineClonedVoice = (params: {
+	apiKey: string;
+	voiceType: string;
+	text: string;
+}) => Promise<{
+	taskId: string;
+	audioBytes: Buffer;
+	mimeType: string;
+}>;
+
+export type ExecutorTranscribeVolcengineUrl = (params: {
+	apiKey: string;
+	mediaUrl: string;
+	requestId?: string;
+}) => Promise<Awaited<ReturnType<typeof queryVolcengineAsrTask>>>;
+
+export type ExecutorBuildVolcengineUrlCaptions = (params: {
+	apiKey: string;
+	mediaUrl: string;
+}) => Promise<{
+	taskId: string;
+	status: "succeeded";
+	captions: VolcengineCaption[];
+}>;
 
 type ExecutorExportFormat = "mp4" | "webm";
 type ExecutorExportQuality = "low" | "medium" | "high" | "very_high";
@@ -1017,30 +1221,6 @@ async function toMediaAssets(
 	return Promise.all(assets.map(toMediaAsset));
 }
 
-function serializeTrack(track: TimelineTrack) {
-	return {
-		id: track.id,
-		type: track.type,
-		name: track.name,
-		isMain: "isMain" in track ? track.isMain : false,
-		...("muted" in track ? { muted: track.muted } : {}),
-		...("hidden" in track ? { hidden: track.hidden } : {}),
-		elements: track.elements.map((element) => ({
-			id: element.id,
-			type: element.type,
-			name: element.name,
-			startTime: element.startTime,
-			duration: element.duration,
-			trimStart: element.trimStart,
-			trimEnd: element.trimEnd,
-			...("content" in element ? { content: element.content } : {}),
-			...("mediaId" in element ? { mediaId: element.mediaId } : {}),
-			...serializeElementVisualProperties(element),
-		})),
-		...(track.type === "video" ? { transitions: track.transitions ?? [] } : {}),
-	};
-}
-
 function secondsToFrame(seconds: number, fps: number) {
 	return Math.round(seconds * fps);
 }
@@ -1092,7 +1272,7 @@ function frameFieldsForElement({
 	};
 }
 
-function serializeElementV2({
+function serializeTimelineReadbackElement({
 	element,
 	track,
 	trackIndex,
@@ -1127,7 +1307,7 @@ function serializeElementV2({
 	};
 }
 
-function serializeTrackV2({
+function serializeTimelineReadbackTrack({
 	track,
 	trackIndex,
 	startTime,
@@ -1162,7 +1342,7 @@ function serializeTrackV2({
 		elementCount: track.elements.length,
 		returnedElementCount: returnedElements.length,
 		elements: returnedElements.map(({ element, elementIndex }) =>
-			serializeElementV2({
+			serializeTimelineReadbackElement({
 				element,
 				track,
 				trackIndex,
@@ -1182,6 +1362,10 @@ function timelineSummary({
 	state: ExecutorProjectState;
 	returnedElementCount: number;
 }) {
+	const durationContract = timelineDurationContractSummary({
+		state,
+		totalDuration: calculateTotalDuration({ tracks: state.tracks }),
+	});
 	const trackTypeCounts: Record<TrackType, number> = {
 		video: 0,
 		text: 0,
@@ -1204,7 +1388,169 @@ function timelineSummary({
 		transitionCount,
 		derivedAssetCount: state.derivedAssets.length,
 		trackTypeCounts,
+		...(durationContract ? { durationContract } : {}),
 	};
+}
+
+function withinDurationContractTolerance({
+	actual,
+	expected,
+	toleranceSeconds,
+}: {
+	actual: number;
+	expected: number;
+	toleranceSeconds: number;
+}) {
+	return (
+		Math.abs(actual - expected) <=
+		toleranceSeconds + DURATION_CONTRACT_TIME_EPSILON
+	);
+}
+
+function timelineHasFullSourceCoverage({
+	state,
+	sourceDurationSeconds,
+	toleranceSeconds,
+}: {
+	state: ExecutorProjectState;
+	sourceDurationSeconds: number;
+	toleranceSeconds: number;
+}) {
+	const visualElements = state.tracks.flatMap((track) =>
+		track.type === "video" ? track.elements : [],
+	);
+	if (visualElements.length === 0) return false;
+	if (visualElements.some((element) => element.type === "image")) return false;
+
+	const videoElements = visualElements.filter(
+		(element): element is VideoElement => element.type === "video",
+	);
+	if (videoElements.length === 0) return false;
+	if (new Set(videoElements.map((element) => element.mediaId)).size !== 1) {
+		return false;
+	}
+
+	const ordered = [...videoElements].sort(
+		(left, right) => left.trimStart - right.trimStart,
+	);
+	if (
+		!withinDurationContractTolerance({
+			actual: ordered[0].trimStart,
+			expected: 0,
+			toleranceSeconds,
+		})
+	) {
+		return false;
+	}
+
+	for (let index = 1; index < ordered.length; index += 1) {
+		if (
+			!withinDurationContractTolerance({
+				actual: ordered[index].trimStart,
+				expected: ordered[index - 1].trimEnd,
+				toleranceSeconds,
+			})
+		) {
+			return false;
+		}
+	}
+
+	return withinDurationContractTolerance({
+		actual: ordered[ordered.length - 1].trimEnd,
+		expected: sourceDurationSeconds,
+		toleranceSeconds,
+	});
+}
+
+function timelineTotalDurationMatchesContract({
+	totalDuration,
+	durationContract,
+	durationGoal,
+}: {
+	totalDuration: number;
+	durationContract: DurationContract;
+	durationGoal: DurationGoal;
+}) {
+	const toleranceSeconds = durationContract.toleranceSeconds ?? 0.2;
+	if (durationContract.totalDurationMode === "auto") return true;
+	if (durationContract.totalDurationMode === "preserve_source") {
+		const sourceDurationSeconds = durationContract.sourceDurationSeconds;
+		return (
+			sourceDurationSeconds !== undefined &&
+			withinDurationContractTolerance({
+				actual: totalDuration,
+				expected: sourceDurationSeconds,
+				toleranceSeconds,
+			})
+		);
+	}
+	if (durationGoal.mode !== "custom" || !durationGoal.rangeSeconds) {
+		return false;
+	}
+	return (
+		totalDuration >= durationGoal.rangeSeconds.minSeconds - toleranceSeconds &&
+		totalDuration <= durationGoal.rangeSeconds.maxSeconds + toleranceSeconds
+	);
+}
+
+function timelineDurationContractSummary({
+	state,
+	totalDuration,
+}: {
+	state: ExecutorProjectState;
+	totalDuration: number;
+}) {
+	const confirmedSetup = state.confirmedSetup;
+	const durationContract = confirmedSetup?.timelinePreferences.durationContract;
+	if (!durationContract) return undefined;
+
+	const toleranceSeconds = durationContract.toleranceSeconds ?? 0.2;
+	const sourceDurationSeconds = durationContract.sourceDurationSeconds;
+	const sourceCoverageMatches =
+		durationContract.sourceCoverageMode === "full_source"
+			? sourceDurationSeconds !== undefined &&
+				timelineHasFullSourceCoverage({
+					state,
+					sourceDurationSeconds,
+					toleranceSeconds,
+				})
+			: true;
+
+	return {
+		totalDurationMode: durationContract.totalDurationMode,
+		sourceCoverageMode: durationContract.sourceCoverageMode,
+		actualDurationSec: totalDuration,
+		...(sourceDurationSeconds === undefined ? {} : { sourceDurationSeconds }),
+		toleranceSeconds,
+		totalDurationMatches: timelineTotalDurationMatchesContract({
+			totalDuration,
+			durationContract,
+			durationGoal: confirmedSetup.timelinePreferences.durationGoal,
+		}),
+		sourceCoverageMatches,
+	};
+}
+
+function assertTimelineDurationContractSatisfied({
+	state,
+	totalDuration,
+}: {
+	state: ExecutorProjectState;
+	totalDuration: number;
+}) {
+	const durationContract = timelineDurationContractSummary({
+		state,
+		totalDuration,
+	});
+	if (
+		durationContract &&
+		(!durationContract.totalDurationMatches ||
+			!durationContract.sourceCoverageMatches)
+	) {
+		throw new Error(
+			`Timeline violates confirmed duration contract: totalDurationMatches=${durationContract.totalDurationMatches}, sourceCoverageMatches=${durationContract.sourceCoverageMatches}.`,
+		);
+	}
 }
 
 function referencedMediaIds(state: ExecutorProjectState) {
@@ -1328,6 +1674,105 @@ function addTransition({
 	return transition;
 }
 
+function countNativeTransitions({
+	state,
+}: {
+	state: ExecutorProjectState;
+}): number {
+	return state.tracks.reduce((total, track) => {
+		if (track.type !== "video") return total;
+		return total + (track.transitions?.length ?? 0);
+	}, 0);
+}
+
+function findVideoTrackForTransition({
+	state,
+	trackId,
+}: {
+	state: ExecutorProjectState;
+	trackId: string;
+}): { success: true; track: VideoTrack } | { success: false; message: string } {
+	const track = state.tracks.find((candidate) => candidate.id === trackId);
+	if (!track) {
+		return { success: false, message: `Track "${trackId}" was not found.` };
+	}
+	if (track.type !== "video") {
+		return {
+			success: false,
+			message: `Track "${trackId}" is not a video track.`,
+		};
+	}
+	return { success: true, track: track as VideoTrack };
+}
+
+function findTransitionOnTrack({
+	track,
+	transitionId,
+}: {
+	track: VideoTrack;
+	transitionId: string;
+}):
+	| { success: true; transition: TrackTransition }
+	| { success: false; message: string } {
+	const transition = (track.transitions ?? []).find(
+		(candidate) => candidate.id === transitionId,
+	);
+	if (!transition) {
+		return {
+			success: false,
+			message: `Transition "${transitionId}" was not found.`,
+		};
+	}
+	return { success: true, transition };
+}
+
+function validateNativeTransitionPair({
+	track,
+	fromElementId,
+	toElementId,
+	duration,
+}: {
+	track: VideoTrack;
+	fromElementId: string;
+	toElementId: string;
+	duration: number;
+}):
+	| {
+			success: true;
+			fromElement: VideoElement | ImageElement;
+			toElement: VideoElement | ImageElement;
+	  }
+	| { success: false; message: string } {
+	const fromElement = track.elements.find(
+		(element) => element.id === fromElementId,
+	);
+	if (!fromElement) {
+		return {
+			success: false,
+			message: `Transition element "${fromElementId}" was not found.`,
+		};
+	}
+	const toElement = track.elements.find(
+		(element) => element.id === toElementId,
+	);
+	if (!toElement) {
+		return {
+			success: false,
+			message: `Transition element "${toElementId}" was not found.`,
+		};
+	}
+	if (!areElementsAdjacent({ elementA: fromElement, elementB: toElement })) {
+		return { success: false, message: "Transition elements must be adjacent." };
+	}
+	if (duration > Math.min(fromElement.duration, toElement.duration)) {
+		return {
+			success: false,
+			message: "Transition duration exceeds neighboring element duration.",
+		};
+	}
+	return { success: true, fromElement, toElement };
+}
+
 async function saveProjectState({ state }: { state: ExecutorProjectState }) {
 	state.revision += 1;
 	state.project.updatedAt = new Date().toISOString();
@@ -1381,9 +1826,11 @@ async function loadProjectState({
 export async function createExecutorProject({
 	projectId,
 	name,
+	confirmedSetup,
 }: {
 	projectId: string;
 	name: string;
+	confirmedSetup?: ConfirmedSetup;
 }): Promise<ExecutorProjectState> {
 	const now = new Date().toISOString();
 	const state: ExecutorProjectState = {
@@ -1404,6 +1851,9 @@ export async function createExecutorProject({
 		mediaAssets: [],
 		derivedAssets: [],
 		tracks: [],
+		...(confirmedSetup
+			? { confirmedSetup: ConfirmedSetupSchema.parse(confirmedSetup) }
+			: {}),
 	};
 	await mkdir(mediaDirectory({ projectId }), { recursive: true });
 	await writeJson({ path: projectStatePath({ projectId }), value: state });
@@ -1450,6 +1900,7 @@ export async function getExecutorProjectSnapshot({
 		revision: state.revision,
 		duration,
 		cover: state.cover,
+		confirmedSetup: state.confirmedSetup,
 		tracks: state.tracks,
 		mediaAssets: state.mediaAssets.map((asset) => ({
 			id: asset.id,
@@ -1724,6 +2175,7 @@ async function runGetProjectInfo({
 			background: state.project.settings.background,
 			duration,
 			cover: state.cover,
+			confirmedSetup: state.confirmedSetup,
 			draft: {
 				version: state.version,
 				revision: state.revision,
@@ -1817,7 +2269,10 @@ async function runUpdateProjectSettings({
 		state.project.settings.fps = parsed.fps;
 		updated.push("fps");
 	}
-	if (parsed.backgroundColor) {
+	if (parsed.background) {
+		state.project.settings.background = parsed.background;
+		updated.push("background");
+	} else if (parsed.backgroundColor) {
 		state.project.settings.background = {
 			type: "color",
 			color: parsed.backgroundColor,
@@ -1835,6 +2290,117 @@ async function runUpdateProjectSettings({
 	return {
 		success: true,
 		message: `Project settings updated: ${updated.join(", ")}`,
+	};
+}
+
+function isCaptionTextElement(element: TextElement) {
+	return element.name.startsWith("Caption ");
+}
+
+function applyCaptionSetupToExistingCaptions({
+	state,
+	confirmedSetup,
+}: {
+	state: ExecutorProjectState;
+	confirmedSetup: ConfirmedSetup;
+}) {
+	const raw = applyCaptionPreferencesToTextRaw({
+		raw: resolveCaptionStylePreset({
+			captionStyle: resolveCaptionStyleForContract({ confirmedSetup }),
+			aspectRatio: aspectRatioForState(state),
+		}),
+		captionPreferences: confirmedSetup.captionPreferences,
+	});
+	const updatedElementIds: string[] = [];
+	for (const track of state.tracks) {
+		if (track.type !== "text") continue;
+		for (const element of track.elements) {
+			if (!isCaptionTextElement(element)) continue;
+			element.fontSize =
+				typeof raw.fontSize === "number" ? raw.fontSize : element.fontSize;
+			element.fontFamily = raw.fontFamily ?? element.fontFamily;
+			element.color = raw.color ?? element.color;
+			element.backgroundColor = raw.backgroundColor ?? element.backgroundColor;
+			element.textAlign = raw.textAlign ?? element.textAlign;
+			element.fontWeight = raw.fontWeight ?? element.fontWeight;
+			element.fontStyle = raw.fontStyle ?? element.fontStyle;
+			element.textDecoration = raw.textDecoration ?? element.textDecoration;
+			element.transform = raw.transform ?? element.transform;
+			element.opacity = raw.opacity ?? element.opacity;
+			element.stroke = raw.stroke;
+			element.shadow = raw.shadow;
+			element.boxWidth = raw.boxWidth;
+			element.backgroundOpacity = raw.backgroundOpacity;
+			element.backgroundPaddingX = raw.backgroundPaddingX;
+			element.backgroundPaddingY = raw.backgroundPaddingY;
+			element.backgroundBorderRadius = raw.backgroundBorderRadius;
+			updatedElementIds.push(element.id);
+		}
+	}
+	return updatedElementIds;
+}
+
+async function runUpdateProjectPreferences({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = UpdateProjectPreferencesArgsSchema.parse(args);
+	if (parsed.projectId !== state.project.id) {
+		throw new Error(
+			`projectId conflicts with executor envelope project: expected ${state.project.id}.`,
+		);
+	}
+	if (parsed.baseRevision !== state.revision) {
+		throw new Error(
+			`baseRevision is stale: expected ${state.revision}, received ${parsed.baseRevision}.`,
+		);
+	}
+	if (!state.confirmedSetup) {
+		throw new Error(
+			"confirmedSetup is required before project preferences can be updated.",
+		);
+	}
+
+	const applied = applyConfirmedSetupPatch({
+		confirmedSetup: state.confirmedSetup,
+		patch: parsed.patch,
+		reason: parsed.reason ?? "user_confirmed_preference_update",
+	});
+	if (applied.changedFields.length === 0) {
+		return {
+			success: true,
+			message: "Project preferences already match the requested patch.",
+			data: {
+				revision: state.revision,
+				confirmedSetup: state.confirmedSetup,
+				updatedCaptionElementIds: [],
+				requiresReplan: false,
+			},
+		};
+	}
+
+	state.confirmedSetup = applied.confirmedSetup;
+	const updatedCaptionElementIds = parsed.patch.captionPreferences
+		? applyCaptionSetupToExistingCaptions({
+				state,
+				confirmedSetup: state.confirmedSetup,
+			})
+		: [];
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: applied.requiresReplan
+			? "Project preferences updated. Timeline structure requires a new edit plan."
+			: "Project preferences updated.",
+		data: {
+			revision: state.revision,
+			confirmedSetup: state.confirmedSetup,
+			updatedCaptionElementIds,
+			requiresReplan: applied.requiresReplan,
+		},
 	};
 }
 
@@ -1939,6 +2505,11 @@ async function runPreviewEditPlan({
 function requireExportFormat(value: string): ExecutorExportFormat {
 	if (value === "mp4" || value === "webm") return value;
 	throw new Error("--format must be mp4 or webm");
+}
+
+function requireTimelineFrameFormat(value: string): "png" {
+	if (value === "png") return value;
+	throw new Error("--format must be png");
 }
 
 function requireExportQuality(value: string): ExecutorExportQuality {
@@ -2068,8 +2639,14 @@ async function runExportProject({
 	probeExportedFile: ExecutorProbeExportedFile;
 }) {
 	const parsed = exportProjectArgsSchema.parse(args);
-	const format = requireExportFormat(parsed.format);
-	const quality = requireExportQuality(parsed.quality);
+	const exportPreferences = resolveExportPreferencesForContract({
+		confirmedSetup: state.confirmedSetup,
+		explicitFormat: parsed.format,
+		explicitQuality: parsed.quality,
+		explicitIncludeAudio: parsed.includeAudio,
+	});
+	const format = requireExportFormat(exportPreferences.format);
+	const quality = requireExportQuality(exportPreferences.quality);
 	if (!isAbsolute(parsed.outputFile)) {
 		throw new Error("--output-file must be an absolute path");
 	}
@@ -2083,12 +2660,13 @@ async function runExportProject({
 	if (state.tracks.length === 0 || totalDuration <= 0) {
 		throw new Error("Cannot export an empty timeline.");
 	}
+	assertTimelineDurationContractSatisfied({ state, totalDuration });
 
 	const exported = await exportProject({
 		state,
 		format,
 		quality,
-		includeAudio: parsed.includeAudio,
+		includeAudio: exportPreferences.includeAudio,
 	});
 	const bytes = exportBytesToBuffer(exported);
 	if (bytes.byteLength <= 0) {
@@ -2109,10 +2687,56 @@ async function runExportProject({
 			outputFile: parsed.outputFile,
 			byteLength: bytes.byteLength,
 			format,
-			includeAudio: parsed.includeAudio,
+			includeAudio: exportPreferences.includeAudio,
 			revision: state.revision,
 			totalDuration,
 			outputProbe,
+		},
+	};
+}
+
+async function runExportTimelineFrame({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = exportTimelineFrameArgsSchema.parse(args);
+	const format = requireTimelineFrameFormat(parsed.format);
+	if (!isAbsolute(parsed.outputFile)) {
+		throw new Error("--output-file must be an absolute path");
+	}
+	if (!parsed.overwrite && (await localFileExists(parsed.outputFile))) {
+		throw new Error(
+			"Output file already exists. Set overwrite=true to replace it.",
+		);
+	}
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
+	const exported = await exportTimelineFrameWithNodeRenderer({
+		state,
+		mediaAssets,
+		timeSeconds: parsed.timeSeconds,
+		outputFile: parsed.outputFile,
+	});
+	return {
+		success: true,
+		message: `Exported ${format} frame at ${parsed.timeSeconds}s to ${parsed.outputFile}`,
+		data: {
+			outputFile: exported.outputFile,
+			byteLength: exported.byteLength,
+			format,
+			timeSeconds: exported.timeSeconds,
+			revision: state.revision,
+			canvasSize: exported.canvasSize,
+			totalDuration: exported.totalDuration,
+			artifact: {
+				kind: "timeline_frame",
+				path: exported.outputFile,
+				mimeType: "image/png",
+				width: exported.canvasSize.width,
+				height: exported.canvasSize.height,
+			},
 		},
 	};
 }
@@ -2126,8 +2750,12 @@ function timelineVerificationActuals({
 	let clipCount = 0;
 	let captionCount = 0;
 	let audioCount = 0;
+	let transitionCount = 0;
 
 	for (const track of state.tracks) {
+		if (track.type === "video") {
+			transitionCount += track.transitions?.length ?? 0;
+		}
 		for (const element of track.elements) {
 			if ("mediaId" in element && typeof element.mediaId === "string") {
 				mediaIds.add(element.mediaId);
@@ -2150,6 +2778,7 @@ function timelineVerificationActuals({
 		clipCount,
 		captionCount,
 		audioCount,
+		transitionCount,
 		mediaIds: [...mediaIds].sort(),
 	};
 }
@@ -2181,6 +2810,7 @@ function runVerifyTimeline({
 		"clipCount",
 		"captionCount",
 		"audioCount",
+		"transitionCount",
 	] as const) {
 		if (expected[field] !== undefined && actual[field] !== expected[field]) {
 			failures.push({
@@ -2281,6 +2911,9 @@ async function runApplyNarratedRemixPlan({
 		plan: parsed.plan,
 		projectId: state.project.id,
 		replaceExisting: parsed.replaceExisting,
+		durationContract:
+			state.confirmedSetup?.timelinePreferences.durationContract,
+		durationGoal: state.confirmedSetup?.timelinePreferences.durationGoal,
 		editor: {
 			media: {
 				getAssets: () => mediaAssets,
@@ -2295,7 +2928,15 @@ async function runApplyNarratedRemixPlan({
 	});
 
 	if (!result.success) {
-		return result;
+		return {
+			success: false,
+			message: result.message,
+			data: {
+				valid: false,
+				revision: state.revision,
+				...(result.path ? { path: result.path } : {}),
+			},
+		};
 	}
 
 	await saveProjectState({ state });
@@ -2722,7 +3363,37 @@ async function normalizeRunningHubVoiceAudio({
 	}
 }
 
-async function saveGeneratedRunningHubVoiceAsset({
+function spokenScriptProviderForGeneratedVoice({
+	providerId,
+}: {
+	providerId: string;
+}): NonNullable<ExecutorSpokenScript["provider"]> {
+	if (providerId === RUNNINGHUB_VOICE_CLONE_PROVIDER_ID) {
+		return "runninghub-voice-clone";
+	}
+	if (providerId === RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID) {
+		return "runninghub-voice-design";
+	}
+	if (providerId === VOLCENGINE_VOICE_CLONE_PROVIDER_ID) {
+		return "volcengine-voice-clone";
+	}
+	throw new Error(`Unsupported generated voice provider: ${providerId}`);
+}
+
+function generatedVoiceMessagePrefix({ providerId }: { providerId: string }) {
+	if (
+		providerId === RUNNINGHUB_VOICE_CLONE_PROVIDER_ID ||
+		providerId === RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID
+	) {
+		return "Generated RunningHub voice";
+	}
+	if (providerId === VOLCENGINE_VOICE_CLONE_PROVIDER_ID) {
+		return "Generated Volcengine voice";
+	}
+	throw new Error(`Unsupported generated voice provider: ${providerId}`);
+}
+
+async function saveGeneratedVoiceAsset({
 	state,
 	providerId,
 	taskId,
@@ -2740,7 +3411,7 @@ async function saveGeneratedRunningHubVoiceAsset({
 	mimeType: string;
 }) {
 	if (audioBytes.byteLength <= 0) {
-		throw new Error("RunningHub returned an empty voice audio file");
+		throw new Error("Voice provider returned an empty audio file");
 	}
 	const normalizedAudio = await normalizeRunningHubVoiceAudio({
 		audioBytes,
@@ -2760,10 +3431,7 @@ async function saveGeneratedRunningHubVoiceAsset({
 	const spokenScript = buildTtsSpokenScript({
 		text,
 		protectedTerms,
-		provider:
-			providerId === RUNNINGHUB_VOICE_CLONE_PROVIDER_ID
-				? "runninghub-voice-clone"
-				: "runninghub-voice-design",
+		provider: spokenScriptProviderForGeneratedVoice({ providerId }),
 		providerTaskId: taskId,
 	});
 	const asset: ExecutorMediaAsset = {
@@ -2781,7 +3449,7 @@ async function saveGeneratedRunningHubVoiceAsset({
 	await saveProjectState({ state });
 	return {
 		success: true,
-		message: `Generated RunningHub voice '${name}'`,
+		message: `${generatedVoiceMessagePrefix({ providerId })} '${name}'`,
 		data: {
 			mediaId,
 			taskId,
@@ -2908,7 +3576,7 @@ async function runGenerateRunningHubVoiceDesign({
 		apiKey,
 		request,
 	});
-	return saveGeneratedRunningHubVoiceAsset({
+	return saveGeneratedVoiceAsset({
 		state,
 		providerId: RUNNINGHUB_VOICE_DESIGN_PROVIDER_ID,
 		taskId: generated.taskId,
@@ -2950,7 +3618,7 @@ async function runGenerateRunningHubVoiceClone({
 		referenceAudioPath: parsed.audioPath,
 		request,
 	});
-	return saveGeneratedRunningHubVoiceAsset({
+	return saveGeneratedVoiceAsset({
 		state,
 		providerId: RUNNINGHUB_VOICE_CLONE_PROVIDER_ID,
 		taskId: generated.taskId,
@@ -2959,6 +3627,92 @@ async function runGenerateRunningHubVoiceClone({
 		audioBytes: generated.audioBytes,
 		mimeType: generated.mimeType || "audio/mpeg",
 	});
+}
+
+async function runGenerateVolcengineClonedVoice({
+	state,
+	args,
+	env,
+	generateVolcengineClonedVoice,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	generateVolcengineClonedVoice: ExecutorGenerateVolcengineClonedVoice;
+}) {
+	const parsed = generateVolcengineClonedVoiceArgsSchema.parse(args);
+	const apiKey = env.VOLCENGINE_OPEN_SPEECH_API_KEY?.trim();
+	if (!apiKey) {
+		throw new Error("VOLCENGINE_OPEN_SPEECH_API_KEY is required");
+	}
+	const generated = await generateVolcengineClonedVoice({
+		apiKey,
+		voiceType: parsed.voiceType,
+		text: parsed.text,
+	});
+	return saveGeneratedVoiceAsset({
+		state,
+		providerId: VOLCENGINE_VOICE_CLONE_PROVIDER_ID,
+		taskId: generated.taskId,
+		text: parsed.text,
+		protectedTerms: parsed.protectedTerms,
+		audioBytes: generated.audioBytes,
+		mimeType: generated.mimeType || "audio/mpeg",
+	});
+}
+
+async function runTranscribeVolcengineUrl({
+	args,
+	env,
+	transcribeVolcengineUrl,
+}: {
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	transcribeVolcengineUrl: ExecutorTranscribeVolcengineUrl;
+}) {
+	const parsed = volcengineUrlArgsSchema.parse(args);
+	const apiKey = env.VOLCENGINE_OPEN_SPEECH_API_KEY?.trim();
+	if (!apiKey) {
+		throw new Error("VOLCENGINE_OPEN_SPEECH_API_KEY is required");
+	}
+	const result = await transcribeVolcengineUrl({
+		apiKey,
+		mediaUrl: parsed.mediaUrl,
+		requestId: parsed.requestId,
+	});
+	return {
+		success: true,
+		message: "Transcribed Volcengine URL",
+		data: result,
+	};
+}
+
+async function runBuildVolcengineUrlCaptions({
+	args,
+	env,
+	buildVolcengineUrlCaptions,
+}: {
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	buildVolcengineUrlCaptions: ExecutorBuildVolcengineUrlCaptions;
+}) {
+	const parsed = volcengineUrlArgsSchema.omit({ requestId: true }).parse(args);
+	const apiKey = env.VOLCENGINE_OPEN_SPEECH_API_KEY?.trim();
+	if (!apiKey) {
+		throw new Error("VOLCENGINE_OPEN_SPEECH_API_KEY is required");
+	}
+	const result = await buildVolcengineUrlCaptions({
+		apiKey,
+		mediaUrl: parsed.mediaUrl,
+	});
+	return {
+		success: true,
+		message: "Built Volcengine URL captions",
+		data: {
+			source: "volcengine_url_subtitle",
+			...result,
+		},
+	};
 }
 
 async function runTranscribeMedia({
@@ -3325,7 +4079,7 @@ async function runBuildVideoQualityReport({
 		exportedFile,
 	});
 	return {
-		success: true,
+		success: report.status !== "fail",
 		message: `Built VideoQualityReport: ${report.status}`,
 		data: report,
 	};
@@ -3539,11 +4293,20 @@ async function runBuildPostCutCaptions({
 	transcribeMediaRange: ExecutorTranscribeMediaRange;
 }) {
 	const parsed = buildPostCutCaptionsArgsSchema.parse(args);
+	const captionStyle = resolveCaptionStyleForContract({
+		confirmedSetup: state.confirmedSetup,
+		explicitCaptionStyle: parsed.captionStyle,
+	});
 	const result = await buildPostCutCaptionsData({
 		state,
-		language: parseExecutorTranscriptionLanguage(parsed.language),
+		language: parseExecutorTranscriptionLanguage(
+			resolveCaptionLanguageForContract({
+				confirmedSetup: state.confirmedSetup,
+				explicitLanguage: parsed.language,
+			}),
+		),
 		modelId: parseExecutorTranscriptionModelId(parsed.modelId),
-		captionStyle: parsed.captionStyle ?? DEFAULT_POST_CUT_CAPTION_STYLE,
+		captionStyle,
 		transcribeMediaRange,
 	});
 	if (!result.success) return result;
@@ -3551,6 +4314,61 @@ async function runBuildPostCutCaptions({
 		success: true,
 		message: `Built ${result.data.captions.length} post-cut caption(s) from ${result.data.trace.length} video clip(s).`,
 		data: result.data,
+	};
+}
+
+async function runBuildCaptionDiagnostics({
+	state,
+	args,
+	transcribeMediaRange,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	transcribeMediaRange: ExecutorTranscribeMediaRange;
+}) {
+	const parsed = buildCaptionDiagnosticsArgsSchema.parse(args);
+	const language = parseExecutorTranscriptionLanguage(parsed.language);
+	const modelId = parseExecutorTranscriptionModelId(parsed.modelId);
+	const report = await buildCaptionDiagnosticsReport({
+		revision: state.revision,
+		tracks: state.tracks,
+		mediaAssets: state.mediaAssets,
+		language,
+		modelId,
+		captionStyle: parsed.captionStyle,
+		aspectRatio: aspectRatioForState(state),
+		canvasSize: state.project.settings.canvasSize,
+		timelineDuration: calculateTotalDuration({ tracks: state.tracks }),
+		transcribeMediaRange: async ({
+			mediaAsset,
+			language: rangeLanguage,
+			modelId: rangeModelId,
+			range,
+		}) => {
+			if (!mediaAsset.path) {
+				throw new Error(`Media asset '${mediaAsset.id}' has no local path.`);
+			}
+			return transcribeMediaRange({
+				mediaAsset: {
+					id: mediaAsset.id,
+					name: mediaAsset.name,
+					path: mediaAsset.path,
+					duration: mediaAsset.duration,
+				},
+				language: rangeLanguage,
+				modelId: rangeModelId,
+				range,
+			});
+		},
+	});
+	const lowConfidenceCount = report.confidence.lowConfidenceItems.length;
+	return {
+		success: true,
+		message:
+			`Caption diagnostics ${report.status}: ` +
+			`${report.summary.candidateCaptionCount} candidate caption(s), ` +
+			`${lowConfidenceCount} low-confidence item(s).`,
+		data: report,
 	};
 }
 
@@ -3989,10 +4807,18 @@ async function runAddCaptions({
 	transcribeMediaRange: ExecutorTranscribeMediaRange;
 }) {
 	const parsed = addCaptionsArgsSchema.parse(args);
-	const captionStyle = parsed.captionStyle ?? DEFAULT_POST_CUT_CAPTION_STYLE;
+	const captionStyle = resolveCaptionStyleForContract({
+		confirmedSetup: state.confirmedSetup,
+		explicitCaptionStyle: parsed.captionStyle,
+	});
 	const captions = await buildPostCutCaptionsData({
 		state,
-		language: parseExecutorTranscriptionLanguage(parsed.language),
+		language: parseExecutorTranscriptionLanguage(
+			resolveCaptionLanguageForContract({
+				confirmedSetup: state.confirmedSetup,
+				explicitLanguage: parsed.language,
+			}),
+		),
 		modelId: parseExecutorTranscriptionModelId(parsed.modelId),
 		captionStyle,
 		transcribeMediaRange,
@@ -4009,11 +4835,17 @@ async function runAddCaptions({
 		captionStyle,
 		aspectRatio: aspectRatioForState(state),
 	});
+	const captionRaw = state.confirmedSetup
+		? applyCaptionPreferencesToTextRaw({
+				raw,
+				captionPreferences: state.confirmedSetup.captionPreferences,
+			})
+		: raw;
 	const summary = addTextElements({
 		state,
 		args: {
 			entries: captions.data.captions.map((caption, index) => ({
-				...raw,
+				...captionRaw,
 				name: `Caption ${index + 1}`,
 				content: caption.text,
 				startTime: caption.startTime,
@@ -4035,25 +4867,109 @@ async function runAddCaptions({
 	};
 }
 
-function runGetTimelineStateV2({
+async function runImportSubtitles({
 	state,
 	args,
 }: {
 	state: ExecutorProjectState;
-	args: z.infer<typeof getTimelineStateV2ArgsSchema>;
+	args: Record<string, unknown>;
 }) {
+	const parsed = importSubtitlesArgsSchema.parse(args);
+	const captionStyle = resolveCaptionStyleForContract({
+		confirmedSetup: state.confirmedSetup,
+		explicitCaptionStyle: parsed.captionStyle,
+	});
+	const content = await readFile(parsed.filePath, "utf8");
+	const captions = parseControlledSubtitles({
+		format: parsed.format,
+		content,
+	});
+	const existingDuration = calculateTotalDuration({ tracks: state.tracks });
+	const captionDuration = captions.reduce(
+		(maxEnd, caption) => Math.max(maxEnd, caption.startTime + caption.duration),
+		0,
+	);
+	const raw = resolveCaptionStylePreset({
+		captionStyle,
+		aspectRatio: aspectRatioForState(state),
+	});
+	const captionRaw = state.confirmedSetup
+		? applyCaptionPreferencesToTextRaw({
+				raw,
+				captionPreferences: state.confirmedSetup.captionPreferences,
+			})
+		: raw;
+	const captionQuality = auditCaptions({
+		captions,
+		captionStyle,
+		captionTextRaw: captionRaw,
+		aspectRatio: aspectRatioForState(state),
+		canvasSize: state.project.settings.canvasSize,
+		timelineDuration: existingDuration > 0 ? existingDuration : captionDuration,
+	});
+	if (!captionQuality.ok) {
+		return {
+			success: false,
+			message: "Imported subtitles failed caption quality validation.",
+			data: { captionQuality },
+		};
+	}
+	const summary = addTextElements({
+		state,
+		args: {
+			entries: captions.map((caption, index) => ({
+				...captionRaw,
+				name: `Imported Subtitle ${index + 1}`,
+				content: caption.text,
+				startTime: caption.startTime,
+				duration: caption.duration,
+			})),
+		},
+	});
+	if (summary.createdTrackId) {
+		const track = state.tracks.find(
+			(candidate) => candidate.id === summary.createdTrackId,
+		);
+		if (!track) {
+			throw new Error("Created subtitle track was not found.");
+		}
+		track.name = parsed.trackName;
+	}
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Imported ${captions.length} subtitle caption(s).`,
+		data: {
+			...summary,
+			revision: state.revision,
+			sourceFormat: parsed.format,
+			captionCount: captions.length,
+			captionStyle,
+			captionQuality,
+		},
+	};
+}
+
+function runGetTimelineState({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = getTimelineStateArgsSchema.parse(args);
 	const duration = calculateTotalDuration({ tracks: state.tracks });
-	const startTime = args.startTime ?? 0;
-	const endTime = args.endTime ?? duration;
+	const startTime = parsed.startTime ?? 0;
+	const endTime = parsed.endTime ?? duration;
 	if (endTime < startTime) {
 		throw new Error(
-			"get_timeline_state v2 endTime must be greater than or equal to startTime.",
+			"get_timeline_state endTime must be greater than or equal to startTime.",
 		);
 	}
-	const includeFrames = args.includeFrames ?? false;
+	const includeFrames = parsed.includeFrames ?? false;
 	const fps = state.project.settings.fps;
 	const tracks = state.tracks.map((track, trackIndex) =>
-		serializeTrackV2({
+		serializeTimelineReadbackTrack({
 			track,
 			trackIndex,
 			startTime,
@@ -4068,7 +4984,7 @@ function runGetTimelineStateV2({
 	);
 	return {
 		success: true,
-		message: `Timeline v2 has ${state.tracks.length} track(s), ${returnedElementCount} returned element(s)`,
+		message: `Timeline has ${state.tracks.length} track(s), ${returnedElementCount} returned element(s)`,
 		data: {
 			schemaVersion: 2,
 			project: {
@@ -4099,36 +5015,9 @@ function runGetTimelineStateV2({
 			},
 			summary: timelineSummary({ state, returnedElementCount }),
 			tracks,
-			...(args.includeReferencedMedia
+			...(parsed.includeReferencedMedia
 				? { referencedMedia: serializeReferencedMedia(state) }
 				: {}),
-			derivedAssets: state.derivedAssets,
-		},
-	};
-}
-
-function runGetTimelineState({
-	state,
-	args,
-}: {
-	state: ExecutorProjectState;
-	args: Record<string, unknown>;
-}) {
-	if (Object.keys(args).length > 0) {
-		return runGetTimelineStateV2({
-			state,
-			args: getTimelineStateV2ArgsSchema.parse(args),
-		});
-	}
-	const duration = calculateTotalDuration({ tracks: state.tracks });
-	return {
-		success: true,
-		message: `Timeline has ${state.tracks.length} track(s), total duration: ${duration.toFixed(2)}s`,
-		data: {
-			revision: state.revision,
-			tracks: state.tracks.map(serializeTrack),
-			totalDuration: duration,
-			cover: state.cover,
 			derivedAssets: state.derivedAssets,
 		},
 	};
@@ -4262,6 +5151,160 @@ async function runSetKeyframes({
 		success: true,
 		message: `Set ${keyframes.length} keyframe(s) on ${parsed.property}.`,
 		data: { ...summary, revision: state.revision },
+	};
+}
+
+async function runAddTransitions({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = addTransitionsArgsSchema.parse(args);
+	const transitions: TrackTransition[] = [];
+	for (const entry of parsed.entries) {
+		const trackResult = findVideoTrackForTransition({
+			state,
+			trackId: entry.trackId,
+		});
+		if (!trackResult.success) return trackResult;
+		const pairResult = validateNativeTransitionPair({
+			track: trackResult.track,
+			fromElementId: entry.fromElementId,
+			toElementId: entry.toElementId,
+			duration: entry.duration,
+		});
+		if (!pairResult.success) return pairResult;
+	}
+
+	for (const entry of parsed.entries) {
+		const transition = buildTrackTransition({
+			type: entry.type as TransitionType,
+			duration: entry.duration,
+			fromElementId: entry.fromElementId,
+			toElementId: entry.toElementId,
+		});
+		state.tracks = state.tracks.map((track) =>
+			track.id === entry.trackId && track.type === "video"
+				? addTransitionToTrack({ track: track as VideoTrack, transition })
+				: track,
+		);
+		transitions.push(transition);
+	}
+
+	await saveProjectState({ state });
+	const firstTrackId = parsed.entries[0].trackId;
+	return {
+		success: true,
+		message: `Added ${transitions.length} transition(s).`,
+		data: {
+			revision: state.revision,
+			trackId: firstTrackId,
+			transitionCount: countNativeTransitions({ state }),
+			transitions,
+		},
+	};
+}
+
+async function runUpdateTransition({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = updateTransitionArgsSchema.parse(args);
+	const trackResult = findVideoTrackForTransition({
+		state,
+		trackId: parsed.trackId,
+	});
+	if (!trackResult.success) return trackResult;
+	const transitionResult = findTransitionOnTrack({
+		track: trackResult.track,
+		transitionId: parsed.transitionId,
+	});
+	if (!transitionResult.success) return transitionResult;
+	const nextDuration = parsed.duration ?? transitionResult.transition.duration;
+	const pairResult = validateNativeTransitionPair({
+		track: trackResult.track,
+		fromElementId: transitionResult.transition.fromElementId,
+		toElementId: transitionResult.transition.toElementId,
+		duration: nextDuration,
+	});
+	if (!pairResult.success) return pairResult;
+
+	const updatedTransition: TrackTransition = {
+		...transitionResult.transition,
+		...(parsed.type === undefined
+			? {}
+			: { type: parsed.type as TransitionType }),
+		...(parsed.duration === undefined ? {} : { duration: parsed.duration }),
+	};
+	state.tracks = state.tracks.map((track) =>
+		track.id === parsed.trackId && track.type === "video"
+			? {
+					...(track as VideoTrack),
+					transitions: ((track as VideoTrack).transitions ?? []).map(
+						(transition) =>
+							transition.id === parsed.transitionId
+								? updatedTransition
+								: transition,
+					),
+				}
+			: track,
+	);
+
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Updated transition "${parsed.transitionId}".`,
+		data: {
+			revision: state.revision,
+			trackId: parsed.trackId,
+			transitionCount: countNativeTransitions({ state }),
+			transition: updatedTransition,
+		},
+	};
+}
+
+async function runRemoveTransition({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = removeTransitionArgsSchema.parse(args);
+	const trackResult = findVideoTrackForTransition({
+		state,
+		trackId: parsed.trackId,
+	});
+	if (!trackResult.success) return trackResult;
+	const transitionResult = findTransitionOnTrack({
+		track: trackResult.track,
+		transitionId: parsed.transitionId,
+	});
+	if (!transitionResult.success) return transitionResult;
+	state.tracks = state.tracks.map((track) =>
+		track.id === parsed.trackId && track.type === "video"
+			? removeTransitionFromTrack({
+					track: track as VideoTrack,
+					transitionId: parsed.transitionId,
+				})
+			: track,
+	);
+
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Removed transition "${parsed.transitionId}".`,
+		data: {
+			revision: state.revision,
+			trackId: parsed.trackId,
+			transitionCount: countNativeTransitions({ state }),
+			removedTransition: transitionResult.transition,
+		},
 	};
 }
 
@@ -4467,6 +5510,9 @@ async function executeCommand({
 	generateDigitalHuman,
 	generateVoiceDesign,
 	generateVoiceClone,
+	generateVolcengineClonedVoice,
+	transcribeVolcengineUrl,
+	buildVolcengineUrlCaptions,
 	exportProject,
 	probeExportedFile,
 }: {
@@ -4481,6 +5527,9 @@ async function executeCommand({
 	generateDigitalHuman: ExecutorGenerateDigitalHuman;
 	generateVoiceDesign: ExecutorGenerateVoiceDesign;
 	generateVoiceClone: ExecutorGenerateVoiceClone;
+	generateVolcengineClonedVoice: ExecutorGenerateVolcengineClonedVoice;
+	transcribeVolcengineUrl: ExecutorTranscribeVolcengineUrl;
+	buildVolcengineUrlCaptions: ExecutorBuildVolcengineUrlCaptions;
 	exportProject: ExecutorExportProject;
 	probeExportedFile: ExecutorProbeExportedFile;
 }) {
@@ -4489,6 +5538,9 @@ async function executeCommand({
 	}
 	if (command.tool === "update_project_settings") {
 		return runUpdateProjectSettings({ state, args: command.args });
+	}
+	if (command.tool === "update_project_preferences") {
+		return runUpdateProjectPreferences({ state, args: command.args });
 	}
 	if (command.tool === "list_media_assets") {
 		return runListMediaAssets({ state });
@@ -4534,6 +5586,9 @@ async function executeCommand({
 	if (command.tool === "inspect_timeline") {
 		return runInspectTimeline({ state, args: command.args });
 	}
+	if (command.tool === "export_timeline_frame") {
+		return runExportTimelineFrame({ state, args: command.args });
+	}
 	if (command.tool === "build_video_quality_report") {
 		return runBuildVideoQualityReport({
 			state,
@@ -4543,6 +5598,13 @@ async function executeCommand({
 	}
 	if (command.tool === "get_transcript") {
 		return runGetTranscript({
+			state,
+			args: command.args,
+			transcribeMediaRange,
+		});
+	}
+	if (command.tool === "build_caption_diagnostics") {
+		return runBuildCaptionDiagnostics({
 			state,
 			args: command.args,
 			transcribeMediaRange,
@@ -4564,6 +5626,9 @@ async function executeCommand({
 			args: command.args,
 			transcribeMediaRange,
 		});
+	}
+	if (command.tool === "import_subtitles") {
+		return runImportSubtitles({ state, args: command.args });
 	}
 	if (command.tool === "list_models") {
 		return runListModels({ args: command.args });
@@ -4601,6 +5666,15 @@ async function executeCommand({
 	if (command.tool === "set_keyframes") {
 		return runSetKeyframes({ state, args: command.args });
 	}
+	if (command.tool === "add_transitions") {
+		return runAddTransitions({ state, args: command.args });
+	}
+	if (command.tool === "update_transition") {
+		return runUpdateTransition({ state, args: command.args });
+	}
+	if (command.tool === "remove_transition") {
+		return runRemoveTransition({ state, args: command.args });
+	}
 	if (command.tool === "ripple_delete_ranges") {
 		return runRippleDeleteRanges({ state, args: command.args });
 	}
@@ -4632,6 +5706,28 @@ async function executeCommand({
 			args: command.args,
 			env,
 			generateVoiceClone,
+		});
+	}
+	if (command.tool === "generate_volcengine_cloned_voice") {
+		return runGenerateVolcengineClonedVoice({
+			state,
+			args: command.args,
+			env,
+			generateVolcengineClonedVoice,
+		});
+	}
+	if (command.tool === "transcribe_volcengine_url") {
+		return runTranscribeVolcengineUrl({
+			args: command.args,
+			env,
+			transcribeVolcengineUrl,
+		});
+	}
+	if (command.tool === "build_volcengine_url_captions") {
+		return runBuildVolcengineUrlCaptions({
+			args: command.args,
+			env,
+			buildVolcengineUrlCaptions,
 		});
 	}
 	if (command.tool === "export_project") {
@@ -4700,6 +5796,42 @@ const defaultGenerateVoiceClone: ExecutorGenerateVoiceClone = ({
 		request,
 	});
 
+const defaultGenerateVolcengineClonedVoice: ExecutorGenerateVolcengineClonedVoice =
+	({ apiKey, voiceType, text }) =>
+		synthesizeVolcengineClonedVoice({
+			apiKey,
+			voiceType,
+			text,
+		});
+
+const defaultTranscribeVolcengineUrl: ExecutorTranscribeVolcengineUrl = async ({
+	apiKey,
+	mediaUrl,
+	requestId,
+}) => {
+	const submitted = await submitVolcengineAsrTask({
+		apiKey,
+		audioUrl: mediaUrl,
+		requestId,
+	});
+	return queryVolcengineAsrTask({
+		apiKey,
+		requestId: submitted.taskId,
+	});
+};
+
+const defaultBuildVolcengineUrlCaptions: ExecutorBuildVolcengineUrlCaptions =
+	async ({ apiKey, mediaUrl }) => {
+		const submitted = await submitVolcengineSubtitleTask({
+			apiKey,
+			mediaUrl,
+		});
+		return queryVolcengineSubtitleTask({
+			apiKey,
+			taskId: submitted.taskId,
+		});
+	};
+
 const defaultExportProject: ExecutorExportProject = async (params) => {
 	const { exportProjectWithNodeRenderer } = await import("./node-exporter");
 	return exportProjectWithNodeRenderer(params);
@@ -4715,6 +5847,9 @@ export async function executeCodexExecutorEnvelope({
 	generateDigitalHuman = defaultGenerateDigitalHuman,
 	generateVoiceDesign = defaultGenerateVoiceDesign,
 	generateVoiceClone = defaultGenerateVoiceClone,
+	generateVolcengineClonedVoice = defaultGenerateVolcengineClonedVoice,
+	transcribeVolcengineUrl = defaultTranscribeVolcengineUrl,
+	buildVolcengineUrlCaptions = defaultBuildVolcengineUrlCaptions,
 	exportProject = defaultExportProject,
 	probeExportedFile = probeExportedFileWithFfprobe,
 }: {
@@ -4727,6 +5862,9 @@ export async function executeCodexExecutorEnvelope({
 	generateDigitalHuman?: ExecutorGenerateDigitalHuman;
 	generateVoiceDesign?: ExecutorGenerateVoiceDesign;
 	generateVoiceClone?: ExecutorGenerateVoiceClone;
+	generateVolcengineClonedVoice?: ExecutorGenerateVolcengineClonedVoice;
+	transcribeVolcengineUrl?: ExecutorTranscribeVolcengineUrl;
+	buildVolcengineUrlCaptions?: ExecutorBuildVolcengineUrlCaptions;
 	exportProject?: ExecutorExportProject;
 	probeExportedFile?: ExecutorProbeExportedFile;
 }) {
@@ -4759,6 +5897,9 @@ export async function executeCodexExecutorEnvelope({
 				generateDigitalHuman,
 				generateVoiceDesign,
 				generateVoiceClone,
+				generateVolcengineClonedVoice,
+				transcribeVolcengineUrl,
+				buildVolcengineUrlCaptions,
 				exportProject,
 				probeExportedFile,
 			});

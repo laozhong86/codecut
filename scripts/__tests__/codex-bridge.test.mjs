@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	buildAddCaptionsEnvelope,
 	buildAddTextsEnvelope,
+	buildAddTransitionsEnvelope,
 	buildApplyPlanEnvelope,
 	buildCommandEnvelope,
 	buildDeleteSystemTemplateScriptEnvelope,
@@ -12,9 +13,11 @@ import {
 	buildRunningHubVoiceCloneEnvelope,
 	buildRunningHubVoiceDesignEnvelope,
 	buildExportEnvelope,
+	buildExportTimelineFrameEnvelope,
 	buildFreshSessionSmokeReport,
-	buildGetTimelineStateV2Envelope,
+	buildGetTimelineStateEnvelope,
 	buildGetTranscriptEnvelope,
+	buildImportSubtitlesEnvelope,
 	buildImportSystemTemplateScriptEnvelope,
 	buildImportMediaEnvelope,
 	buildInsertClipsEnvelope,
@@ -25,18 +28,22 @@ import {
 	buildPreviewEditPlanEnvelope,
 	buildPostCutCaptionsEnvelope,
 	buildRemoveClipsEnvelope,
+	buildRemoveTransitionEnvelope,
 	buildRippleDeleteRangesEnvelope,
 	buildSearchMediaEnvelope,
 	buildSetClipPropertiesEnvelope,
 	buildSetKeyframesEnvelope,
 	buildSplitClipEnvelope,
 	buildTranscribeEnvelope,
+	buildUpdateTransitionEnvelope,
 	buildUpdateSystemTemplateScriptEnvelope,
 	buildValidateEditPlanEnvelope,
 	buildVideoContextEnvelope,
 	buildVideoQualityReportEnvelope,
 	buildVisualContextEnvelope,
 	buildVerifyTimelineEnvelope,
+	buildCaptionDiagnosticsEnvelope,
+	checkSharpRuntime,
 	parseBoolean,
 	requireRuntimeConfig,
 	runInstallDoctor,
@@ -58,7 +65,90 @@ async function createTestConfirmationToken(root, projectId = "project-123") {
 	});
 }
 
+async function passingSharpRuntimeProbe() {
+	return {
+		id: "sharp_libvips",
+		ok: true,
+		message: "Sharp/libvips runtime is available.",
+	};
+}
+
 describe("codex bridge CLI helpers", () => {
+	test("requires setup confirmation ids minted by the workspace widget", async () => {
+		const root = await mkdtemp(join(tmpdir(), "codecut-confirmation-"));
+		const pendingConfirmationId = createPendingCodecutConfirmation();
+
+		try {
+			await expect(
+				mintCodecutConfirmationToken({
+					root,
+					projectId: "project-123",
+					pendingConfirmationId: "ccpending_111111111111111111111111",
+				}),
+			).rejects.toThrow("pendingConfirmationId from open_codecut_workspace");
+
+			await expect(
+				mintCodecutConfirmationToken({
+					root,
+					projectId: "project-123",
+					pendingConfirmationId,
+				}),
+			).resolves.toMatch(/^ccconfirmed_[a-f0-9]{32}$/);
+			await expect(
+				mintCodecutConfirmationToken({
+					root,
+					projectId: "project-123",
+					pendingConfirmationId,
+				}),
+			).rejects.toThrow("pendingConfirmationId from open_codecut_workspace");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("accepts workspace pending confirmations submitted by a later process", async () => {
+		const root = await mkdtemp(join(tmpdir(), "codecut-confirmation-"));
+		const pendingConfirmationId = createPendingCodecutConfirmation({ root });
+		const helper = `
+import { mintCodecutConfirmationToken } from ${JSON.stringify(new URL("../codecut-confirmation-gate.mjs", import.meta.url).href)};
+
+try {
+	const token = await mintCodecutConfirmationToken({
+		root: process.env.CODECUT_TEST_CONFIRMATION_ROOT,
+		projectId: "project-123",
+		pendingConfirmationId: process.env.CODECUT_TEST_PENDING_CONFIRMATION_ID,
+	});
+	console.log(token);
+} catch (error) {
+	console.error(error instanceof Error ? error.message : String(error));
+	process.exit(1);
+}
+		`;
+
+		try {
+			const child = Bun.spawn(["node", "--input-type=module", "--eval", helper], {
+				env: {
+					...process.env,
+					CODECUT_TEST_CONFIRMATION_ROOT: root,
+					CODECUT_TEST_PENDING_CONFIRMATION_ID: pendingConfirmationId,
+				},
+				stdout: "pipe",
+				stderr: "pipe",
+			});
+			const [stdout, stderr, exitCode] = await Promise.all([
+				new Response(child.stdout).text(),
+				new Response(child.stderr).text(),
+				child.exited,
+			]);
+
+			expect(stderr).toBe("");
+			expect(exitCode).toBe(0);
+			expect(stdout.trim()).toMatch(/^ccconfirmed_[a-f0-9]{32}$/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("prints usage when invoked through the executable entrypoint", async () => {
 		const process = Bun.spawn(["node", "scripts/codex-bridge.mjs", "help"], {
 			stdout: "pipe",
@@ -86,6 +176,34 @@ describe("codex bridge CLI helpers", () => {
 		).toThrow("CODECUT_AGENT_BRIDGE_URL is required");
 	});
 
+	test("sharp runtime probe reports missing libvips as an install gate failure", async () => {
+		const result = await checkSharpRuntime({
+			cwd: "/tmp/codecut",
+			requireImpl: () => {
+				throw new Error(
+					"Cannot find module '@img/sharp-libvips-darwin-arm64'",
+				);
+			},
+		});
+
+		expect(result).toMatchObject({
+			id: "sharp_libvips",
+			ok: false,
+		});
+		expect(result.message).toContain("Sharp/libvips check failed");
+		expect(result.message).toContain(
+			"@img/sharp-libvips-darwin-arm64",
+		);
+	});
+
+	test("web app declares sharp as a direct runtime dependency", async () => {
+		const webPackageJson = JSON.parse(
+			await readFile(new URL("../../apps/web/package.json", import.meta.url), "utf8"),
+		);
+
+		expect(webPackageJson.dependencies.sharp).toBeTruthy();
+	});
+
 	test("builds a bridge command envelope with explicit args", () => {
 		const envelope = buildCommandEnvelope({
 			projectId: "project-123",
@@ -107,9 +225,9 @@ describe("codex bridge CLI helpers", () => {
 		});
 	});
 
-	test("buildGetTimelineStateV2Envelope preserves v1 tool name with explicit v2 args", () => {
+	test("buildGetTimelineStateEnvelope builds canonical readback args", () => {
 		expect(
-			buildGetTimelineStateV2Envelope({
+			buildGetTimelineStateEnvelope({
 				projectId: "project-1",
 				startTime: 1,
 				endTime: 3,
@@ -125,7 +243,6 @@ describe("codex bridge CLI helpers", () => {
 					id: "cmd-1",
 					tool: "get_timeline_state",
 					args: {
-						format: "v2",
 						startTime: 1,
 						endTime: 3,
 						includeFrames: true,
@@ -134,6 +251,15 @@ describe("codex bridge CLI helpers", () => {
 				},
 			],
 		});
+	});
+
+	test("buildGetTimelineStateEnvelope rejects removed format selector", () => {
+		expect(() =>
+			buildGetTimelineStateEnvelope({
+				projectId: "project-1",
+				format: "v2",
+			}),
+		).toThrow("get_timeline_state does not accept option(s): format");
 	});
 
 	test("buildInspectTimelineEnvelope validates timeline inspect ranges", () => {
@@ -408,6 +534,63 @@ describe("codex bridge CLI helpers", () => {
 				includeAudio: true,
 				outputFile: "/tmp/codecut-export.mp4",
 			}),
+			).toThrow("--overwrite is required");
+	});
+
+	test("builds a timeline frame export command only from explicit options", () => {
+		const envelope = buildExportTimelineFrameEnvelope({
+			projectId: "project-123",
+			timeSeconds: 1.25,
+			format: "png",
+			outputFile: "/tmp/codecut-frame.png",
+			overwrite: false,
+		});
+
+		expect(envelope.commands[0]).toEqual({
+			id: "cmd-1",
+			tool: "export_timeline_frame",
+			args: {
+				timeSeconds: 1.25,
+				format: "png",
+				outputFile: "/tmp/codecut-frame.png",
+				overwrite: false,
+			},
+		});
+	});
+
+	test("timeline frame export command requires explicit safe options", () => {
+		expect(() =>
+			buildExportTimelineFrameEnvelope({
+				projectId: "project-123",
+				timeSeconds: 1,
+				format: "png",
+				outputFile: "relative.png",
+				overwrite: false,
+			}),
+		).toThrow("--output-file must be an absolute path");
+		expect(() =>
+			buildExportTimelineFrameEnvelope({
+				projectId: "project-123",
+				format: "png",
+				outputFile: "/tmp/codecut-frame.png",
+				overwrite: false,
+			}),
+		).toThrow("--time-seconds is required");
+		expect(() =>
+			buildExportTimelineFrameEnvelope({
+				projectId: "project-123",
+				timeSeconds: 1,
+				outputFile: "/tmp/codecut-frame.png",
+				overwrite: false,
+			}),
+		).toThrow("--format is required");
+		expect(() =>
+			buildExportTimelineFrameEnvelope({
+				projectId: "project-123",
+				timeSeconds: 1,
+				format: "png",
+				outputFile: "/tmp/codecut-frame.png",
+			}),
 		).toThrow("--overwrite is required");
 	});
 
@@ -582,6 +765,46 @@ describe("codex bridge CLI helpers", () => {
 				},
 			],
 		});
+	});
+
+	test("buildCaptionDiagnosticsEnvelope requires explicit caption style", () => {
+		expect(
+			buildCaptionDiagnosticsEnvelope({
+				projectId: "project-1",
+				language: "zh",
+				modelId: "whisper-base",
+				captionStylePreset: "creator-clean",
+				captionPosition: "lower-safe",
+				captionMotionPreset: "soft-reveal",
+			}),
+		).toEqual({
+			version: 1,
+			projectId: "project-1",
+			source: "codex",
+			commands: [
+				{
+					id: "cmd-1",
+					tool: "build_caption_diagnostics",
+					args: {
+						language: "zh",
+						modelId: "whisper-base",
+						captionStyle: {
+							preset: "creator-clean",
+							position: "lower-safe",
+							motionPreset: "soft-reveal",
+						},
+					},
+				},
+			],
+		});
+		expect(() =>
+			buildCaptionDiagnosticsEnvelope({
+				projectId: "project-1",
+				language: "zh",
+				modelId: "whisper-base",
+				captionPosition: "lower-safe",
+			}),
+		).toThrow("--caption-style-preset is required");
 	});
 
 	test("buildDigitalHumanEnvelope creates a generate_digital_human command", () => {
@@ -1058,6 +1281,42 @@ describe("codex bridge CLI helpers", () => {
 		);
 
 		expect(
+			buildImportSubtitlesEnvelope({
+				projectId: "project-123",
+				filePath: "/tmp/captions.ass",
+				format: "ass",
+				trackName: "Imported Captions",
+				captionStyle: {
+					preset: "talking-head-pop",
+					position: "lower-safe",
+				},
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "import_subtitles",
+				args: {
+					filePath: "/tmp/captions.ass",
+					format: "ass",
+					trackName: "Imported Captions",
+					captionStyle: {
+						preset: "talking-head-pop",
+						position: "lower-safe",
+					},
+				},
+			}),
+		);
+
+		expect(() =>
+			buildImportSubtitlesEnvelope({
+				projectId: "project-123",
+				filePath: "captions.ass",
+				format: "ass",
+				trackName: "Imported Captions",
+			}),
+		).toThrow("--file-path must be an absolute path");
+
+		expect(
 			buildListModelsEnvelope({
 				projectId: "project-123",
 				type: "transcription",
@@ -1102,6 +1361,82 @@ describe("codex bridge CLI helpers", () => {
 				keyframes: [],
 			}),
 		).toThrow("--property must be a supported keyframe property");
+
+		expect(
+			buildAddTransitionsEnvelope({
+				projectId: "project-123",
+				entries: [
+					{
+						trackId: "video-track-1",
+						fromElementId: "clip-1",
+						toElementId: "clip-2",
+						type: "fade",
+						duration: 0.35,
+					},
+				],
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "add_transitions",
+				args: {
+					entries: [
+						{
+							trackId: "video-track-1",
+							fromElementId: "clip-1",
+							toElementId: "clip-2",
+							type: "fade",
+							duration: 0.35,
+						},
+					],
+				},
+			}),
+		);
+
+		expect(
+			buildUpdateTransitionEnvelope({
+				projectId: "project-123",
+				trackId: "video-track-1",
+				transitionId: "transition-1",
+				type: "slide-left",
+				duration: 0.25,
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "update_transition",
+				args: {
+					trackId: "video-track-1",
+					transitionId: "transition-1",
+					type: "slide-left",
+					duration: 0.25,
+				},
+			}),
+		);
+
+		expect(
+			buildRemoveTransitionEnvelope({
+				projectId: "project-123",
+				trackId: "video-track-1",
+				transitionId: "transition-1",
+			}),
+		).toEqual(
+			buildCommandEnvelope({
+				projectId: "project-123",
+				tool: "remove_transition",
+				args: {
+					trackId: "video-track-1",
+					transitionId: "transition-1",
+				},
+			}),
+		);
+		expect(() =>
+			buildUpdateTransitionEnvelope({
+				projectId: "project-123",
+				trackId: "video-track-1",
+				transitionId: "transition-1",
+			}),
+		).toThrow("--type or --duration is required");
 
 		expect(
 			buildSearchMediaEnvelope({
@@ -1457,6 +1792,30 @@ describe("codex bridge CLI helpers", () => {
 		expect(() => parseBoolean("yes", "includeAudio")).toThrow(
 			"includeAudio must be true or false",
 		);
+	});
+
+	test("get-timeline-state CLI rejects removed format flag", async () => {
+		await expect(
+			runCli({
+				argv: [
+					"get-timeline-state",
+					"--project-id",
+					"project-123",
+					"--format",
+					"v2",
+				],
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+					CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+					CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+				},
+				fetchImpl: async (url) => {
+					throw new Error(`Unexpected request: ${url}`);
+				},
+				stdout: () => {},
+			}),
+		).rejects.toThrow("get-timeline-state does not accept flag(s): --format");
 	});
 
 	test("sends and polls a command using documented CLI flags", async () => {
@@ -2071,13 +2430,13 @@ describe("codex bridge CLI helpers", () => {
 			scriptedMediaId: "audio-1",
 			scriptedMediaName: "blind-narration.wav",
 		});
-		expect(report.checks.map((check) => [check.id, check.ok])).toEqual([
-			["doctor_install", true],
-			["doctor", true],
-			["scripted_media_asset", true],
-			["timeline_v2", true],
-			["referenced_scripted_media", true],
-			["expected_caption_text", true],
+			expect(report.checks.map((check) => [check.id, check.ok])).toEqual([
+				["doctor_install", true],
+				["doctor", true],
+				["scripted_media_asset", true],
+				["timeline_readback", true],
+				["referenced_scripted_media", true],
+				["expected_caption_text", true],
 		]);
 		expect(JSON.stringify(report)).not.toContain("local-token");
 	});
@@ -2290,13 +2649,13 @@ describe("codex bridge CLI helpers", () => {
 			requests
 				.slice(1)
 				.map((request) => JSON.parse(request.init.body).envelope.commands[0]),
-		).toMatchObject([
-			{ tool: "list_media_assets", args: {} },
-			{
-				tool: "get_timeline_state",
-				args: { format: "v2", includeReferencedMedia: true },
-			},
-		]);
+			).toMatchObject([
+				{ tool: "list_media_assets", args: {} },
+				{
+					tool: "get_timeline_state",
+					args: { includeReferencedMedia: true },
+				},
+			]);
 		const report = JSON.parse(output[0]);
 		expect(report.ok).toBe(true);
 		expect(report.summary).toMatchObject({
@@ -2386,6 +2745,7 @@ describe("codex bridge CLI helpers", () => {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async (url, init) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -2412,6 +2772,7 @@ describe("codex bridge CLI helpers", () => {
 				["cache_bridge_env", true],
 				["environment", true],
 				["node_renderer", true],
+				["sharp_libvips", true],
 				["web_service", true],
 				["executor_project", true],
 			]);
@@ -2498,6 +2859,7 @@ describe("codex bridge CLI helpers", () => {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async (url) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -2605,6 +2967,7 @@ describe("codex bridge CLI helpers", () => {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async (url) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -2705,6 +3068,7 @@ describe("codex bridge CLI helpers", () => {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async (url) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -2794,6 +3158,7 @@ describe("codex bridge CLI helpers", () => {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async (url) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -2847,6 +3212,7 @@ describe("codex bridge CLI helpers", () => {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async () => {
 					throw new Error("fetch should not run without valid env");
 				},
@@ -2994,6 +3360,116 @@ describe("codex bridge CLI helpers", () => {
 		}
 	});
 
+	test("plugin freshness accepts a marketplace main checkout when validating a linked worktree", async () => {
+		const marketplaceRoot = await mkdtemp(
+			join(tmpdir(), "codecut-marketplace-"),
+		);
+		const sourceRoot = join(marketplaceRoot, "plugins/cutia");
+		const worktreeRoot = join(
+			sourceRoot,
+			".worktrees/system-template-read-tools",
+		);
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(marketplaceRoot, ".agents/plugins"), { recursive: true });
+		await mkdir(join(worktreeRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(worktreeRoot, "skills/codecut"), {
+			recursive: true,
+		});
+		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(cacheRoot, "skills/codecut"), {
+			recursive: true,
+		});
+		await mkdir(join(homeRoot, ".codex"), { recursive: true });
+		await writeFile(
+			join(marketplaceRoot, ".agents/plugins/marketplace.json"),
+			JSON.stringify({
+				name: "local-opc",
+				plugins: [
+					{
+						name: "codecut",
+						source: { source: "local", path: "./plugins/cutia" },
+						policy: {
+							installation: "AVAILABLE",
+							authentication: "ON_INSTALL",
+						},
+						category: "Developer Tools",
+					},
+				],
+			}),
+			"utf8",
+		);
+		await writeFile(
+			join(homeRoot, ".codex/config.toml"),
+			[
+				'[plugins."codecut@local-opc"]',
+				"enabled = true",
+				"",
+				"[marketplaces.local-opc]",
+				'source_type = "local"',
+				`source = ${JSON.stringify(marketplaceRoot)}`,
+			].join("\n"),
+			"utf8",
+		);
+		await writeFile(
+			join(worktreeRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(worktreeRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
+			"utf8",
+		);
+
+		try {
+			const result = await runPluginFreshness({
+				cwd: worktreeRoot,
+				homeDir: homeRoot,
+				execFileImpl: async (command, args) => {
+					expect(command).toBe("rsync");
+					expect(args).toContain("--dry-run");
+					expect(args).toContain("--itemize-changes");
+					return { stdout: "", stderr: "" };
+				},
+			});
+
+			expect(result.ok).toBe(true);
+			expect(
+				result.layers.find((layer) => layer.id === "config"),
+			).toMatchObject({
+				status: "ok",
+				data: {
+					sourcePath: "./plugins/cutia",
+					expectedSourcePath:
+						"./plugins/cutia/.worktrees/system-template-read-tools",
+					expectedSourcePaths: [
+						"./plugins/cutia/.worktrees/system-template-read-tools",
+						"./plugins/cutia",
+					],
+				},
+			});
+		} finally {
+			await Promise.all([
+				rm(marketplaceRoot, { recursive: true, force: true }),
+				rm(homeRoot, { recursive: true, force: true }),
+			]);
+		}
+	});
+
 	test("plugin freshness CLI does not require bridge env or call the web service", async () => {
 		const output = [];
 		const exitCode = await runCli({
@@ -3051,6 +3527,41 @@ describe("codex bridge CLI helpers", () => {
 		);
 		const requests = [];
 		const output = [];
+		const confirmedSetup = {
+			version: 1,
+			confirmedAt: "2026-06-26T00:00:00.000Z",
+			source: "codecut_setup_confirmation",
+			timelinePreferences: {
+				aspectRatio: "9:16",
+				durationGoal: { mode: "auto" },
+				durationContract: {
+					totalDurationMode: "auto",
+					sourceCoverageMode: "selected_segments",
+					toleranceSeconds: 0.2,
+				},
+				transitionPreference: "auto",
+				generateIntroCover: true,
+				requirements: "Create a clear short video.",
+			},
+			captionPreferences: {
+				language: "auto",
+				font: "auto",
+				size: "large",
+				stylePreset: "product-punch",
+			},
+			exportPreferences: {
+				format: "mp4",
+				quality: "high",
+				includeAudio: true,
+			},
+			changes: [],
+		};
+		const confirmedSetupJsonFile = join(cwdRoot, "confirmed-setup.json");
+		await writeFile(
+			confirmedSetupJsonFile,
+			JSON.stringify(confirmedSetup),
+			"utf8",
+		);
 		const confirmationToken = await createTestConfirmationToken(
 			confirmationRoot,
 			"project-123",
@@ -3064,6 +3575,8 @@ describe("codex bridge CLI helpers", () => {
 				"Codex cut",
 				"--confirmation-token",
 				confirmationToken,
+				"--confirmed-setup-json-file",
+				confirmedSetupJsonFile,
 			],
 			cwd: cwdRoot,
 			env: {
@@ -3094,6 +3607,7 @@ describe("codex bridge CLI helpers", () => {
 			expect(JSON.parse(requests[0].init.body)).toEqual({
 				projectId: "project-123",
 				name: "Codex cut",
+				confirmedSetup,
 			});
 			expect(JSON.parse(output[0])).toMatchObject({
 				projectId: "project-123",

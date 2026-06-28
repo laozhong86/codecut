@@ -10,7 +10,7 @@ export interface VideoTemplateMaterialFacts {
 	hasVisualProof?: boolean;
 	hasProductFacts?: boolean;
 	hasExistingNarrationAudio?: boolean;
-	hasVideoBroll?: boolean;
+	hasVisualBroll?: boolean;
 }
 
 export type VideoTemplateResolveResult =
@@ -100,7 +100,7 @@ function getMissingEvidence({
 			"visual-proof": materialFacts.hasVisualProof,
 			"product-facts": materialFacts.hasProductFacts,
 			"existing-narration-audio": materialFacts.hasExistingNarrationAudio,
-			"video-broll": materialFacts.hasVideoBroll,
+			"visual-broll": materialFacts.hasVisualBroll,
 		};
 	return requiredEvidence.filter((evidence) => !available[evidence]);
 }

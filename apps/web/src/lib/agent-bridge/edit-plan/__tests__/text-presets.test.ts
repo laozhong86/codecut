@@ -5,7 +5,7 @@ import {
 	scaleBoxWidth,
 } from "@/services/renderer/nodes/text-node";
 import { createTextLayout } from "@/services/renderer/nodes/text-layout";
-import { CODECUT_CJK_FONT_FAMILY } from "@/lib/codecut-fonts";
+import { isCodecutLocalFontFamily } from "@/lib/codecut-fonts";
 import type { EditPlanCaptionStyle } from "../schema";
 import { resolveCaptionStylePreset } from "../text-presets";
 
@@ -20,7 +20,6 @@ const horizontalCanvas = {
 };
 
 const CODECUT_YAN_BO_SONG_FONT_FAMILY = "CodecutYanBoSong";
-const CODECUT_WEN_KAI_FONT_FAMILY = "CodecutWenKai";
 const CODECUT_SMILEY_SANS_FONT_FAMILY = "CodecutSmileySans";
 
 const implementedCaptionPresets: EditPlanCaptionStyle["preset"][] = [
@@ -189,23 +188,14 @@ describe("caption style presets", () => {
 		}
 	});
 
-	test("all caption presets use controlled local renderer font families", () => {
-		const controlledFontFamilies = new Set([
-			CODECUT_CJK_FONT_FAMILY,
-			CODECUT_SMILEY_SANS_FONT_FAMILY,
-			CODECUT_WEN_KAI_FONT_FAMILY,
-			CODECUT_YAN_BO_SONG_FONT_FAMILY,
-		]);
-
+	test("all caption presets write editor-selectable local font families", () => {
 		for (const preset of implementedCaptionPresets) {
 			const raw = resolveCaptionStylePreset({
 				captionStyle: { preset, position: "lower-safe", size: "medium" },
 				aspectRatio: "9:16",
 			});
 
-			expect(controlledFontFamilies.has(raw.fontFamily ?? ""), preset).toBe(
-				true,
-			);
+			expect(isCodecutLocalFontFamily(raw.fontFamily ?? ""), preset).toBe(true);
 		}
 	});
 
@@ -234,6 +224,71 @@ describe("caption style presets", () => {
 			},
 		});
 		expect(creatorClean.stroke).toBeUndefined();
+	});
+
+	test("talking-head-pop uses a light-background-safe spoken caption treatment", () => {
+		const talkingHeadPop = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "talking-head-pop" as EditPlanCaptionStyle["preset"],
+				position: "lower-safe",
+				size: "medium",
+			},
+			aspectRatio: "9:16",
+		});
+
+		expect(talkingHeadPop).toMatchObject({
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+			fontSize: 5.2,
+			fontWeight: "bold",
+			color: "#ffffff",
+			backgroundColor: "#0f172a",
+			backgroundOpacity: 0.42,
+			backgroundPaddingX: 24,
+			backgroundPaddingY: 12,
+			backgroundBorderRadius: 8,
+			shadow: { color: "rgba(0,0,0,0.72)", offsetX: 0, offsetY: 3, blur: 10 },
+			boxWidth: 50,
+			transform: {
+				scale: 1,
+				position: { x: 0, y: 520 },
+				rotate: 0,
+			},
+		});
+		expect(talkingHeadPop.stroke).toBeUndefined();
+	});
+
+	test("soft visual presets keep a subtle backing on light backgrounds", () => {
+		const cinematicSerif = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "cinematic-serif" as EditPlanCaptionStyle["preset"],
+				position: "lower-safe",
+				size: "medium",
+			},
+			aspectRatio: "9:16",
+		});
+		const minimalReel = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "minimal-reel" as EditPlanCaptionStyle["preset"],
+				position: "lower-safe",
+				size: "medium",
+			},
+			aspectRatio: "9:16",
+		});
+
+		expect(cinematicSerif).toMatchObject({
+			backgroundColor: "#111827",
+			backgroundOpacity: 0.32,
+			backgroundPaddingX: 20,
+			backgroundPaddingY: 10,
+			backgroundBorderRadius: 6,
+		});
+		expect(minimalReel).toMatchObject({
+			backgroundColor: "#0f172a",
+			backgroundOpacity: 0.38,
+			backgroundPaddingX: 18,
+			backgroundPaddingY: 8,
+			backgroundBorderRadius: 6,
+		});
 	});
 
 	test("talking-head-pop lower-safe captions stay inside a horizontal 1080p canvas", () => {
@@ -277,7 +332,7 @@ describe("caption style presets", () => {
 		});
 
 		expect(socialHighlight).toMatchObject({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 5.6,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -286,7 +341,7 @@ describe("caption style presets", () => {
 			backgroundBorderRadius: 10,
 		});
 		expect(commentBubble).toMatchObject({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 5.2,
 			fontWeight: "bold",
 			color: "#111827",
@@ -299,7 +354,8 @@ describe("caption style presets", () => {
 			fontSize: 4.6,
 			fontWeight: "normal",
 			color: "#f8fafc",
-			backgroundColor: "transparent",
+			backgroundColor: "#0f172a",
+			backgroundOpacity: 0.38,
 		});
 	});
 
@@ -314,7 +370,7 @@ describe("caption style presets", () => {
 		});
 
 		expect(raw).toMatchObject({
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 4.8,
 			fontWeight: "bold",
 			color: "#ffe45c",

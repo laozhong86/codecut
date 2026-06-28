@@ -14,6 +14,11 @@ export type InspectTimelineArgs = {
 	frameCount?: number;
 };
 
+export type ExportTimelineFrameArgs = {
+	timeSeconds: number;
+	outputFile: string;
+};
+
 function sampleTimes({
 	startTime,
 	endTime,
@@ -35,6 +40,41 @@ function canvasPngBuffer(canvas: unknown): Buffer {
 		toBuffer(type?: string): Buffer;
 	};
 	return target.toBuffer("image/png");
+}
+
+function buildTimelineSceneRenderer({
+	state,
+	mediaAssets,
+	totalDuration,
+}: {
+	state: ExecutorProjectState;
+	mediaAssets: MediaAsset[];
+	totalDuration: number;
+}) {
+	const { width, height } = state.project.settings.canvasSize;
+	const runtime = createNodeRendererRuntime();
+	const renderer = new CanvasRenderer({
+		width,
+		height,
+		fps: state.project.settings.fps,
+		imageSmoothingQuality: "high",
+		runtime,
+	});
+	const scene = buildScene({
+		canvasSize: state.project.settings.canvasSize,
+		tracks: state.tracks,
+		mediaAssets,
+		derivedAssets: state.derivedAssets,
+		duration: totalDuration,
+		background: state.project.settings.background,
+		frameRate: state.project.settings.fps,
+	});
+	return {
+		renderer,
+		scene,
+		width,
+		height,
+	};
 }
 
 export async function inspectTimelineWithNodeRenderer({
@@ -61,23 +101,10 @@ export async function inspectTimelineWithNodeRenderer({
 	}
 	const frameCount = args.frameCount ?? (endTime === startTime ? 1 : 3);
 	const times = sampleTimes({ startTime, endTime, frameCount });
-	const { width, height } = state.project.settings.canvasSize;
-	const runtime = createNodeRendererRuntime();
-	const renderer = new CanvasRenderer({
-		width,
-		height,
-		fps: state.project.settings.fps,
-		imageSmoothingQuality: "high",
-		runtime,
-	});
-	const scene = buildScene({
-		canvasSize: state.project.settings.canvasSize,
-		tracks: state.tracks,
+	const { renderer, scene, width, height } = buildTimelineSceneRenderer({
+		state,
 		mediaAssets,
-		derivedAssets: state.derivedAssets,
-		duration: totalDuration,
-		background: state.project.settings.background,
-		frameRate: state.project.settings.fps,
+		totalDuration,
 	});
 	const sheet = createCanvas(width * times.length, height);
 	const sheetContext = sheet.getContext("2d");
@@ -112,6 +139,49 @@ export async function inspectTimelineWithNodeRenderer({
 		frameTimes: times,
 		canvasSize: { width, height },
 		sheetSize: { width: width * times.length, height },
+		totalDuration,
+	};
+}
+
+export async function exportTimelineFrameWithNodeRenderer({
+	state,
+	mediaAssets,
+	timeSeconds,
+	outputFile,
+}: {
+	state: ExecutorProjectState;
+	mediaAssets: MediaAsset[];
+	timeSeconds: number;
+	outputFile: string;
+}) {
+	const totalDuration = calculateTotalDuration({ tracks: state.tracks });
+	if (state.tracks.length === 0 || totalDuration <= 0) {
+		throw new Error("Cannot export a frame from an empty timeline.");
+	}
+	if (timeSeconds < 0) {
+		throw new Error("timeSeconds must be greater than or equal to 0.");
+	}
+	if (timeSeconds > totalDuration) {
+		throw new Error(
+			`timeSeconds must be less than or equal to total duration ${totalDuration}.`,
+		);
+	}
+	const { renderer, scene, width, height } = buildTimelineSceneRenderer({
+		state,
+		mediaAssets,
+		totalDuration,
+	});
+	await renderer.render({ node: scene, time: timeSeconds });
+	const png = canvasPngBuffer(renderer.canvas);
+	if (png.byteLength === 0) {
+		throw new Error("Timeline frame export produced an empty PNG.");
+	}
+	await writeFile(outputFile, png);
+	return {
+		outputFile,
+		byteLength: png.byteLength,
+		timeSeconds,
+		canvasSize: { width, height },
 		totalDuration,
 	};
 }

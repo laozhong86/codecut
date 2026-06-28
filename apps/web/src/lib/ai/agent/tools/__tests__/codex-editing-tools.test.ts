@@ -139,7 +139,11 @@ describe("Codex deterministic editing tools", () => {
 		expect(descriptions).toContain("does not support TTS");
 		expect(descriptions).toContain("BGM");
 		expect(descriptions).toContain("SFX");
-		expect(descriptions).toContain("image B-roll");
+		expect(descriptions).toContain("video or image B-roll");
+		expect(descriptions).toContain("independent controlled text overlays");
+		expect(descriptions).not.toContain(
+			"does not support TTS, BGM, SFX, image B-roll",
+		);
 	});
 
 	test("apply_edit_plan returns validation failures without mutating the timeline", () => {

@@ -13,12 +13,16 @@ const stageSkills = [
 	"codecut",
 	"codecut-requirement-intake",
 	"codecut-material-ingest",
+	"codecut-material-understanding",
 	"codecut-tiktok-downloader",
 	"codecut-reference-template",
 	"codecut-executor-apply",
+	"codecut-cover-generation",
+	"codecut-edit-planning",
 ];
 const requiredSections = [
 	"## Core Boundary",
+	"## Progressive Load Map",
 	"## Stage Ownership",
 	"## Inputs",
 	"## Outputs",
@@ -31,9 +35,32 @@ const expectedStageOwners = new Map([
 	["requirement-intake", ["codecut-requirement-intake"]],
 	["source-acquisition", ["codecut-material-ingest", "codecut-tiktok-downloader"]],
 	["material-ingest", ["codecut-material-ingest"]],
+	["material-understanding", ["codecut-material-understanding"]],
 	["reference-template", ["codecut-reference-template"]],
+	["edit-planning", ["codecut-edit-planning"]],
 	["executor-apply", ["codecut-executor-apply"]],
+	["cover-generation", ["codecut-cover-generation"]],
 ]);
+const supportingFileStages = [
+	"`router`",
+	"`requirement-intake`",
+	"`source-acquisition`",
+	"`material-ingest`",
+	"`material-understanding`",
+	"`reference-template`",
+	"`edit-planning`",
+	"`executor-apply`",
+	"`timeline-inspection`",
+	"`implementation`",
+];
+const successContractOutcomes = [
+	"Workspace ready",
+	"Timeline mutated",
+	"Local MP4 export produced",
+	"Human preview ready",
+	"Visual QA passed",
+	"Plugin-facing change ready",
+];
 
 function readProjectFile(...parts) {
 	return readFileSync(join(pluginRoot, ...parts), "utf8");
@@ -95,7 +122,7 @@ describe("CodeCut skill architecture v1 contract", () => {
 		}
 		expect(workflowContract).toContain("skill-local `.artifacts`");
 		expect(workflowContract).toMatch(
-			/must not\s+become the primary Codecut artifact path/,
+			/must not\s+become the primary CodeCut artifact path/,
 		);
 	});
 
@@ -123,7 +150,59 @@ describe("CodeCut skill architecture v1 contract", () => {
 			}
 		}
 		expect(workflowContract).toContain("Non-Skill Workflow Phases");
-		expect(workflowContract).toMatch(/not\s+loadable stage skills/);
+		expect(workflowContract).toContain(
+			"`evidence-build` is a Codex-side workflow phase",
+		);
+		expect(workflowContract).toContain("`codecut-material-understanding`");
+		expect(workflowContract).toContain("`codecut-edit-planning`");
+		expect(workflowContract).not.toMatch(
+			/`evidence-build` and `edit-planning` are Codex-side workflow phases/,
+		);
+		expect(workflowContract).not.toMatch(
+			/edit-planning` are Codex-side workflow phases/,
+		);
+	});
+
+	test("workflow contract defines the progressive supporting file map", () => {
+		const workflowContract = readProjectFile(
+			"skills",
+			"codecut",
+			"references",
+			"workflow-stage-contract.md",
+		);
+
+		expect(workflowContract).toContain("## Supporting File Map");
+		expect(workflowContract).toContain(
+			"| Capability / stage | Read first | Load detail when | Stop before continuing | Required readback | Verification proof |",
+		);
+		for (const stage of supportingFileStages) {
+			expect(workflowContract).toContain(stage);
+		}
+		expect(workflowContract).toContain("get_timeline_state");
+		expect(workflowContract).toContain("bun run plugin:freshness");
+	});
+
+	test("execution contract centralizes success contracts and readback proof", () => {
+		const executionContract = readProjectFile(
+			"skills",
+			"codecut",
+			"references",
+			"execution-contract.md",
+		);
+
+		expect(executionContract).toContain("## Success Contract Table");
+		expect(executionContract).toContain(
+			"| Outcome | Durable truth | Required readback | Stop before claiming success | Minimum proof |",
+		);
+		for (const outcome of successContractOutcomes) {
+			expect(executionContract).toContain(outcome);
+		}
+		expect(executionContract).toContain(
+			"Timeline readback and export proof are different contracts",
+		);
+		expect(executionContract).toContain("get_timeline_state");
+		expect(executionContract).toContain("export_project");
+		expect(executionContract).toContain("bun run plugin:freshness");
 	});
 
 	test("user-visible stage reports use the standard status shape", () => {
@@ -137,5 +216,35 @@ describe("CodeCut skill architecture v1 contract", () => {
 		for (const label of ["Stage:", "Status:", "Proof:", "Next:", "Risk:"]) {
 			expect(workflowContract).toContain(label);
 		}
+	});
+
+	test("router exposes material understanding before edit planning", () => {
+		const router = readProjectFile("skills", "codecut", "SKILL.md");
+		const openai = readProjectFile("skills", "codecut", "agents", "openai.yaml");
+		const manifest = readProjectFile("skills", "codecut", "manifest.yaml");
+
+		for (const content of [router, openai, manifest]) {
+			expect(content.toLowerCase()).toContain("material understanding");
+			expect(content).toContain("codecut-material-understanding");
+		}
+		expect(router).toContain("帮我理解素材");
+		expect(openai).toContain("script-to-material matching");
+		expect(manifest).toContain("Material understanding requests route");
+	});
+
+	test("router exposes methodology capture triggers at planning start, feedback time, and completion", () => {
+		const router = readProjectFile("skills", "codecut", "SKILL.md");
+		const planning = readProjectFile("skills", "codecut-edit-planning", "SKILL.md");
+		const executor = readProjectFile("skills", "codecut-executor-apply", "SKILL.md");
+
+		for (const content of [router, planning, executor]) {
+			expect(content).toContain("codecut-methodology-capture");
+			expect(content).toContain(".codecut-workspace/user-methodology");
+		}
+		expect(router).toContain("Opening a new planning pass");
+		expect(router).toContain("Project completion after timeline/export verification");
+		expect(router).toContain("刚才这里剪错了");
+		expect(executor).toContain("08-learning/methodology-proposal.md");
+		expect(planning).toContain("Current user instructions override stored methodology");
 	});
 });

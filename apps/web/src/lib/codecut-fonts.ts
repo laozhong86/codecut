@@ -1,43 +1,43 @@
-export const CODECUT_CJK_FONT_FAMILY = "CodecutCJK";
-export const CODECUT_YAN_BO_SONG_FONT_FAMILY = "CodecutYanBoSong";
-export const CODECUT_WEN_KAI_FONT_FAMILY = "CodecutWenKai";
-export const CODECUT_SMILEY_SANS_FONT_FAMILY = "CodecutSmileySans";
+import codecutFontManifest from "./codecut-fonts.json";
 
-export const CODECUT_LOCAL_FONT_PUBLIC_DIRECTORY = "/fonts/codecut-cjk";
+export const CODECUT_CJK_FONT_FAMILY = codecutFontManifest.cjkFontFamily;
+export const CODECUT_LOCAL_FONT_PUBLIC_DIRECTORY =
+	codecutFontManifest.publicDirectory;
 
-export const CODECUT_LOCAL_FONTS = [
-	{
-		family: CODECUT_YAN_BO_SONG_FONT_FAMILY,
-		label: "CodeCut YanBo Song",
-		fileName: "MaoKenWangYanBoSong-M.ttf",
-		licenseFileName: "MaoKenWangYanBoSong-OFL.txt",
-		sourceUrl: "https://www.maoken.com/freefonts/7911.html",
-	},
-	{
-		family: CODECUT_WEN_KAI_FONT_FAMILY,
-		label: "CodeCut WenKai",
-		fileName: "LXGWWenKai-Regular.ttf",
-		licenseFileName: "LXGWWenKai-OFL.txt",
-		sourceUrl: "https://github.com/lxgw/LxgwWenKai",
-	},
-	{
-		family: CODECUT_SMILEY_SANS_FONT_FAMILY,
-		label: "CodeCut Smiley Sans",
-		fileName: "SmileySans-Oblique.ttf",
-		licenseFileName: "SmileySans-OFL.txt",
-		sourceUrl: "https://github.com/atelier-anchor/smiley-sans",
-	},
-] as const;
+export const CODECUT_LOCAL_FONTS = codecutFontManifest.localFonts;
+export const CODECUT_FONTSOURCE_FONTS = codecutFontManifest.fontsourceFonts;
+
+export const CODECUT_YAN_BO_SONG_FONT_FAMILY = CODECUT_LOCAL_FONTS[0].family;
+export const CODECUT_WEN_KAI_FONT_FAMILY = CODECUT_LOCAL_FONTS[1].family;
+export const CODECUT_SMILEY_SANS_FONT_FAMILY = CODECUT_LOCAL_FONTS[2].family;
+export const CODECUT_EDITOR_CJK_FONT_FAMILY = CODECUT_YAN_BO_SONG_FONT_FAMILY;
+export const CODECUT_INTER_FONT_FAMILY = "Inter";
+export const CODECUT_MONTSERRAT_FONT_FAMILY = "Montserrat";
+export const CODECUT_OUTFIT_FONT_FAMILY = "Outfit";
+export const CODECUT_OSWALD_FONT_FAMILY = "Oswald";
+export const CODECUT_ARCHIVO_BLACK_FONT_FAMILY = "Archivo Black";
+export const CODECUT_LEAGUE_GOTHIC_FONT_FAMILY = "League Gothic";
+export const CODECUT_SPACE_MONO_FONT_FAMILY = "Space Mono";
+export const CODECUT_JETBRAINS_MONO_FONT_FAMILY = "JetBrains Mono";
+export const CODECUT_PLAYFAIR_DISPLAY_FONT_FAMILY = "Playfair Display";
+export const CODECUT_POPPINS_FONT_FAMILY = "Poppins";
 
 export type CodecutLocalFontFamily =
 	(typeof CODECUT_LOCAL_FONTS)[number]["family"];
+export type CodecutFontsourceFontFamily =
+	(typeof CODECUT_FONTSOURCE_FONTS)[number]["family"];
 
 export type CodecutRendererFontFamily =
 	| typeof CODECUT_CJK_FONT_FAMILY
-	| CodecutLocalFontFamily;
+	| CodecutLocalFontFamily
+	| CodecutFontsourceFontFamily;
 
 export function getCodecutLocalFontByFamily(fontFamily: string) {
 	return CODECUT_LOCAL_FONTS.find((font) => font.family === fontFamily);
+}
+
+export function getCodecutFontsourceFontByFamily(fontFamily: string) {
+	return CODECUT_FONTSOURCE_FONTS.find((font) => font.family === fontFamily);
 }
 
 export function isCodecutLocalFontFamily(
@@ -46,8 +46,18 @@ export function isCodecutLocalFontFamily(
 	return getCodecutLocalFontByFamily(fontFamily) !== undefined;
 }
 
+export function isCodecutFontsourceFontFamily(
+	fontFamily: string,
+): fontFamily is CodecutFontsourceFontFamily {
+	return getCodecutFontsourceFontByFamily(fontFamily) !== undefined;
+}
+
 export function isCodecutRendererFontFamily(
 	fontFamily: string,
 ): fontFamily is CodecutRendererFontFamily {
-	return fontFamily === CODECUT_CJK_FONT_FAMILY || isCodecutLocalFontFamily(fontFamily);
+	return (
+		fontFamily === CODECUT_CJK_FONT_FAMILY ||
+		isCodecutLocalFontFamily(fontFamily) ||
+		isCodecutFontsourceFontFamily(fontFamily)
+	);
 }

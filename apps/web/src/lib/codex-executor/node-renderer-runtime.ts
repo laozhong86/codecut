@@ -12,6 +12,7 @@ import type {
 	RendererVideoFrame,
 } from "@/services/renderer/runtime";
 import {
+	isCodecutFontsourceFontFamily,
 	isCodecutRendererFontFamily,
 	registerCodecutFontFamily,
 } from "./codecut-cjk-font";
@@ -388,12 +389,20 @@ class NodeVideoFrameCache {
 
 export function createNodeRendererRuntime(): RendererRuntime {
 	const videoFrameCache = new NodeVideoFrameCache();
+	const ensuredFontFamilies = new Set<string>();
 	return {
 		createCanvas: ({ width, height }) =>
 			createCanvas(width, height) as unknown as RendererCanvas,
 		ensureFontFamily: ({ fontFamily }) => {
-			if (isCodecutRendererFontFamily(fontFamily)) {
-				registerCodecutFontFamily({ fontFamily });
+			if (
+				isCodecutRendererFontFamily(fontFamily) &&
+				!ensuredFontFamilies.has(fontFamily)
+			) {
+				registerCodecutFontFamily({
+					fontFamily,
+					force: isCodecutFontsourceFontFamily(fontFamily),
+				});
+				ensuredFontFamilies.add(fontFamily);
 			}
 		},
 		loadImage: async ({ file, url }) => {

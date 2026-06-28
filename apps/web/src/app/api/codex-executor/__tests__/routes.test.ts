@@ -44,6 +44,41 @@ function request({
 	});
 }
 
+function confirmedSetupBody(
+	captionSize: "small" | "medium" | "large" = "large",
+) {
+	return {
+		version: 1,
+		taskType: "edit_execution",
+		confirmedAt: "2026-06-26T00:00:00.000Z",
+		source: "codecut_setup_confirmation",
+		timelinePreferences: {
+			aspectRatio: "9:16",
+			durationGoal: { mode: "auto" },
+			durationContract: {
+				totalDurationMode: "auto",
+				sourceCoverageMode: "selected_segments",
+				toleranceSeconds: 0.2,
+			},
+			transitionPreference: "auto",
+			generateIntroCover: true,
+			requirements: "Create a clear short video.",
+		},
+		captionPreferences: {
+			language: "auto",
+			font: "auto",
+			size: captionSize,
+			stylePreset: "product-punch",
+		},
+		exportPreferences: {
+			format: "mp4",
+			quality: "high",
+			includeAudio: true,
+		},
+		changes: [],
+	};
+}
+
 describe("codex executor API routes", () => {
 	let stateDir: string;
 	let previousStateDir: string | undefined;
@@ -118,6 +153,100 @@ describe("codex executor API routes", () => {
 			projectId: "project-1",
 			status: "succeeded",
 			tool: "get_project_info",
+		});
+	});
+
+	test("creates a project with confirmedSetup", async () => {
+		const confirmedSetup = confirmedSetupBody("large");
+		const createResponse = await postProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					projectId: "project-setup",
+					name: "Setup cut",
+					confirmedSetup,
+				},
+			}),
+		);
+		const commandResponse = await postCommands(
+			request({
+				url: `${origin}/api/codex-executor/commands`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					envelope: {
+						version: 1,
+						projectId: "project-setup",
+						source: "codex",
+						commands: [{ id: "cmd-1", tool: "get_project_info", args: {} }],
+					},
+				},
+			}),
+		);
+
+		expect(createResponse.status).toBe(200);
+		expect(await commandResponse.json()).toMatchObject({
+			results: [
+				{
+					success: true,
+					data: { confirmedSetup },
+				},
+			],
+		});
+	});
+
+	test("rejects invalid confirmedSetup caption size", async () => {
+		const invalidConfirmedSetup = {
+			...confirmedSetupBody("large"),
+			captionPreferences: {
+				...confirmedSetupBody("large").captionPreferences,
+				size: "huge",
+			},
+		};
+
+		const response = await postProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					projectId: "project-invalid-setup",
+					name: "Invalid setup",
+					confirmedSetup: invalidConfirmedSetup,
+				},
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: "Invalid executor project body.",
+		});
+	});
+
+	test("rejects invalid confirmedSetup task type", async () => {
+		const invalidConfirmedSetup = {
+			...confirmedSetupBody("large"),
+			taskType: "three_video_template",
+		};
+
+		const response = await postProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					projectId: "project-invalid-task-type",
+					name: "Invalid task type",
+					confirmedSetup: invalidConfirmedSetup,
+				},
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: "Invalid executor project body.",
 		});
 	});
 

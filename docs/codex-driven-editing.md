@@ -1,8 +1,23 @@
-# Codex-Driven Codecut Editing
+# CodeCut Current Execution Contract
 
-This workflow keeps all LLM and agent reasoning outside Codecut. Codex operates Codecut through deterministic local CLI/executor tools. The browser editor is for human preview, manual adjustment, and live status visibility. Codex owns user intent, clip selection, EditPlan creation, retries, and user communication.
+This document describes the current implemented execution contract for CodeCut's
+Codex-operated editing path. For product positioning, read
+`docs/codecut-product-positioning.md`. For the target Agent visual production
+architecture, read `docs/codecut-agent-visual-production-architecture.md`.
 
-## Product Boundary
+CodeCut's product positioning is `Codex + CapCut`: an Agent-driven visual video
+production system. This file covers the narrower runtime truth underneath that
+positioning: how Codex operates the current local executor, how plans are
+validated, how the timeline is mutated, how readback proves state, and how
+export is verified when requested.
+
+The current implementation keeps LLM and Agent reasoning outside CodeCut.
+Codex operates CodeCut through deterministic local CLI/executor tools. The
+browser editor is the human-visible production surface for preview, manual
+adjustment, and live status. Codex owns user intent, material judgment, clip
+selection, plan creation, retries, and user communication.
+
+## Current Runtime Boundary
 
 Codecut does:
 
@@ -23,7 +38,9 @@ Codecut does not:
 - Understand natural-language editing requests.
 - Generate, complete, guess, or repair an EditPlan.
 
-Codex is the only LLM and Agent layer. Codecut is the visual executor and validator.
+Codex is the only LLM and Agent layer in the current implementation. CodeCut
+is the visual editor, local timeline runtime, validator, and readback surface.
+This is an implementation boundary, not the product headline.
 
 For a user-visible stage map that separates requirement intake, material ingest,
 evidence building, planning, executor application, verification/export, and
@@ -75,16 +92,18 @@ source pack; unrelated jobs should get separate project IDs.
 Required pre-edit order for user-provided materials:
 
 1. Understand the user message and write intent analysis.
-2. Reserve a concrete `projectId` and business project name.
-3. Initialize the workspace with `scripts/codecut-workspace.mjs`.
+2. Call `open_codecut_workspace` with a concrete `projectId` and business
+   project name, then wait for `submit_codecut_setup`.
+3. Use the workspace index initialized by `submit_codecut_setup`; do not rerun
+   `scripts/codecut-workspace.mjs init` for that project.
 4. Copy provided files into categorized local folders.
 5. Run ffprobe material inventory for video/audio assets.
 6. Ask clarification questions with concrete choices and exactly one
    recommended option per question.
 7. Write workflow route, content breakdown, hook selection, script documents,
    decision ledger, and timeline restructure notes when they are relevant.
-8. Create the Codecut executor project only after the workspace is ready and the
-   user-facing editing direction is clear.
+8. Continue with the Codecut executor project returned by setup only after the
+   workspace index exists and the user-facing editing direction is clear.
 
 Workspace files are local evidence and planning artifacts. They are not Codecut
 timeline state and are excluded from git and plugin-cache sync.
@@ -110,7 +129,7 @@ P0 template ids:
 | `talking-head-short` | Talking-head cleanup, filler removal, short-form polish | transcript | `speech-cleanup-to-edit-plan-v1` |
 | `tutorial-demo` | Tutorial, software demo, step-by-step explanation | transcript, visual proof | `edit-plan-v1` |
 | `product-proof-ad` | UGC/product ad and conversion edit | transcript, visual proof, product facts | `edit-plan-v1` |
-| `narrated-broll` | Existing narration audio plus video B-roll remix | existing narration audio, video B-roll | `narrated-remix-v1` |
+| `narrated-broll` | Existing narration audio plus visual B-roll remix | existing narration audio, visual B-roll | `narrated-remix-v1` |
 
 Selection order:
 
@@ -123,7 +142,7 @@ material audit
   -> get_timeline_state readback
 ```
 
-If required evidence is missing, Codex must report the selected template and the missing evidence. It must not use another template as a downgrade path. Unsupported capabilities such as TTS, generic image B-roll or image cards outside 9:16, animated subtitle templates, arbitrary CSS, smart face crop, BGM/SFX inside narrated remix, and template effects must fail fast unless the current plan contract supports them.
+If required evidence is missing, Codex must report the selected template and the missing evidence. It must not use another template as a downgrade path. Unsupported capabilities such as TTS, animated subtitle templates, arbitrary CSS, smart face crop, BGM/SFX inside narrated remix, append mode, and template effects must fail fast unless the current plan contract supports them.
 
 ## Required Local Environment
 
@@ -145,6 +164,16 @@ export CODECUT_AGENT_BRIDGE_INTERVAL_MS="1000"
 ```
 
 Do not pass the token as a CLI flag. Do not commit local tokens or `.env` files. `apps/web/.env.local` is the supported local env file for this repo; do not infer bridge settings from the shell alone or from a repository-root `.env.local`. `CODECUT_AGENT_BRIDGE_*` is the only supported prefix; missing keys must fail fast instead of being inferred from legacy names.
+
+Provider-backed Volcengine OpenSpeech tools read the API key only from:
+
+```bash
+export VOLCENGINE_OPEN_SPEECH_API_KEY="<volcengine open speech api key>"
+```
+
+Do not pass the key as a CLI flag, MCP argument, request body field, or checked-in
+document. Volcengine ASR and subtitle tools accept only public `https://` audio
+or video URLs; local files are not uploaded implicitly.
 
 ## Local Web Service Gate
 
@@ -240,7 +269,7 @@ Before the first business bridge command, run:
 node scripts/codex-bridge.mjs doctor-install --project-id <id>
 ```
 
-`doctor-install` checks the source plugin, installed Codex plugin cache, source-to-cache sync state, `CODECUT_AGENT_BRIDGE_*` environment, the 4100 web service, and the executor project. It verifies that the token exists but never prints the token value. If `plugin_sync` fails, run `node scripts/sync-codex-local-plugin.mjs` from the plugin root, then rerun `doctor-install`.
+`doctor-install` checks the source plugin, installed Codex plugin cache, source-to-cache sync state, `CODECUT_AGENT_BRIDGE_*` environment, Node renderer support, Sharp/libvips native image support, the 4100 web service, and the executor project. It verifies that the token exists but never prints the token value. If `plugin_sync` fails, run `node scripts/sync-codex-local-plugin.mjs` from the plugin root, then rerun `doctor-install`. If `sharp_libvips` fails, fix the local dependency install before visual inspection, export-frame extraction, or quality-report work.
 
 Then run the executor readiness check:
 
@@ -321,7 +350,6 @@ Codex sends exactly one editing plan format to Codecut:
       | "talking-head-pop"
       | "tutorial-clean"
       | "documentary-soft"
-      | "property-clean-yellow"
       | "product-punch"
       | "lifestyle-warm"
       | "cinematic-serif"
@@ -329,7 +357,6 @@ Codex sends exactly one editing plan format to Codecut:
       | "comment-bubble"
       | "minimal-reel",
     position: "lower-safe" | "center",
-    size: "small" | "medium" | "large",
     motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce"
   },
   audio?: {
@@ -359,7 +386,14 @@ Codex sends exactly one editing plan format to Codecut:
       | "slide-up"
       | "slide-down"
       | "zoom-in"
-      | "zoom-out",
+      | "zoom-out"
+      | "blur-crossfade"
+      | "flash-white"
+      | "push-soft"
+      | "whip-pan-left"
+      | "whip-pan-right"
+      | "cinematic-zoom"
+      | "chromatic-split",
     duration: number
   }>,
   rationale: string
@@ -389,9 +423,8 @@ When `captions` contains one or more items, Codex must include
 `captionStyle`. When `captions` is empty or omitted, `captionStyle` must be
 omitted. Caption styling is intentionally limited to top-level local presets:
 `creator-clean`, `short-form-bold`, `black-bar`, `talking-head-pop`,
-`tutorial-clean`, `documentary-soft`, `property-clean-yellow`,
-`product-punch`, `lifestyle-warm`, `cinematic-serif`, `social-highlight`,
-`comment-bubble`, and `minimal-reel`.
+`tutorial-clean`, `documentary-soft`, `product-punch`, `lifestyle-warm`, and
+`cinematic-serif`, `social-highlight`, `comment-bubble`, and `minimal-reel`.
 Codecut does not accept arbitrary CSS, per-caption style
 objects, arbitrary `fontFamily`, `fontSize`, or `color` fields,
 `bold_caption`, `keyword_caption`, or `keyword-highlight` in this contract.
@@ -405,9 +438,6 @@ quality before adding motion or high-contrast effects. Use `richSpans` for at
 most one key phrase per sentence; do not turn every caption into a decorative
 style effect. Commercial fonts from source references are style references
 only unless redistribution rights are provided.
-`captionStyle.size` is required and must be exactly `small`, `medium`, or
-`large`; it maps to controlled renderer multipliers instead of arbitrary pixel
-font sizes.
 
 Caption quality is part of validation, post-cut caption generation,
 `add_captions`, and the read-only video quality report. Captions must not
@@ -420,20 +450,23 @@ display text. For short-form generated captions, strip trailing full stops,
 commas, colons, semicolons, and enumeration punctuation after chunking; keep
 question marks and exclamation marks, and preserve punctuation inside numeric
 values such as decimals and thousands separators.
-`build_video_quality_report` also checks `captionStyle.visualFootprint` for
-9:16 outputs: a caption text element over 16% of canvas height or with stroke
-over 7px fails; over 13% height warns.
 
 Caption timing must declare a post-cut caption source. Prefer edited audio transcription
 from edited clip ranges through `build-post-cut-captions`: apply a clip-only
 EditPlan first, run `build-post-cut-captions`, copy the returned captions into
-the final EditPlan with `captionStyle` including required `size`, then apply
-the final EditPlan. If that path is not available, use source transcript remap:
-convert source transcript segment timestamps into output timeline timestamps
-through the selected `clips[]`. Do not copy source transcript timestamps directly into
+the final EditPlan with `captionStyle`, then apply the final EditPlan. If that
+path is not available, use source transcript remap: convert source transcript
+segment timestamps into output timeline timestamps through the selected
+`clips[]`. Do not copy source transcript timestamps directly into
 `captions[].startTime`.
 Do not replace this flow with rewritten summary captions or external subtitle
-burn-in. The final proof must be text elements in the Codecut timeline.
+burn-in. If the user explicitly provides an SRT or ASS file, use the
+controlled `import_subtitles` path instead: require an absolute `filePath`,
+explicit `format`, `trackName`, `captionStyle`, and a confirmation token. SRT
+must be strict SubRip timed text; ASS is limited to the strict timed-text
+subset and rejects unsupported style, override, effect, margin, positioning,
+karaoke, drawing, and non-allowlisted event fields before mutation. The final
+proof must be editable text elements in the Codecut timeline.
 
 Caption preset routing:
 
@@ -442,8 +475,7 @@ Caption preset routing:
 - `talking-head-pop`: vertical opinion or creator talking-head clips.
 - `tutorial-clean`: screen recording, tutorial, product walkthrough, or demo.
 - `documentary-soft`: calmer narrative, interview, essay, or YouTube-style edit.
-- `property-clean-yellow`: real-estate talking-head, property listing, floor-plan, home-tour, or information-dense product explanation.
-- `product-punch`: strong promotion, deal hook, before/after, UGC ad, or comparison demo.
+- `product-punch`: product proof, UGC ad, deal hook, or comparison demo.
 - `lifestyle-warm`: vlog, Xiaohongshu-style lifestyle, travel, food, or daily routine.
 - `cinematic-serif`: brand story, fashion, emotional montage, or premium product film.
 - `social-highlight`: TikTok/Reels keyword-highlight style for fast social hooks.
@@ -455,6 +487,10 @@ Caption preset routing:
 `title.stylePreset` is optional. If omitted, Codecut keeps the existing default
 text behavior. If present, it must be `hook_title`, `lower_title`,
 `social_hook`, `product_badge`, or `chapter_bumper`.
+Title presets resolve to controlled local renderer styles. Chinese-safe title
+routes continue to use curated local CJK fonts; high-impact Latin title routes
+use curated `@fontsource` fonts such as Outfit, Archivo Black, Montserrat, and
+JetBrains Mono. Do not send arbitrary title font fields in EditPlan.
 
 `title.motionPreset` and `captionStyle.motionPreset` are optional. If present,
 they must be `slam-in`, `soft-reveal`, or `pop-bounce`. Codecut resolves these
@@ -505,7 +541,19 @@ timeline second and is truncated at the timeline end if needed.
 `fromClipId` and `toClipId` refer to `clips[].id`, not timeline element IDs.
 The two clips must be adjacent within `0.05s`, and the transition duration must
 not exceed either neighboring clip duration. Invalid transitions fail the plan;
-Codecut does not move clips to make them valid.
+Codecut does not move clips to make them valid. Transition `type` must be one
+of the implemented native transition names in the schema above; do not use
+keyframes, Shader, WebGL, CSS, or arbitrary effect names to satisfy a
+transition request.
+
+Native transition routing:
+
+- Talking-head, opinion, and interview shorts: `blur-crossfade` or `push-soft`.
+- Product proof and UGC ads: `flash-white` or `cinematic-zoom`.
+- Emotional, cinematic, or premium edits: `blur-crossfade`.
+- Tutorial, demo, and screen walkthrough: `push-soft`.
+- High-energy launch, sports, music, or promo: `chromatic-split`,
+  `whip-pan-left`, or `whip-pan-right` when source motion supports it.
 
 `clips[].fit` currently supports only `cover`. Use it when a horizontal source
 must fill a vertical or square canvas without letterboxing. Cover fit requires a
@@ -578,8 +626,8 @@ Rules:
 - After the clip-only cleanup plan is applied, call `build_post_cut_captions`
   or the equivalent `build-post-cut-captions` CLI path to rebuild captions from
   the edited timeline audio. Copy the returned `captions` and `captionStyle`
-  including `size` into the final EditPlan, then apply that final plan. Do not
-  reuse source captions when edited audio transcription is available.
+  into the final EditPlan, then apply that final plan. Do not reuse source
+  captions when edited audio transcription is available.
 
 The cleanup report is an execution artifact. It is not persisted in project
 storage in the first implementation phase.
@@ -593,26 +641,27 @@ P1 supports only:
 
 - already imported narration audio;
 - already imported video B-roll assets;
-- already imported image card assets for 9:16 narrated card beats;
-- editable image card text fields for `title`, `info`, and `bottomText`;
-- captions built from the applied narration timeline through post-cut audio timing;
+- already imported image B-roll assets;
+- optional editable text overlays as independent timed `TextElement`s with
+  controlled style fields;
+- captions authored by Codex;
 - full timeline replacement after validation.
 
 P1 does not support:
 
 - TTS or speech generation fields;
 - BGM, SFX, or generated audio;
-- generic image B-roll without card text;
-- image cards outside `target.aspectRatio: "9:16"`;
 - partial append mode;
 - visual effects or template effects.
 
 Product gap note: business copy that must be revised later, such as real-estate
 price, title, region, layout, and bottom selling point, must not be pre-rendered
-into a derived slideshow video by default. Use image card beats so those fields
-remain editable `TextElement`s in the timeline. One-time rendered videos are
-allowed only as explicitly documented runtime-gap fallbacks, and the limitation
-must be recorded in the project verification artifact.
+into a derived slideshow video by default. Use top-level `textOverlays` only
+when those fields are needed so they remain editable `TextElement`s in the
+timeline. Text overlays are timed independently from image and video beats. If
+the user asks for no extra on-screen text, omit `textOverlays`. One-time
+rendered videos are allowed only as explicitly documented runtime-gap fallbacks,
+and the limitation must be recorded in the project verification artifact.
 
 ```ts
 {
@@ -640,11 +689,6 @@ must be recorded in the project verification artifact.
         timelineStart: number,
         duration: number,
         fit: "cover",
-        cardText: {
-          title: string,
-          info: string,
-          bottomText: string
-        },
         reason: string
       }
   >,
@@ -652,47 +696,40 @@ must be recorded in the project verification artifact.
     mediaId: string,
     sourceStart: number
   },
-  captions?: Array<{
+  textOverlays?: Array<{
+    name: string,
+    text: string,
+    startTime: number,
+    duration: number,
+    fontSize: number,
+    color: string,
+    backgroundColor?: string,
+    backgroundOpacity?: number,
+    backgroundPaddingX?: number,
+    backgroundPaddingY?: number,
+    backgroundBorderRadius?: number,
+    boxWidth: number,
+    position: { x: number, y: number },
+    textAlign: "left" | "center" | "right",
+    fontWeight: "normal" | "bold"
+  }>,
+  captions: Array<{
     text: string,
     startTime: number,
     duration: number
   }>,
-  captionStyle?: {
+  captionStyle: {
     preset:
+      | "creator-clean"
       | "short-form-bold"
       | "black-bar"
       | "talking-head-pop"
       | "tutorial-clean"
       | "documentary-soft"
-      | "property-clean-yellow"
       | "product-punch"
       | "lifestyle-warm"
-      | "cinematic-serif"
-      | "social-highlight"
-      | "comment-bubble"
-      | "minimal-reel",
-    position: "lower-safe" | "center",
-    size: "small" | "medium" | "large",
-    motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce"
-  },
-  captionSource?: {
-    type: "post-cut-audio",
-    tool: "build-post-cut-captions",
-    source: "edited_video_clip_audio" | "edited_timeline_audio" | "scripted_tts_audio",
-    trace: Array<{
-      mediaId: string,
-      timelineStart: number,
-      sourceStart: number,
-      sourceEnd: number,
-      captionCount: number
-    }>,
-    voiceConsistency?: {
-      provider: "imported-tts" | "runninghub-voice-design" | "runninghub-voice-clone",
-      providerTaskId?: string,
-      alignmentMethod: "scripted_captions_to_asr_segments",
-      scriptCaptionLineCount: number,
-      protectedTermCount: number
-    }
+      | "cinematic-serif",
+    position: "lower-safe" | "center"
   },
   rationale: string
 }
@@ -708,34 +745,31 @@ Validation is all-or-nothing:
   `sourceEnd > sourceStart`.
 - every image beat must use `mediaType: "image"`, `fit: "cover"`, and an
   imported image asset with known width and height.
-- image beats are allowed only when `target.aspectRatio` is `"9:16"`.
-- image beat `cardText.title`, `cardText.info`, and `cardText.bottomText` are
-  required non-empty editable copy fields.
+- image beats never own text overlay fields.
+- top-level `textOverlays`, when present, must fit inside
+  `target.durationSec` and use controlled local `TextElement` style fields;
+  arbitrary CSS is not accepted.
 - visual beats must be continuous from `0` with no gaps or overlaps.
 - total visual beat duration must equal `target.durationSec`.
 - captions must fit inside `target.durationSec`.
-- a first-pass plan may omit `captions`, `captionStyle`, and `captionSource`.
-- when `captions` are present, `captionStyle` and `captionSource` are required.
-- `captionSource.type` must be `post-cut-audio`, `captionSource.tool` must be
-  `build-post-cut-captions`, and the sum of `trace[].captionCount` must equal
-  `captions.length`.
+- captions require top-level `captionStyle`.
 - unknown fields such as `generateSpeech`, `text`, or `voiceId` fail schema
   validation.
 
 When applied, Codecut replaces the timeline with:
 
-- one video track containing muted video B-roll clips and image card elements;
+- one video track containing muted video B-roll clips and image elements;
 - one audio track containing the narration audio;
-- one `Card Text` text track containing editable image card copy when image
-  beats are present;
+- one `Text Overlays` text track when the plan includes top-level
+  `textOverlays`;
 - one `Captions` text track containing narration captions only.
 
 After application, Codex must verify `get_timeline_state` proof fields:
 
 - video elements expose `visual.muted`;
 - image elements expose `mediaId`, timing, and `visual.transform`;
-- card text elements expose `content` in the `Card Text` track and can be
-  revised through text element property mutation without regenerating media;
+- text overlay elements expose `content` in the `Text Overlays` track and can
+  be revised through text element property mutation without regenerating media;
 - audio elements expose `audio.sourceType`, `audio.volume`, and `audio.muted`;
 - track-level `muted` and `hidden` fields are present when the track type
   supports them.
@@ -768,7 +802,7 @@ After application, Codex must verify `get_timeline_state` proof fields:
 13. Codex calls `list_media_assets` to inspect available media.
 14. Codex selects the target media asset for editing.
 15. Codex calls `transcribe_media` for that media asset when the selected outcome needs transcript evidence.
-16. Codex audits material facts: transcript, visual proof, product facts, existing narration audio, and video B-roll.
+16. Codex audits material facts: transcript, visual proof, product facts, existing narration audio, and visual B-roll.
 17. Codex resolves one P0 video template or reports why no implemented template can satisfy the request.
 18. Codex calls `build_video_context` for transcript-first planning when a long
    source video needs structured context.
@@ -791,13 +825,7 @@ After application, Codex must verify `get_timeline_state` proof fields:
     is required.
 25. For EditPlan templates with captions, Codex runs
     `build-post-cut-captions`, then writes those returned captions into the
-    final EditPlan with the matching `captionStyle`, including the selected
-    `captionStyle.size`.
-    For `narrated-broll`, apply a first-pass NarratedRemixPlan without
-    captions, run `build-post-cut-captions` from the resulting narration
-    timeline, then apply a final NarratedRemixPlan containing `captions`,
-    `captionStyle`, and `captionSource` built from the returned `source`,
-    `trace`, and optional `voiceConsistency`.
+    final EditPlan with the matching `captionStyle`.
 26. Codex calls `apply_edit_plan` or `apply_narrated_remix_plan` with the final
     strict plan.
 27. Codex calls `verify-timeline`, `get_timeline_state`, and
@@ -812,14 +840,26 @@ After application, Codex must verify `get_timeline_state` proof fields:
     contact sheet. It must report OCR, face detection, subject-safe crop, and
     burned-caption detection as unavailable or conservative unknown unless a
     later tool returns those facts explicitly.
-28. Codex writes verification notes under `06-verification/`.
-29. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
-30. Before any long render or MP4 export, Codex reruns `doctor-install` and
+28. Codex inspects the timeline contact sheet and records a visual QA verdict
+    under `.codecut-workspace/projects/<projectId>/06-verification/visual-qa/<runId>/`.
+    `inspect_timeline` and `build-video-quality-report` generate evidence only;
+    they are not a visual pass by themselves.
+29. Codex writes verification notes under `06-verification/`.
+30. Codex keeps the opened editor URL available so the user can preview the result or ask for another revision.
+31. Before any long render or MP4 export, Codex reruns `doctor-install` and
     `doctor` so source, installed plugin cache, bridge env, and executor
     readiness are fresh before expensive work begins.
-31. If export is requested, Codex calls `export` with explicit output path and
+32. If export is requested, Codex calls `export` with explicit output path and
     overwrite policy. If the local renderer runtime is unavailable, report that
     runtime gap.
+    For a still-frame export, Codex calls `export-timeline-frame` with explicit
+    `--time-seconds`, `--format png`, output path, and overwrite policy.
+33. After MP4 export, Codex samples the final exported MP4 with
+    `codecut-workspace extract-export-frames`, inspects the export contact
+    sheet, compares it against the timeline contact sheet, and records the
+    final visual QA verdict with `codecut-workspace record-visual-qa`.
+    Timeline frames prove editor state; exported MP4 frames prove the delivered
+    file. They cannot substitute for each other.
 
 ```bash
 node scripts/codex-bridge.mjs build-visual-context \
@@ -834,18 +874,21 @@ When the request includes one absolute local media file and a concrete target su
 
 1. Reserve a readable `projectId` and business project name.
 2. Call `open_codecut_workspace` with the known setup fields and wait for
-   `submit_codecut_setup` to return the confirmed setup token.
-3. Initialize `.codecut-workspace/projects/<projectId>` with
-   `--confirmation-token <token>`.
+   `submit_codecut_setup` to create the executor project, initialize the
+   workspace index, and return the confirmed setup token.
+   If the widget created the project but the Codex thread did not receive the
+   follow-up prompt, call `recover_codecut_setup` with that `projectId` and the
+   original `pendingConfirmationId` before opening another setup widget.
+3. Verify `.codecut-workspace/projects/<projectId>/workspace.json` exists from
+   setup. Do not rerun `codecut-workspace init`.
 4. Add the local file with `codecut-workspace add-assets
    --confirmation-token <token>`.
 5. Run `codecut-workspace probe-assets --confirmation-token <token>`.
 6. Ask any missing clarification questions with choices and one recommended option.
 7. Write workflow route, content breakdown, hook selection, and timeline restructure notes with the confirmed setup token.
 8. Confirm the local Codecut service is ready.
-9. Create the executor project with the same `projectId`, immediately open the
-   returned `editorUrl` in the Codex in-app browser, then run `doctor-install`
-   and `doctor`.
+9. Open the returned `editorUrl` in the Codex in-app browser, then run
+   `doctor-install` and `doctor`.
 10. Apply explicit project settings for vertical/square output.
 11. Import the local file with the confirmed setup token.
 12. List media and select the imported audio/video asset.
@@ -871,6 +914,13 @@ Do not spend the first turn auditing all skill references. Read only the workflo
 After `open_codecut_workspace` and `submit_codecut_setup` return a confirmed
 setup token, initialize the local pre-edit workspace before editing execution:
 
+If the widget submit path consumed the pending confirmation but the follow-up
+message did not reach the Codex thread, recover the same confirmed setup first:
+
+```text
+recover_codecut_setup(projectId: "<id>", pendingConfirmationId: "ccpending_...")
+```
+
 ```bash
 node scripts/codecut-workspace.mjs init \
   --project-id <id> \
@@ -878,6 +928,19 @@ node scripts/codecut-workspace.mjs init \
   --user-message "<original user request>" \
   --confirmation-token <token>
 ```
+
+Workspace initialization also ensures the local private methodology store
+exists:
+
+```text
+.codecut-workspace/user-methodology/profile.md
+.codecut-workspace/user-methodology/rules.md
+.codecut-workspace/user-methodology/feedback-log.md
+```
+
+At the start of edit planning, read those files when present. They are
+read-only context; the current user request always overrides stored
+methodology.
 
 Copy and classify local materials:
 
@@ -906,6 +969,30 @@ node scripts/codecut-workspace.mjs write-doc \
   --content-file /absolute/path/workflow-route.md \
   --confirmation-token <token>
 ```
+
+After verified timeline/export completion, create the project learning proposal:
+
+```bash
+node scripts/codecut-workspace.mjs write-doc \
+  --project-id <id> \
+  --kind methodology-proposal \
+  --content-file /absolute/path/methodology-proposal.md \
+  --confirmation-token <token>
+```
+
+Only after explicit user confirmation, record accepted learning:
+
+```bash
+node scripts/codecut-workspace.mjs write-doc \
+  --project-id <id> \
+  --kind methodology-accepted-updates \
+  --content-file /absolute/path/accepted-updates.md \
+  --confirmation-token <token>
+```
+
+Confirmed long-term preferences belong only in
+`.codecut-workspace/user-methodology/`. Do not write private editing
+preferences into `skills/**`, `docs/**`, plugin manifests, or installed cache.
 
 Check that the local executor is ready before sending business commands:
 
@@ -953,7 +1040,19 @@ templates only after explicit confirmation:
 node scripts/codex-bridge.mjs import-system-template-script \
   --project-id <id> \
   --template-json-file /absolute/path/local-template-script.json \
-  --confirmed-by-user true
+	  --confirmed-by-user true
+```
+
+Read browser-local Codecut system template scripts only after opening the
+editor URL for one project so the browser bridge is mounted. These reads do not
+mutate templates or timelines; system template scripts remain planning data and
+do not replace EditPlan validation or timeline readback:
+
+```bash
+node scripts/codex-bridge.mjs send \
+  --project-id <id> \
+  --tool list_system_template_scripts \
+  --args-json '{}'
 ```
 
 Transcribe an existing imported media asset:
@@ -1004,8 +1103,7 @@ node scripts/codex-bridge.mjs build-post-cut-captions \
 ```
 
 `build_post_cut_captions` is also exposed as a Codex Agent tool with the same
-`language` and `modelId` inputs plus an optional full `captionStyle` containing
-`preset`, `position`, and `size`. The tool reads the current timeline,
+`language` and `modelId` inputs. The tool reads the current timeline,
 transcribes each unmuted edited video or uploaded-audio clip range from
 `trimStart` to `trimEnd`, and offsets the returned segments into output
 timeline time. It returns caption items, a recommended `captionStyle`,
@@ -1017,8 +1115,29 @@ that case the response also includes a `voiceConsistency` summary without raw
 script text or protected term values. Codex must copy those captions into the
 final EditPlan and apply that plan.
 
-RunningHub voice generation can bind protected terms to the generated audio
-asset:
+Import an explicit user-supplied subtitle file as editable text captions:
+
+```bash
+node scripts/codex-bridge.mjs import-subtitles \
+  --project-id <id> \
+  --file-path /absolute/path/subtitles.srt \
+  --format srt \
+  --track-name "Imported subtitles" \
+  --caption-style-json '{"preset":"creator-clean","position":"lower-safe"}' \
+  --confirmation-token <token>
+```
+
+`import_subtitles` is also exposed as a Codex Agent tool with the same
+`filePath`, `format`, `trackName`, and `captionStyle` inputs. It creates one
+new text track and returns `sourceFormat`, `captionCount`, `createdTrackId`,
+`createdElementIds`, `captionQuality`, and `revision`. It is not free-form
+subtitle compatibility, FFmpeg burn-in, or an EditPlan replacement path. After
+success, call `get_timeline_state` and prove the created captions' content,
+timing, duration, and resolved style.
+
+RunningHub and Volcengine voice generation can bind protected terms to the
+generated audio asset. Volcengine uses an existing `voice_type`; it does not
+train a new voice:
 
 ```bash
 node scripts/codex-bridge.mjs generate-runninghub-voice-design \
@@ -1028,10 +1147,23 @@ node scripts/codex-bridge.mjs generate-runninghub-voice-design \
   --protected-term "$2.34"
 ```
 
+```bash
+node scripts/codex-bridge.mjs generate-volcengine-cloned-voice \
+  --project-id <id> \
+  --voice-type "<existing voice_type>" \
+  --text "approved narration script" \
+  --protected-term "BrandName"
+```
+
 The generated media asset stores sanitized `spokenScript` metadata with the
 provider and task id. `list_media_assets`, referenced media readback, and
 quality reports expose counts and provider identifiers, not the raw script or
 protected term text.
+
+Volcengine public URL transcript and subtitle generation are exposed as MCP
+tools `transcribe_volcengine_url` and `build_volcengine_url_captions`. They
+return transcript/caption data only and do not mutate the timeline; use
+`add_texts`, `add_captions`, or an EditPlan path to place returned captions.
 
 Apply a local EditPlan file:
 
@@ -1117,6 +1249,52 @@ rubric file such as `{"platform":"youtube","primaryKeyword":"retention"}`.
 Export probe runs only when Codex provides `--output-file`, `--format`, and
 `--include-audio` for an already exported local file.
 
+Record visual QA after inspecting the timeline contact sheet:
+
+```bash
+node scripts/codecut-workspace.mjs record-visual-qa \
+  --project-id <id> \
+  --run-id qa-YYYYMMDD-HHMMSS \
+  --verdict-json-file /absolute/path/visual-qa-verdict.json \
+  --confirmation-token <token>
+```
+
+`record-visual-qa` validates `visual-qa-verdict.json`, copies the timeline
+contact sheet to
+`.codecut-workspace/projects/<projectId>/06-verification/visual-qa/<runId>/timeline-contact-sheet.png`,
+and writes both `visual-qa-verdict.json` and `visual-qa-verdict.md`. The verdict
+must include:
+
+- timeline contact sheet path, frame count, sampled timestamps, and pass/fail;
+- issues found and whether each issue was fixed;
+- all required checks: `first_frame_not_black`, `title_not_clipped`,
+  `text_layers_not_overlapping`, `subject_not_cropped_by_cover`,
+  `bottom_safe_area_clear`, `ending_normal`, and
+  `export_matches_timeline_preview`.
+  `export_matches_timeline_preview` may be `not_applicable` only when no MP4
+  export was requested; the final report must then state that no MP4 was
+  produced.
+
+After MP4 export, sample the final delivered file:
+
+```bash
+node scripts/codecut-workspace.mjs extract-export-frames \
+  --project-id <id> \
+  --run-id qa-YYYYMMDD-HHMMSS \
+  --export-file /absolute/path/final.mp4 \
+  --start-time 0 \
+  --end-time <duration-seconds> \
+  --frame-count 8 \
+  --confirmation-token <token>
+```
+
+`extract-export-frames` writes `export-contact-sheet.png`,
+`export-frames-manifest.json`, and individual exported MP4 frames under the
+same `06-verification/visual-qa/<runId>/` directory. Codex must inspect this
+contact sheet before recording the final MP4 verdict. A timeline contact sheet
+cannot prove the exported file, and an exported-file contact sheet cannot prove
+current editor state.
+
 Create a text-background masked effect from an existing person-mask derived asset:
 
 ```bash
@@ -1148,7 +1326,7 @@ node scripts/codex-bridge.mjs rename-project --project-id <id> --name "<business
 node scripts/codex-bridge.mjs delete-project --project-id <id>
 ```
 
-Export after review:
+Export after timeline visual QA passes:
 
 ```bash
 node scripts/codex-bridge.mjs export \
@@ -1163,6 +1341,25 @@ node scripts/codex-bridge.mjs export \
 `export` is executor-native and writes only to the local `--output-file`. It
 does not trigger browser download. If the current server runtime lacks a
 Node-compatible renderer, the command fails fast and reports that runtime gap.
+Export success is not final delivery success. After export, run
+`codecut-workspace extract-export-frames`, inspect the final MP4 contact sheet,
+and update the visual QA verdict before reporting completion.
+
+Export one composed timeline frame as a PNG file:
+
+```bash
+node scripts/codex-bridge.mjs export-timeline-frame \
+  --project-id <id> \
+  --time-seconds 1.25 \
+  --format png \
+  --output-file /absolute/path/frame.png \
+  --overwrite false \
+  --confirmation-token <token>
+```
+
+`export-timeline-frame` is executor-native and writes only to the local
+`--output-file`. It does not trigger browser download and does not replace
+`inspect_timeline` contact sheets or a recorded visual QA verdict.
 
 Before running this command for a long render, rerun:
 
@@ -1186,10 +1383,25 @@ Do not start the render if either freshness gate fails.
 - If `verify_timeline` fails, Codex must inspect the returned mismatch fields and correct the plan or verification JSON. Do not treat a failed verification as success because `apply_edit_plan` completed.
 - If the timeline is not empty, Codex must pass `replaceExisting=true` only when replacing the current cut is intentional.
 - If BGM/SFX is requested, Codex must import or select valid audio assets before writing the EditPlan. Missing or non-audio assets must stop the workflow.
-- If TTS, generic image B-roll, image cards outside 9:16, BGM, or SFX is requested for narrated remix, stop and report that the current `NarratedRemixPlan v1` path only supports existing narration audio, video B-roll, 9:16 editable image cards, and captions.
+- If provider-backed voice generation fails, report it as an external voice gate
+  and stop before timeline mutation. A display name such as a sound-library label
+  is not a substitute for an executable provider `voice_type` or a local
+  reference audio path.
+- If TTS, BGM, SFX, append mode, arbitrary CSS, or visual effects are requested for narrated remix, stop and report that the current `NarratedRemixPlan v1` path only supports existing narration audio, video or image B-roll, optional independent controlled text overlays, and captions.
 - If transitions are requested, Codex must generate adjacent clip timings before applying the EditPlan. Do not rely on Codecut to reposition clips.
+- A transition request is complete only after readback shows native
+  `TrackTransition` state: `get_timeline_state.summary.transitionCount`
+  must match the expected count or be greater than zero for open-ended
+  transition requests, and the target video track's `transitions[]` must expose
+  the expected `type`, `duration`, `fromElementId`, and `toElementId`.
+- When using `verify_timeline` for a transition request, include
+  `transitionCount` in the verification JSON. Do not accept duration, caption,
+  audio, or media-only verification as transition completion.
+- `set_keyframes` can implement visual motion such as fade, push, pull, zoom,
+  or opacity animation, but it is not a native transition and must not be
+  reported as a completed transition.
 - If a masked effect is requested, Codex must verify `get_timeline_state` exposes a matching `derivedAssets[]` person-mask entry before calling the effect action.
 - If `create_text_background_effect` or `create_human_pip_effect` fails, fix the media or derived-asset input. Do not simulate the effect with unrelated low-level timeline tools.
 - If export fails with the Node-compatible renderer runtime gap, report that blocker. Do not use browser download as a fallback.
 
-`generate_captions` is not part of the Codex-only MVP automation path. Captions in this workflow come from the Codex-authored EditPlan and are applied by `apply_edit_plan`.
+`generate_captions` is not part of the Codex-only MVP automation path. Captions in this workflow come from the Codex-authored EditPlan and are applied by `apply_edit_plan`; user-supplied SRT/ASS files use only the controlled `import_subtitles` exception and must be verified with timeline readback.

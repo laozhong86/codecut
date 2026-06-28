@@ -39,6 +39,7 @@ describe("verify Codecut widget intake thread", () => {
 			disallowedShellCallCount: 0,
 			disallowedFileChangeCount: 0,
 			textFallbackCount: 0,
+			followUpMessageCount: 0,
 		});
 	});
 
@@ -113,6 +114,64 @@ describe("verify Codecut widget intake thread", () => {
 		).toThrow(
 			"Codecut widget intake regressed: expected exactly one open_codecut_workspace call, found 2.",
 		);
+	});
+
+	test("fails when setup follow-up is required but no continuation message is visible", () => {
+		expect(() =>
+			assertWidgetIntakeThread({
+				threadId: "thread-missing-follow-up",
+				requireFollowUp: true,
+				records: [
+					{
+						type: "turn",
+						items: [
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "open_codecut_workspace",
+							},
+						],
+					},
+				],
+			}),
+		).toThrow(
+			"Codecut setup follow-up was not proven: missing visible continuation user message.",
+		);
+	});
+
+	test("passes when setup follow-up is required and a continuation message is visible", () => {
+		const report = assertWidgetIntakeThread({
+			threadId: "thread-follow-up",
+			requireFollowUp: true,
+			records: [
+				{
+					type: "turn",
+					items: [
+						{
+							type: "mcpToolCall",
+							server: "codecut_mcp",
+							tool: "open_codecut_workspace",
+						},
+					],
+				},
+				{
+					type: "turn",
+					items: [
+						{
+							type: "userMessage",
+							content: [
+								{
+									type: "text",
+									text: "Use $codecut to continue the real CodeCut editing chain for project demo. Use --confirmation-token ccconfirmed_demo.",
+								},
+							],
+						},
+					],
+				},
+			],
+		});
+
+		expect(report.followUpMessageCount).toBe(1);
 	});
 
 	test("reads Codex JSONL records and finds a thread session file", async () => {
@@ -192,10 +251,13 @@ describe("verify Codecut widget intake thread", () => {
 				"thread-abc",
 				"--session-file",
 				"/tmp/thread.jsonl",
+				"--require-follow-up",
+				"true",
 			]),
 		).toEqual({
 			threadId: "thread-abc",
 			sessionFile: "/tmp/thread.jsonl",
+			requireFollowUp: "true",
 		});
 	});
 });

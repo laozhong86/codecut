@@ -9,7 +9,10 @@ import type {
 	TransitionType,
 } from "@/types/timeline";
 import {
-	CODECUT_CJK_FONT_FAMILY,
+	CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
+	CODECUT_JETBRAINS_MONO_FONT_FAMILY,
+	CODECUT_MONTSERRAT_FONT_FAMILY,
+	CODECUT_OUTFIT_FONT_FAMILY,
 	CODECUT_SMILEY_SANS_FONT_FAMILY,
 	CODECUT_WEN_KAI_FONT_FAMILY,
 	CODECUT_YAN_BO_SONG_FONT_FAMILY,
@@ -544,7 +547,7 @@ describe("applyEditPlanToEditor", () => {
 		});
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 6,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -584,7 +587,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: CODECUT_CJK_FONT_FAMILY,
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 			fontSize: 5,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -627,20 +630,69 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[1]).toMatchObject({
 			content: "This is the key insight.",
-			fontFamily: "CodecutCJK",
-			fontSize: 4.8,
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+			fontSize: 5.2,
 			fontWeight: "bold",
-			color: "#fff3b0",
-			stroke: { color: "#101010", width: 3 },
-			shadow: { color: "#000000", offsetX: 0, offsetY: 2, blur: 5 },
-			backgroundColor: "transparent",
-			boxWidth: 44,
+			color: "#ffffff",
+			stroke: undefined,
+			shadow: { color: "rgba(0,0,0,0.72)", offsetX: 0, offsetY: 3, blur: 10 },
+			backgroundColor: "#0f172a",
+			backgroundOpacity: 0.42,
+			backgroundPaddingX: 24,
+			backgroundPaddingY: 12,
+			backgroundBorderRadius: 8,
+			boxWidth: 50,
 			transform: {
 				scale: 1,
 				position: { x: 0, y: 520 },
 				rotate: 0,
 			},
 		});
+	});
+
+	test("enlarges very short talking-head captions without changing normal caption size", () => {
+		const editor = fakeEditor();
+		const plan: EditPlan = {
+			...validPlan(),
+			title: undefined,
+			captions: [
+				{ text: "别犹豫", startTime: 0, duration: 2 },
+				{ text: "这是一个正常长度的字幕", startTime: 2, duration: 2 },
+			],
+			captionStyle: {
+				preset: "talking-head-pop",
+				position: "lower-safe",
+				size: "medium",
+			},
+		};
+
+		applyEditPlanToEditor({
+			plan,
+			projectId: "project-1",
+			replaceExisting: true,
+			editor,
+		});
+
+		const textElements = editor.timeline
+			.getTracks()
+			.flatMap((track) => (track.type === "text" ? track.elements : []));
+
+		expect(textElements).toMatchObject([
+			{
+				content: "别犹豫",
+				fontSize: 8.4,
+				boxWidth: 34,
+				backgroundPaddingX: 28,
+				backgroundPaddingY: 14,
+			},
+			{
+				content: "这是一个正常长度的字幕",
+				fontSize: 5.2,
+				boxWidth: 50,
+				backgroundPaddingX: 24,
+				backgroundPaddingY: 12,
+			},
+		]);
 	});
 
 	test("applies hook title preset without changing caption style", () => {
@@ -668,7 +720,7 @@ describe("applyEditPlanToEditor", () => {
 
 		expect(textElements[0]).toMatchObject({
 			content: "Stop wasting effort",
-			fontFamily: "CodecutCJK",
+			fontFamily: CODECUT_OUTFIT_FONT_FAMILY,
 			fontSize: 10,
 			fontWeight: "bold",
 			color: "#ffffff",
@@ -713,7 +765,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "short-form-bold",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 6,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -724,7 +776,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "black-bar",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -735,18 +787,25 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "talking-head-pop",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
-					fontSize: 4.8,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+					fontSize: 5.2,
 					fontWeight: "bold",
-					color: "#fff3b0",
-					stroke: { color: "#101010", width: 3 },
-					backgroundColor: "transparent",
+					color: "#ffffff",
+					stroke: undefined,
+					shadow: {
+						color: "rgba(0,0,0,0.72)",
+						offsetX: 0,
+						offsetY: 3,
+						blur: 10,
+					},
+					backgroundColor: "#0f172a",
+					backgroundOpacity: 0.42,
 				},
 			},
 			{
 				preset: "tutorial-clean",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "normal",
 					color: "#ffffff",
@@ -757,7 +816,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "documentary-soft",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5,
 					fontWeight: "bold",
 					color: "#f8fafc",
@@ -766,20 +825,9 @@ describe("applyEditPlanToEditor", () => {
 				},
 			},
 			{
-				preset: "property-clean-yellow",
-				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
-					fontSize: 4.8,
-					fontWeight: "bold",
-					color: "#ffe45c",
-					stroke: { color: "#111111", width: 2 },
-					backgroundColor: "transparent",
-				},
-			},
-			{
 				preset: "product-punch",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5.2,
 					fontWeight: "bold",
 					color: "#ffe45c",
@@ -806,19 +854,20 @@ describe("applyEditPlanToEditor", () => {
 					fontWeight: "normal",
 					color: "#f8fafc",
 					shadow: {
-						color: "rgba(0,0,0,0.45)",
+						color: "rgba(0,0,0,0.58)",
 						offsetX: 0,
 						offsetY: 2,
-						blur: 6,
+						blur: 8,
 					},
 					stroke: undefined,
-					backgroundColor: "transparent",
+					backgroundColor: "#111827",
+					backgroundOpacity: 0.32,
 				},
 			},
 			{
 				preset: "social-highlight",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5.6,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -830,7 +879,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				preset: "comment-bubble",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
 					fontSize: 5.2,
 					fontWeight: "bold",
 					color: "#111827",
@@ -845,12 +894,13 @@ describe("applyEditPlanToEditor", () => {
 					fontSize: 4.6,
 					fontWeight: "normal",
 					color: "#f8fafc",
-					backgroundColor: "transparent",
+					backgroundColor: "#0f172a",
+					backgroundOpacity: 0.38,
 				},
 			},
 		];
 
-		expect(cases).toHaveLength(13);
+		expect(cases).toHaveLength(12);
 
 		for (const captionCase of cases) {
 			const editor = fakeEditor();
@@ -878,7 +928,6 @@ describe("applyEditPlanToEditor", () => {
 
 			expect(textElements[1]).toMatchObject({
 				content: "This is the key insight.",
-				boxWidth: 44,
 				transform: {
 					scale: 1,
 					position: { x: 0, y: 520 },
@@ -894,7 +943,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				stylePreset: "social_hook",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
 					fontSize: 11,
 					fontWeight: "bold",
 					color: "#ffe45c",
@@ -911,7 +960,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				stylePreset: "product_badge",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_MONTSERRAT_FONT_FAMILY,
 					fontSize: 7,
 					fontWeight: "bold",
 					color: "#111827",
@@ -929,7 +978,7 @@ describe("applyEditPlanToEditor", () => {
 			{
 				stylePreset: "chapter_bumper",
 				expected: {
-					fontFamily: CODECUT_CJK_FONT_FAMILY,
+					fontFamily: CODECUT_JETBRAINS_MONO_FONT_FAMILY,
 					fontSize: 8.5,
 					fontWeight: "bold",
 					color: "#ffffff",
@@ -1293,6 +1342,59 @@ describe("applyEditPlanToEditor", () => {
 				toElementId: "element-2",
 			},
 		]);
+	});
+
+	test("applies migration transition presets as native track transitions", () => {
+		const transitionTypes: TransitionType[] = [
+			"blur-crossfade",
+			"flash-white",
+			"push-soft",
+			"whip-pan-left",
+			"whip-pan-right",
+			"cinematic-zoom",
+			"chromatic-split",
+		];
+
+		for (const type of transitionTypes) {
+			const plan = {
+				...shortVideoPlan(),
+				transitions: [
+					{
+						fromClipId: "clip-1",
+						toClipId: "clip-2",
+						type,
+						duration: 0.4,
+					},
+				],
+			};
+			const editor = fakeEditor();
+
+			const result = applyEditPlanToEditor({
+				plan,
+				projectId: "project-1",
+				replaceExisting: true,
+				editor,
+			});
+
+			const videoTracks = editor.timeline
+				.getTracks()
+				.filter((track): track is VideoTrack => track.type === "video");
+
+			expect(result).toMatchObject({
+				success: true,
+				summary: {
+					transitionCount: 1,
+				},
+			});
+			expect(videoTracks[0].transitions).toMatchObject([
+				{
+					type,
+					duration: 0.4,
+					fromElementId: "element-1",
+					toElementId: "element-2",
+				},
+			]);
+		}
 	});
 
 	test("does not modify the timeline when transition insertion fails during apply", () => {

@@ -1,0 +1,83 @@
+# Timeline Inspection Recipe
+
+Use this recipe when the user asks what is in the current project, whether an edit worked, why preview/export looks wrong, or whether the timeline is ready for export.
+
+## Success Criteria
+
+- The active project ID is explicit.
+- The timeline state is read without mutation.
+- Track types, element counts, durations, media references, and caption timing are summarized.
+- The timeline contact sheet is inspected when answering edit success or export readiness.
+- Any blocker is tied to a concrete editor-state or visual QA fact.
+
+## Required Context
+
+- Explicit project ID.
+- Executor readiness check success.
+- `get_project_info`
+- `get_timeline_state`
+
+## Inspection Planning Path
+
+1. Confirm the project ID is explicit and not stale.
+2. Write the readback request that `codecut-executor-apply` must run:
+   `get_project_info` plus canonical `get_timeline_state`.
+3. When judging edit success, export readiness, or preview correctness, require
+   `inspect_timeline` or `build-video-quality-report` over the relevant
+   timeline range and a reviewed contact sheet.
+4. The verification spec must summarize:
+   - canvas and duration
+   - track count by type
+   - element count by type
+   - media source references
+   - captions or title timing
+   - empty or muted tracks
+   - visual QA verdict, contact sheet path, frame count, and sampled timestamps
+5. Do not plan mutation tools during inspection.
+
+## Export Readiness Checks
+
+- At least one visible video or image element exists.
+- All media references resolve.
+- Text/caption elements fit inside timeline duration.
+- Audio is on audio tracks when present.
+- Timeline duration matches the intended output length.
+- Timeline contact sheet has a recorded visual QA verdict.
+- First frame is not black.
+- Titles are not clipped.
+- Captions, selling points, and source-video text do not overlap.
+- The subject is not cropped by cover/crop settings.
+- Bottom text does not fall into the target platform UI safety area.
+- Ending frame is not abnormal.
+
+These checks are required before export readiness can be reported. A successful
+`inspect_timeline` call only proves that frames were rendered; it is not a
+visual pass.
+
+For a user-requested still frame, use `export_timeline_frame` with explicit
+`timeSeconds`, `format: "png"`, `outputFile`, and `overwrite`. This produces a
+local PNG frame file, but it does not replace the contact-sheet review or visual
+QA verdict needed for edit success or export readiness.
+
+## MP4 Delivery Checks
+
+After `export_project` produces an MP4, the executor stage must inspect the
+final file separately with export-frame extraction. Record the final verdict under
+`.codecut-workspace/projects/<projectId>/06-verification/visual-qa/<runId>/`.
+
+The final MP4 contact sheet must be compared with the timeline contact sheet.
+Timeline frames prove editor state; exported MP4 frames prove the delivered
+file. Do not use one as a substitute for the other.
+
+## Stop Conditions
+
+- Executor readiness check fails.
+- Project ID is missing or stale.
+- The local executor cannot load the requested project.
+
+## Report Back
+
+Return a concise state summary, the exact commands used, the visual QA verdict
+path, contact sheet paths, frame counts, sampled timestamps, pass/fail status,
+found issues, fixed status, and whether the project is safe to edit or export
+next.

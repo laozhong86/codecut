@@ -124,6 +124,81 @@ describe("TTS service", () => {
 		expect(insertedElements).toHaveLength(1);
 	});
 
+	test("ignores protected terms that are not present in the speech text", async () => {
+		const { generateAndInsertSpeech } = await import("../service");
+		installTtsBrowserMocks({ duration: 4.2 });
+		const addedAssets: Array<{
+			projectId: string;
+			asset: Omit<MediaAsset, "id">;
+		}> = [];
+		const editor = {
+			project: {
+				getActive: () => ({ metadata: { id: "project-123" } }),
+			},
+			media: {
+				addMediaAsset: async ({
+					projectId,
+					asset,
+				}: {
+					projectId: string;
+					asset: Omit<MediaAsset, "id">;
+				}) => {
+					addedAssets.push({ projectId, asset });
+					return "tts-media-1";
+				},
+			},
+			timeline: {
+				getTracks: () => [],
+				addTrack: () => "audio-track-1",
+				insertElement: () => {},
+			},
+		} as unknown as EditorCore;
+
+		const result = await generateAndInsertSpeech({
+			editor,
+			text: "A lighter replacement is ready.",
+			startTime: 0,
+			voice: "default",
+			protectedTerms: ["Bosuya"],
+		});
+
+		expect(result).toEqual({ duration: 4.2 });
+		expect(addedAssets[0].asset.spokenScript).toEqual({
+			source: "tts",
+			text: "A lighter replacement is ready.",
+			captions: ["A lighter replacement is ready."],
+		});
+	});
+
+	test("rejects protected terms that are present in text but missing from caption lines", async () => {
+		const { generateAndInsertSpeech } = await import("../service");
+		installTtsBrowserMocks({ duration: 4.2 });
+		const editor = {
+			project: {
+				getActive: () => ({ metadata: { id: "project-123" } }),
+			},
+			media: {
+				addMediaAsset: async () => "tts-media-1",
+			},
+			timeline: {
+				getTracks: () => [],
+				addTrack: () => "audio-track-1",
+				insertElement: () => {},
+			},
+		} as unknown as EditorCore;
+
+		await expect(
+			generateAndInsertSpeech({
+				editor,
+				text: "Bosuya is a lighter replacement.",
+				startTime: 0,
+				voice: "default",
+				captionLines: ["A lighter replacement."],
+				protectedTerms: ["Bosuya"],
+			}),
+		).rejects.toThrow("TTS spokenScript is missing protected term 'Bosuya'.");
+	});
+
 	test("uses the built-in podcast female voice through RunningHub clone and stores provider metadata", async () => {
 		const { generateAndInsertSpeech } = await import("../service");
 		const addedAssets: Array<{
@@ -197,6 +272,83 @@ describe("TTS service", () => {
 			captions: ["欢迎来到今天的节目。"],
 			provider: "runninghub-voice-clone",
 			providerTaskId: "voice-clone-task-1",
+		});
+		expect(insertedElements).toHaveLength(1);
+	});
+
+	test("uses Volcengine voice_type synthesis and stores provider metadata", async () => {
+		const { generateAndInsertSpeech } = await import("../service");
+		const addedAssets: Array<{
+			projectId: string;
+			asset: Omit<MediaAsset, "id">;
+		}> = [];
+		const insertedElements: unknown[] = [];
+		globalThis.fetch = (async (
+			input: RequestInfo | URL,
+			init?: RequestInit,
+		) => {
+			expect(String(input)).toBe("/api/tts/generate");
+			const body = JSON.parse(String(init?.body));
+			expect(body).toMatchObject({
+				provider: "volcengine-voice-clone",
+				voiceType: "voice-clone-1",
+				text: "欢迎来到今天的节目。",
+			});
+			return new Response(
+				JSON.stringify({
+					audio: Buffer.from("volc-mp3").toString("base64"),
+					provider: "volcengine-voice-clone",
+					providerTaskId: "volc-req-1",
+				}),
+				{ headers: { "Content-Type": "application/json" } },
+			);
+		}) as unknown as typeof fetch;
+		globalThis.AudioContext = class {
+			async decodeAudioData() {
+				return { duration: 6.5 } as AudioBuffer;
+			}
+		} as unknown as typeof AudioContext;
+		URL.createObjectURL = () => "blob:volcengine-voice";
+		const editor = {
+			project: {
+				getActive: () => ({ metadata: { id: "project-123" } }),
+			},
+			media: {
+				addMediaAsset: async ({
+					projectId,
+					asset,
+				}: {
+					projectId: string;
+					asset: Omit<MediaAsset, "id">;
+				}) => {
+					addedAssets.push({ projectId, asset });
+					return "tts-media-1";
+				},
+			},
+			timeline: {
+				getTracks: () => [],
+				addTrack: () => "audio-track-1",
+				insertElement: ({ element }: { element: unknown }) => {
+					insertedElements.push(element);
+				},
+			},
+		} as unknown as EditorCore;
+
+		const result = await generateAndInsertSpeech({
+			editor,
+			text: "欢迎来到今天的节目。",
+			startTime: 0,
+			voice: "volcengine-voice-clone",
+			volcengineVoiceType: "voice-clone-1",
+		});
+
+		expect(result).toEqual({ duration: 6.5 });
+		expect(addedAssets[0].asset.spokenScript).toEqual({
+			source: "tts",
+			text: "欢迎来到今天的节目。",
+			captions: ["欢迎来到今天的节目。"],
+			provider: "volcengine-voice-clone",
+			providerTaskId: "volc-req-1",
 		});
 		expect(insertedElements).toHaveLength(1);
 	});

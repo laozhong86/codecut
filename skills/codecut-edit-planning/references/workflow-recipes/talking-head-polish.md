@@ -23,22 +23,35 @@ Use this recipe when the user asks to tighten a talking-head video, remove fille
 
 Codecut currently targets transcript-first polish. If silence spans are not available, use transcript boundaries and say that audio-event detection was not available. The current EditPlan validator does not enforce word-boundary or meaning-preservation checks automatically.
 
-## Execution Path
+## Planning Path
 
-1. Complete the main P0 CLI Runtime Gate and executor readiness check.
-2. Run `get_project_info` and `list_media_assets`.
-3. Transcribe the selected audio/video asset.
-4. Compare source duration against transcript coverage; represent leading or trailing untranscribed audio longer than 0.3 seconds as an explicit keep/drop decision or report the blocker. `rebuildTimelineFromSpeechCleanup()` fails fast when that coverage gap is unclassified.
-5. Generate a strict SpeechCleanupPlan v2 from transcript evidence.
-6. Mark each classified transcript segment as `keep` or `drop`; every `drop` needs `dropReason`, and every `keep` must omit `dropReason`.
-7. For restarts and repeats, drop earlier restarts or repeats and keep the later complete take unless the user explicitly prefers the earlier version.
-8. Classify each dropped range with `risk: "low"` or `risk: "high"`. Low risk means pauses, exact prefix repeats, or very short filler tokens with no standalone meaning. High risk means full-sentence removals, repeated openings with divergent endings, or long repeated spans.
-9. For high-risk drops, write retained-meaning evidence in `retainedMeaningEvidence`; if a script or outline exists, use it as semantic alignment evidence rather than a word-by-word diff.
-10. Keep source ranges sorted and non-overlapping. Do not auto-fix reversed or overlapping ranges.
-11. Project the SpeechCleanupPlan with `rebuildTimelineFromSpeechCleanup({ captionMode: "clip-only" })` into a clip-only EditPlan v1 when edited audio transcription is available.
-12. Apply only the projected clip-only EditPlan v1 and verify with `get_timeline_state`.
-13. If captions are requested and edited audio transcription is available, run the post-cut captions path after applying the clip-only cleanup, then apply the final captioned EditPlan.
-14. Use `captionMode: "source-transcript-remap"` only when post-cut caption building is unavailable and every kept source transcript segment maps cleanly into the selected clips.
+1. Use project, media, and transcript evidence from upstream stages.
+2. Compare source duration against transcript coverage; represent leading or
+   trailing untranscribed audio longer than 0.3 seconds as an explicit keep/drop
+   decision or report the blocker. `rebuildTimelineFromSpeechCleanup()` fails
+   fast when that coverage gap is unclassified.
+3. Generate a strict SpeechCleanupPlan v2 from transcript evidence.
+4. Mark each classified transcript segment as `keep` or `drop`; every `drop`
+   needs `dropReason`, and every `keep` must omit `dropReason`.
+5. For restarts and repeats, drop earlier restarts or repeats and keep the later
+   complete take unless the user explicitly prefers the earlier version.
+6. Classify each dropped range with `risk: "low"` or `risk: "high"`. Low risk
+   means pauses, exact prefix repeats, or very short filler tokens with no
+   standalone meaning. High risk means full-sentence removals, repeated openings
+   with divergent endings, or long repeated spans.
+7. For high-risk drops, write retained-meaning evidence in
+   `retainedMeaningEvidence`; if a script or outline exists, use it as semantic
+   alignment evidence rather than a word-by-word diff.
+8. Keep source ranges sorted and non-overlapping. Do not auto-fix reversed or
+   overlapping ranges.
+9. Project the SpeechCleanupPlan with
+   `rebuildTimelineFromSpeechCleanup({ captionMode: "clip-only" })` into a
+   clip-only EditPlan v1 draft when edited audio transcription is available.
+10. If captions are requested and edited audio transcription is available,
+    include the post-cut captions path in the verification spec.
+11. Use `captionMode: "source-transcript-remap"` only when post-cut caption
+    building is unavailable and every kept source transcript segment maps
+    cleanly into the selected clips.
 
 ## Product Rules
 

@@ -21,6 +21,15 @@ import {
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { assertCodecutConfirmationToken } from "./codecut-confirmation-gate.mjs";
+import {
+	extractExportFrames,
+	recordVisualQaVerdict,
+} from "./codecut-visual-qa.mjs";
+
+export {
+	extractExportFrames,
+	recordVisualQaVerdict,
+} from "./codecut-visual-qa.mjs";
 
 const execFileAsync = promisify(execFile);
 const WORKSPACE_ROOT = ".codecut-workspace";
@@ -41,6 +50,7 @@ const workspaceDirectories = [
 	"05-execution",
 	"06-verification",
 	"07-exports",
+	"08-learning",
 ];
 
 const documentPaths = new Map([
@@ -59,6 +69,8 @@ const documentPaths = new Map([
 	["editing-decision-ledger", "04-planning/editing-decision-ledger.md"],
 	["timeline-restructure", "04-planning/timeline-restructure.md"],
 	["edit-plan-notes", "04-planning/edit-plan-notes.md"],
+	["methodology-proposal", "08-learning/methodology-proposal.md"],
+	["methodology-accepted-updates", "08-learning/accepted-updates.md"],
 ]);
 
 const extensionMimeTypes = new Map([
@@ -111,6 +123,8 @@ function usage() {
 		"  node scripts/codecut-workspace.mjs add-assets --project-id <id> --file /absolute/path/source.mp4 [--file /absolute/path/brief.pdf] --confirmation-token <token>",
 		"  node scripts/codecut-workspace.mjs probe-assets --project-id <id> --confirmation-token <token>",
 		"  node scripts/codecut-workspace.mjs write-doc --project-id <id> --kind <kind> --content-file /absolute/path/doc.md --confirmation-token <token>",
+		"  node scripts/codecut-workspace.mjs extract-export-frames --project-id <id> --run-id <id> --export-file /absolute/path/final.mp4 --start-time <seconds> --end-time <seconds> --frame-count <1..16> --confirmation-token <token>",
+		"  node scripts/codecut-workspace.mjs record-visual-qa --project-id <id> --run-id <id> --verdict-json-file /absolute/path/visual-qa-verdict.json --confirmation-token <token>",
 		"",
 		"Optional:",
 		"  --source-root <path>  Defaults to the current plugin root.",
@@ -247,6 +261,58 @@ function defaultDocumentContent({ kind, projectId, name, userMessage }) {
 	return `# ${heading}\n\nProject: ${name}\nProject ID: ${projectId}\n\nDraft:\n\n`;
 }
 
+const userMethodologyDefaults = new Map([
+	[
+		"profile.md",
+		[
+			"# User Editing Profile",
+			"",
+			"Private Codecut user preferences confirmed by the user.",
+			"",
+			"## Preferences",
+			"",
+			"No confirmed preferences yet.",
+			"",
+		].join("\n"),
+	],
+	[
+		"rules.md",
+		[
+			"# User Editing Rules",
+			"",
+			"Private reusable editing methodology confirmed by the user.",
+			"",
+			"## Rules",
+			"",
+			"No confirmed rules yet.",
+			"",
+		].join("\n"),
+	],
+	[
+		"feedback-log.md",
+		[
+			"# Feedback Log",
+			"",
+			"Event log only. Reusable rules belong in `rules.md`; user preferences belong in `profile.md`.",
+			"",
+		].join("\n"),
+	],
+]);
+
+async function ensureUserMethodologyStore({ workspaceRoot }) {
+	const directory = join(workspaceRoot, "user-methodology");
+	await mkdir(directory, { recursive: true });
+	const files = [];
+	for (const [fileName, content] of userMethodologyDefaults.entries()) {
+		const path = join(directory, fileName);
+		if (!(await pathExists(path))) {
+			await writeFile(path, content, "utf8");
+		}
+		files.push(path);
+	}
+	return { directory, files };
+}
+
 export function buildWorkspacePaths({ sourceRoot = process.cwd(), projectId }) {
 	assertProjectId(projectId);
 	const resolvedSourceRoot = resolve(sourceRoot);
@@ -290,6 +356,9 @@ export async function initWorkspace({
 	for (const directory of workspaceDirectories) {
 		await mkdir(join(paths.projectDirectory, directory), { recursive: true });
 	}
+	const userMethodology = await ensureUserMethodologyStore({
+		workspaceRoot: paths.workspaceRoot,
+	});
 
 	const createdAt = nowIso();
 	const workspace = {
@@ -311,7 +380,11 @@ export async function initWorkspace({
 		"utf8",
 	);
 
-	const writtenFiles = [paths.workspaceFile, paths.manifestFile];
+	const writtenFiles = [
+		paths.workspaceFile,
+		paths.manifestFile,
+		...userMethodology.files,
+	];
 	for (const [kind, relativePath] of documentPaths.entries()) {
 		const path = join(paths.projectDirectory, relativePath);
 		await writeFile(
@@ -709,6 +782,38 @@ export async function runCli({
 				content: await readFile(flags.contentFile, "utf8"),
 				confirmationToken: flags.confirmationToken,
 			});
+		stdout(JSON.stringify(result, null, 2));
+		return 0;
+	}
+	if (command === "extract-export-frames") {
+		const result = await extractExportFrames({
+			sourceRoot: resolvedSourceRoot,
+			projectId: flags.projectId,
+			runId: flags.runId,
+			exportFile: flags.exportFile,
+			startTime: Number(flags.startTime),
+			endTime: Number(flags.endTime),
+			frameCount: Number(flags.frameCount),
+			confirmationToken: flags.confirmationToken,
+			execFileImpl,
+		});
+		stdout(JSON.stringify(result, null, 2));
+		return 0;
+	}
+	if (command === "record-visual-qa") {
+		if (!flags.verdictJsonFile) {
+			throw new Error("--verdict-json-file is required");
+		}
+		if (!isAbsolute(flags.verdictJsonFile)) {
+			throw new Error("--verdict-json-file must be an absolute path");
+		}
+		const result = await recordVisualQaVerdict({
+			sourceRoot: resolvedSourceRoot,
+			projectId: flags.projectId,
+			runId: flags.runId,
+			verdictJsonFile: flags.verdictJsonFile,
+			confirmationToken: flags.confirmationToken,
+		});
 		stdout(JSON.stringify(result, null, 2));
 		return 0;
 	}

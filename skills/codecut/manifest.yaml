@@ -9,6 +9,7 @@ intent:
   success_looks_like:
     - Source-only acquisition requests do not trigger creative editing intake.
     - New creative editing jobs with missing setup fields open the workspace widget before shell, file reads, or text fallback.
+    - Material understanding requests route to `codecut-material-understanding` before edit planning.
     - Timeline mutation routes through strict EditPlan or NarratedRemixPlan paths instead of low-level repair tools.
     - Completion reports include readback proof and explicitly state when MP4 export was not produced.
 
@@ -22,10 +23,14 @@ known_failure_modes:
   - mode: Browser preview is treated as executor proof.
     severity: medium
     example: The agent reports completion from a visible editor URL without get_timeline_state readback.
+  - mode: Material understanding is skipped before composition planning.
+    severity: high
+    example: The agent chooses picture-in-picture or replacement material without a material-understanding report.
 
 style_constraints:
   must_have:
     - Stage ownership language stays concise and operational.
+    - Material ingest, material understanding, and edit planning stay separate.
     - Runtime gaps are reported instead of silently downgraded.
   must_not_have:
     - Generic workflow optimism without executor or readback proof.

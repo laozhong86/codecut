@@ -1,11 +1,9 @@
-# get_timeline_state v2 Contract
+# get_timeline_state Contract
 
 ## Purpose
 
-`get_timeline_state` v1 is the stable executor readback contract. Existing MCP
-clients call it with `{}` and depend on the current response shape for
-post-edit verification. v2 is an explicit opt-in shape for faster Agent
-orientation over the same local executor draft.
+`get_timeline_state` is the only canonical Codecut timeline readback contract.
+It orients Codex over the same local executor draft that the web editor displays.
 
 The local executor draft remains the source of truth:
 
@@ -15,57 +13,21 @@ apps/web/.codecut-executor/projects/<projectId>/project.json
 
 ## Compatibility Rules
 
-- Calling `get_timeline_state` with `{}` must keep returning the v1 shape.
-- v1 field names, nesting, and default readback fields must not be compacted or
-  renamed.
-- v2 must be enabled explicitly with `format: "v2"`.
-- v2 is read-only. It must not mutate project state or increment `revision`.
-- v2 uses seconds as the primary unit. Frame fields are derived from
-  `project.settings.fps` only when requested.
-- MCP exposure is a separate decision. The existing MCP
-  `get_timeline_state` tool must keep the current `projectId`-only contract
-  unless a new explicit v2 tool is added.
+- `get_timeline_state` is read-only. It must not mutate project state or
+  increment `revision`.
+- Calling `get_timeline_state` with `{}` returns the canonical rich readback
+  shape.
+- `format` is not accepted. Do not pass `format: "v2"` or add a
+  `get_timeline_state_v2` tool.
+- Time values use seconds as the primary unit. Frame fields are derived from
+  `project.settings.fps` only when `includeFrames` is true.
+- `includeReferencedMedia` controls whether referenced media metadata is
+  included in the response.
 
-## v1 Response
-
-The default response remains:
+## Request
 
 ```ts
 {
-  revision: number;
-  tracks: Array<{
-    id: string;
-    type: "video" | "text" | "audio" | "sticker";
-    name: string;
-    isMain: boolean;
-    muted?: boolean;
-    hidden?: boolean;
-    elements: Array<{
-      id: string;
-      type: "video" | "image" | "text" | "audio" | "sticker";
-      name: string;
-      startTime: number;
-      duration: number;
-      trimStart: number;
-      trimEnd: number;
-      mediaId?: string;
-      content?: string;
-      visual?: unknown;
-      style?: unknown;
-      audio?: unknown;
-    }>;
-    transitions?: unknown[];
-  }>;
-  totalDuration: number;
-  derivedAssets: unknown[];
-}
-```
-
-## v2 Request
-
-```ts
-{
-  format: "v2";
   startTime?: number;
   endTime?: number;
   includeFrames?: boolean;
@@ -82,7 +44,7 @@ Windowing rules:
 - A returned element overlaps the window when
   `element.startTime < endTime && element.endTime > startTime`.
 
-## v2 Response
+## Response
 
 ```ts
 {
@@ -99,6 +61,7 @@ Windowing rules:
     totalDuration: number;
     totalFrames?: number;
   };
+  cover?: unknown;
   window: {
     startTime: number;
     endTime: number;
@@ -157,6 +120,8 @@ Windowing rules:
       visual?: unknown;
       style?: unknown;
       audio?: unknown;
+      keyframes?: unknown;
+      motion?: unknown;
     }>;
     transitions?: unknown[];
   }>;
@@ -172,13 +137,3 @@ Windowing rules:
   derivedAssets: unknown[];
 }
 ```
-
-## MCP Exposure Decision
-
-Current decision: do not change the existing MCP `get_timeline_state` schema.
-Keep it as `projectId` only and reserve v2 for the executor envelope or CLI
-`send --args-json` path.
-
-If MCP clients need v2, add a new `get_timeline_state_v2` tool. Do not extend
-the existing MCP tool schema unless a later compatibility review proves all
-clients tolerate optional input fields and a non-default format argument.

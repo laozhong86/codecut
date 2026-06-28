@@ -7,7 +7,7 @@ import {
 	loadBridgeEnv,
 	parseFreshSessionFlags,
 	runFreshSessionMcpSmoke,
-	summarizeTimelineV2,
+	summarizeTimelineReadback,
 } from "../fresh-session-mcp-smoke.mjs";
 
 describe("fresh-session MCP smoke helpers", () => {
@@ -53,27 +53,63 @@ describe("fresh-session MCP smoke helpers", () => {
 				},
 			},
 		};
+		const templateListTool = {
+			name: "list_system_template_scripts",
+			inputSchema: {
+				properties: {
+					projectId: {},
+				},
+			},
+		};
+		const templateGetTool = {
+			name: "get_system_template_script",
+			inputSchema: {
+				properties: {
+					projectId: {},
+					templateId: {},
+				},
+			},
+		};
+		const templateResolveTool = {
+			name: "resolve_system_template_script",
+			inputSchema: {
+				properties: {
+					projectId: {},
+					requestedTemplate: {},
+					triggerType: {},
+				},
+			},
+		};
 		const tools = [
 			importTool,
+			templateListTool,
+			templateGetTool,
+			templateResolveTool,
 			templateImportTool,
 			templateUpdateTool,
 			templateDeleteTool,
 			...REQUIRED_MCP_TOOLS.filter(
 				(name) =>
-					name !== "import_media" &&
-					name !== "import_system_template_script" &&
-					name !== "update_system_template_script" &&
-					name !== "delete_system_template_script",
+						name !== "import_media" &&
+						name !== "list_system_template_scripts" &&
+						name !== "get_system_template_script" &&
+						name !== "resolve_system_template_script" &&
+						name !== "import_system_template_script" &&
+						name !== "update_system_template_script" &&
+						name !== "delete_system_template_script",
 			).map((name) => ({ name, inputSchema: { properties: {} } })),
 		];
 
 		expect(assertFreshMcpToolSurface({ tools })).toEqual({
 			toolNames: REQUIRED_MCP_TOOLS,
 			importMediaInputs: ["bytes", "filePath", "url"],
-			templateDeleteInputs: ["confirmedByUser", "templateId"],
-			templateImportInputs: ["confirmedByUser", "templateJsonFile"],
-			templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
-		});
+				templateDeleteInputs: ["confirmedByUser", "templateId"],
+				templateGetInputs: ["templateId"],
+				templateImportInputs: ["confirmedByUser", "templateJsonFile"],
+				templateListInputs: [],
+				templateResolveInputs: ["requestedTemplate", "triggerType"],
+				templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
+			});
 	});
 
 	test("parses a surface-only mode that does not require mutation inputs", () => {
@@ -103,10 +139,37 @@ describe("fresh-session MCP smoke helpers", () => {
 									properties: { projectId: {}, filePath: {}, url: {}, bytes: {} },
 								},
 							},
-							{
-								name: "import_system_template_script",
-								inputSchema: {
-									properties: {
+								{
+									name: "list_system_template_scripts",
+									inputSchema: {
+										properties: {
+											projectId: {},
+										},
+									},
+								},
+								{
+									name: "get_system_template_script",
+									inputSchema: {
+										properties: {
+											projectId: {},
+											templateId: {},
+										},
+									},
+								},
+								{
+									name: "resolve_system_template_script",
+									inputSchema: {
+										properties: {
+											projectId: {},
+											requestedTemplate: {},
+											triggerType: {},
+										},
+									},
+								},
+								{
+									name: "import_system_template_script",
+									inputSchema: {
+										properties: {
 										projectId: {},
 										templateJsonFile: {},
 										confirmedByUser: {},
@@ -134,11 +197,14 @@ describe("fresh-session MCP smoke helpers", () => {
 								},
 							},
 							...REQUIRED_MCP_TOOLS.filter(
-								(name) =>
-									name !== "import_media" &&
-									name !== "import_system_template_script" &&
-									name !== "update_system_template_script" &&
-									name !== "delete_system_template_script",
+									(name) =>
+										name !== "import_media" &&
+										name !== "list_system_template_scripts" &&
+										name !== "get_system_template_script" &&
+										name !== "resolve_system_template_script" &&
+										name !== "import_system_template_script" &&
+										name !== "update_system_template_script" &&
+										name !== "delete_system_template_script",
 							).map((name) => ({ name, inputSchema: { properties: {} } })),
 						],
 					}),
@@ -152,11 +218,14 @@ describe("fresh-session MCP smoke helpers", () => {
 			toolSurface: {
 				toolNames: REQUIRED_MCP_TOOLS,
 				importMediaInputs: ["bytes", "filePath", "url"],
-				templateDeleteInputs: ["confirmedByUser", "templateId"],
-				templateImportInputs: ["confirmedByUser", "templateJsonFile"],
-				templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
-			},
-		});
+					templateDeleteInputs: ["confirmedByUser", "templateId"],
+					templateGetInputs: ["templateId"],
+					templateImportInputs: ["confirmedByUser", "templateJsonFile"],
+					templateListInputs: [],
+					templateResolveInputs: ["requestedTemplate", "triggerType"],
+					templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
+				},
+			});
 		expect(calls).toEqual(["mcp"]);
 	});
 
@@ -185,8 +254,8 @@ describe("fresh-session MCP smoke helpers", () => {
 		expect(JSON.stringify(plan)).not.toContain("mp4");
 	});
 
-	test("summarizes text tracks and captions from timeline v2 readback", () => {
-		const summary = summarizeTimelineV2({
+	test("summarizes text tracks and captions from canonical timeline readback", () => {
+		const summary = summarizeTimelineReadback({
 			project: { revision: 6 },
 			summary: { trackTypeCounts: { text: 1 }, elementCount: 2 },
 			tracks: [

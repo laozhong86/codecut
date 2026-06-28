@@ -1,0 +1,16 @@
+interface:
+  display_name: "Codecut Edit Planning"
+  short_description: "Plan Codecut edits with candidate clips, decision ledgers, strict plan drafts, and verification specs."
+  default_prompt: >-
+    Use $codecut-edit-planning when a Codecut job needs intent routing, one
+    workflow recipe, candidate clips, an EditingDecisionLedger, a strict
+    EditPlan or NarratedRemixPlan draft, or a verification spec before executor
+    apply. Require passed requirement intake, material audit,
+    material-understanding report when material roles, script matching,
+    replacement, picture-in-picture, split-screen, or circular talking-head
+    suitability matters, and needed transcript, VideoContext, visual, business,
+    template, or platform evidence.
+    Do not call executor tools, mutate timelines, import or export media, create
+    baked MP4 replacement paths, make unconfirmed defaults, or silently
+    downgrade unsupported requests. Hand off only the plan draft and verification
+    spec to $codecut-executor-apply.

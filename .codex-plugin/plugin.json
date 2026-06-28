@@ -1,7 +1,7 @@
 {
   "name": "codecut",
   "version": "0.1.1+codex.p0-verifiable-loop-20260622",
-  "description": "Codecut is a local Agent video editor for self-media creators. It is built on the Codex plugin: Codex understands the content, generates or selects assets, and writes a clear editing plan; Codecut then applies that plan to a local web timeline for creators to preview, adjust, and export.",
+  "description": "CodeCut is Codex + CapCut: an Agent-driven visual video production system. Codex performs the production work, while CodeCut shows progress, materials, timeline, preview, manual adjustment, and export in a local visual editor.",
   "author": {
     "name": "Local OPC"
   },
@@ -10,23 +10,23 @@
   "apps": "./.app.json",
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "Codecut",
-    "shortDescription": "Local Agent video editor for self-media creators.",
-    "longDescription": "Codecut is a local Agent video editor for self-media creators. It is built on the Codex plugin: Codex understands the content, generates or selects assets, and writes a clear editing plan; Codecut then applies that plan to a local web timeline for creators to preview, adjust, and export.",
+    "displayName": "CodeCut",
+    "shortDescription": "Codex + CapCut for Agent-driven visual video production.",
+    "longDescription": "CodeCut is Codex + CapCut: an Agent-driven visual video production system. Codex understands the user's video goal, plans the production work, uses tools and artifacts to build the edit, and CodeCut presents the process in a local visual editor with media, timeline, preview, manual adjustment, and export.",
     "developerName": "Local OPC",
     "category": "Developer Tools",
     "capabilities": [
-      "Local editing workspace",
-      "Media import and probing",
-      "Transcript-aware planning",
-      "Validated EditPlan timeline updates",
-      "Timeline readback and preview",
-      "Export readiness checks"
+      "Agent-driven video production workflow",
+      "Visual editing workspace with media and timeline",
+      "Trackable production records",
+      "Transcript and visual-evidence planning",
+      "Validated timeline updates and readback",
+      "Preview, manual adjustment, and export proof"
     ],
     "defaultPrompt": [
-      "Open Codecut and set up a local video editing workspace.",
-      "Import my local video into Codecut and prepare a short-form edit.",
-      "Turn this source clip into a 30-90 second vertical short with captions."
+      "Open CodeCut and set up an Agent-driven visual video production workspace.",
+      "Import my local video into CodeCut and prepare a visible short-form timeline.",
+      "Turn this source clip into a 30-90 second vertical short with captions and preview."
     ],
     "brandColor": "#2563EB",
     "composerIcon": "./assets/codecut-logo-flat-dynamic.svg",

@@ -143,7 +143,6 @@
       .media-sources {
         display: grid;
         gap: var(--cc-space-sm);
-        height: var(--cc-media-list-max-height);
         max-height: var(--cc-media-list-max-height);
         overflow-y: auto;
         padding: var(--cc-space-xs);
@@ -389,6 +388,15 @@
             <span data-i18n="projectName">Project name</span>
             <input id="project-name" name="projectName" autocomplete="off" data-i18n-placeholder="projectNamePlaceholder">
           </label>
+          <label>
+            <span data-i18n="taskType">Task type</span>
+            <select id="task-type" name="taskType">
+              <option value="template_draft" data-i18n="taskTypeTemplateDraft">Template draft</option>
+              <option value="template_import" data-i18n="taskTypeTemplateImport">Template import</option>
+              <option value="template_apply_sample" data-i18n="taskTypeTemplateApplySample">Apply template sample</option>
+              <option value="edit_execution" data-i18n="taskTypeEditExecution">Edit execution</option>
+            </select>
+          </label>
         </fieldset>
 
         <fieldset aria-labelledby="source-section-title">
@@ -438,9 +446,7 @@
               <span data-i18n="captionFont">Caption font</span>
               <select id="caption-font" name="captionFont">
                 <option value="auto" data-i18n="captionFontAuto">Follow preset</option>
-                <option value="sans" data-i18n="captionFontSans">Sans</option>
-                <option value="serif" data-i18n="captionFontSerif">Serif</option>
-                <option value="handwriting" data-i18n="captionFontHandwriting">Handwriting</option>
+                <!-- CODECUT_CAPTION_FONT_OPTIONS -->
               </select>
             </label>
             <label>
@@ -523,14 +529,9 @@
         <fieldset aria-labelledby="intent-section-title">
           <h2 id="intent-section-title" class="section-heading" data-i18n="intent">Intent</h2>
           <div class="intent-field">
-            <span id="brief-label" data-i18n="brief">Brief</span>
-            <div id="brief-options" class="choice-options"></div>
-            <textarea id="brief" class="hidden" name="brief" aria-labelledby="brief-label" data-i18n-placeholder="briefCustomPlaceholder"></textarea>
-          </div>
-          <div class="intent-field">
-            <span id="success-criteria-label" data-i18n="successCriteria">Success criteria</span>
-            <div id="success-criteria-options" class="choice-options"></div>
-            <textarea id="success-criteria" class="hidden" name="successCriteria" aria-labelledby="success-criteria-label" data-i18n-placeholder="successCriteriaCustomPlaceholder"></textarea>
+            <span id="requirements-label" data-i18n="requirements">Requirements</span>
+            <div id="requirement-options" class="choice-options"></div>
+            <textarea id="requirements" class="hidden" name="requirements" aria-labelledby="requirements-label" data-i18n-placeholder="requirementsCustomPlaceholder"></textarea>
           </div>
         </fieldset>
 
@@ -554,6 +555,11 @@
             project: "Project",
             projectName: "Project name",
             projectNamePlaceholder: "CodeCut Project",
+            taskType: "Delivery / task type",
+            taskTypeTemplateDraft: "Template draft",
+            taskTypeTemplateImport: "Template import",
+            taskTypeTemplateApplySample: "Apply template sample",
+            taskTypeEditExecution: "Edit execution",
             source: "Source",
             addMediaSource: "Add files",
             addMediaFolder: "Add folder",
@@ -582,9 +588,6 @@
             captionSpanish: "Spanish",
             captionFont: "Caption font",
             captionFontAuto: "Follow preset",
-            captionFontSans: "Sans",
-            captionFontSerif: "Serif",
-            captionFontHandwriting: "Handwriting",
             captionSize: "Caption size",
             captionSizeSmall: "Small",
             captionSizeMedium: "Medium",
@@ -629,16 +632,14 @@
             yes: "true",
             no: "false",
             intent: "Intent",
-            brief: "Brief",
-            briefPlaceholder: "Cut a clear short with the key message, readable captions, and natural audio.",
+            requirements: "Requirements",
+            requirementsPlaceholder: "Cut a clear short; clear hook; tight pacing; readable captions; natural audio; export-ready ending.",
             customOption: "Custom",
-            briefCustomPlaceholder: "Add custom brief details.",
-            successCriteria: "Success criteria",
-            successCriteriaPlaceholder: "Clear hook, tight pacing, readable captions, export-ready ending.",
-            successCriteriaCustomPlaceholder: "Add custom success criteria.",
+            requirementsCustomPlaceholder: "Add custom editing requirements.",
             createProject: "Create project",
             blocked: "Blocked",
             ok: "OK",
+            submittingSetup: "Submitting setup to Codex...",
             setupBlocked: "Resolve the failed fields before creating a project.",
             creating: "Creating",
             creatingDetail: "Creating project and importing media.",
@@ -647,11 +648,14 @@
             openEditor: "Open editor",
             openEditorFailed: "Could not open the editor from this widget.",
             continuing: "Continuing in Codex...",
-            followUpSent: "Follow-up sent to Codex.",
+            followUpRequested: "Asked Codex to continue.",
+            followUpRecoveryHint: "If the thread does not continue, recover the setup with these identifiers.",
             followUpUnavailable: "window.openai.sendFollowUpMessage is unavailable.",
+            recoverSetupLabel: "Recover with recover_codecut_setup",
             retryFollowUp: "Retry follow-up",
             openaiUnavailable: "window.openai is unavailable.",
             callToolUnavailable: "window.openai.callTool is unavailable.",
+            hostToolTimeout: "Host tool did not return a result.",
             setupUnavailable: "This setup widget is missing a confirmation id. Reopen CodeCut setup from Codex.",
           },
           "zh-CN": {
@@ -660,6 +664,11 @@
             project: "项目",
             projectName: "项目名称",
             projectNamePlaceholder: "CodeCut 项目",
+            taskType: "交付类型/任务类型",
+            taskTypeTemplateDraft: "创建模板草稿",
+            taskTypeTemplateImport: "导入模板",
+            taskTypeTemplateApplySample: "用模板做样片",
+            taskTypeEditExecution: "直接剪辑执行",
             source: "素材",
             addMediaSource: "添加素材",
             addMediaFolder: "添加文件夹",
@@ -688,9 +697,6 @@
             captionSpanish: "西班牙文",
             captionFont: "字幕字体",
             captionFontAuto: "跟随预设",
-            captionFontSans: "黑体/无衬线",
-            captionFontSerif: "宋体/衬线",
-            captionFontHandwriting: "手写风格",
             captionSize: "字号大小",
             captionSizeSmall: "小",
             captionSizeMedium: "中",
@@ -735,16 +741,14 @@
             yes: "是",
             no: "否",
             intent: "剪辑需求",
-            brief: "需求说明",
-            briefPlaceholder: "剪成节奏清晰的短视频，保留核心信息、可读字幕和自然音频。",
+            requirements: "剪辑要求",
+            requirementsPlaceholder: "剪成节奏清晰的短视频；开头有明确信息点；主体节奏紧凑；字幕清晰可读；自然音频；结尾适合继续编辑或导出。",
             customOption: "自定义",
-            briefCustomPlaceholder: "补充自定义需求。",
-            successCriteria: "成功标准",
-            successCriteriaPlaceholder: "开头有明确信息点；主体节奏紧凑；字幕清晰；结尾适合继续编辑或导出。",
-            successCriteriaCustomPlaceholder: "补充自定义成功标准。",
+            requirementsCustomPlaceholder: "补充自定义剪辑要求。",
             createProject: "创建项目",
             blocked: "已阻塞",
             ok: "通过",
+            submittingSetup: "正在提交给 Codex...",
             setupBlocked: "请先解决失败项，再创建项目。",
             creating: "创建中",
             creatingDetail: "正在创建项目并导入素材。",
@@ -753,11 +757,14 @@
             openEditor: "打开编辑器",
             openEditorFailed: "无法从当前 widget 打开编辑器。",
             continuing: "正在继续交给 Codex...",
-            followUpSent: "已发送后续任务给 Codex。",
+            followUpRequested: "已请求 Codex 继续。",
+            followUpRecoveryHint: "如果会话没有自动出现下一条消息，请用这些信息恢复创建结果。",
             followUpUnavailable: "window.openai.sendFollowUpMessage 不可用。",
+            recoverSetupLabel: "使用 recover_codecut_setup 恢复",
             retryFollowUp: "重试发送后续任务",
             openaiUnavailable: "window.openai 不可用。",
             callToolUnavailable: "window.openai.callTool 不可用。",
+            hostToolTimeout: "宿主工具没有返回结果。",
             setupUnavailable: "当前设置组件缺少确认 ID。请从 Codex 重新打开 CodeCut 设置。",
           },
         };
@@ -765,6 +772,7 @@
         const fields = {
           form: document.getElementById("workspace-form"),
           projectName: document.getElementById("project-name"),
+          taskType: document.getElementById("task-type"),
           mediaSources: document.getElementById("media-sources"),
           mediaFilePicker: document.getElementById("media-file-picker"),
           mediaFolderPicker: document.getElementById("media-folder-picker"),
@@ -782,10 +790,8 @@
           outputQuality: document.getElementById("output-quality"),
           includeAudio: document.getElementById("include-audio"),
           generateIntroCover: document.getElementById("generate-intro-cover"),
-          brief: document.getElementById("brief"),
-          briefOptions: document.getElementById("brief-options"),
-          successCriteria: document.getElementById("success-criteria"),
-          successCriteriaOptions: document.getElementById("success-criteria-options"),
+          requirements: document.getElementById("requirements"),
+          requirementOptions: document.getElementById("requirement-options"),
           submitButton: document.getElementById("submit-button"),
           setupUnavailable: document.getElementById("setup-unavailable"),
           result: document.getElementById("result"),
@@ -794,6 +800,7 @@
 
         let currentProjectId = "";
         let currentPendingConfirmationId = "";
+        let currentDurationContract = null;
         let activeLanguage = "en";
 
         function normalizeUiLanguage(value) {
@@ -829,13 +836,26 @@
           );
         }
 
+        function pendingConfirmationIdFromPayload(payload) {
+          if (!payload || typeof payload !== "object") return "";
+          return (
+            payload.pendingConfirmationId ||
+            payload.widgetData?.pendingConfirmationId ||
+            payload.structuredContent?.pendingConfirmationId ||
+            payload._meta?.widgetData?.pendingConfirmationId ||
+            payload.toolResponseMetadata?.widgetData?.pendingConfirmationId ||
+            ""
+          );
+        }
+
         function initialDefaults() {
           const api = window.openai || {};
           currentPendingConfirmationId =
-            api.toolResponseMetadata?.widgetData?.pendingConfirmationId ||
-            api.widgetData?.pendingConfirmationId ||
-            api.toolOutput?.pendingConfirmationId ||
-            api.structuredContent?.pendingConfirmationId ||
+            pendingConfirmationIdFromPayload(api.toolResponseMetadata?.widgetData) ||
+            pendingConfirmationIdFromPayload(api.toolResponseMetadata) ||
+            pendingConfirmationIdFromPayload(api.widgetData) ||
+            pendingConfirmationIdFromPayload(api.toolOutput) ||
+            pendingConfirmationIdFromPayload(api.structuredContent) ||
             "";
           return (
             api.toolResponseMetadata?.widgetData?.intentDefaults ||
@@ -860,6 +880,8 @@
         function applyDefaults(defaults) {
           fields.projectName.value = defaults.projectName || "";
           currentProjectId = defaults.projectId || slugify(fields.projectName.value);
+          currentDurationContract = normalizeDurationContract(defaults.durationContract, defaults);
+          setSelectValue(fields.taskType, defaults.taskType || "edit_execution");
           renderMediaSources(defaults.mediaSources || defaults.mediaSource || []);
           setSelectValue(fields.targetAspectRatio, defaults.targetAspectRatio || "9:16");
           setDurationGoalSelection(defaults);
@@ -872,15 +894,8 @@
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
           fields.generateIntroCover.checked = defaults.generateIntroCover !== false;
-          renderChoiceOptions(fields.briefOptions, defaults.briefOptions || [defaults.brief || t("briefPlaceholder")], defaults.brief, fields.brief);
-          renderChoiceOptions(
-            fields.successCriteriaOptions,
-            defaults.successCriteriaOptions || [defaults.successCriteria || t("successCriteriaPlaceholder")],
-            defaults.successCriteria,
-            fields.successCriteria,
-          );
-          fields.brief.value = "";
-          fields.successCriteria.value = "";
+          renderChoiceOptions(fields.requirementOptions, defaults.requirementOptions || [defaults.requirements || t("requirementsPlaceholder")], defaults.recommendedRequirementOptions || [], fields.requirements);
+          fields.requirements.value = "";
           resetReadyState();
         }
 
@@ -929,11 +944,18 @@
           const directoryPath = String(
             mediaSource.directoryPath || mediaSource.folderPath || "",
           ).trim();
-          if (!filePath && !directoryPath) return null;
+          const url = String(mediaSource.url || "").trim();
+          if (!filePath && !directoryPath && !url) return null;
           if (directoryPath) {
             return {
               kind: "directoryPath",
               directoryPath,
+            };
+          }
+          if (url) {
+            return {
+              kind: "url",
+              url,
             };
           }
           return {
@@ -953,9 +975,10 @@
           row.dataset.kind = mediaSource.kind || "filePath";
           row.dataset.filePath = mediaSource.filePath || "";
           row.dataset.directoryPath = mediaSource.directoryPath || "";
+          row.dataset.url = mediaSource.url || "";
           row.dataset.previewUrl = mediaSource.previewUrl || "";
           row.dataset.previewObjectUrl = mediaSource.previewObjectUrl === true ? "true" : "false";
-          const sourcePath = row.dataset.directoryPath || row.dataset.filePath;
+          const sourcePath = row.dataset.directoryPath || row.dataset.filePath || row.dataset.url;
           row.innerHTML = `
             <div class="media-source-thumbnail" data-role="thumbnail" aria-hidden="true"></div>
             <div class="media-source-path" title="${escapeAttribute(sourcePath)}">
@@ -980,7 +1003,7 @@
           const thumbnail = row.querySelector('[data-role="thumbnail"]');
           thumbnail.innerHTML = "";
           const previewUrl = row.dataset.previewUrl || "";
-          const pathValue = row.dataset.directoryPath || row.dataset.filePath || "";
+          const pathValue = row.dataset.directoryPath || row.dataset.filePath || row.dataset.url || "";
           const mediaType = String(mediaSource.previewMimeType || "").toLowerCase();
           const previewKind = mediaPreviewKind(previewUrl, mediaType);
           if (previewKind === "image") {
@@ -1014,6 +1037,7 @@
         function mediaThumbnailLabel(value) {
           const source = String(value || "").trim();
           if (!source) return "FILE";
+          if (/^https?:\/\//i.test(source)) return "URL";
           if (!source.split(/[\\/]/).filter(Boolean).pop()?.includes(".")) return "DIR";
           const fileName = source.split(/[\\/]/).filter(Boolean).pop() || "";
           const extension = fileName.includes(".") ? fileName.split(".").pop() : "";
@@ -1061,12 +1085,18 @@
                   directoryPath: String(row.dataset.directoryPath || "").trim(),
                 };
               }
+              if (row.dataset.kind === "url") {
+                return {
+                  kind: "url",
+                  url: String(row.dataset.url || "").trim(),
+                };
+              }
               return {
                 kind: "filePath",
                 filePath: String(row.dataset.filePath || "").trim(),
               };
             })
-            .filter((mediaSource) => mediaSource.filePath || mediaSource.directoryPath);
+            .filter((mediaSource) => mediaSource.filePath || mediaSource.directoryPath || mediaSource.url);
         }
 
         function appendPickedFileRows(files) {
@@ -1244,10 +1274,10 @@
           fields.mediaFolderPicker.value = "";
         }
 
-        function renderChoiceOptions(container, options, recommendedText = "", customField) {
+        function renderChoiceOptions(container, options, recommendedValues = "", customField) {
           container.innerHTML = "";
           const normalizedOptions = normalizeChoiceOptions(options);
-          const recommendedChoices = recommendedChoiceSet(normalizedOptions, recommendedText);
+          const recommendedChoices = recommendedChoiceSet(normalizedOptions, recommendedValues);
           for (const optionText of normalizedOptions) {
             const isRecommendedChoice = recommendedChoices.has(optionText);
             const button = document.createElement("button");
@@ -1281,18 +1311,12 @@
           container.appendChild(customButton);
         }
 
-        function recommendedChoiceSet(options, recommendedText) {
+        function recommendedChoiceSet(options, recommendedValues) {
           if (!options.length) return new Set();
-          const recommendedKeys = atomizeChoiceOption(recommendedText).map(choiceKey);
-          const selected = options.filter((optionText) => {
-            const optionKey = choiceKey(optionText);
-            return recommendedKeys.some((recommendedKey) =>
-              recommendedKey === optionKey ||
-              recommendedKey.includes(optionKey) ||
-              optionKey.includes(recommendedKey),
-            );
-          });
-          return new Set(selected.length ? selected : [options[0]]);
+          const recommendedKeys = new Set(normalizeChoiceOptions(
+            Array.isArray(recommendedValues) ? recommendedValues : [recommendedValues],
+          ).map(choiceKey));
+          return new Set(options.filter((optionText) => recommendedKeys.has(choiceKey(optionText))));
         }
 
         function choiceKey(value) {
@@ -1377,6 +1401,39 @@
           };
         }
 
+        function normalizePositiveNumber(value) {
+          const number = Number(value);
+          return Number.isFinite(number) && number > 0 ? number : undefined;
+        }
+
+        function normalizeDurationContract(contract, durationGoal) {
+          const input = contract && typeof contract === "object" ? contract : {};
+          const sourceDurationSeconds = normalizePositiveNumber(input.sourceDurationSeconds);
+          return {
+            totalDurationMode: ["auto", "preserve_source", "custom_range"].includes(input.totalDurationMode)
+              ? input.totalDurationMode
+              : durationGoal?.durationGoalMode === "custom"
+                ? "custom_range"
+                : "auto",
+            sourceCoverageMode: ["selected_segments", "full_source"].includes(input.sourceCoverageMode)
+              ? input.sourceCoverageMode
+              : "selected_segments",
+            ...(sourceDurationSeconds === undefined ? {} : { sourceDurationSeconds }),
+            toleranceSeconds: normalizePositiveNumber(input.toleranceSeconds) || 0.2,
+          };
+        }
+
+        function collectDurationContract(durationGoal) {
+          const existing = normalizeDurationContract(currentDurationContract, durationGoal);
+          if (
+            existing.totalDurationMode === "preserve_source" ||
+            existing.sourceCoverageMode === "full_source"
+          ) {
+            return existing;
+          }
+          return normalizeDurationContract(null, durationGoal);
+        }
+
         function collectIntent() {
           const mediaSources = collectMediaSources();
           const durationGoal = collectDurationGoal();
@@ -1384,10 +1441,12 @@
             pendingConfirmationId: currentPendingConfirmationId,
             projectId: currentProjectId || slugify(fields.projectName.value),
             projectName: fields.projectName.value.trim(),
+            taskType: fields.taskType.value,
             mediaSource: mediaSources[0],
             mediaSources,
             targetAspectRatio: fields.targetAspectRatio.value,
             ...durationGoal,
+            durationContract: collectDurationContract(durationGoal),
             captionLanguage: fields.captionLanguage.value.trim() || "auto",
             transitionPreference: fields.transitionPreference.value,
             output: {
@@ -1399,19 +1458,45 @@
               captionStylePreset: fields.captionStylePreset.value,
             },
             generateIntroCover: collectIntroCoverChoice(),
-            brief: collectChoiceText(fields.briefOptions, fields.brief),
-            successCriteria: collectChoiceText(fields.successCriteriaOptions, fields.successCriteria),
+            requirements: collectChoiceText(fields.requirementOptions, fields.requirements),
           };
+        }
+
+        const hostToolTimeoutMs = 12000;
+
+        async function withTimeout(operation, timeoutMs, timeoutMessage) {
+          let timeoutId;
+          try {
+            return await Promise.race([
+              Promise.resolve().then(operation),
+              new Promise((_, reject) => {
+                timeoutId = setTimeout(
+                  () => reject(new Error(timeoutMessage)),
+                  timeoutMs,
+                );
+              }),
+            ]);
+          } finally {
+            clearTimeout(timeoutId);
+          }
         }
 
         async function callTool(name, args) {
           const api = window.openai;
           if (!api) throw new Error(t("openaiUnavailable"));
-          if (typeof api.callTool === "function") {
-            return api.callTool(name, args);
-          }
           if (typeof api.callServerTool === "function") {
-            return api.callServerTool({ name, arguments: args });
+            return withTimeout(
+              () => api.callServerTool({ name, arguments: args }),
+              hostToolTimeoutMs,
+              t("hostToolTimeout"),
+            );
+          }
+          if (typeof api.callTool === "function") {
+            return withTimeout(
+              () => api.callTool(name, args),
+              hostToolTimeoutMs,
+              t("hostToolTimeout"),
+            );
           }
           throw new Error(t("callToolUnavailable"));
         }
@@ -1440,6 +1525,20 @@
           return checks.childElementCount ? checks : null;
         }
 
+        function formatErrorMessage(value, fallback) {
+          if (value === undefined || value === null || value === "") return fallback;
+          if (value instanceof Error) return value.message || fallback;
+          if (typeof value === "string") return value || fallback;
+          if (typeof value === "object") {
+            const nested = value.message ?? value.error ?? value.detail ?? value.description;
+            if (nested !== undefined && nested !== value) {
+              return formatErrorMessage(nested, fallback);
+            }
+            return JSON.stringify(value);
+          }
+          return String(value);
+        }
+
         function renderBlocked(payload) {
           const blockedPayload = payload || {};
           fields.result.classList.remove("hidden");
@@ -1449,7 +1548,10 @@
           title.textContent = t("blocked");
           const message = document.createElement("p");
           message.className = "muted";
-          message.textContent = blockedPayload.error || blockedPayload.message || t("setupBlocked");
+          message.textContent = formatErrorMessage(
+            blockedPayload.error ?? blockedPayload.message,
+            t("setupBlocked"),
+          );
           fields.result.append(title, message);
           const checks = renderChecks(blockedPayload);
           if (checks) fields.result.appendChild(checks);
@@ -1461,6 +1563,17 @@
           fields.setupUnavailable.classList.remove("hidden");
         }
 
+        function renderSubmitting() {
+          fields.result.classList.remove("hidden");
+          fields.result.innerHTML = "";
+          const title = document.createElement("strong");
+          title.textContent = t("creating");
+          const message = document.createElement("p");
+          message.className = "muted";
+          message.textContent = t("submittingSetup");
+          fields.result.append(title, message);
+        }
+
         async function submit(event) {
           event.preventDefault();
           if (!currentPendingConfirmationId) {
@@ -1469,6 +1582,7 @@
           }
           fields.submitButton.disabled = true;
           fields.submitButton.textContent = t("creating");
+          renderSubmitting();
           try {
             const result = await callTool("submit_codecut_setup", collectIntent());
             const payload = structuredContent(result);
@@ -1482,7 +1596,7 @@
             } catch (error) {
               renderEditorOpenError(error);
             }
-            await sendFollowUp(payload.continuePrompt);
+            await sendFollowUp(payload.continuePrompt, payload);
           } catch (error) {
             renderBlocked({
               error: error instanceof Error ? error.message : String(error),
@@ -1551,7 +1665,7 @@
           fields.result.appendChild(errorText);
         }
 
-        async function sendFollowUp(prompt) {
+        async function sendFollowUp(prompt, payload = {}) {
           fields.followUp.classList.remove("hidden");
           fields.followUp.innerHTML = `<strong>${escapeHtml(t("continuing"))}</strong>`;
           try {
@@ -1560,7 +1674,7 @@
               throw new Error(t("followUpUnavailable"));
             }
             await api.sendFollowUpMessage({ prompt });
-            fields.followUp.innerHTML = `<strong class="ok">${escapeHtml(t("followUpSent"))}</strong>`;
+            renderFollowUpRequested(payload);
           } catch (error) {
             fields.followUp.innerHTML = "";
             const title = document.createElement("strong");
@@ -1571,9 +1685,26 @@
             const retry = document.createElement("button");
             retry.type = "button";
             retry.textContent = t("retryFollowUp");
-            retry.addEventListener("click", () => sendFollowUp(prompt));
+            retry.addEventListener("click", () => sendFollowUp(prompt, payload));
             fields.followUp.append(title, pre, retry);
           }
+        }
+
+        function renderFollowUpRequested(payload = {}) {
+          const projectId = payload.projectId || payload.intent?.projectId || "";
+          const pendingConfirmationId = payload.pendingConfirmationId || payload.intent?.pendingConfirmationId || "";
+          const recovery = projectId && pendingConfirmationId
+            ? `
+              <p class="muted">${escapeHtml(t("followUpRecoveryHint"))}</p>
+              <p><strong>${escapeHtml(t("recoverSetupLabel"))}:</strong></p>
+              <p><strong>projectId:</strong> <code>${escapeHtml(projectId)}</code></p>
+              <p><strong>pendingConfirmationId:</strong> <code>${escapeHtml(pendingConfirmationId)}</code></p>
+            `
+            : "";
+          fields.followUp.innerHTML = `
+            <strong class="ok">${escapeHtml(t("followUpRequested"))}</strong>
+            ${recovery}
+          `;
         }
 
         function escapeHtml(value) {

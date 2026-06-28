@@ -40,7 +40,13 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
     text: string,
     startTime: number,
     duration: number,
-    stylePreset?: "hook_title" | "lower_title",
+    stylePreset?:
+      | "hook_title"
+      | "lower_title"
+      | "social_hook"
+      | "product_badge"
+      | "chapter_bumper",
+    motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce",
     richSpans?: Array<{
       start: number,
       end: number,
@@ -73,7 +79,6 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
       | "talking-head-pop"
       | "tutorial-clean"
       | "documentary-soft"
-      | "property-clean-yellow"
       | "product-punch"
       | "lifestyle-warm"
       | "cinematic-serif"
@@ -81,7 +86,6 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
       | "comment-bubble"
       | "minimal-reel",
     position: "lower-safe" | "center",
-    size: "small" | "medium" | "large",
     motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce"
   },
   audio?: {
@@ -111,7 +115,14 @@ The current runtime validator lives in `apps/web/src/lib/agent-bridge/edit-plan/
       | "slide-up"
       | "slide-down"
       | "zoom-in"
-      | "zoom-out",
+      | "zoom-out"
+      | "blur-crossfade"
+      | "flash-white"
+      | "push-soft"
+      | "whip-pan-left"
+      | "whip-pan-right"
+      | "cinematic-zoom"
+      | "chromatic-split",
     duration: number
   }>,
   rationale: string
@@ -142,23 +153,29 @@ Current validation fail-fast checks include:
 - title and captions must fit inside the generated timeline.
 - captions must use top-level `captionStyle`; per-caption style objects are not
   accepted.
-- captionStyle accepts only `preset`, `position`, required `size`, and optional
-  `motionPreset`. Do not add `fontFamily`, `fontSize`, `color`, CSS, or
-  external renderer fields to captions or captionStyle. Presets resolve to
-  controlled local renderer styles and curated local CJK renderer fonts.
-- `creator-clean` is the default Chinese creator-caption treatment. It uses a
-  local serif font, white text, no heavy black stroke, and subtle shadow for
-  readability.
-- captionStyle `size` must be `small`, `medium`, or `large`. It maps to
-  controlled renderer multipliers and is not an arbitrary pixel font size.
+- captionStyle accepts only `preset`, `position`, and optional `motionPreset`.
+  Do not add `fontFamily`, `fontSize`, `color`, CSS, or external renderer fields to captions or
+  captionStyle. Presets resolve to controlled local renderer styles; the
+  current implementation uses curated local CJK renderer fonts.
+- title styling accepts only implemented `title.stylePreset` values and
+  optional `title.motionPreset`; do not put arbitrary title `fontFamily`,
+  `fontSize`, `color`, CSS, Shader, or HTML fields in EditPlan. Title presets
+  resolve to controlled Codecut renderer styles, including curated local CJK
+  fonts and curated `@fontsource` Latin fonts.
+- `talking-head-pop` is the default spoken talking-head caption treatment. It
+  uses a local CJK font, white text, translucent dark backing, and stronger
+  shadow for light-background readability. Very short caption lines are
+  enlarged by the renderer.
+- `creator-clean` is a clean Chinese creator-caption treatment for visually
+  controlled backgrounds. It uses a local serif font, white text, no heavy
+  black stroke, and subtle shadow.
 - captions must not overlap, each caption duration must be `0.5s..4s`, and the
   resolved preset/layout must render at most two lines with no 1-2 character
   orphan final line.
 - captionStyle preset must be one of the implemented local presets:
   `creator-clean`, `short-form-bold`, `black-bar`, `talking-head-pop`,
-  `tutorial-clean`, `documentary-soft`, `property-clean-yellow`,
-  `product-punch`, `lifestyle-warm`, `cinematic-serif`, `social-highlight`,
-  `comment-bubble`, or `minimal-reel`.
+  `tutorial-clean`, `documentary-soft`, `product-punch`, `lifestyle-warm`, or
+  `cinematic-serif`, `social-highlight`, `comment-bubble`, or `minimal-reel`.
 - `richSpans` must use integer `[start, end)` code point indexes, must be
   ordered and non-overlapping, and must stay inside the corresponding title or
   caption text.
@@ -168,15 +185,16 @@ Current validation fail-fast checks include:
 - SFX start times must fit inside the generated timeline.
 - transitions must reference existing `clips[].id` values, must be adjacent on
   the output timeline within `0.05s`, and must not exceed either neighboring
-  clip duration.
+  clip duration. They must use the implemented native transition types listed
+  above; do not use keyframes, Shader, WebGL, CSS, or arbitrary effect names to
+  satisfy a transition request.
 
 `target.aspectRatio` is a planning field in the current implemented schema. It does not update the project canvas by itself. When the user outcome requires vertical, square, or specific FPS output, call the implemented project settings path and verify the result through `get_project_info`.
 
 Caption timing must use a post-cut caption source. Prefer edited clip audio
 transcription through `build-post-cut-captions`: apply a clip-first EditPlan,
 run the command, copy the returned captions into the final EditPlan, then apply
-the final plan with the returned `captionStyle`, including `captionStyle.size`.
-The returned `captionQuality` must pass before mutation.
+the final plan. The returned `captionQuality` must pass before mutation.
 Otherwise use source transcript remap: convert source transcript segment
 timestamps into output timeline timestamps through the selected `clips[]`. Do
 not copy source transcript timestamps directly into `captions[].startTime`.
@@ -255,6 +273,11 @@ Transitions v1 only accepts adjacent generated video clips:
 }
 ```
 
+Use `blur-crossfade` or `push-soft` for talking-head shorts, `flash-white` or
+`cinematic-zoom` for product proof and UGC ads, `blur-crossfade` for emotional
+or premium edits, and `push-soft` for tutorials. Reserve `chromatic-split` and
+`whip-pan-*` for high-energy promos.
+
 ## Current Implemented NarratedRemixPlan v1
 
 The runtime validator lives in
@@ -269,20 +292,49 @@ only this shape when calling `apply_narrated_remix_plan`:
     durationSec: number,
     aspectRatio: "9:16" | "16:9" | "1:1"
   },
-  visualBeats: Array<{
-    id: string,
-    mediaId: string,
-    sourceStart: number,
-    sourceEnd: number,
-    timelineStart: number,
-    muted: true,
-    reason: string
-  }>,
+  visualBeats: Array<
+    | {
+        id: string,
+        mediaType?: "video",
+        mediaId: string,
+        sourceStart: number,
+        sourceEnd: number,
+        timelineStart: number,
+        muted: true,
+        reason: string
+      }
+    | {
+        id: string,
+        mediaType: "image",
+        mediaId: string,
+        timelineStart: number,
+        duration: number,
+        fit: "cover",
+        reason: string
+      }
+  >,
   narration: {
     mediaId: string,
     sourceStart: number
   },
-  captions?: Array<{
+  textOverlays?: Array<{
+    name: string,
+    text: string,
+    startTime: number,
+    duration: number,
+    fontSize: number,
+    color: string,
+    backgroundColor?: string,
+    backgroundOpacity?: number,
+    backgroundPaddingX?: number,
+    backgroundPaddingY?: number,
+    backgroundBorderRadius?: number,
+    boxWidth: number,
+    position: { x: number, y: number },
+    textAlign: "left" | "center" | "right",
+    fontWeight: "normal" | "bold"
+  }>,
+  captions: Array<{
     text: string,
     startTime: number,
     duration: number
@@ -295,35 +347,10 @@ only this shape when calling `apply_narrated_remix_plan`:
       | "talking-head-pop"
       | "tutorial-clean"
       | "documentary-soft"
-      | "property-clean-yellow"
       | "product-punch"
       | "lifestyle-warm"
-      | "cinematic-serif"
-      | "social-highlight"
-      | "comment-bubble"
-      | "minimal-reel",
-    position: "lower-safe" | "center",
-    size: "small" | "medium" | "large",
-    motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce"
-  },
-  captionSource?: {
-    type: "post-cut-audio",
-    tool: "build-post-cut-captions",
-    source: "edited_video_clip_audio" | "edited_timeline_audio" | "scripted_tts_audio",
-    trace: Array<{
-      mediaId: string,
-      timelineStart: number,
-      sourceStart: number,
-      sourceEnd: number,
-      captionCount: number
-    }>,
-    voiceConsistency?: {
-      provider: "imported-tts" | "runninghub-voice-design" | "runninghub-voice-clone",
-      providerTaskId?: string,
-      alignmentMethod: "scripted_captions_to_asr_segments",
-      scriptCaptionLineCount: number,
-      protectedTermCount: number
-    }
+      | "cinematic-serif",
+    position: "lower-safe" | "center"
   },
   rationale: string
 }
@@ -333,24 +360,22 @@ Current validation fail-fast checks include:
 
 - `projectId` must match the active project.
 - `narration.mediaId` must resolve to an imported audio media asset.
-- every `visualBeats[].mediaId` must resolve to an imported video media asset.
-- all audio/video durations must be known.
-- every visual source range must have `sourceEnd > sourceStart`.
-- every visual source range must fit inside the referenced media duration.
+- every video beat `mediaId` must resolve to an imported video media asset.
+- every image beat `mediaId` must resolve to an imported image media asset with known width and height.
+- all audio/video durations used by the plan must be known.
+- every video beat source range must have `sourceEnd > sourceStart`.
+- every video beat source range must fit inside the referenced media duration.
 - visual beats must start at `0`, be continuous, and have no gaps or overlaps.
 - visual beat total duration must equal `target.durationSec`.
+- top-level `textOverlays`, when present, must fit inside
+  `target.durationSec` and use controlled local `TextElement` style fields.
 - captions must fit inside `target.durationSec`.
 - captions require top-level `captionStyle` and must pass the same duration,
   overlap, two-line, and orphan-line quality contract as EditPlan captions.
-- a first-pass NarratedRemixPlan may omit `captions`, `captionStyle`, and
-  `captionSource`; when `captions` are present, `captionSource` is required.
-- `captionSource.type` must be `post-cut-audio`, `captionSource.tool` must be
-  `build-post-cut-captions`, and the sum of `trace[].captionCount` must equal
-  `captions.length`.
 - narration must cover `target.durationSec` from `narration.sourceStart`.
 
-Do not include TTS, generated speech, BGM, SFX, image B-roll, external media
-URLs, effect instructions, append instructions, or arbitrary style fields in
+Do not include TTS, generated speech, BGM, SFX, external media URLs, effect
+instructions, append instructions, or arbitrary CSS/style fields in
 `NarratedRemixPlan v1`.
 
 ## Invalid Plan Behavior

@@ -15,7 +15,7 @@ Applies to TikTok, Reels, Shorts, and similar feeds.
 | FPS | 30 |
 | Duration | 15-45 seconds |
 | Structure | hook -> proof/demo -> value beat -> CTA or loop |
-| Captions | Resolved template caption preset, such as `talking-head-pop`, `property-clean-yellow`, or `product-punch`; no hidden fallback |
+| Captions | Resolved template caption preset, such as `talking-head-pop` or `product-punch`; no hidden fallback |
 | BGM with voice | 0.08-0.14 |
 | BGM without voice | 0.18-0.28 |
 | Decision ledger | Required before EditPlan when the request is a platform cut, highlight, or broad short-form improvement |
@@ -86,7 +86,7 @@ Rules:
 | Aspect ratio | 9:16 |
 | Duration | 15-35 seconds |
 | Structure | hook -> pain/proof -> demo/process -> CTA |
-| Captions | `product-punch` for hard promotion; `property-clean-yellow` for information-dense property/product explanation |
+| Captions | `product-punch`, claim-focused and short |
 | Visual priority | proof shots over explanation |
 | Decision ledger | Required before EditPlan |
 
@@ -142,16 +142,34 @@ For short-form vertical planning:
 
 Use implemented caption presets only:
 
-- `creator-clean`: default Chinese creator-caption route, especially Xiaohongshu or clean talking-head clips that need a polished font-first look.
-- `talking-head-pop`: vertical opinion, creator talking-head, high-retention claim clips.
+- `talking-head-pop`: default for spoken talking-head, vertical opinion, creator talking-head, and high-retention claim clips. It is tuned for light-background readability with white text, translucent dark backing, and stronger shadow.
+- `creator-clean`: clean Chinese creator-caption route for visually controlled backgrounds, especially Xiaohongshu or polished font-first clips that do not need a boxed spoken-caption look.
 - `tutorial-clean`: screen recording, product walkthrough, step-by-step demo.
 - `documentary-soft`: calmer essay, interview, narrative explanation, horizontal YouTube-style edit.
-- `property-clean-yellow`: real-estate talking-head, property listing, floor-plan, home-tour, or information-dense product explanation.
-- `product-punch`: hard promotion, product proof, UGC ad, deal hook, comparison demo, before/after.
+- `product-punch`: product proof, UGC ad, deal hook, comparison demo, before/after.
+- `social-highlight`: platform-native punchy highlights, listicle points, and short social claims.
+- `comment-bubble`: reply-to-comment, testimonial, DM/comment reading, and quote-like captions.
+- `minimal-reel`: quiet personal reel or creator recap where captions still need a subtle backing on light backgrounds.
 - `lifestyle-warm`: vlog, Xiaohongshu-style lifestyle, food, travel, daily routine, soft recommendation.
 - `cinematic-serif`: brand story, fashion, emotional montage, premium product film.
 - `short-form-bold`: legacy bold short-form route only when the user explicitly asks for that heavier look; do not use it as a hidden fallback.
 - `black-bar`: only when the user explicitly wants a boxed subtitle look; Do not use it to mask burned-in captions.
+
+## Native Transition Routing
+
+Use implemented native transition presets only; never use keyframes, Shader,
+WebGL, CSS, or arbitrary transition names to satisfy a transition request.
+
+- Talking-head, opinion, and interview shorts: `blur-crossfade` for calm
+  continuity, or `push-soft` for point-to-point pacing.
+- Tutorial, demo, and screen walkthrough: `push-soft` to show progression
+  without distracting from the proof.
+- Product proof, UGC ad, deal hook, before/after: `flash-white` for reveal or
+  `cinematic-zoom` for product emphasis.
+- Brand story, fashion, emotional montage, premium product film:
+  `blur-crossfade` as the default restrained transition.
+- High-energy launch, sports, music, or promo: `chromatic-split`,
+  `whip-pan-left`, or `whip-pan-right` when the source motion can support it.
 
 ## Preset Selection
 
@@ -161,7 +179,6 @@ If user says:
 - "YouTube", "横屏", "长视频" -> YouTube Horizontal unless the user asks for Shorts.
 - "教程", "demo", "演示" -> Tutorial / Demo.
 - "带货", "商品", "广告", "UGC" -> UGC / Product Ad.
-- "房产", "楼盘", "户型", "带看", "房源" -> property-clean-yellow caption route unless the user explicitly asks for hard promotion or a deal hook.
 - "试吃", "试喝", "探店", "vlog", "小红书", "生活方式" -> lifestyle-warm caption route unless the business goal is a hard product ad.
 - "品牌片", "情绪片", "高级感", "电影感" -> cinematic-serif caption route.
 - "口播", "去废话", "精剪" -> Talking-Head Polish.

@@ -11,20 +11,67 @@ export class IndexedDBAdapter<T> implements StorageAdapter<T> {
 		this.version = version;
 	}
 
-	private async getDB(): Promise<IDBDatabase> {
+	private createStoreIfMissing(db: IDBDatabase): void {
+		if (!db.objectStoreNames.contains(this.storeName)) {
+			db.createObjectStore(this.storeName, { keyPath: "id" });
+		}
+	}
+
+	private async openDB(version?: number): Promise<IDBDatabase> {
 		return new Promise((resolve, reject) => {
-			const request = indexedDB.open(this.dbName, this.version);
+			const request =
+				version === undefined
+					? indexedDB.open(this.dbName)
+					: indexedDB.open(this.dbName, version);
 
 			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve(request.result);
+			request.onblocked = () =>
+				reject(
+					new DOMException(
+						"IndexedDB upgrade blocked by an open connection.",
+						"InvalidStateError",
+					),
+				);
+			request.onsuccess = () => {
+				const db = request.result;
+				db.onversionchange = () => db.close();
+				resolve(db);
+			};
 
-			request.onupgradeneeded = (event) => {
-				const db = (event.target as IDBOpenDBRequest).result;
-				if (!db.objectStoreNames.contains(this.storeName)) {
-					db.createObjectStore(this.storeName, { keyPath: "id" });
-				}
+			request.onupgradeneeded = () => {
+				this.createStoreIfMissing(request.result);
 			};
 		});
+	}
+
+	private async ensureObjectStore(db: IDBDatabase): Promise<IDBDatabase> {
+		if (db.objectStoreNames.contains(this.storeName)) {
+			return db;
+		}
+
+		const nextVersion = db.version + 1;
+		db.close();
+		return this.openDB(nextVersion);
+	}
+
+	private isVersionError(error: unknown): boolean {
+		return error instanceof DOMException
+			? error.name === "VersionError"
+			: error instanceof Error && error.name === "VersionError";
+	}
+
+	private async getDB(): Promise<IDBDatabase> {
+		try {
+			const db = await this.openDB(this.version);
+			return await this.ensureObjectStore(db);
+		} catch (error) {
+			if (!this.isVersionError(error)) {
+				throw error;
+			}
+
+			const db = await this.openDB();
+			return await this.ensureObjectStore(db);
+		}
 	}
 
 	async get(key: string): Promise<T | null> {

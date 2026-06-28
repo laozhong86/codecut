@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "codecut_mcp": {
-      "title": "Codecut MCP",
-      "description": "Expose stable Codecut local executor tools through MCP.",
+      "title": "CodeCut MCP",
+      "description": "CodeCut MCP tools for local editor setup, timeline readback, and verified editing operations.",
       "cwd": ".",
       "command": "node",
       "args": [

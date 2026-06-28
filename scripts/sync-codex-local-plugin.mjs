@@ -10,7 +10,10 @@ import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
 const BRIDGE_ENV_PREFIX = "CODECUT_AGENT_BRIDGE_";
-const ALLOWED_RUNTIME_ENV_KEYS = new Set(["RUNNINGHUB_API_KEY"]);
+const ALLOWED_RUNTIME_ENV_KEYS = new Set([
+	"RUNNINGHUB_API_KEY",
+	"VOLCENGINE_OPEN_SPEECH_API_KEY",
+]);
 const EXCLUDES = [
 	".git",
 	".git/",

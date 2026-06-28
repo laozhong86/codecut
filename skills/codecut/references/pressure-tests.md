@@ -1,14 +1,18 @@
 # Pressure-Test Prompts
 
-Use these prompts to test whether an agent routes Codecut editing requests through the intent router and the narrowest workflow recipe before sending bridge commands or claiming unsupported capabilities.
+Use these prompts to test whether an agent routes Codecut editing requests
+through `codecut-edit-planning`, chooses the narrowest workflow recipe, and
+hands off a strict plan draft plus verification spec before executor apply.
 
 ## How To Use
 
-For each prompt, inspect the agent's first plan before any mutation. Passing behavior means the agent selects the expected recipe, states the current MVP boundary, and names the verification exit.
+For each prompt, inspect the agent's first plan before any mutation. Passing
+behavior means the agent selects the expected recipe, states the current MVP
+boundary, and names the planning artifact plus verification exit.
 
 Do not run these as product tests. They test skill compliance and routing quality only.
 
-## Test 1: Long-To-Short Default
+## Test 1: Long-To-Short Confirmed Choices
 
 Prompt:
 
@@ -19,12 +23,14 @@ Prompt:
 Expected route:
 
 - Intent: `Long-to-short` or `TikTok/Reels/Shorts`
-- Recipe: `workflow-recipes/long-to-short.md`
-- Verification exit: `apply_edit_plan` success plus `get_timeline_state`
+- Stage: `codecut-edit-planning`
+- Recipe: `skills/codecut-edit-planning/references/workflow-recipes/long-to-short.md`
+- Verification exit: strict EditPlan draft plus verification spec for `codecut-executor-apply`
 
 Pass criteria:
 
-- Uses 30-60 seconds and 9:16 as safe defaults, and requires explicit project settings for vertical execution.
+- Uses the explicit "1 minute" and "9:16" choices from the prompt, and records
+  any project-settings runtime gap in the verification spec.
 - Requires the P0 browser/bridge gate before importing media.
 - Uses transcript-first selection for talking content.
 
@@ -46,8 +52,9 @@ Prompt:
 Expected route:
 
 - Intent: `Talking-head polish`
-- Recipe: `workflow-recipes/talking-head-polish.md`
-- Verification exit: `get_timeline_state` proves source-order clips and caption timing
+- Stage: `codecut-edit-planning`
+- Recipe: `skills/codecut-edit-planning/references/workflow-recipes/talking-head-polish.md`
+- Verification exit: SpeechCleanupPlan projection plus verification spec for source-order clips and caption timing
 
 Pass criteria:
 
@@ -73,8 +80,9 @@ Prompt:
 Expected route:
 
 - Intent: `Subtitle/caption pass`
-- Recipe: `workflow-recipes/subtitle-pass.md`
-- Verification exit: caption count and timing bounds from `get_timeline_state`
+- Stage: `codecut-edit-planning`
+- Recipe: `skills/codecut-edit-planning/references/workflow-recipes/subtitle-pass.md`
+- Verification exit: caption plan draft plus verification spec for caption count and timing bounds
 
 Pass criteria:
 
@@ -99,7 +107,8 @@ Prompt:
 Expected route:
 
 - Intent: `Voiceover/narration`
-- Recipe: `workflow-recipes/voiceover-remix.md`
+- Stage: `codecut-edit-planning`
+- Recipe: `skills/codecut-edit-planning/references/workflow-recipes/voiceover-remix.md`
 - Verification exit: blocked capability report unless existing narration audio can be imported/placed and the requested composition is supported
 
 Pass criteria:
@@ -125,7 +134,8 @@ Prompt:
 Expected route:
 
 - Intent: `Timeline inspection`
-- Recipe: `workflow-recipes/timeline-inspection.md`
+- Stage: `codecut-edit-planning` for inspection plan, then `codecut-executor-apply` for readback
+- Recipe: `skills/codecut-edit-planning/references/workflow-recipes/timeline-inspection.md`
 - Verification exit: read-only project and timeline state summary
 
 Pass criteria:
@@ -151,16 +161,17 @@ Prompt:
 Expected route:
 
 - Intent: `UGC/product ad` or `TikTok/Reels/Shorts` depending on product context
-- Recipe: `workflow-recipes/long-to-short.md`
+- Stage: `codecut-edit-planning`
+- Recipe: `skills/codecut-edit-planning/references/workflow-recipes/long-to-short.md`
 - Required pre-EditPlan artifact: Codex-side EditingDecisionLedger with `materialAudit`, `storyBeats`, `candidateClips`, `selectedStructure`, and `qaChecklist`
-- Verification exit: `apply_edit_plan` success plus `get_timeline_state`, with the report mapping the applied timeline back to the selected structure
+- Verification exit: strict EditPlan draft plus verification spec that maps executor readback back to the selected structure
 
 Pass criteria:
 
 - Audits source media, transcript availability, visual proof, product facts, and missing evidence before choosing clips.
 - Selects candidate clips by role such as hook, pain, proof, demo/process, value, trust, objection, CTA, or loop-back.
 - Produces the EditingDecisionLedger before generating EditPlan v1.
-- Keeps ledger fields out of EditPlan v1 and uses only implemented schema fields for `apply_edit_plan`.
+- Keeps ledger fields out of EditPlan v1 and uses only implemented schema fields for the executor handoff.
 - Stops or clearly limits claims when product facts, proof shots, transcript, or visual context are missing.
 
 Fail signals:
@@ -183,7 +194,7 @@ Expected route:
 - Intent: new creative job from a remote URL.
 - First required stage: `codecut-requirement-intake`.
 - Allowed before confirmation: call `open_codecut_workspace` and wait for widget submission only.
-- Blocked before confirmation: shell, file writes, material ingest, workspace init/add-assets/probe-assets, `create-project`, `import-media`, generated media, timeline mutation, and export.
+- Blocked before confirmation: shell, file writes, material ingest, workspace add-assets/probe-assets, `create-project`, `import-media`, generated media, timeline mutation, and export.
 
 Pass criteria:
 
@@ -224,7 +235,7 @@ Pass criteria:
 Fail signals:
 
 - Generates clip ranges without transcript timestamps.
-- Uses platform preset defaults as a Magic Default replacement for missing transcript evidence.
+- Uses platform preset assumptions to replace missing transcript evidence.
 - Promises automatic filler removal without transcript or silence evidence.
 
 ## Test 9: Product Template Requires Product Facts And Visual Proof
@@ -263,21 +274,21 @@ Prompt:
 
 Expected route:
 
-- Template ID: `narrated-broll` only if existing narration audio and imported video B-roll are available.
-- Required evidence: existing narration audio and video B-roll.
+- Template ID: `narrated-broll` only if existing narration audio and imported visual B-roll are available.
+- Required evidence: existing narration audio and visual B-roll.
 - Verification exit: blocked because TTS is not supported by NarratedRemixPlan v1.
 
 Pass criteria:
 
 - Identifies `narrated-broll` as the only P0 narrated remix path.
 - Stops on missing existing narration audio instead of generating speech or switching to EditPlan v1.
-- Reports that current NarratedRemixPlan v1 does not support TTS, BGM, SFX, image B-roll, effects, or append mode.
+- Reports that current NarratedRemixPlan v1 does not support TTS, BGM, SFX, effects, or append mode.
 
 Fail signals:
 
 - Invents a voice ID, generated narration asset, BGM, or SFX.
 - Applies a visual-only remix and reports a complete narrated result.
-- Adds NarratedRemixPlan captions without a post-cut `captionSource`.
+- Omits required `captionStyle` when captions are present in NarratedRemixPlan v1.
 
 ## Test 11: Animated Subtitle Is Not A Template Capability
 
@@ -303,4 +314,4 @@ Fail signals:
 
 - Treats `SUBTITLE_TEMPLATES` or UI presets as an Agent execution contract.
 - Adds arbitrary CSS, animation fields, or unsupported subtitle template fields to EditPlan v1.
-- Reports template application success without `apply_edit_plan` or `apply_narrated_remix_plan` validation.
+- Reports template application success without executor validation and readback.

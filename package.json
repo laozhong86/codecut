@@ -26,6 +26,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",

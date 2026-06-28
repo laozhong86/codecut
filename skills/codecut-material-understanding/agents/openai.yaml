@@ -1,0 +1,15 @@
+interface:
+  display_name: "Codecut Material Understanding"
+  short_description: "Understand Codecut source material roles, evidence, match options, and composition affordances before edit planning."
+  default_prompt: >-
+    Use $codecut-material-understanding when Codecut source material needs role
+    labels, content summaries, transcript or visual evidence review,
+    script-to-material matching, replacement suitability,
+    picture-in-picture suitability, split-screen suitability, circular talking-head suitability,
+    or material risk reporting before edit planning. Require material audit and
+    concrete transcript, VideoContext, visual, contact-sheet, range, or frame
+    evidence for claims. Write only the material-understanding report and hand
+    off to $codecut-edit-planning for final composition, clip selection, plan
+    drafts, or executor work. Do not call executor tools, mutate timelines,
+    import media, export media, generate masks, generate media, pick final
+    recipes, or silently turn affordances into edit decisions.

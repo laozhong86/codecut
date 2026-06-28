@@ -1,14 +1,20 @@
 ---
 name: codecut
-description: Use when operating or extending the Codex-only Codecut editing MVP, including local executor projects, material intake, EditPlan validation/application, timeline verification, or human preview.
+description: Use when operating or extending CodeCut, an Agent-driven visual video production system where Codex performs production work and CodeCut shows progress, materials, timeline, preview, manual adjustment, and export through a local editor.
 ---
 
-# Codecut
+# CodeCut
 
 ## Core Boundary
 
-Codecut is a local deterministic executor plus browser preview. Codex is the
-only LLM and agent layer.
+CodeCut is Codex + CapCut: an Agent-driven visual video production system.
+Codex performs the production workflow; CodeCut provides the local visual editor
+where the user can see progress, inspect materials, preview timeline state,
+manually adjust the edit, and export verified results.
+
+The current implementation still keeps Codex as the only LLM and Agent layer.
+CodeCut provides the local workspace, visual editor, deterministic timeline
+runtime, validation, readback, and export surface.
 
 This skill is the public plugin entrypoint and router. It must not become the
 full execution manual. The complete current runtime contract lives in
@@ -18,7 +24,7 @@ expose atomic primitives only.
 ## Stage Ownership
 
 This skill owns request classification and stage routing only. It chooses the
-next Codecut skill, recipe, or read-only reference to load.
+next CodeCut skill, recipe, or read-only reference to load.
 
 It does not collect missing setup answers, download source media, create
 projects, import assets, write plans, mutate timelines, verify exports, or
@@ -30,13 +36,14 @@ repair timeline state.
   output target, or completion requirement.
 - Plugin startup context from `.codex-plugin/plugin.json`
   `interface.defaultPrompt`.
-- Current stage evidence only when the user is continuing an existing Codecut
+- Current stage evidence only when the user is continuing an existing CodeCut
   job.
 
 ## Outputs
 
 - Selected route: source acquisition, requirement intake, material ingest,
-  reference-template, workflow recipe, executor apply, inspection, or
+  material understanding, reference-template, scriptwriting, cover generation,
+  edit planning, executor apply, methodology capture, inspection, or
   implementation work.
 - A stage handoff statement using `Stage`, `Status`, `Proof`, `Next`, and
   `Risk` when reporting progress or blockers.
@@ -44,18 +51,18 @@ repair timeline state.
 
 ## Artifacts
 
-This router does not create its own primary artifacts. Codecut stage proof must
+This router does not create its own primary artifacts. CodeCut stage proof must
 live under `.codecut-workspace/projects/<projectId>/...` once a creative job has
 a confirmed project ID.
 
-Do not introduce a skill-local `.artifacts/<run_id>` path as Codecut truth. The
+Do not introduce a skill-local `.artifacts/<run_id>` path as CodeCut truth. The
 workspace and executor readback are the durable evidence surfaces.
 
 ## Stop Conditions
 
 - The request shape is ambiguous enough that routing would choose a side-effect
   stage incorrectly.
-- The Codecut web service gate fails before a new creative job can open
+- The CodeCut web service gate fails before a new creative job can open
   `open_codecut_workspace`.
 - The required stage skill, recipe, or MCP widget tool is unavailable in the
   current session.
@@ -69,16 +76,41 @@ stage proof.
 ## Governance Layers
 
 - `AGENTS.md`: durable product boundaries and safety principles.
+- `../../docs/codecut-product-positioning.md`: product positioning,
+  `CodeCut = Codex + CapCut`, and user value.
+- `../../docs/codecut-agent-visual-production-architecture.md`: target layered
+  architecture for Agent production, process artifacts, visual editor state,
+  timeline delivery, and quality proof.
+- `../../docs/openmontage-to-codecut-adaptation.md`: OpenMontage compatibility
+  and adaptation blueprint.
 - `../../docs/codex-driven-editing.md`: current implementation truth, command
   contract, EditPlan/NarratedRemixPlan details, and failure handling.
 - `codecut`: route requests to the correct stage
   skill or recipe.
+- `codecut-scriptwriting`: create upstream cover title, video title, voiceover
+  script, and de-AI copy briefs without timeline mutation.
 - Stage skills: own one gate, input set, output shape, handoff, and stop
   conditions.
 - `references/workflow-stage-contract.md`: user-visible stage map, stage
   ownership, proof artifacts, and handoff shape.
 - MCP tools: define atomic capability schemas, side effects, read-only status,
   and failure shape. They do not choose workflows.
+
+## Progressive Load Map
+
+Use this skill as a map, not as the execution manual.
+
+| Situation | Read first | Load detail when | Stop before continuing | Required readback |
+| --- | --- | --- | --- | --- |
+| Need to classify the request or explain stages | `references/workflow-stage-contract.md` | A handoff, blocker, or user-facing status needs stage ownership | No loadable owner is available or routing would choose a side-effect stage by guess | None; router does not mutate state |
+| Need executor commands, readback, export, captions, visual QA, or plugin freshness proof | `references/execution-contract.md` | The task will mutate timeline state, verify export, or report completion | Required proof is missing or current executor/tool surface cannot produce it | `get_timeline_state` after timeline mutation; export proof after MP4/still export |
+| Need a project cover, short-video poster, thumbnail prompt, cover evidence-frame selection, generated cover image import, or cover readback | `../codecut-cover-generation/SKILL.md` | The user asks for a project cover/poster/thumbnail or setup requested a generated cover outside the video timeline | Platform ratio, visual evidence, image generation capability, imported image dimensions, or cover readback is missing | `get_project_info` or `get_timeline_state` proves project `cover`; duration is unchanged |
+| Need a cover title, video title, hook, voiceover script, spoken-word draft, or de-AI copy cleanup before editing | `../codecut-scriptwriting/SKILL.md` | The user asks for 封面标题, 视频标题, 口播脚本, 口播稿, 文案润色, 去 AI 味, or copy that later CodeCut planning should use | Missing topic, audience, proof, platform, or duration would force false claims or unusable spoken timing | ScriptwritingBrief only; no timeline mutation |
+| Opening a new edit plan with confirmed local preferences | `../codecut-methodology-capture/SKILL.md` only for the private store contract, then `../codecut-edit-planning/SKILL.md` | A workspace already has `.codecut-workspace/user-methodology/` files | Current user instructions conflict with stored methodology | Read-only local methodology context; no mutation |
+| Need material roles, content understanding, script-to-material matching, replacement/PIP/split-screen/circular talking-head suitability, or material risk reporting | `../codecut-material-understanding/SKILL.md` | Material audit exists and understanding is needed before planning | Material audit or required transcript/visual evidence is missing | `02-inventory/material-understanding.json` and `.md`; no timeline mutation |
+| Need transcript, VideoContext, candidate clips, decision ledger, or an EditPlan/NarratedRemixPlan draft | `../codecut-edit-planning/SKILL.md` | Material evidence or planning strategy affects the edit | Required material-understanding, transcript, visual, or planning evidence is missing or unsupported by current CodeCut contracts | Use executor readback only after `codecut-executor-apply` runs |
+| Need to remember feedback, update preferences, capture a correction, or produce post-project learning | `../codecut-methodology-capture/SKILL.md` | The user says "remember this", "以后按这个", "更新偏好", "刚才这里剪错了", or a completed project needs a methodology proposal | User confirmation is missing for long-term preference updates | Proposal under `08-learning/`; confirmed updates under `.codecut-workspace/user-methodology/` |
+| Need implementation work inside CodeCut code | `../../docs/codex-driven-editing.md` and focused tests | A runtime/tool/schema change is required | Source/cache/session proof is stale for plugin-facing changes | Run the touched contract test and plugin freshness check |
 
 ## Required Stage Routing
 
@@ -90,7 +122,7 @@ route to the source acquisition stage and stop before editing intake, executor
 project creation, timeline mutation, or export.
 
 For new creative jobs with missing setup fields, first verify the local
-Codecut web service gate at `http://127.0.0.1:4100/en/projects`. If the service
+CodeCut web service gate at `http://127.0.0.1:4100/en/projects`. If the service
 is not reachable, start it with `bun run dev:web` from the plugin root and wait
 until the readiness check succeeds. Only after that, call
 `open_codecut_workspace` directly from the MCP tool surface before reading
@@ -105,14 +137,20 @@ export.
 | --- | --- |
 | Source-only acquisition: "download", "save locally", "提取到本地", "下载到本地", or similar with no editing, timeline, template, or export request | Use `codecut-tiktok-downloader` for TikTok sources, otherwise use `codecut-material-ingest`. Do not open the creative editing widget or run executor mutation commands. |
 | New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", or any request that will create, edit, verify, or export a timeline | Verify `http://127.0.0.1:4100/en/projects` first; if it fails, start `bun run dev:web` and wait for readiness. Then call `open_codecut_workspace` before loading child skills or shell. After widget submission, use `codecut-requirement-intake` to pass or block the execution gate. |
+| Cover title, video title, hook, voiceover script, spoken-word draft, or de-AI rewrite with no timeline mutation request | Use `codecut-scriptwriting`. Do not open the creative editing widget, create an executor project, import media, or mutate the timeline. If the user also asks to apply the copy into an edit, produce the copy brief first, then route through normal requirement intake and planning. |
 | New creative job with explicit setup fields already provided | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` before executor mutation. |
 | TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally for an editing job | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition only after widget submission and requirement intake pass. |
-| Source needs download, file copy, workspace init, or ffprobe audit for a creative editing job | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest` only after widget submission and requirement intake pass. |
+| Source needs download, file copy, workspace asset filing, or ffprobe audit for a creative editing job | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest` only after widget submission and requirement intake pass. |
+| Material understanding, material role labeling, "这些素材适合怎么用", "帮我理解素材", "给脚本匹配素材", replacement suitability, picture-in-picture suitability, split-screen suitability, or circular talking-head suitability before final editing decisions | **REQUIRED SUB-SKILL:** Use `codecut-material-understanding` after material ingest and before `codecut-edit-planning`. Do not mutate the timeline or choose the final edit recipe in this stage. |
 | Finished/reference videos, "learn this editing style", "复刻模板", reference-derived template draft/import/application | **REQUIRED SUB-SKILL:** Use `codecut-reference-template` before EditPlan authoring or executor mutation. |
-| Transcript, VideoContext, candidate clips, decision ledger, or EditPlan authoring | Read `references/editing-intent-router.md` and exactly one workflow recipe. |
+| Project cover, short-video poster, thumbnail, cover prompt, cover image, cover evidence-frame selection, or setting an independent project cover outside the timeline | **REQUIRED SUB-SKILL:** Use `codecut-cover-generation` before image generation, media import, or `set_project_cover`. |
+| Transcript, VideoContext, candidate clips, decision ledger, or EditPlan/NarratedRemixPlan authoring | **REQUIRED SUB-SKILL:** Use `codecut-edit-planning` before executor validation or mutation. If material roles, script matching, replacement, PIP, split-screen, or circular talking-head suitability affects the plan, require the material-understanding report first. |
 | Executor service, env, doctor, import, apply, caption build, timeline readback | **REQUIRED SUB-SKILL:** Use `codecut-executor-apply`. |
-| Existing project inspection or export readiness | Read `references/workflow-recipes/timeline-inspection.md`. |
-| Implementation work inside Codecut code | Inspect the current contract first, then write focused tests before edits. |
+| Opening a new planning pass after setup-initialized workspace creation | Read `.codecut-workspace/user-methodology/profile.md` and `rules.md` if they exist, then use `codecut-edit-planning`. Current user instructions override stored methodology. |
+| User says "remember this", "以后按这个", "更新偏好", "刚才这里剪错了", or gives reusable editing feedback | **REQUIRED SUB-SKILL:** Use `codecut-methodology-capture`. First generate a project proposal; do not update long-term preferences without explicit user confirmation. |
+| Project completion after timeline/export verification | **REQUIRED SUB-SKILL:** Use `codecut-methodology-capture` to create `08-learning/methodology-proposal.md` and ask whether to update private methodology. |
+| Existing project inspection or export readiness | Use `codecut-edit-planning` to select the timeline-inspection recipe, then `codecut-executor-apply` for readback or export proof. |
+| Implementation work inside CodeCut code | Inspect the current contract first, then write focused tests before edits. |
 
 ## Non-Negotiable Gates
 
@@ -121,9 +159,11 @@ export.
   `open_codecut_workspace`; a `service_unavailable` result is a blocker, not a
   rendered widget.
 - New creative jobs must pass through `open_codecut_workspace` and
-  `submit_codecut_setup` before material ingest, workspace init/add-assets,
-  doctor checks, executor project creation, media import, generated media,
-  timeline mutation, or export.
+  `submit_codecut_setup` before material ingest, workspace add-assets/probe,
+  doctor checks, generated media, timeline mutation, or export.
+- `submit_codecut_setup` creates the executor project and initializes
+  `.codecut-workspace/projects/<projectId>/workspace.json`. Do not rerun
+  `codecut-workspace init` for that project.
 - Before creating a new executor project, define a business project name. Use
   `create-project --project-id <id> --name "<business project name>"
   --confirmation-token <token>`.
@@ -133,110 +173,64 @@ export.
   doctor checks, imports, apply, export, and readback.
 - Do not use low-level MCP mutation tools as the default editing path. Tools
   such as `insert_clips`, `add_texts`, `add_captions`, `move_clips`,
-  `remove_clips`, `split_clip`, `set_clip_properties`, `set_keyframes`, and
+  `remove_clips`, `split_clip`, `set_clip_properties`, `set_keyframes`,
+  `add_transitions`, `update_transition`, `remove_transition`, and
   `ripple_delete_ranges` are advanced repair tools after timeline readback or
   explicit user intent. Normal generated edits go through strict EditPlan or
   NarratedRemixPlan paths.
-- Do not use FFmpeg, shell scripts, or overlay rendering as the Codecut editing
+- Caption typography uses top-level `captionStyle` presets only. Do not emit
+  arbitrary `fontFamily`, `fontSize`, CSS, or per-caption style objects in an
+  EditPlan. CodeCut caption presets preserve CJK defaults for Chinese captions
+  and use curated local Latin fonts only through controlled presets.
+- Title typography uses controlled `title.stylePreset` values only. Do not ask
+  Codex to output a direct font name unless the schema explicitly exposes that
+  field.
+- When the user asks for transitions, transition, or picture-to-picture
+  transitions, use native timeline transitions (`TrackTransition`,
+  `tracks[].transitions`, `summary.transitionCount`) or report a capability
+  blocker. `set_keyframes` is only for motion effects such as push, pull, fade,
+  zoom, or opacity animation and must not be reported as a transition.
+- Implemented native transition types are `fade`, `dissolve`,
+  `wipe-left`, `wipe-right`, `wipe-up`, `wipe-down`, `slide-left`,
+  `slide-right`, `slide-up`, `slide-down`, `zoom-in`, `zoom-out`,
+  `blur-crossfade`, `flash-white`, `push-soft`, `whip-pan-left`,
+  `whip-pan-right`, `cinematic-zoom`, and `chromatic-split`. Do not emit
+  Shader, WebGL, GSAP, CSS, or arbitrary transition names in EditPlan.
+- Choose native transitions by video type: talking-head shorts use
+  `blur-crossfade` or `push-soft`; product proof and UGC ads use
+  `flash-white` or `cinematic-zoom`; emotional or premium edits use
+  `blur-crossfade`; tutorials and screen walkthroughs use `push-soft`.
+  Use `chromatic-split` and `whip-pan-*` only for high-energy promos where
+  visual evidence supports the stronger motion.
+- Before completing a transition task, read back
+  `get_timeline_state.summary.transitionCount` and the target video
+  track's `transitions[]`. For `verify_timeline`, include `transitionCount` in
+  the verification JSON when a transition was requested.
+- Do not use FFmpeg, shell scripts, or overlay rendering as the CodeCut editing
   path for cuts or subtitle burn-in.
 - Do not claim MP4 export unless `export_project` or the equivalent verified
   executor path produced the file.
+- Do not claim timeline frame export unless `export_timeline_frame` produced
+  the requested local PNG file. `inspect_timeline` contact sheets are visual
+  evidence, not the still-frame export product.
+- Private methodology capture must stay local under `.codecut-workspace/`.
+  Do not write personal editing preferences into `skills/**`, `docs/**`, plugin
+  manifests, or installed cache. Stored methodology is read-only input at the
+  start of planning; project completion may create a proposal, but long-term
+  updates require explicit user confirmation.
 
 ## Human Preview
 
 Browser is not the Agent runtime. The local executor draft and readback are the
-agent proof; the Codex in-app browser is only for human preview.
+agent proof; the Codex in-app browser is only for human preview. Read
+`references/execution-contract.md` for the human-preview contract before
+reporting browser-visible readiness.
 
-Whenever a Codecut project is created and an `editorUrl` is returned, open that
-exact `editorUrl` in the Codex in-app browser before reporting the project
-ready. This is mandatory for setup-widget project creation and direct executor
-`create-project` runs. If browser control is unavailable, report the `editorUrl`
-and the browser-control blocker explicitly; do not claim browser-visible
-preview.
+## Detail Gates
 
-Use `setupBrowserRuntime` through the current Codex browser API, make the
-browser visible, and navigate only when needed:
-
-```ts
-const previewUrl = editorUrl;
-const browser = await agent.browsers.get("iab");
-await (await browser.capabilities.get("visibility")).set(true);
-const tab = (await browser.tabs.selected()) ?? await browser.tabs.new();
-if ((await tab.url()) !== previewUrl) {
-  await tab.goto(previewUrl);
-}
-```
-
-Preview URLs:
-
-- `http://127.0.0.1:4100/en/projects`
-- the `editorUrl` returned by `create-project`
-
-Do not reconstruct a bare `/editor/<projectId>` URL for executor projects; the
-returned `editorUrl` carries the browser bridge token required for editor state.
-Do not call `tab.goto(previewUrl)` if the selected tab is already on the preview URL.
-
-## Evidence And Caption Gates
-
-- For tutorial, product-proof, screen-recording, or horizontal-to-vertical jobs,
-  use visual preflight before final EditPlan authoring when crop, caption, or
-  proof risk affects the result.
-- Project cover and EditPlan `introCover` are separate products. A project
-  cover is a poster/thumbnail outside the timeline; set it only by importing an
-  image with `import_media` and calling `set_project_cover`. Do not represent a
-  project cover with `introCover`, and do not shift timeline clips for it.
-- If the user asks for a short-video cover/poster, use the video first frame or
-  visual evidence to create an image outside Codecut runtime, import the image,
-  then call `set_project_cover` with the imported image `mediaId`, title text,
-  prompt, and style preset metadata. Verify with `get_project_info` or
-  `get_timeline_state` that `cover` is present and total duration is unchanged.
-- If confirmed setup intent has `generateIntroCover: true`, create a timeline
-  opening image before final EditPlan authoring. This is not the project cover.
-  Determine the final first clip's `sourceStart`, inspect that source frame or a
-  tight range with `inspect_video_range`, choose a prompt from
-  `references/intro-cover-prompts.md` based on video type, generate a separate
-  image through an available image generation capability outside Codecut
-  runtime, import that image with `import_media`, and write `introCover` in the
-  EditPlan.
-- Do not generate a timeline intro image when confirmed setup intent has
-  `generateIntroCover: false`.
-- Do not silently downgrade cover work. If image generation capability is
-  unavailable, first-frame visual evidence is missing, or the generated image
-  cannot be imported as an image asset with width and height, stop and report
-  the blocker before calling timeline mutation tools.
-- Intro cover duration is planned explicitly by Codex. The current recommended
-  starting value is `1.2s`; do not rely on a runtime default. The first video
-  clip's `timelineStart` must equal `introCover.duration`.
-- For project covers, baked title text is expected when the user asks for
-  short-video cover style. For timeline intro images, prefer adding titles
-  through Codecut text/title layers unless the user explicitly needs image text.
-- For horizontal sources converted to vertical shorts, use
-  `vertical_face_safe_crop_above_burned_captions` only when current visual
-  evidence supports that policy.
-- When that policy can be represented as a fixed source rectangle, use EditPlan
-  `sourceCrop` and verify `visual.sourceCrop` in `get_timeline_state`.
-- If the needed crop cannot be represented natively, present the runtime-gap
-  versus one-time fallback MP4 choice instead of silently baking a fallback.
-- Do not use `black-bar` as a subtitle mask. It is a caption style only.
-- Subtitle styling has one generated-edit path: `EditPlan.captions[]` plus
-  top-level `captionStyle`. Do not put `fontFamily`, `fontSize`, `color`, CSS,
-  per-caption style objects, or external subtitle renderer settings in an
-  EditPlan. Codecut caption presets resolve to controlled local renderer
-  styles and curated local CJK renderer fonts.
-- For Chinese creator captions, default to a clean font-first treatment:
-  `creator-clean`, lower-safe position, no heavy black stroke, subtle shadow,
-  balanced one- or two-line chunks, and at most one emphasized phrase per
-  sentence through `richSpans`. Treat commercial fonts seen in references as
-  style inspiration unless the user supplies redistribution rights.
-- Caption timing must declare a post-cut caption source. Prefer edited audio transcription through `build-post-cut-captions`; use source transcript remap only when every source segment maps cleanly into selected clips.
-- After applying captions, use `get_timeline_state` readback and verify text
-  elements include `content`, `startTime`, `duration`, and `style`.
-- Local video import through `import-media --file-path` must produce
-  `duration`, `width`, and `height`; local image import used as project cover
-  must produce `width` and `height`; local audio import must produce `duration`.
-  Verify with `list_media_assets` or `get_timeline_state` v2
-  `includeReferencedMedia` before authoring project cover, intro cover,
-  sourceCrop, or export-sensitive plans.
+Read `references/execution-contract.md` before handling visual QA, captions,
+project covers, intro covers, timeline readback, export proof, or plugin
+freshness. Do not copy those gates into this router.
 
 ## Planning References
 
@@ -245,22 +239,21 @@ Read only what matches the task:
 - Current runtime truth: `../../docs/codex-driven-editing.md`
 - Workspace spec: `../../docs/codecut-workspace.md`
 - Workflow stage contract: `references/workflow-stage-contract.md`
-- Intent router: `references/editing-intent-router.md`
+- Material understanding: `../codecut-material-understanding/SKILL.md`
+- Scriptwriting: `../codecut-scriptwriting/SKILL.md`
+- Edit planning: `../codecut-edit-planning/SKILL.md`
+- Methodology capture: `../codecut-methodology-capture/SKILL.md`
 - Tool contract: `references/codecut-agent-tool-contract.md`
 - EditPlan schema: `references/edit-plan-schema.md`
 - Project and intro cover prompt guide: `references/intro-cover-prompts.md`
-- Long-to-short: `references/workflow-recipes/long-to-short.md`
-- Talking-head polish: `references/workflow-recipes/talking-head-polish.md`
-- Subtitle pass: `references/workflow-recipes/subtitle-pass.md`
-- Voiceover remix: `references/workflow-recipes/voiceover-remix.md`
-- Timeline inspection: `references/workflow-recipes/timeline-inspection.md`
+- Project cover generation: `../codecut-cover-generation/SKILL.md`
 
 ## Completion Standard
 
-For editing execution, completion requires:
-
-- successful validation/application result
-- `get_timeline_state` readback
-- expected track, element, duration, trim range, and media source proof
-- editor URL for human preview
-- explicit statement when MP4 export was not produced
+For editing execution, completion follows the success contract table in
+`references/execution-contract.md`. The short rule is: do not claim completion
+without the workspace/project proof, timeline readback after mutation, visual
+QA verdict when preview quality matters, and export proof when a file was
+requested. After verified project completion, route to
+`codecut-methodology-capture` to generate a project-scoped learning proposal
+and ask whether to update private methodology.

@@ -47,6 +47,48 @@ CodeCut is a Codex-first editing plugin. Design it so Codex can autonomously use
 - Do not design CodeCut for Claude runtime or generic external agents. Palmier may be used only as a structural reference for the internal-agent and external-agent relationship, not as a runtime target.
 - If a prior plan describes CodeCut as a contract-driven system, reinterpret it as capability guidance unless the rule is a necessary code-level safety check.
 
+### Local Video Reference Projects
+
+- When planning CodeCut product direction, designing a skill, or adding video editing or creation capabilities, inspect the relevant local reference projects under `/Users/x/Desktop/Project/github` before inventing a new pattern.
+- Use these projects to extract methodology, UX patterns, agent workflows, verification loops, and engineering tradeoffs. Do not copy a workflow into CodeCut unless it fits the local-first, explainable, verifiable editor direction above.
+- Treat this index as a starting point, not proof that a referenced project is current or production-ready. Re-read the target repo before relying on it.
+
+Editor and timeline product references:
+- `/Users/x/Desktop/Project/github/OpenCut-current` - current OpenCut rewrite; study editor API, plugin-first architecture, MCP, headless mode, and automation direction.
+- `/Users/x/Desktop/Project/github/OpenCut` - classic OpenCut implementation; study simple web timeline, project management, and contributor focus areas.
+- `/Users/x/Desktop/Project/github/freecut` - browser-local multi-track editor; study WebCodecs/WebGPU/OPFS workspace, timeline tools, preview, analysis, captions, and export.
+- `/Users/x/Desktop/Project/github/palmier-pro` - AI-native desktop editor with MCP; study how internal and external agents share one timeline surface.
+- `/Users/x/Desktop/Project/github/videosos` - browser AI video editor; study model/provider selection, cost tracking, timeline editing, and client-side Remotion/FFmpeg.wasm export.
+- `/Users/x/Desktop/Project/github/capcut` - CapCut API-backed web clone; study external draft/API/cloud-render integration only after verifying the current implementation.
+- `/Users/x/Desktop/Project/github/capcut-mcp` - CapCut/Jianying draft API and MCP reference; study draft creation, subtitle insertion, save/validate flow, and failure shape.
+
+Agent-driven cutting and skill workflow references:
+- `/Users/x/Desktop/Project/github/video-use` - agent-native local editing workflow; study transcript-first reasoning, on-demand visual checks, EDL render, and self-eval loops.
+- `/Users/x/Desktop/Project/github/Youtube-clipper-skill` - YouTube clipping skill; study semantic chaptering, precise FFmpeg clipping, bilingual subtitles, and burn-in delivery.
+- `/Users/x/Desktop/Project/github/chengfeng-videocut-skills` - talking-head cutting and finished-video skill pack; study review pages, confirmation gates, storyboard previews, and vertical MP4 delivery.
+- `/Users/x/Desktop/Project/github/jianying-editor-skill` - Jianying automation skill; study draft automation, media import, subtitles, voiceover alignment, and export scripts.
+- `/Users/x/Desktop/Project/github/bggg-skills/bggg-tiktok-readvideo` - video readback skill; study timeline extraction, keyframes, OCR/ASR evidence, and edit-plan rendering.
+- `/Users/x/Desktop/Project/github/bggg-skills/bggg-tiktok-cut` - short-video cutting skill; study local FFmpeg/Whisper project layout, 9:16 edit plans, and publishable render checks.
+- `/Users/x/Desktop/Project/github/bggg-skills/bggg-tiktok-capcut` - CapCut draft generation skill; study template reuse, draft indexing, structure validation, and AI-video artifact checks.
+
+Programmatic rendering and creative methodology references:
+- `/Users/x/Desktop/Project/github/remotion` - React-based programmatic video framework; study composition, rendering, player, and licensing tradeoffs.
+- `/Users/x/Desktop/Project/github/remotion-templates` - reusable Remotion templates; study motion patterns, template packaging, and component-level video building blocks.
+- `/Users/x/Desktop/Project/github/hyperframes` - HTML/CSS/GSAP to MP4 runtime; study deterministic headless Chrome plus FFmpeg rendering and agent-readable composition contracts.
+- `/Users/x/Desktop/Project/github/html-video` - local agent HTML-to-video studio; study storyboard IR, pluggable render engines, template manifests, soundtrack mixing, and real MP4 delivery.
+- `/Users/x/Desktop/Project/github/openmontage` - video creation skill and pipeline library; study staged director skills, creative rubrics, provider selectors, and QA gates.
+- `/Users/x/Desktop/Project/github/video-production-skills` - reusable video-production skills; study reference-video QC, style-specific production skills, preview media, and evidence-driven delivery.
+- `/Users/x/Desktop/Project/github/mediakit-cli` - agent-native audio/video CLI; study cloud/local command split, schema-friendly tools, FFmpeg policy, and local editing primitives.
+
+Generation, localization, enhancement, and inspiration references:
+- `/Users/x/Desktop/Project/github/MoneyPrinterTurbo` - automated short-video generator; study topic-to-script-to-materials-to-subtitles-to-BGM assembly and batch generation.
+- `/Users/x/Desktop/Project/github/KrillinAI` - AI video translation and dubbing; study subtitle segmentation, translation, dubbing, voice clone, and cross-platform composition.
+- `/Users/x/Desktop/Project/github/heygen-skills/heygen-video` - avatar/presenter video skill; study video producer flow, readiness gates, style selection, and clean delivery.
+- `/Users/x/Desktop/Project/github/OpenCLI/gxgen-data` - video inspiration and template data; study content/material indexes, hook libraries, template datasets, and ingestion contracts.
+- `/Users/x/Desktop/Project/github/deer-flow/skills/public/video-generation` - video generation skill example; study structured prompt inputs, reference-image flow, and generated-video output contract.
+- `/Users/x/Desktop/Project/github/video2x` - video enhancement/upscaling reference; study enhancement boundaries, FFmpeg integration, and native dependency handling.
+- `/Users/x/Desktop/Project/github/Open-Higgsfield-AI` - AI cinema/image studio; study cinematic prompt controls and model UI patterns, but verify current video support before treating it as a video runtime.
+
 ### Human-Visible Editing State
 
 - CodeCut should expose enough status for the web editor to show what Codex is doing now: tool name, operation summary, affected clips or tracks, timeline revision, success or failure, and latest readback summary.

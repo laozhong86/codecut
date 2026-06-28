@@ -3,6 +3,7 @@
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import {
 	AiBrain01Icon,
+	ClosedCaptionIcon,
 	Folder03Icon,
 	Happy01Icon,
 	HeadphonesIcon,
@@ -12,7 +13,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { cn } from "@/utils/ui";
 import { useMobileDrawerStore } from "./hooks/use-mobile-drawer";
 
-type TabKey = "assets" | "text" | "sticker" | "audio" | "ai";
+type TabKey = "assets" | "text" | "sticker" | "audio" | "captions" | "ai";
 
 interface TabConfig {
 	key: TabKey;
@@ -25,6 +26,7 @@ const TABS: TabConfig[] = [
 	{ key: "text", icon: TextIcon, labelKey: "Text" },
 	{ key: "sticker", icon: Happy01Icon, labelKey: "Stickers" },
 	{ key: "audio", icon: HeadphonesIcon, labelKey: "Audio" },
+	{ key: "captions", icon: ClosedCaptionIcon, labelKey: "Captions" },
 	{ key: "ai", icon: AiBrain01Icon, labelKey: "AI" },
 ];
 
@@ -47,7 +49,7 @@ export function MobileToolbar() {
 						key={tab.key}
 						type="button"
 						className={cn(
-							"flex flex-col items-center gap-0.5 rounded-md px-3 py-1 text-xs transition-colors",
+							"flex min-w-0 flex-col items-center gap-0.5 rounded-md px-2 py-1 text-xs transition-colors",
 							isActive ? "text-primary" : "text-muted-foreground",
 						)}
 						onClick={handlePress}
@@ -61,7 +63,7 @@ export function MobileToolbar() {
 						aria-pressed={isActive}
 					>
 						<HugeiconsIcon icon={tab.icon} className="size-5" />
-						<span>{t(tab.labelKey)}</span>
+						<span className="max-w-[4.5rem] truncate">{t(tab.labelKey)}</span>
 					</button>
 				);
 			})}

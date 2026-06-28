@@ -1,5 +1,15 @@
 import {
+	CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
+	CODECUT_INTER_FONT_FAMILY,
+	CODECUT_JETBRAINS_MONO_FONT_FAMILY,
+	CODECUT_LEAGUE_GOTHIC_FONT_FAMILY,
+	CODECUT_MONTSERRAT_FONT_FAMILY,
+	CODECUT_OSWALD_FONT_FAMILY,
+	CODECUT_OUTFIT_FONT_FAMILY,
+	CODECUT_PLAYFAIR_DISPLAY_FONT_FAMILY,
+	CODECUT_POPPINS_FONT_FAMILY,
 	CODECUT_SMILEY_SANS_FONT_FAMILY,
+	CODECUT_SPACE_MONO_FONT_FAMILY,
 	CODECUT_WEN_KAI_FONT_FAMILY,
 	CODECUT_YAN_BO_SONG_FONT_FAMILY,
 } from "@/lib/codecut-fonts";
@@ -39,7 +49,7 @@ export const FONT_OPTIONS: FontOption[] = [
 
 	// Social caption fonts
 	{
-		value: "Inter",
+		value: CODECUT_INTER_FONT_FAMILY,
 		label: "Inter",
 		category: "google",
 		weights: [400, 700],
@@ -53,22 +63,57 @@ export const FONT_OPTIONS: FontOption[] = [
 		hasClassName: true,
 	},
 	{
-		value: "Poppins",
+		value: CODECUT_POPPINS_FONT_FAMILY,
 		label: "Poppins",
 		category: "google",
 		weights: [400, 700],
 		hasClassName: false,
 	},
 	{
-		value: "Montserrat",
+		value: CODECUT_MONTSERRAT_FONT_FAMILY,
 		label: "Montserrat",
 		category: "google",
 		weights: [400, 700],
 		hasClassName: false,
 	},
 	{
-		value: "Oswald",
+		value: CODECUT_OSWALD_FONT_FAMILY,
 		label: "Oswald",
+		category: "google",
+		weights: [400, 700],
+		hasClassName: false,
+	},
+	{
+		value: CODECUT_OUTFIT_FONT_FAMILY,
+		label: "Outfit",
+		category: "google",
+		weights: [400, 700],
+		hasClassName: false,
+	},
+	{
+		value: CODECUT_ARCHIVO_BLACK_FONT_FAMILY,
+		label: "Archivo Black",
+		category: "google",
+		weights: [400],
+		hasClassName: false,
+	},
+	{
+		value: CODECUT_LEAGUE_GOTHIC_FONT_FAMILY,
+		label: "League Gothic",
+		category: "google",
+		weights: [400],
+		hasClassName: false,
+	},
+	{
+		value: CODECUT_SPACE_MONO_FONT_FAMILY,
+		label: "Space Mono",
+		category: "google",
+		weights: [400, 700],
+		hasClassName: false,
+	},
+	{
+		value: CODECUT_JETBRAINS_MONO_FONT_FAMILY,
+		label: "JetBrains Mono",
 		category: "google",
 		weights: [400, 700],
 		hasClassName: false,
@@ -80,7 +125,7 @@ export const FONT_OPTIONS: FontOption[] = [
 		hasClassName: true,
 	},
 	{
-		value: "Playfair Display",
+		value: CODECUT_PLAYFAIR_DISPLAY_FONT_FAMILY,
 		label: "Playfair Display",
 		category: "google",
 		hasClassName: true,
@@ -165,6 +210,9 @@ export type FontFamily = (typeof FONT_OPTIONS)[number]["value"];
 // Helper functions
 export const getFontByValue = (value: string): FontOption | undefined =>
 	FONT_OPTIONS.find((font) => font.value === value);
+
+export const isFontFamilyOption = (value: string): value is FontFamily =>
+	getFontByValue(value) !== undefined;
 
 export const getGoogleFonts = (): FontOption[] =>
 	FONT_OPTIONS.filter((font) => font.category === "google");

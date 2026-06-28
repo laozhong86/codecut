@@ -1,0 +1,51 @@
+name: codecut-material-understanding
+version: 1
+type: functional
+primary_dimension: functional
+
+intent:
+  one_line: Understand CodeCut source material before edit planning without deciding or executing the final edit.
+  target_user: Codex reviewing material roles, content evidence, script matches, composition affordances, and material risks between ingest and planning.
+  success_looks_like:
+    - Material role labels are grounded in transcript, VideoContext, visual, or probe evidence.
+    - Replacement, picture-in-picture, split-screen, and circular talking-head suitability are recorded as affordances, not final plan decisions.
+    - Script-to-material matches cite evidence and confidence.
+    - Planning starts only after the material-understanding report exists when material selection or composition depends on it.
+
+known_failure_modes:
+  - mode: Material understanding is treated as edit planning.
+    severity: high
+    example: A suitability note turns directly into an EditPlan or executor apply request.
+  - mode: Asset meaning is guessed from filenames.
+    severity: high
+    example: A clip named proof.mp4 is labeled as proof material without transcript or visual evidence.
+  - mode: Composition affordances become hidden defaults.
+    severity: medium
+    example: The report says to use bottom-right circular PIP instead of saying the asset can support circular PIP.
+
+style_constraints:
+  must_have:
+    - Evidence sources and confidence for role labels, risks, and script matches.
+    - Clear blockers when transcript or visual evidence is missing.
+    - Handoff to edit planning when the user wants final composition decisions.
+  must_not_have:
+    - Timeline mutation, import, export, executor commands, or completion claims.
+    - Final recipe selection, strict EditPlan output, or hidden composition defaults.
+    - Generated masks, generated media, or reference-template imports.
+
+arena_config:
+  noise_band: 0.15
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-material-understanding/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-material-understanding/retrospective.jsonl
+  log_entry_note: Record evidence inputs, role labels, suitability notes, blockers, and downstream handoff. Do not fabricate usage data.
+
+cold_start_mode: false

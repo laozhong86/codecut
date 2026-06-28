@@ -1,6 +1,6 @@
-# Codecut Version Release Matrix
+# CodeCut Version Release Matrix
 
-Use this matrix for any Codecut change that affects plugin prompts, skills, MCP
+Use this matrix for any CodeCut change that affects plugin prompts, skills, MCP
 tool schemas, MCP resources, widgets, Codex-host routing, bridge code, or local
 executor release behavior.
 
@@ -11,13 +11,13 @@ recorded readback.
 
 ## Publication Readiness Checklist
 
-Use this checklist before asking another user to install Codecut or before
+Use this checklist before asking another user to install CodeCut or before
 claiming a local plugin update is visible in Codex:
 
 - manifest version: `.codex-plugin/plugin.json` has the intended `name` and
   `version`, and the release notes name both values.
 - MCP server version: the MCP server reports the same release version as the
-  plugin manifest. Codecut currently reads this from the manifest at runtime;
+  plugin manifest. CodeCut currently reads this from the manifest at runtime;
   keep it that way instead of adding a second version constant.
 - skills: the installed bundle includes every intended `skills/*/SKILL.md`
   entry and the public `codecut` skill still routes to stage skills rather than
@@ -40,10 +40,10 @@ claiming a local plugin update is visible in Codex:
 | Plugin manifest | Plugin name and version | `jq '{name,version}' .codex-plugin/plugin.json` | `name` is `codecut`; `version` is the release version being installed. |
 | Marketplace and config | Enabled plugin entry and marketplace source | `bun run plugin:freshness` | `codecut@<marketplace-name>` is enabled, and the marketplace entry points to the source checkout being released. |
 | Installed cache | Cache path and source-to-cache sync | `bun run plugin:freshness`; `node scripts/sync-codex-local-plugin.mjs --dry-run` | Cache version path matches the manifest version, and `plugin_sync` is ok or the dry-run reports no release-relevant drift. |
-| Codex CLI and app | Every visible Codex binary and version | `which -a codex`; `codex --version`; `/Applications/Codex.app/Contents/Resources/codex --version` when present | The release note records the binary actually used. Missing `codex plugin list --json` support is treated as CLI-version drift, not a Codecut plugin failure. |
-| Host tool surface | Current or fresh-session tool discovery | `tool_search` query: `open_codecut_workspace Codecut MCP workspace setup widget` | The callable tool `mcp__codecut_mcp.open_codecut_workspace` is visible after cache sync. |
+| Codex CLI and app | Every visible Codex binary and version | `which -a codex`; `codex --version`; `/Applications/Codex.app/Contents/Resources/codex --version` when present | The release note records the binary actually used. Missing `codex plugin list --json` support is treated as CLI-version drift, not a CodeCut plugin failure. |
+| Host tool surface | Current or fresh-session tool discovery | `tool_search` query: `open_codecut_workspace CodeCut MCP workspace setup widget` | The callable tool `mcp__codecut_mcp.open_codecut_workspace` is visible after cache sync. |
 | Fresh-session proof | Real `@codecut` validation thread | `docs/codecut-widget-intake-fresh-thread.md`; `node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId>` | The thread contains a real `codecut_mcp.open_codecut_workspace` call and no shell, file write, media import, timeline mutation, or text fallback. |
-| Runtime readiness | Required only when editing execution is part of the release | `node scripts/codex-bridge.mjs doctor-install --project-id <id>`; `node scripts/codex-bridge.mjs doctor --project-id <id>` | Source, cache, bridge env, web service, executor project, and executor status all pass. Widget-only releases may mark this layer not applicable. |
+| Runtime readiness | Required only when editing execution is part of the release | `node scripts/codex-bridge.mjs doctor-install --project-id <id>`; `node scripts/codex-bridge.mjs doctor --project-id <id>` | Source, cache, bridge env, Node renderer, Sharp/libvips, web service, executor project, and executor status all pass. Widget-only releases may mark this layer not applicable. |
 
 ## Release Record Template
 
@@ -110,7 +110,7 @@ or session state changes.
 
 | Layer | Observed Value |
 | --- | --- |
-| Git source | `main` at `1ef590c222f16e4021f6146e6eec0c67037f9886`; last commit `1ef590c 2026-06-24T10:18:50+08:00 Document active Codecut browser navigation` |
+| Git source | `main` at `1ef590c222f16e4021f6146e6eec0c67037f9886`; last commit `1ef590c 2026-06-24T10:18:50+08:00 Document active CodeCut browser navigation` |
 | Plugin manifest | `codecut@0.1.1+codex.p0-verifiable-loop-20260622` |
 | Installed cache | `/Users/x/.codex/plugins/cache/local-opc/codecut/0.1.1+codex.p0-verifiable-loop-20260622` |
 | `plugin:freshness` | Source, cache, and config ok; session marked manual-check-required until host tool discovery is verified |
@@ -124,6 +124,6 @@ or session state changes.
   intentional release diff.
 - Do not treat marketplace discovery as plugin enablement.
 - Do not treat installed cache freshness as current-session freshness.
-- Do not treat an old local `codex` binary as a Codecut plugin regression.
+- Do not treat an old local `codex` binary as a CodeCut plugin regression.
 - Do not run editing execution checks for a widget-only release unless the
   change also affects bridge or executor behavior.
