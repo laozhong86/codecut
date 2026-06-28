@@ -67,11 +67,21 @@ export function parseExecutorTranscriptionLanguage(
 		throw new Error("language is required");
 	}
 	if (value === "auto") return "auto";
-	if (
-		typeof value === "string" &&
-		TRANSCRIPTION_LANGUAGES.some((language) => language.code === value)
-	) {
-		return value as TranscriptionLanguage;
+	if (typeof value === "string") {
+		const normalized = value.trim().toLowerCase();
+		const baseLanguage = normalized.split("-")[0];
+		if (
+			normalized !== "" &&
+			TRANSCRIPTION_LANGUAGES.some((language) => language.code === normalized)
+		) {
+			return normalized as TranscriptionLanguage;
+		}
+		if (
+			baseLanguage !== "auto" &&
+			TRANSCRIPTION_LANGUAGES.some((language) => language.code === baseLanguage)
+		) {
+			return baseLanguage as TranscriptionLanguage;
+		}
 	}
 	throw new Error(
 		"language must be auto or a supported transcription language",

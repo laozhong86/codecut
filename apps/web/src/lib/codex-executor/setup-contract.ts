@@ -264,12 +264,23 @@ export function resolveCaptionLanguageForContract({
 }): unknown {
 	if (!confirmedSetup) return explicitLanguage;
 	const expected = confirmedSetup.captionPreferences.language;
-	if (explicitLanguage !== undefined && explicitLanguage !== expected) {
+	if (
+		explicitLanguage !== undefined &&
+		normalizeCaptionLanguageForContractMatch(explicitLanguage) !==
+			normalizeCaptionLanguageForContractMatch(expected)
+	) {
 		throw new Error(
 			`language conflicts with confirmedSetup.captionPreferences.language: expected ${expected}.`,
 		);
 	}
 	return expected;
+}
+
+function normalizeCaptionLanguageForContractMatch(value: unknown): unknown {
+	if (typeof value !== "string") return value;
+	const normalized = value.trim().toLowerCase();
+	if (normalized === "auto") return normalized;
+	return normalized.split("-")[0];
 }
 
 export function applyCaptionPreferencesToTextRaw({
