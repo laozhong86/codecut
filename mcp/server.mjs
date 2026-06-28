@@ -277,6 +277,14 @@ const durationContractSchema = z
 			});
 		}
 	});
+const workspaceOpenDurationContractSchema = z
+	.object({
+		totalDurationMode: z.enum(["auto", "preserve_source", "custom_range"]),
+		sourceCoverageMode: z.enum(["selected_segments", "full_source"]),
+		sourceDurationSeconds: z.number().positive().optional(),
+		toleranceSeconds: z.number().positive().optional(),
+	})
+	.strict();
 const workspaceMediaMimeTypeSchema = z
 	.string()
 	.trim()
@@ -390,7 +398,7 @@ const workspaceOpenInputSchema = {
 	targetAspectRatio: targetAspectRatioSchema.optional(),
 	durationGoalMode: durationGoalModeSchema.optional(),
 	durationGoalRangeSeconds: durationGoalRangeSecondsSchema.optional(),
-	durationContract: durationContractSchema.optional(),
+	durationContract: workspaceOpenDurationContractSchema.optional(),
 	captionLanguage: z.string().trim().optional(),
 	transitionPreference: transitionPreferenceSchema.optional(),
 	locale: z.string().trim().optional(),
@@ -1771,6 +1779,13 @@ function codecutMcpHostBridgeScript() {
 export function openCodecutWorkspace(input = {}, { confirmationRoot } = {}) {
 	assertNoLegacyWorkspaceOpenFields(input);
 	const intentDefaults = buildWorkspaceIntentDefaults(input);
+	const durationContractCheck = validateWorkspaceDurationContract({
+		durationGoalMode: intentDefaults.durationGoalMode,
+		durationContract: intentDefaults.durationContract,
+	});
+	if (!durationContractCheck.ok) {
+		return buildCodecutSetupInvalidResult(durationContractCheck.message);
+	}
 	const pendingConfirmationId = createPendingCodecutConfirmation({
 		root: confirmationRoot,
 	});
@@ -1791,6 +1806,23 @@ export function openCodecutWorkspace(input = {}, { confirmationRoot } = {}) {
 			...codecutWorkspaceToolMeta,
 			widgetData: { pendingConfirmationId, intentDefaults },
 		},
+	};
+}
+
+function buildCodecutSetupInvalidResult(error) {
+	return {
+		content: [
+			{
+				type: "text",
+				text: `CodeCut workspace setup request is invalid: ${error}. Fix the setup arguments and call open_codecut_workspace again.`,
+			},
+		],
+		structuredContent: {
+			status: "invalid_setup_request",
+			nextAction: "retry_open_codecut_workspace",
+			error,
+		},
+		isError: true,
 	};
 }
 
@@ -4192,7 +4224,11 @@ export async function callCodecutWorkspaceTool(
 	if (toolName === "open_codecut_workspace") {
 		const blocked = await assertCodecutServiceReady({ cwd, env, fetchImpl });
 		if (blocked) return blocked;
-		return openCodecutWorkspace(input, { confirmationRoot });
+		try {
+			return openCodecutWorkspace(input, { confirmationRoot });
+		} catch (error) {
+			return buildCodecutSetupInvalidResult(extractErrorMessage(error));
+		}
 	}
 	if (toolName === "inspect_codecut_setup") {
 		const structuredContent = await inspectCodecutSetup(input);

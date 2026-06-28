@@ -535,6 +535,18 @@ describe("Codecut MCP server contract", () => {
 		expect(
 			openTool.inputSchema.transitionPreference.safeParse("auto").success,
 		).toBe(true);
+		expect(
+			openTool.inputSchema.durationContract.safeParse({
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+			}).success,
+		).toBe(true);
+		expect(
+			submitTool.inputSchema.durationContract.safeParse({
+				totalDurationMode: "preserve_source",
+				sourceCoverageMode: "full_source",
+			}).success,
+		).toBe(false);
 		for (const taskType of [
 			"template_draft",
 			"template_import",
@@ -1000,6 +1012,37 @@ describe("Codecut MCP server contract", () => {
 		} finally {
 			await rm(isolatedCwd, { recursive: true, force: true });
 		}
+	});
+
+	test("blocks workspace widget rendering when preserve-source setup lacks source duration", async () => {
+		const result = await serverModule.callCodecutWorkspaceTool(
+			"open_codecut_workspace",
+			{
+				projectName: "Original Duration Voiceover",
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
+				},
+			},
+			{
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+				},
+				fetchImpl: async () => ({ ok: true, status: 200 }),
+			},
+		);
+
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toMatchObject({
+			status: "invalid_setup_request",
+			nextAction: "retry_open_codecut_workspace",
+			error:
+				"durationContract.sourceDurationSeconds is required for preserve_source or full_source.",
+		});
+		expect(result.structuredContent).not.toHaveProperty(
+			"pendingConfirmationId",
+		);
+		expect(result._meta).toBeUndefined();
 	});
 
 	test("renders the workspace widget only after the CodeCut web service is reachable", async () => {
