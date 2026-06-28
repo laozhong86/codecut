@@ -1033,9 +1033,9 @@ describe("Codecut MCP server contract", () => {
 
 		expect(html).toContain("api.toolResponseMetadata?.widgetData");
 		expect(html).toContain("api.toolOutput?.intentDefaults");
-		expect(html).toContain(
-			"api.toolResponseMetadata?.widgetData?.pendingConfirmationId",
-		);
+		expect(html).toContain("function pendingConfirmationIdFromPayload");
+		expect(html).toContain("payload.structuredContent?.pendingConfirmationId");
+		expect(html).toContain("pendingConfirmationIdFromPayload(api.toolOutput)");
 		expect(html).toContain(
 			"pendingConfirmationId: currentPendingConfirmationId",
 		);

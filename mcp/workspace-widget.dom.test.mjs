@@ -171,6 +171,32 @@ globalThis.collectWidgetMediaSources = (rows) => {
 	return context;
 }
 
+function buildInitialDefaultsHarness(html, openai) {
+	const normalizedHtml = html.replace(/\r\n?/g, "\n");
+	const initialDefaults = extractBetween(
+		normalizedHtml,
+		"function intentDefaultsFromPayload",
+		"\n\n        function slugify",
+	);
+	const context = vm.createContext({
+		window: { openai },
+	});
+
+	vm.runInContext(
+		`
+let currentPendingConfirmationId = "";
+${initialDefaults}
+globalThis.readWorkspaceDefaults = () => {
+	currentPendingConfirmationId = "";
+	const defaults = initialDefaults();
+	return { pendingConfirmationId: currentPendingConfirmationId, defaults };
+};
+`,
+		context,
+	);
+	return context;
+}
+
 test("workspace widget preserves URL media sources through normalization and collection", async () => {
 	const html = await readFile("mcp/codecut-workspace.html", "utf8");
 	const harness = buildMediaHarness(html);
@@ -192,6 +218,28 @@ test("workspace widget preserves URL media sources through normalization and col
 			},
 		]),
 	).toEqual([{ kind: "url", url }]);
+});
+
+test("workspace widget reads pending confirmation ID from nested structured tool output", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const pendingConfirmationId = "ccpending_9b09e4e51995cc3ef774b965";
+	const harness = buildInitialDefaultsHarness(html, {
+		toolOutput: {
+			structuredContent: {
+				pendingConfirmationId,
+				intentDefaults: {
+					projectName: "22号素材解说口播原时长版",
+				},
+			},
+		},
+	});
+
+	expect(harness.readWorkspaceDefaults()).toEqual({
+		pendingConfirmationId,
+		defaults: {
+			projectName: "22号素材解说口播原时长版",
+		},
+	});
 });
 
 test("workspace widget does not claim follow-up delivery without showing recovery identifiers", async () => {
