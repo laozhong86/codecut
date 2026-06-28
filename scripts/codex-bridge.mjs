@@ -1170,6 +1170,42 @@ async function checkNodeRenderer({ cwd }) {
 	}
 }
 
+export async function checkSharpRuntime({ cwd, requireImpl } = {}) {
+	try {
+		const requireFromWeb =
+			requireImpl || createRequire(join(cwd, "apps/web/package.json"));
+		const sharp = requireFromWeb("sharp");
+		const buffer = await sharp({
+			create: {
+				width: 1,
+				height: 1,
+				channels: 4,
+				background: { r: 0, g: 0, b: 0, alpha: 1 },
+			},
+		})
+			.png()
+			.toBuffer();
+		if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+			throw new Error("Sharp generated an empty probe image.");
+		}
+		return doctorCheck({
+			id: "sharp_libvips",
+			ok: true,
+			message: "Sharp/libvips runtime is available.",
+			data: {
+				sharp: sharp.versions?.sharp,
+				libvips: sharp.versions?.vips,
+			},
+		});
+	} catch (error) {
+		return doctorCheck({
+			id: "sharp_libvips",
+			ok: false,
+			message: `Sharp/libvips check failed: ${error instanceof Error ? error.message : String(error)}`,
+		});
+	}
+}
+
 export async function runInstallDoctor({
 	projectId,
 	cwd = process.cwd(),
@@ -1178,6 +1214,7 @@ export async function runInstallDoctor({
 	fetchImpl = fetch,
 	execFileImpl = execFileAsync,
 	nodeRendererProbe = checkNodeRenderer,
+	sharpRuntimeProbe = checkSharpRuntime,
 }) {
 	const source = await checkSourcePlugin({ cwd });
 	const cache = await checkCachePlugin({
@@ -1203,6 +1240,7 @@ export async function runInstallDoctor({
 		}),
 		environment.check,
 		await nodeRendererProbe({ cwd }),
+		await sharpRuntimeProbe({ cwd }),
 		await checkWebService({ config: environment.config, fetchImpl }),
 		await checkExecutorProject({
 			projectId,

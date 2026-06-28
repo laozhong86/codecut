@@ -194,7 +194,7 @@ Expected route:
 - Intent: new creative job from a remote URL.
 - First required stage: `codecut-requirement-intake`.
 - Allowed before confirmation: call `open_codecut_workspace` and wait for widget submission only.
-- Blocked before confirmation: shell, file writes, material ingest, workspace init/add-assets/probe-assets, `create-project`, `import-media`, generated media, timeline mutation, and export.
+- Blocked before confirmation: shell, file writes, material ingest, workspace add-assets/probe-assets, `create-project`, `import-media`, generated media, timeline mutation, and export.
 
 Pass criteria:
 

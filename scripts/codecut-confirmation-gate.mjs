@@ -156,6 +156,50 @@ export async function mintCodecutConfirmationToken({
 	return confirmationToken;
 }
 
+export async function bindCodecutConfirmationProjectId({
+	root,
+	projectId,
+	confirmationToken,
+}) {
+	if (!projectId) {
+		throw new Error("projectId is required for CodeCut confirmation binding");
+	}
+	if (!confirmationToken) {
+		throw new Error(
+			"confirmationToken is required for CodeCut confirmation binding",
+		);
+	}
+	const state = await readConfirmationState(root);
+	const hash = tokenHash(confirmationToken);
+	const confirmations = Array.isArray(state.confirmations)
+		? state.confirmations
+		: [];
+	const existing = confirmations.find((record) => record.tokenHash === hash);
+	if (!existing) {
+		throw new Error(
+			`confirmationToken is invalid for CodeCut project ${projectId}`,
+		);
+	}
+	if (
+		confirmations.some(
+			(record) => record.projectId === projectId && record.tokenHash === hash,
+		)
+	) {
+		return true;
+	}
+	state.confirmations = [
+		...confirmations,
+		{
+			...existing,
+			projectId,
+			boundFromProjectId: existing.projectId,
+			boundAt: nowIso(),
+		},
+	];
+	await writeConfirmationState(root, state);
+	return true;
+}
+
 export async function persistCodecutSetupResult({
 	root,
 	projectId,
@@ -169,6 +213,7 @@ export async function persistCodecutSetupResult({
 	importedMedia,
 	deferredMediaSources,
 	intent,
+	workspace,
 }) {
 	if (!projectId) {
 		throw new Error("projectId is required for CodeCut setup recovery");
@@ -209,6 +254,7 @@ export async function persistCodecutSetupResult({
 			importedMedia,
 			deferredMediaSources,
 			intent,
+			workspace,
 			createdAt: nowIso(),
 		},
 	].slice(-storedSetupResultLimit);

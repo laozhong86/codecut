@@ -1,6 +1,6 @@
 ---
 name: codecut-material-ingest
-description: Use when Codecut source material must be downloaded, copied, classified, probed, or organized before editing, including remote URLs, YouTube sources, local media files, workspace init, asset filing, and ffprobe material audit.
+description: Use when Codecut source material must be downloaded, copied, classified, probed, or organized before editing, including remote URLs, YouTube sources, local media files, workspace asset filing, and ffprobe material audit.
 ---
 
 # Codecut Material Ingest
@@ -24,7 +24,9 @@ For new creative jobs, material ingest is allowed only after
 `open_codecut_workspace` and `submit_codecut_setup` have produced a confirmed
 setup token and `codecut-requirement-intake` has passed. Do not initialize a
 workspace, copy files, probe assets, or write audit/planning files before that
-widget submission path.
+widget submission path. For widget-created jobs, `submit_codecut_setup`
+initializes `.codecut-workspace/projects/<projectId>`; this stage must not
+rerun `codecut-workspace init`.
 
 For source-only acquisition requests with no editing, timeline, template, or
 export intent, download or save the source outside the CodeCut creative
@@ -81,6 +83,8 @@ path.
 ## Stop Conditions
 
 - Confirmed setup token is missing or invalid for a creative job.
+- `.codecut-workspace/projects/<projectId>/workspace.json` is missing after
+  setup recovery.
 - Remote source cannot be accessed or downloaded.
 - Local media path is not absolute.
 - Probe cannot read positive duration for required video or audio assets.
@@ -99,8 +103,8 @@ phases.
 ## Responsibilities
 
 - Use the confirmed project ID from widget setup.
-- Initialize `.codecut-workspace/projects/<projectId>` with the confirmed setup
-  token.
+- Verify `.codecut-workspace/projects/<projectId>/workspace.json` already
+  exists from `submit_codecut_setup`; do not rerun `codecut-workspace init`.
 - Save the original request.
 - Copy local source files into `01-assets/`.
 - Download remote source material only when explicitly requested or needed for material audit.
@@ -116,7 +120,6 @@ Use the complete `codecut-workspace` command contract in
 `../../docs/codex-driven-editing.md`. This stage may run only these workspace
 actions, and each requires the confirmed setup token:
 
-- `codecut-workspace init --confirmation-token <token>`
 - `codecut-workspace add-assets --confirmation-token <token>`
 - `codecut-workspace probe-assets --confirmation-token <token>`
 - `codecut-workspace write-doc --confirmation-token <token>`

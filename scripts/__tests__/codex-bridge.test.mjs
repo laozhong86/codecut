@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -43,6 +43,7 @@ import {
 	buildVisualContextEnvelope,
 	buildVerifyTimelineEnvelope,
 	buildCaptionDiagnosticsEnvelope,
+	checkSharpRuntime,
 	parseBoolean,
 	requireRuntimeConfig,
 	runInstallDoctor,
@@ -62,6 +63,14 @@ async function createTestConfirmationToken(root, projectId = "project-123") {
 		projectId,
 		pendingConfirmationId: createPendingCodecutConfirmation(),
 	});
+}
+
+async function passingSharpRuntimeProbe() {
+	return {
+		id: "sharp_libvips",
+		ok: true,
+		message: "Sharp/libvips runtime is available.",
+	};
 }
 
 describe("codex bridge CLI helpers", () => {
@@ -165,6 +174,34 @@ try {
 				flags: {},
 			}),
 		).toThrow("CODECUT_AGENT_BRIDGE_URL is required");
+	});
+
+	test("sharp runtime probe reports missing libvips as an install gate failure", async () => {
+		const result = await checkSharpRuntime({
+			cwd: "/tmp/codecut",
+			requireImpl: () => {
+				throw new Error(
+					"Cannot find module '@img/sharp-libvips-darwin-arm64'",
+				);
+			},
+		});
+
+		expect(result).toMatchObject({
+			id: "sharp_libvips",
+			ok: false,
+		});
+		expect(result.message).toContain("Sharp/libvips check failed");
+		expect(result.message).toContain(
+			"@img/sharp-libvips-darwin-arm64",
+		);
+	});
+
+	test("web app declares sharp as a direct runtime dependency", async () => {
+		const webPackageJson = JSON.parse(
+			await readFile(new URL("../../apps/web/package.json", import.meta.url), "utf8"),
+		);
+
+		expect(webPackageJson.dependencies.sharp).toBeTruthy();
 	});
 
 	test("builds a bridge command envelope with explicit args", () => {
@@ -2707,6 +2744,7 @@ try {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async (url, init) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -2733,6 +2771,7 @@ try {
 				["cache_bridge_env", true],
 				["environment", true],
 				["node_renderer", true],
+				["sharp_libvips", true],
 				["web_service", true],
 				["executor_project", true],
 			]);
@@ -2819,6 +2858,7 @@ try {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async (url) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -2926,6 +2966,7 @@ try {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async (url) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -3026,6 +3067,7 @@ try {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async (url) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -3115,6 +3157,7 @@ try {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async (url) => {
 					if (String(url).endsWith("/en/projects")) {
 						return new Response("ok");
@@ -3168,6 +3211,7 @@ try {
 					ok: true,
 					message: "Node Canvas/WebCodecs renderer is available.",
 				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
 				fetchImpl: async () => {
 					throw new Error("fetch should not run without valid env");
 				},

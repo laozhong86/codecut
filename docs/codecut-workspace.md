@@ -99,9 +99,9 @@ Project folder:
 
 1. Understand the user message and write intent analysis.
 2. Call `open_codecut_workspace` and wait for `submit_codecut_setup`.
-3. Carry the returned confirmation token into all workspace side-effect
+3. Use the workspace index created by `submit_codecut_setup`.
+4. Carry the returned confirmation token into all workspace side-effect
    commands.
-4. Initialize the workspace with the confirmed `projectId`.
 5. Save and classify all provided local materials.
 6. Run ffprobe inventory for video/audio assets.
 7. Ask clarification questions with choices and one recommended option when
@@ -121,7 +121,9 @@ Project folder:
 
 ## CLI
 
-Initialize:
+Initialize only for an explicitly recovered confirmed project that is missing
+`workspace.json`. New widget-created jobs are initialized by
+`submit_codecut_setup`; do not rerun this command for those projects.
 
 ```bash
 node scripts/codecut-workspace.mjs init \

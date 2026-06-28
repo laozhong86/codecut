@@ -17,12 +17,14 @@ import {
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import {
+	bindCodecutConfirmationProjectId,
 	createPendingCodecutConfirmation,
 	mintCodecutConfirmationToken,
 	persistCodecutSetupResult,
 	readCodecutSetupResult,
 	resolveCodecutConfirmationRoot,
 } from "../scripts/codecut-confirmation-gate.mjs";
+import { initWorkspace } from "../scripts/codecut-workspace.mjs";
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -2017,6 +2019,9 @@ export async function submitCodecutSetup(
 		bridgeToolImpl = callBridgeCliTool,
 		statImpl = stat,
 		confirmationRoot,
+		workspaceSourceRoot = pluginRoot,
+		workspaceInitImpl = initWorkspace,
+		confirmationProjectBindImpl = bindCodecutConfirmationProjectId,
 	} = {},
 ) {
 	const inspection = await validateCodecutSetupIntent(intent);
@@ -2085,6 +2090,37 @@ export async function submitCodecutSetup(
 	};
 
 	const importedMedia = [];
+	let workspace;
+	try {
+		await confirmationProjectBindImpl({
+			root: confirmationRoot,
+			projectId: projectContext.projectId,
+			confirmationToken,
+		});
+		const initializedWorkspace = await workspaceInitImpl({
+			sourceRoot: workspaceSourceRoot,
+			projectId: projectContext.projectId,
+			name: projectContext.projectName,
+			userMessage: normalized.requirements,
+			confirmationToken,
+			confirmationRoot,
+		});
+		workspace = {
+			projectId: initializedWorkspace.projectId,
+			projectDirectory: initializedWorkspace.projectDirectory,
+			files: initializedWorkspace.files,
+		};
+	} catch (error) {
+		return buildSetupErrorResult({
+			status: "workspace_init_failed",
+			...projectContext,
+			importedMedia,
+			deferredMediaSources: [],
+			intent: normalized,
+			error: extractErrorMessage(error),
+		});
+	}
+
 	const { importableMediaSources, deferredMediaSources } =
 		await collectSetupMediaSourcesForImport(normalized.mediaSources, statImpl);
 	for (const { index, mediaSource } of importableMediaSources) {
@@ -2168,6 +2204,7 @@ export async function submitCodecutSetup(
 		confirmationToken,
 		importedMedia,
 		deferredMediaSources,
+		workspace,
 		intent: resultIntent,
 		continuePrompt: buildContinuePrompt({
 			intent: resultIntent,
@@ -2178,6 +2215,7 @@ export async function submitCodecutSetup(
 			confirmationToken,
 			importedMedia,
 			deferredMediaSources,
+			workspace,
 		}),
 	};
 	await persistCodecutSetupResult({
@@ -2971,11 +3009,13 @@ function buildContinuePrompt({
 	confirmationToken,
 	importedMedia,
 	deferredMediaSources,
+	workspace,
 }) {
 	if (intent.taskType === "template_draft") {
 		return [
 			`Use $codecut-reference-template to derive a reusable template draft for project "${projectName}" (${projectId}).`,
 			`This confirmed taskType is template_draft. Do not generate voice or media. Do not apply timeline plans. Do not mutate the timeline. Do not export.`,
+			`The CodeCut workspace index is already initialized at ${workspace?.projectDirectory}. Do not rerun codecut-workspace init for this project.`,
 			`Read project and media evidence only as needed for template derivation. Call get_project_info with projectId "${projectId}" and list_media_assets with projectId "${projectId}" before drafting.`,
 			`Create these draft artifacts: reference-analysis.md, local-template-script.json, and template-fields.md.`,
 			`Stop after presenting those draft artifacts and wait for the user to confirm whether to import the template into the system template library.`,
@@ -2990,6 +3030,7 @@ function buildContinuePrompt({
 			`Use $codecut-reference-template to import the confirmed template draft for project "${projectName}" (${projectId}).`,
 			`This confirmed taskType is template_import. Only import the user-confirmed local-template-script.json into the system template library.`,
 			`Use --confirmation-token ${confirmationToken} only for the template library mutation command.`,
+			`The CodeCut workspace index is already initialized at ${workspace?.projectDirectory}. Do not rerun codecut-workspace init for this project.`,
 			`Do not generate voice or media. Do not apply timeline plans. Do not mutate the timeline. Do not export.`,
 			`If the user-confirmed local-template-script.json path is missing, stop and ask for that exact file path.`,
 			`Use the confirmed setup intent as context. Project revision: ${revision}. Editor URL: ${editorUrl}.`,
@@ -3009,7 +3050,8 @@ function buildContinuePrompt({
 
 	return [
 		`Use $codecut to continue the real CodeCut editing chain for project "${projectName}" (${projectId}).`,
-		`Use --confirmation-token ${confirmationToken} for any CodeCut side-effect command that creates projects, imports media, initializes workspaces, adds assets, generates media, mutates timelines, or exports files.`,
+		`Use --confirmation-token ${confirmationToken} for any CodeCut side-effect command that imports media, updates workspace files, adds assets, generates media, mutates timelines, or exports files.`,
+		`The CodeCut workspace index is already initialized at ${workspace?.projectDirectory}. Do not rerun codecut-workspace init for this project; use add-assets, probe-assets, and write-doc for later workspace updates.`,
 		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. Click this host-rendered link if manual preview is needed: [Open CodeCut editor](${editorUrl}). If the selected tab is already on that URL, do not reload it.`,
 		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state with projectId "${projectId}".`,
 		...guardrails,
