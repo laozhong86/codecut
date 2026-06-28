@@ -8,6 +8,7 @@ import {
 const captionStyle = {
 	preset: "talking-head-pop",
 	position: "lower-safe",
+	size: "medium",
 } as const;
 
 const layout = {

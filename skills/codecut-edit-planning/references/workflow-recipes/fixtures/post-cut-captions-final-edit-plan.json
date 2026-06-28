@@ -38,7 +38,8 @@
   ],
   "captionStyle": {
     "preset": "talking-head-pop",
-    "position": "lower-safe"
+    "position": "lower-safe",
+    "size": "medium"
   },
   "rationale": "Final EditPlan after build-post-cut-captions output was merged into the clip-first plan."
 }

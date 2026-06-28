@@ -7,7 +7,11 @@ describe("buildPostCutCaptionEntries", () => {
 			text: "先讲。然后展示关键证据",
 			startTime: 0,
 			endTime: 4,
-			captionStyle: { preset: "talking-head-pop", position: "lower-safe" },
+			captionStyle: {
+				preset: "talking-head-pop",
+				position: "lower-safe",
+				size: "medium",
+			},
 			aspectRatio: "9:16",
 			canvasSize: { width: 1080, height: 1920 },
 		});
@@ -23,7 +27,11 @@ describe("buildPostCutCaptionEntries", () => {
 			text: "U.S. sales hit $2.34, then orders doubled.",
 			startTime: 0,
 			endTime: 8,
-			captionStyle: { preset: "talking-head-pop", position: "lower-safe" },
+			captionStyle: {
+				preset: "talking-head-pop",
+				position: "lower-safe",
+				size: "medium",
+			},
 			aspectRatio: "9:16",
 			canvasSize: { width: 1080, height: 1920 },
 		});
@@ -39,7 +47,11 @@ describe("buildPostCutCaptionEntries", () => {
 			text: "Dr. Lee used e.g. product evidence, then closed.",
 			startTime: 0,
 			endTime: 8,
-			captionStyle: { preset: "talking-head-pop", position: "lower-safe" },
+			captionStyle: {
+				preset: "talking-head-pop",
+				position: "lower-safe",
+				size: "medium",
+			},
 			aspectRatio: "9:16",
 			canvasSize: { width: 1080, height: 1920 },
 		});
@@ -55,7 +67,11 @@ describe("buildPostCutCaptionEntries", () => {
 			text: "建面117.55平，套三双卫！约来看一哈？预算1,000万以内。",
 			startTime: 0,
 			endTime: 8,
-			captionStyle: { preset: "talking-head-pop", position: "lower-safe" },
+			captionStyle: {
+				preset: "talking-head-pop",
+				position: "lower-safe",
+				size: "medium",
+			},
 			aspectRatio: "9:16",
 			canvasSize: { width: 1080, height: 1920 },
 		});
@@ -73,7 +89,11 @@ describe("buildPostCutCaptionEntries", () => {
 			text: "和平台没有一丁点关系",
 			startTime: 10,
 			endTime: 12,
-			captionStyle: { preset: "talking-head-pop", position: "lower-safe" },
+			captionStyle: {
+				preset: "talking-head-pop",
+				position: "lower-safe",
+				size: "medium",
+			},
 			aspectRatio: "9:16",
 			canvasSize: { width: 1080, height: 1920 },
 		});

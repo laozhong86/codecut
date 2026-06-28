@@ -116,6 +116,45 @@ export const NarratedRemixCaptionSchema = z
 	})
 	.strict();
 
+export const NarratedRemixCaptionSourceSchema = z
+	.object({
+		type: z.literal("post-cut-audio"),
+		tool: z.literal("build-post-cut-captions"),
+		source: z.enum([
+			"edited_video_clip_audio",
+			"edited_timeline_audio",
+			"scripted_tts_audio",
+		]),
+		trace: z
+			.array(
+				z
+					.object({
+						mediaId: z.string().min(1),
+						timelineStart: z.number().min(0),
+						sourceStart: z.number().min(0),
+						sourceEnd: z.number().min(0),
+						captionCount: z.number().int().min(0),
+					})
+					.strict(),
+			)
+			.min(1),
+		voiceConsistency: z
+			.object({
+				provider: z.enum([
+					"imported-tts",
+					"runninghub-voice-design",
+					"runninghub-voice-clone",
+				]),
+				providerTaskId: z.string().min(1).optional(),
+				alignmentMethod: z.literal("scripted_captions_to_asr_segments"),
+				scriptCaptionLineCount: z.number().int().min(0),
+				protectedTermCount: z.number().int().min(0),
+			})
+			.strict()
+			.optional(),
+	})
+	.strict();
+
 export const NarratedRemixPlanSchema = z
 	.object({
 		version: z.literal(1),
@@ -134,6 +173,7 @@ export const NarratedRemixPlanSchema = z
 			.optional(),
 		captions: z.array(NarratedRemixCaptionSchema),
 		captionStyle: EditPlanCaptionStyleSchema.optional(),
+		captionSource: NarratedRemixCaptionSourceSchema.optional(),
 		rationale: z.string().min(1),
 	})
 	.strict();

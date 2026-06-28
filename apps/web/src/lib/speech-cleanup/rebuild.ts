@@ -267,6 +267,7 @@ export function rebuildTimelineFromSpeechCleanup({
 		editPlan.captionStyle = {
 			preset: "short-form-bold",
 			position: "lower-safe",
+			size: "medium",
 		};
 	}
 

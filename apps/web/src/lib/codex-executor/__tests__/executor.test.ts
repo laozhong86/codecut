@@ -64,10 +64,10 @@ function envelope({
 		| "transcribe_media"
 		| "build_video_context"
 		| "build_visual_context"
-			| "build_video_quality_report"
-			| "inspect_timeline"
-			| "export_timeline_frame"
-			| "get_transcript"
+		| "build_video_quality_report"
+		| "inspect_timeline"
+		| "export_timeline_frame"
+		| "get_transcript"
 		| "inspect_video_range"
 		| "build_caption_diagnostics"
 		| "build_post_cut_captions"
@@ -630,12 +630,16 @@ describe("codex executor", () => {
 		expect(result.results[0]).toMatchObject({
 			success: true,
 			data: {
-				captionStyle: { preset: "product-punch", position: "lower-safe" },
+				captionStyle: {
+					preset: "product-punch",
+					position: "lower-safe",
+					size: "large",
+				},
 			},
 		});
 		expect(caption).toMatchObject({
 			content: "字幕合同",
-			style: { fontSize: 6.9 },
+			style: { fontSize: 6.578 },
 		});
 	});
 
@@ -796,8 +800,8 @@ describe("codex executor", () => {
 			},
 		});
 		expect(caption).toMatchObject({
-			content: "字幕偏好",
-			style: { fontSize: 5.4 },
+			content: "字幕偏好修改验证",
+			style: { fontSize: 4.212 },
 		});
 	});
 
@@ -1259,6 +1263,7 @@ describe("codex executor", () => {
 			captionStyle: {
 				preset: "short-form-bold",
 				position: "lower-safe",
+				size: "medium",
 			},
 			transitions: [
 				{
@@ -2160,6 +2165,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "large",
 						},
 						rationale: "Timeline readback proof",
 					},
@@ -2231,7 +2237,7 @@ describe("codex executor", () => {
 			endTime: 3,
 			style: {
 				fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
-				fontSize: 5.2,
+				fontSize: 5.720000000000001,
 				color: "#ffffff",
 				backgroundColor: "#0f172a",
 				backgroundOpacity: 0.42,
@@ -2369,7 +2375,7 @@ describe("codex executor", () => {
 			duration: 2,
 			style: {
 				fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
-				fontSize: 5.2,
+				fontSize: 5.720000000000001,
 				color: "#ffffff",
 				backgroundColor: "#0f172a",
 				backgroundOpacity: 0.42,
@@ -2608,6 +2614,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "large",
 						},
 						rationale: "Draft truth proof",
 					},
@@ -2685,7 +2692,11 @@ describe("codex executor", () => {
 				},
 			],
 			captions: [{ text: "Main claim", startTime: 0, duration: 2 }],
-			captionStyle: { preset: "black-bar", position: "lower-safe" },
+			captionStyle: {
+				preset: "black-bar",
+				position: "lower-safe",
+				size: "medium",
+			},
 			rationale: "Short cut",
 		};
 
@@ -3662,6 +3673,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "black-bar",
 							position: "lower-safe",
+							size: "medium",
 						},
 						audio: {
 							bgm: {
@@ -4442,6 +4454,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "large",
 					},
 				},
 			}),
@@ -4486,6 +4499,7 @@ describe("codex executor", () => {
 				captionStyle: {
 					preset: "talking-head-pop",
 					position: "lower-safe",
+					size: "large",
 				},
 				captions: [
 					{ text: "第一句", startTime: 1, duration: 1.25 },
@@ -4585,6 +4599,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "medium",
 						},
 					},
 				}),
@@ -4673,6 +4688,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "creator-clean",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),
@@ -4796,6 +4812,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),
@@ -4895,6 +4912,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),
@@ -4999,6 +5017,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),
@@ -5138,6 +5157,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),
@@ -5433,6 +5453,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "medium",
 						},
 						rationale: "Narration-led B-roll remix",
 					},
@@ -5574,12 +5595,11 @@ describe("codex executor", () => {
 							},
 						],
 						narration: { mediaId: narrationId, sourceStart: 0 },
-						captions: [
-							{ text: "Compressed cut", startTime: 0, duration: 3 },
-						],
+						captions: [{ text: "Compressed cut", startTime: 0, duration: 3 }],
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "medium",
 						},
 						rationale: "This should be rejected by duration contract.",
 					},
@@ -5777,7 +5797,8 @@ describe("codex executor", () => {
 						],
 						narration: { mediaId: narrationId, sourceStart: 0 },
 						captions: [],
-						rationale: "Preserve full source duration with real narration length.",
+						rationale:
+							"Preserve full source duration with real narration length.",
 					},
 				},
 			}),
@@ -5966,6 +5987,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "medium",
 						},
 						rationale: "Narration-led image overlay remix",
 					},
@@ -7130,6 +7152,7 @@ describe("codex executor", () => {
 			captionStyle: {
 				preset: "talking-head-pop",
 				position: "lower-safe",
+				size: "medium",
 			},
 		};
 
@@ -7464,6 +7487,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),
@@ -8744,6 +8768,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),
@@ -8848,6 +8873,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),
@@ -8914,6 +8940,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "medium",
 						},
 					},
 				}),
@@ -8967,12 +8994,7 @@ describe("codex executor", () => {
 		try {
 			await writeFile(
 				filePath,
-				[
-					"1",
-					"00:00:00,000 --> 00:00:00,200",
-					"too fast",
-					"",
-				].join("\n"),
+				["1", "00:00:00,000 --> 00:00:00,200", "too fast", ""].join("\n"),
 				"utf8",
 			);
 			await seedDraftState({ tracks: [] });
@@ -8988,6 +9010,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "large",
 						},
 					},
 				}),
@@ -9021,12 +9044,9 @@ describe("codex executor", () => {
 		try {
 			await writeFile(
 				filePath,
-				[
-					"1",
-					"00:00:00,500 --> 00:00:02,500",
-					"Readable caption",
-					"",
-				].join("\n"),
+				["1", "00:00:00,500 --> 00:00:02,500", "Readable caption", ""].join(
+					"\n",
+				),
 				"utf8",
 			);
 			await seedDraftState({ tracks: [] });
@@ -9042,6 +9062,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "medium",
 						},
 					},
 				}),
@@ -9091,6 +9112,7 @@ describe("codex executor", () => {
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",
+							size: "large",
 						},
 					},
 				}),
@@ -9165,6 +9187,7 @@ describe("codex executor", () => {
 					captionStyle: {
 						preset: "talking-head-pop",
 						position: "lower-safe",
+						size: "medium",
 					},
 				},
 			}),

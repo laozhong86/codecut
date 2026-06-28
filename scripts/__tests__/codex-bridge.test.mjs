@@ -1497,6 +1497,7 @@ try {
 			captionStyle: {
 				preset: "black-bar",
 				position: "lower-safe",
+				size: "medium",
 			},
 			audio: {
 				bgm: {

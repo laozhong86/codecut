@@ -291,7 +291,6 @@ describe("Codecut MCP server contract", () => {
 		expect(tool?.inputSchema.overwrite.safeParse(false).success).toBe(true);
 	});
 
-
 	test("exposes protected terms for RunningHub voice tools", () => {
 		for (const name of [
 			"generate_runninghub_voice_design",
@@ -309,15 +308,15 @@ describe("Codecut MCP server contract", () => {
 			CODECUT_MCP_TOOLS.map((tool) => [tool.name, tool.readOnly]),
 		);
 
-			expect(readOnlyByTool.get("list_models")).toBe(true);
-			expect(readOnlyByTool.get("search_media")).toBe(true);
-			expect(readOnlyByTool.get("build_caption_diagnostics")).toBe(true);
-			expect(readOnlyByTool.get("list_system_template_scripts")).toBe(true);
-			expect(readOnlyByTool.get("get_system_template_script")).toBe(true);
-			expect(readOnlyByTool.get("resolve_system_template_script")).toBe(true);
-			expect(readOnlyByTool.get("import_system_template_script")).toBe(false);
-			expect(readOnlyByTool.get("update_system_template_script")).toBe(false);
-			expect(readOnlyByTool.get("delete_system_template_script")).toBe(false);
+		expect(readOnlyByTool.get("list_models")).toBe(true);
+		expect(readOnlyByTool.get("search_media")).toBe(true);
+		expect(readOnlyByTool.get("build_caption_diagnostics")).toBe(true);
+		expect(readOnlyByTool.get("list_system_template_scripts")).toBe(true);
+		expect(readOnlyByTool.get("get_system_template_script")).toBe(true);
+		expect(readOnlyByTool.get("resolve_system_template_script")).toBe(true);
+		expect(readOnlyByTool.get("import_system_template_script")).toBe(false);
+		expect(readOnlyByTool.get("update_system_template_script")).toBe(false);
+		expect(readOnlyByTool.get("delete_system_template_script")).toBe(false);
 		expect(readOnlyByTool.get("set_project_cover")).toBe(false);
 		expect(readOnlyByTool.get("clear_project_cover")).toBe(false);
 		expect(readOnlyByTool.get("add_texts")).toBe(false);
@@ -348,10 +347,12 @@ describe("Codecut MCP server contract", () => {
 				},
 			]).success,
 		).toBe(true);
-		expect(updateTransition?.inputSchema.type.safeParse("blur-crossfade").success)
-			.toBe(true);
-		expect(updateTransition?.inputSchema.type.safeParse("domain-warp").success)
-			.toBe(false);
+		expect(
+			updateTransition?.inputSchema.type.safeParse("blur-crossfade").success,
+		).toBe(true);
+		expect(
+			updateTransition?.inputSchema.type.safeParse("domain-warp").success,
+		).toBe(false);
 	});
 
 	test("classifies MCP tools by governance surface", () => {
@@ -454,6 +455,7 @@ describe("Codecut MCP server contract", () => {
 			tool?.inputSchema.captionStyle.safeParse({
 				preset: "creator-clean",
 				position: "lower-safe",
+				size: "medium",
 				motionPreset: "soft-reveal",
 			}).success,
 		).toBe(true);
@@ -508,9 +510,9 @@ describe("Codecut MCP server contract", () => {
 		expect(recoverTool.readOnly).toBe(true);
 		expect(recoverTool.modelVisible).toBe(true);
 		expect(recoverTool.meta).toBeUndefined();
-		expect(recoverTool.inputSchema.pendingConfirmationId.safeParse("").success).toBe(
-			false,
-		);
+		expect(
+			recoverTool.inputSchema.pendingConfirmationId.safeParse("").success,
+		).toBe(false);
 		expect(submitTool?.inputSchema.mediaSources.safeParse([]).success).toBe(
 			true,
 		);
@@ -583,7 +585,7 @@ describe("Codecut MCP server contract", () => {
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
 		});
 
-			const html = await serverModule.readCodecutWorkspaceHtml();
+		const html = await serverModule.readCodecutWorkspaceHtml();
 		const widgetHtml = stripCodecutInjectedBridge(html);
 		expect(html).toContain('id="codecutMcpAppsBundle"');
 		expect(html).toContain('id="codecutMcpHostBridge"');
@@ -828,10 +830,10 @@ describe("Codecut MCP server contract", () => {
 		expect(html).toContain("--cc-create-cta-background");
 	});
 
-		test("serves the workspace widget at the legacy resource URI", async () => {
-			const transport = new StdioClientTransport({
-				command: "node",
-				args: ["mcp/server.mjs"],
+	test("serves the workspace widget at the legacy resource URI", async () => {
+		const transport = new StdioClientTransport({
+			command: "node",
+			args: ["mcp/server.mjs"],
 			cwd: process.cwd(),
 			stderr: "pipe",
 		});
@@ -849,40 +851,40 @@ describe("Codecut MCP server contract", () => {
 			expect(result.contents?.[0]?.uri).toBe(
 				serverModule.CODECUT_WORKSPACE_LEGACY_RESOURCE_URI,
 			);
-			expect(result.contents?.[0]?.mimeType).toBe(
-				"text/html;profile=mcp-app",
-			);
+			expect(result.contents?.[0]?.mimeType).toBe("text/html;profile=mcp-app");
 			expect(result.contents?.[0]?.text).toContain("WORKSPACE_I18N");
 		} finally {
 			await client.close();
-			}
-		});
+		}
+	});
 
-		test("exposes read-only system template query schemas", () => {
-			const listTool = CODECUT_MCP_TOOLS.find(
-				(candidate) => candidate.name === "list_system_template_scripts",
-			);
-			const getTool = CODECUT_MCP_TOOLS.find(
-				(candidate) => candidate.name === "get_system_template_script",
-			);
-			const resolveTool = CODECUT_MCP_TOOLS.find(
-				(candidate) => candidate.name === "resolve_system_template_script",
-			);
+	test("exposes read-only system template query schemas", () => {
+		const listTool = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "list_system_template_scripts",
+		);
+		const getTool = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "get_system_template_script",
+		);
+		const resolveTool = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "resolve_system_template_script",
+		);
 
-			expect(listTool?.description).toContain("List");
-			expect(listTool?.readOnly).toBe(true);
-			expect(getTool?.inputSchema.templateId.safeParse("proof-demo-cut").success).toBe(
-				true,
-			);
-			expect(resolveTool?.inputSchema.requestedTemplate.safeParse("proof demo").success).toBe(
-				true,
-			);
-			expect(resolveTool?.inputSchema.triggerType.safeParse("product-proof-ad").success).toBe(
-				true,
-			);
-		});
+		expect(listTool?.description).toContain("List");
+		expect(listTool?.readOnly).toBe(true);
+		expect(
+			getTool?.inputSchema.templateId.safeParse("proof-demo-cut").success,
+		).toBe(true);
+		expect(
+			resolveTool?.inputSchema.requestedTemplate.safeParse("proof demo")
+				.success,
+		).toBe(true);
+		expect(
+			resolveTool?.inputSchema.triggerType.safeParse("product-proof-ad")
+				.success,
+		).toBe(true);
+	});
 
-		test("serves the workspace widget for stale hashed resource URIs", async () => {
+	test("serves the workspace widget for stale hashed resource URIs", async () => {
 		const staleResourceUri =
 			serverModule.CODECUT_WORKSPACE_LEGACY_RESOURCE_URI.replace(
 				"/workspace.html",
@@ -906,9 +908,7 @@ describe("Codecut MCP server contract", () => {
 			});
 
 			expect(result.contents?.[0]?.uri).toBe(staleResourceUri);
-			expect(result.contents?.[0]?.mimeType).toBe(
-				"text/html;profile=mcp-app",
-			);
+			expect(result.contents?.[0]?.mimeType).toBe("text/html;profile=mcp-app");
 			expect(result.contents?.[0]?.text).toContain("WORKSPACE_I18N");
 		} finally {
 			await client.close();
@@ -1086,10 +1086,7 @@ describe("Codecut MCP server contract", () => {
 
 	test("workspace host bridge preserves native follow-up confirmation when available", async () => {
 		const html = await serverModule.readCodecutWorkspaceHtml();
-		const bridgeScript = extractScriptContentById(
-			html,
-			"codecutMcpHostBridge",
-		);
+		const bridgeScript = extractScriptContentById(html, "codecutMcpHostBridge");
 		const nativeSendFollowUpMessage = () => ({ status: "native" });
 		const context = {
 			Error,
@@ -1109,7 +1106,9 @@ describe("Codecut MCP server contract", () => {
 					return Promise.resolve();
 				}
 				sendMessage() {
-					throw new Error("Fallback sendMessage should not replace native follow-up.");
+					throw new Error(
+						"Fallback sendMessage should not replace native follow-up.",
+					);
 				}
 			},
 		};
@@ -1123,10 +1122,7 @@ describe("Codecut MCP server contract", () => {
 
 	test("workspace host bridge preserves native server tool proxy when available", async () => {
 		const html = await serverModule.readCodecutWorkspaceHtml();
-		const bridgeScript = extractScriptContentById(
-			html,
-			"codecutMcpHostBridge",
-		);
+		const bridgeScript = extractScriptContentById(html, "codecutMcpHostBridge");
 		const nativeCallServerTool = () => ({ status: "native" });
 		const context = {
 			Error,
@@ -1146,7 +1142,9 @@ describe("Codecut MCP server contract", () => {
 					return Promise.resolve();
 				}
 				callServerTool() {
-					throw new Error("Fallback callServerTool should not replace native proxy.");
+					throw new Error(
+						"Fallback callServerTool should not replace native proxy.",
+					);
 				}
 			},
 		};
@@ -1158,10 +1156,7 @@ describe("Codecut MCP server contract", () => {
 
 	test("workspace host bridge installs follow-up fallback only when native confirmation is missing", async () => {
 		const html = await serverModule.readCodecutWorkspaceHtml();
-		const bridgeScript = extractScriptContentById(
-			html,
-			"codecutMcpHostBridge",
-		);
+		const bridgeScript = extractScriptContentById(html, "codecutMcpHostBridge");
 		const sentMessages = [];
 		const context = {
 			Error,
@@ -1186,7 +1181,9 @@ describe("Codecut MCP server contract", () => {
 		};
 
 		runInNewContext(bridgeScript, context);
-		await context.window.openai.sendFollowUpMessage({ prompt: "Continue now." });
+		await context.window.openai.sendFollowUpMessage({
+			prompt: "Continue now.",
+		});
 
 		expect(sentMessages).toEqual([
 			{
@@ -1198,10 +1195,7 @@ describe("Codecut MCP server contract", () => {
 
 	test("workspace host bridge preserves native external opener when available", async () => {
 		const html = await serverModule.readCodecutWorkspaceHtml();
-		const bridgeScript = extractScriptContentById(
-			html,
-			"codecutMcpHostBridge",
-		);
+		const bridgeScript = extractScriptContentById(html, "codecutMcpHostBridge");
 		const nativeOpenExternal = () => ({ status: "native" });
 		const context = {
 			Error,
@@ -1221,7 +1215,9 @@ describe("Codecut MCP server contract", () => {
 					return Promise.resolve();
 				}
 				openLink() {
-					throw new Error("Fallback openExternal should not replace native opener.");
+					throw new Error(
+						"Fallback openExternal should not replace native opener.",
+					);
 				}
 			},
 		};
@@ -1435,7 +1431,7 @@ describe("Codecut MCP server contract", () => {
 			ok: false,
 			detail:
 				"Transition animation must be auto, none, or a supported CodeCut transition type.",
-			});
+		});
 	});
 
 	test("defaults task type from the user request without treating template ids as intent", () => {
@@ -1869,9 +1865,7 @@ describe("Codecut MCP server contract", () => {
 				[
 					"non-media local extension",
 					setupIntent({
-						mediaSources: [
-							{ kind: "filePath", filePath: "/tmp/result.json" },
-						],
+						mediaSources: [{ kind: "filePath", filePath: "/tmp/result.json" }],
 					}),
 				],
 				[
@@ -2274,7 +2268,9 @@ describe("Codecut MCP server contract", () => {
 				projectDirectory: workspaceDirectory,
 			});
 			expect(
-				JSON.parse(await readFile(join(workspaceDirectory, "workspace.json"), "utf8")),
+				JSON.parse(
+					await readFile(join(workspaceDirectory, "workspace.json"), "utf8"),
+				),
 			).toMatchObject({
 				projectId: "launch-cut-canonical",
 				name: "Launch Cut",
@@ -2437,8 +2433,7 @@ describe("Codecut MCP server contract", () => {
 		try {
 			const result = await serverModule.submitCodecutSetup(
 				setupIntent({
-					pendingConfirmationId:
-						opened.structuredContent.pendingConfirmationId,
+					pendingConfirmationId: opened.structuredContent.pendingConfirmationId,
 					projectId: "template-draft",
 					projectName: "Template Draft",
 					taskType: "template_draft",
@@ -3172,9 +3167,9 @@ describe("Codecut MCP server contract", () => {
 			confirmationToken,
 		]);
 
-			expect(
-				buildBridgeCliArgs("import_system_template_script", {
-					projectId: "project-1",
+		expect(
+			buildBridgeCliArgs("import_system_template_script", {
+				projectId: "project-1",
 				templateJsonFile: "/tmp/local-template-script.json",
 				confirmedByUser: true,
 			}),
@@ -3186,59 +3181,59 @@ describe("Codecut MCP server contract", () => {
 			"--template-json-file",
 			"/tmp/local-template-script.json",
 			"--confirmed-by-user",
-				"true",
-			]);
+			"true",
+		]);
 
-			expect(
-				buildBridgeCliArgs("list_system_template_scripts", {
-					projectId: "project-1",
-				}),
-			).toEqual([
-				"scripts/codex-bridge.mjs",
-				"send",
-				"--project-id",
-				"project-1",
-				"--tool",
-				"list_system_template_scripts",
-				"--args-json",
-				"{}",
-			]);
+		expect(
+			buildBridgeCliArgs("list_system_template_scripts", {
+				projectId: "project-1",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"send",
+			"--project-id",
+			"project-1",
+			"--tool",
+			"list_system_template_scripts",
+			"--args-json",
+			"{}",
+		]);
 
-			expect(
-				buildBridgeCliArgs("get_system_template_script", {
-					projectId: "project-1",
-					templateId: "proof-demo-cut",
-				}),
-			).toEqual([
-				"scripts/codex-bridge.mjs",
-				"send",
-				"--project-id",
-				"project-1",
-				"--tool",
-				"get_system_template_script",
-				"--args-json",
-				'{"templateId":"proof-demo-cut"}',
-			]);
+		expect(
+			buildBridgeCliArgs("get_system_template_script", {
+				projectId: "project-1",
+				templateId: "proof-demo-cut",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"send",
+			"--project-id",
+			"project-1",
+			"--tool",
+			"get_system_template_script",
+			"--args-json",
+			'{"templateId":"proof-demo-cut"}',
+		]);
 
-			expect(
-				buildBridgeCliArgs("resolve_system_template_script", {
-					projectId: "project-1",
-					requestedTemplate: "proof demo",
-					triggerType: "product-proof-ad",
-				}),
-			).toEqual([
-				"scripts/codex-bridge.mjs",
-				"send",
-				"--project-id",
-				"project-1",
-				"--tool",
-				"resolve_system_template_script",
-				"--args-json",
-				'{"requestedTemplate":"proof demo","triggerType":"product-proof-ad"}',
-			]);
+		expect(
+			buildBridgeCliArgs("resolve_system_template_script", {
+				projectId: "project-1",
+				requestedTemplate: "proof demo",
+				triggerType: "product-proof-ad",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"send",
+			"--project-id",
+			"project-1",
+			"--tool",
+			"resolve_system_template_script",
+			"--args-json",
+			'{"requestedTemplate":"proof demo","triggerType":"product-proof-ad"}',
+		]);
 
-			expect(
-				buildBridgeCliArgs("update_system_template_script", {
+		expect(
+			buildBridgeCliArgs("update_system_template_script", {
 				projectId: "project-1",
 				templateJsonFile: "/tmp/local-template-script.json",
 				confirmedByUser: true,
@@ -4063,10 +4058,10 @@ describe("Codecut MCP server contract", () => {
 			"--confirmation-token",
 			confirmationToken,
 		]);
-			expect(
-				buildBridgeCliArgs("export_project", {
-					projectId: "project-1",
-					confirmationToken,
+		expect(
+			buildBridgeCliArgs("export_project", {
+				projectId: "project-1",
+				confirmationToken,
 				format: "mp4",
 				quality: "high",
 				includeAudio: true,
@@ -4089,34 +4084,34 @@ describe("Codecut MCP server contract", () => {
 			"--overwrite",
 			"false",
 			"--confirmation-token",
+			confirmationToken,
+		]);
+		expect(
+			buildBridgeCliArgs("export_timeline_frame", {
+				projectId: "project-1",
 				confirmationToken,
-			]);
-			expect(
-				buildBridgeCliArgs("export_timeline_frame", {
-					projectId: "project-1",
-					confirmationToken,
-					timeSeconds: 1.25,
-					format: "png",
-					outputFile: "/tmp/frame.png",
-					overwrite: false,
-				}),
-			).toEqual([
-				"scripts/codex-bridge.mjs",
-				"export-timeline-frame",
-				"--project-id",
-				"project-1",
-				"--time-seconds",
-				"1.25",
-				"--format",
-				"png",
-				"--output-file",
-				"/tmp/frame.png",
-				"--overwrite",
-				"false",
-				"--confirmation-token",
-				confirmationToken,
-			]);
-		});
+				timeSeconds: 1.25,
+				format: "png",
+				outputFile: "/tmp/frame.png",
+				overwrite: false,
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"export-timeline-frame",
+			"--project-id",
+			"project-1",
+			"--time-seconds",
+			"1.25",
+			"--format",
+			"png",
+			"--output-file",
+			"/tmp/frame.png",
+			"--overwrite",
+			"false",
+			"--confirmation-token",
+			confirmationToken,
+		]);
+	});
 
 	test("rejects unknown tools instead of forwarding arbitrary bridge commands", () => {
 		expect(() =>

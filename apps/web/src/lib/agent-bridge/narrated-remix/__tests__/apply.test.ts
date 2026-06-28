@@ -74,6 +74,28 @@ function validPlan() {
 		captionStyle: {
 			preset: "talking-head-pop",
 			position: "lower-safe",
+			size: "medium",
+		},
+		captionSource: {
+			type: "post-cut-audio",
+			tool: "build-post-cut-captions",
+			source: "scripted_tts_audio",
+			trace: [
+				{
+					mediaId: "narration-1",
+					timelineStart: 0,
+					sourceStart: 2,
+					sourceEnd: 32,
+					captionCount: 2,
+				},
+			],
+			voiceConsistency: {
+				provider: "runninghub-voice-clone",
+				providerTaskId: "voice-task-1",
+				alignmentMethod: "scripted_captions_to_asr_segments",
+				scriptCaptionLineCount: 2,
+				protectedTermCount: 0,
+			},
 		},
 		rationale: "Uses existing narration over muted B-roll.",
 	};
@@ -432,6 +454,19 @@ describe("applyNarratedRemixPlanToEditor", () => {
 				captionStyle: {
 					preset: "talking-head-pop",
 					position: "lower-safe",
+					size: "medium",
+				},
+				captionSource: {
+					...validPlan().captionSource,
+					trace: [
+						{
+							mediaId: "narration-1",
+							timelineStart: 0,
+							sourceStart: 2,
+							sourceEnd: 32,
+							captionCount: 1,
+						},
+					],
 				},
 			},
 			projectId: "project-1",
@@ -602,6 +637,7 @@ describe("applyNarratedRemixPlanToEditor", () => {
 				captionStyle: {
 					preset: "talking-head-pop",
 					position: "lower-safe",
+					size: "medium",
 				},
 			},
 			projectId: "project-1",
@@ -648,9 +684,9 @@ describe("applyNarratedRemixPlanToEditor", () => {
 				],
 			},
 		]);
-		expect(
-			updates[0].some((track) => track.name === "Text Overlays"),
-		).toBe(false);
+		expect(updates[0].some((track) => track.name === "Text Overlays")).toBe(
+			false,
+		);
 	});
 
 	test("projects text overlays as editable text elements", () => {
@@ -702,6 +738,7 @@ describe("applyNarratedRemixPlanToEditor", () => {
 				captionStyle: {
 					preset: "talking-head-pop",
 					position: "lower-safe",
+					size: "medium",
 				},
 			},
 			projectId: "project-1",

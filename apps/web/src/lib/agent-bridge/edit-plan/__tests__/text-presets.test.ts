@@ -29,6 +29,7 @@ const implementedCaptionPresets: EditPlanCaptionStyle["preset"][] = [
 	"talking-head-pop",
 	"tutorial-clean",
 	"documentary-soft",
+	"property-clean-yellow",
 	"product-punch",
 	"lifestyle-warm",
 	"cinematic-serif",
@@ -51,7 +52,7 @@ function layoutPresetCaption({
 	const canvas = createCanvas(canvasSize.width, canvasSize.height);
 	const context = canvas.getContext("2d");
 	const raw = resolveCaptionStylePreset({
-		captionStyle: { preset, position: "lower-safe" },
+		captionStyle: { preset, position: "lower-safe", size: "medium" },
 		aspectRatio,
 	});
 	if (raw.fontSize === undefined) {
@@ -154,7 +155,7 @@ describe("caption style presets", () => {
 	});
 
 	test("all caption presets keep Chinese subtitles in a conventional lower-third layout", () => {
-		expect(implementedCaptionPresets).toHaveLength(12);
+		expect(implementedCaptionPresets).toHaveLength(13);
 
 		for (const preset of implementedCaptionPresets) {
 			const { raw, scaledFontSize, layout } = layoutPresetCaption({
@@ -190,7 +191,7 @@ describe("caption style presets", () => {
 	test("all caption presets write editor-selectable local font families", () => {
 		for (const preset of implementedCaptionPresets) {
 			const raw = resolveCaptionStylePreset({
-				captionStyle: { preset, position: "lower-safe" },
+				captionStyle: { preset, position: "lower-safe", size: "medium" },
 				aspectRatio: "9:16",
 			});
 
@@ -203,6 +204,7 @@ describe("caption style presets", () => {
 			captionStyle: {
 				preset: "creator-clean" as EditPlanCaptionStyle["preset"],
 				position: "lower-safe",
+				size: "medium",
 			},
 			aspectRatio: "9:16",
 		});
@@ -229,6 +231,7 @@ describe("caption style presets", () => {
 			captionStyle: {
 				preset: "talking-head-pop" as EditPlanCaptionStyle["preset"],
 				position: "lower-safe",
+				size: "medium",
 			},
 			aspectRatio: "9:16",
 		});
@@ -259,6 +262,7 @@ describe("caption style presets", () => {
 			captionStyle: {
 				preset: "cinematic-serif" as EditPlanCaptionStyle["preset"],
 				position: "lower-safe",
+				size: "medium",
 			},
 			aspectRatio: "9:16",
 		});
@@ -266,6 +270,7 @@ describe("caption style presets", () => {
 			captionStyle: {
 				preset: "minimal-reel" as EditPlanCaptionStyle["preset"],
 				position: "lower-safe",
+				size: "medium",
 			},
 			aspectRatio: "9:16",
 		});
@@ -309,6 +314,7 @@ describe("caption style presets", () => {
 			captionStyle: {
 				preset: "social-highlight" as EditPlanCaptionStyle["preset"],
 				position: "lower-safe",
+				size: "medium",
 			},
 			aspectRatio: "9:16",
 		});
@@ -316,6 +322,7 @@ describe("caption style presets", () => {
 			captionStyle: {
 				preset: "comment-bubble" as EditPlanCaptionStyle["preset"],
 				position: "lower-safe",
+				size: "medium",
 			},
 			aspectRatio: "9:16",
 		});
@@ -323,6 +330,7 @@ describe("caption style presets", () => {
 			captionStyle: {
 				preset: "minimal-reel" as EditPlanCaptionStyle["preset"],
 				position: "lower-safe",
+				size: "medium",
 			},
 			aspectRatio: "9:16",
 		});
@@ -353,5 +361,102 @@ describe("caption style presets", () => {
 			backgroundColor: "#0f172a",
 			backgroundOpacity: 0.38,
 		});
+	});
+
+	test("real estate clean yellow preset keeps yellow captions readable without product-punch footprint", () => {
+		const raw = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "property-clean-yellow",
+				position: "lower-safe",
+				size: "medium",
+			},
+			aspectRatio: "9:16",
+		});
+
+		expect(raw).toMatchObject({
+			fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+			fontSize: 4.8,
+			fontWeight: "bold",
+			color: "#ffe45c",
+			backgroundColor: "transparent",
+			stroke: { color: "#111111", width: 2 },
+		});
+		expect(raw.shadow).toEqual({
+			color: "#000000",
+			offsetX: 0,
+			offsetY: 2,
+			blur: 4,
+		});
+	});
+
+	test("marketing product-punch preset is capped for 9:16 exports", () => {
+		const raw = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "product-punch",
+				position: "lower-safe",
+				size: "medium",
+			},
+			aspectRatio: "9:16",
+		});
+		const fontPx = (raw.fontSize ?? 0) * (verticalCanvas.height / 90);
+		const strokePx = (raw.stroke?.width ?? 0) * 2;
+
+		expect(fontPx).toBeLessThanOrEqual(111);
+		expect(strokePx).toBeLessThanOrEqual(6);
+	});
+
+	test("property clean yellow medium preset uses a compact 9:16 footprint", () => {
+		const raw = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "property-clean-yellow",
+				position: "lower-safe",
+				size: "medium",
+			},
+			aspectRatio: "9:16",
+		});
+		const fontPx = (raw.fontSize ?? 0) * (verticalCanvas.height / 90);
+		const strokePx = (raw.stroke?.width ?? 0) * 2;
+
+		expect(fontPx).toBeGreaterThanOrEqual(101);
+		expect(fontPx).toBeLessThanOrEqual(103);
+		expect(strokePx).toBe(4);
+	});
+
+	test("caption size changes only the controlled font multiplier", () => {
+		const small = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "property-clean-yellow",
+				position: "lower-safe",
+				size: "small",
+				motionPreset: "soft-reveal",
+			},
+			aspectRatio: "9:16",
+		});
+		const medium = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "property-clean-yellow",
+				position: "lower-safe",
+				size: "medium",
+				motionPreset: "soft-reveal",
+			},
+			aspectRatio: "9:16",
+		});
+		const large = resolveCaptionStylePreset({
+			captionStyle: {
+				preset: "property-clean-yellow",
+				position: "lower-safe",
+				size: "large",
+				motionPreset: "soft-reveal",
+			},
+			aspectRatio: "9:16",
+		});
+
+		expect(small.fontSize).toBeCloseTo(4.32);
+		expect(medium.fontSize).toBe(4.8);
+		expect(large.fontSize).toBeCloseTo(5.28);
+		expect(small.color).toBe(medium.color);
+		expect(large.color).toBe(medium.color);
+		expect(small.stroke).toEqual(medium.stroke);
+		expect(large.transform).toEqual(medium.transform);
 	});
 });

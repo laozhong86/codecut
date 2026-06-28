@@ -207,6 +207,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 		expect(result.editPlan.captionStyle).toEqual({
 			preset: "short-form-bold",
 			position: "lower-safe",
+			size: "medium",
 		});
 		expect(validation.success).toBe(true);
 	});
@@ -218,9 +219,7 @@ describe("rebuildTimelineFromSpeechCleanup", () => {
 				sourceDuration: SPEECH_CLEANUP_SOURCE_DURATION,
 				captionMode: "source-captions",
 			}),
-		).toThrow(
-			'captionMode must be "clip-only" or "source-transcript-remap".',
-		);
+		).toThrow('captionMode must be "clip-only" or "source-transcript-remap".');
 	});
 
 	test("projects decimal ASR segments to an EditPlan accepted by validateEditPlan", () => {

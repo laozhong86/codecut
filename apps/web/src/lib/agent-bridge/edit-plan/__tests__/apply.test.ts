@@ -140,6 +140,7 @@ function validPlan(): EditPlan {
 		captionStyle: {
 			preset: "short-form-bold",
 			position: "lower-safe",
+			size: "medium",
 		},
 		rationale: "Combines setup and proof into a short clip.",
 	};
@@ -569,6 +570,7 @@ describe("applyEditPlanToEditor", () => {
 			captionStyle: {
 				preset: "black-bar",
 				position: "center",
+				size: "medium",
 			},
 		};
 
@@ -611,6 +613,7 @@ describe("applyEditPlanToEditor", () => {
 			captionStyle: {
 				preset: "talking-head-pop",
 				position: "lower-safe",
+				size: "medium",
 			},
 		};
 
@@ -659,6 +662,7 @@ describe("applyEditPlanToEditor", () => {
 			captionStyle: {
 				preset: "talking-head-pop",
 				position: "lower-safe",
+				size: "medium",
 			},
 		};
 
@@ -824,10 +828,10 @@ describe("applyEditPlanToEditor", () => {
 				preset: "product-punch",
 				expected: {
 					fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
-					fontSize: 6,
+					fontSize: 5.2,
 					fontWeight: "bold",
 					color: "#ffe45c",
-					stroke: { color: "#111111", width: 4 },
+					stroke: { color: "#111111", width: 3 },
 					backgroundColor: "transparent",
 				},
 			},
@@ -905,6 +909,7 @@ describe("applyEditPlanToEditor", () => {
 				captionStyle: {
 					preset: captionCase.preset,
 					position: "lower-safe",
+					size: "medium",
 				},
 			} as unknown as EditPlan;
 
@@ -1128,6 +1133,7 @@ describe("applyEditPlanToEditor", () => {
 			captionStyle: {
 				preset: "product-punch",
 				position: "lower-safe",
+				size: "medium",
 				motionPreset: "pop-bounce",
 			},
 		} as unknown as EditPlan;
@@ -1169,6 +1175,7 @@ describe("applyEditPlanToEditor", () => {
 			captionStyle: {
 				preset: "keyword_caption",
 				position: "lower-safe",
+				size: "medium",
 			},
 		} as unknown as EditPlan;
 

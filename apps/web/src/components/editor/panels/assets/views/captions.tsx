@@ -261,6 +261,7 @@ export function Captions() {
 		() => ({
 			preset: selectedPreset,
 			position: selectedPosition,
+			size: "medium",
 			...(selectedMotionPreset === "none"
 				? {}
 				: { motionPreset: selectedMotionPreset }),

@@ -228,15 +228,20 @@ export function captionStyleFromConfirmedSetup(
 	return {
 		preset: confirmedSetup.captionPreferences.stylePreset,
 		position: "lower-safe",
+		size: confirmedSetup.captionPreferences.size,
 	};
 }
+
+type ExplicitCaptionStyleForContract = Omit<EditPlanCaptionStyle, "size"> & {
+	size?: EditPlanCaptionStyle["size"];
+};
 
 export function resolveCaptionStyleForContract({
 	confirmedSetup,
 	explicitCaptionStyle,
 }: {
 	confirmedSetup?: ConfirmedSetup;
-	explicitCaptionStyle?: EditPlanCaptionStyle;
+	explicitCaptionStyle?: ExplicitCaptionStyleForContract;
 }): EditPlanCaptionStyle {
 	if (!confirmedSetup) {
 		if (!explicitCaptionStyle) {
@@ -244,7 +249,12 @@ export function resolveCaptionStyleForContract({
 				"captionStyle is required when the project has no confirmedSetup captionPreferences.",
 			);
 		}
-		return explicitCaptionStyle;
+		if (!explicitCaptionStyle.size) {
+			throw new Error(
+				"captionStyle.size is required when the project has no confirmedSetup captionPreferences.",
+			);
+		}
+		return explicitCaptionStyle as EditPlanCaptionStyle;
 	}
 
 	const expected = captionStyleFromConfirmedSetup(confirmedSetup);
@@ -257,6 +267,14 @@ export function resolveCaptionStyleForContract({
 	if (explicitCaptionStyle.position !== expected.position) {
 		throw new Error(
 			`captionStyle.position conflicts with confirmedSetup caption position: expected ${expected.position}.`,
+		);
+	}
+	if (
+		explicitCaptionStyle.size !== undefined &&
+		explicitCaptionStyle.size !== expected.size
+	) {
+		throw new Error(
+			`captionStyle.size conflicts with confirmedSetup.captionPreferences.size: expected ${expected.size}.`,
 		);
 	}
 	if (explicitCaptionStyle.motionPreset !== undefined) {

@@ -18,7 +18,11 @@ import { validateEditPlan } from "@/lib/agent-bridge/edit-plan/validate";
 import { auditCaptions } from "@/lib/agent-bridge/caption-quality";
 import { KEYFRAME_INTERPOLATIONS } from "@/lib/timeline/keyframe-values";
 import {
+	EditPlanCaptionPositionSchema,
+	EditPlanCaptionSizeSchema,
 	EditPlanCaptionStyleSchema,
+	EditPlanCaptionStylePresetSchema,
+	EditPlanTextMotionPresetSchema,
 	EditPlanTransitionTypeSchema,
 	type EditPlanCaptionStyle,
 } from "@/lib/agent-bridge/edit-plan/schema";
@@ -263,6 +267,7 @@ interface ExecutorCommand {
 const DEFAULT_POST_CUT_CAPTION_STYLE = {
 	preset: "talking-head-pop",
 	position: "lower-safe",
+	size: "medium",
 } satisfies EditPlanCaptionStyle;
 
 const DURATION_CONTRACT_TIME_EPSILON = 0.001;
@@ -516,11 +521,20 @@ const transformSchema = z
 	})
 	.strict();
 
+const executorCaptionStyleSchema = z
+	.object({
+		preset: EditPlanCaptionStylePresetSchema,
+		position: EditPlanCaptionPositionSchema,
+		size: EditPlanCaptionSizeSchema.optional(),
+		motionPreset: EditPlanTextMotionPresetSchema.optional(),
+	})
+	.strict();
+
 const buildPostCutCaptionsArgsSchema = z
 	.object({
 		language: z.unknown(),
 		modelId: z.unknown(),
-		captionStyle: EditPlanCaptionStyleSchema.optional(),
+		captionStyle: executorCaptionStyleSchema.optional(),
 	})
 	.strict();
 
@@ -593,7 +607,7 @@ const addCaptionsArgsSchema = z
 	.object({
 		language: z.unknown(),
 		modelId: z.unknown(),
-		captionStyle: EditPlanCaptionStyleSchema.optional(),
+		captionStyle: executorCaptionStyleSchema.optional(),
 	})
 	.strict();
 
@@ -604,7 +618,7 @@ const importSubtitlesArgsSchema = z
 		}),
 		format: z.enum(["srt", "ass"]),
 		trackName: z.string().trim().min(1, "trackName must not be blank."),
-		captionStyle: EditPlanCaptionStyleSchema.optional(),
+		captionStyle: executorCaptionStyleSchema.optional(),
 	})
 	.strict();
 
@@ -1474,8 +1488,7 @@ function timelineTotalDurationMatchesContract({
 		return false;
 	}
 	return (
-		totalDuration >=
-			durationGoal.rangeSeconds.minSeconds - toleranceSeconds &&
+		totalDuration >= durationGoal.rangeSeconds.minSeconds - toleranceSeconds &&
 		totalDuration <= durationGoal.rangeSeconds.maxSeconds + toleranceSeconds
 	);
 }
@@ -2898,7 +2911,8 @@ async function runApplyNarratedRemixPlan({
 		plan: parsed.plan,
 		projectId: state.project.id,
 		replaceExisting: parsed.replaceExisting,
-		durationContract: state.confirmedSetup?.timelinePreferences.durationContract,
+		durationContract:
+			state.confirmedSetup?.timelinePreferences.durationContract,
 		durationGoal: state.confirmedSetup?.timelinePreferences.durationGoal,
 		editor: {
 			media: {
@@ -4872,8 +4886,7 @@ async function runImportSubtitles({
 	});
 	const existingDuration = calculateTotalDuration({ tracks: state.tracks });
 	const captionDuration = captions.reduce(
-		(maxEnd, caption) =>
-			Math.max(maxEnd, caption.startTime + caption.duration),
+		(maxEnd, caption) => Math.max(maxEnd, caption.startTime + caption.duration),
 		0,
 	);
 	const raw = resolveCaptionStylePreset({

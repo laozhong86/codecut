@@ -10,6 +10,7 @@ import { buildCaptionDiagnosticsReport } from "../caption-diagnostics";
 const captionStyle = {
 	preset: "creator-clean",
 	position: "lower-safe",
+	size: "medium",
 } satisfies EditPlanCaptionStyle;
 
 const canvasSize = { width: 1080, height: 1920 };
@@ -214,7 +215,8 @@ describe("buildCaptionDiagnosticsReport", () => {
 						id: "video-track-2",
 						elements: [
 							{
-								...(videoTrack().elements[0] as TimelineTrack["elements"][number]),
+								...(videoTrack()
+									.elements[0] as TimelineTrack["elements"][number]),
 								id: "clip-2",
 								startTime: 2,
 							},

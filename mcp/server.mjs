@@ -6,7 +6,14 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	resolve,
+} from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -178,6 +185,7 @@ const captionStylePresetValues = [
 	"talking-head-pop",
 	"tutorial-clean",
 	"documentary-soft",
+	"property-clean-yellow",
 	"product-punch",
 	"lifestyle-warm",
 	"cinematic-serif",
@@ -570,6 +578,7 @@ const captionStyleSchema = z
 	.object({
 		preset: captionStylePresetSchema,
 		position: z.enum(["lower-safe", "center"]),
+		size: captionSizeSchema,
 		motionPreset: captionMotionPresetSchema.optional(),
 	})
 	.strict();
@@ -624,21 +633,21 @@ const codecutToolGovernanceCategoryByName = new Map([
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
 	],
 	["build_post_cut_captions", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
-		["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
-		["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
-		[
-			"list_system_template_scripts",
-			CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
-		],
-		[
-			"get_system_template_script",
-			CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
-		],
-		[
-			"resolve_system_template_script",
-			CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
-		],
-		["get_timeline_state", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	[
+		"list_system_template_scripts",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
+	],
+	[
+		"get_system_template_script",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
+	],
+	[
+		"resolve_system_template_script",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
+	],
+	["get_timeline_state", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["validate_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["preview_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["apply_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
@@ -902,9 +911,9 @@ export const CODECUT_MCP_TOOLS = [
 		},
 		readOnly: true,
 	},
-		{
-			name: "search_media",
-			title: "Search Codecut Media",
+	{
+		name: "search_media",
+		title: "Search Codecut Media",
 		description:
 			"Search media metadata and cached spoken transcript segments without running implicit indexing.",
 		inputSchema: {
@@ -913,61 +922,61 @@ export const CODECUT_MCP_TOOLS = [
 			scope: z.enum(["metadata", "spoken", "both"]).optional(),
 			mediaId: mediaIdSchema.optional(),
 			limit: z.number().int().positive().optional(),
-			},
-			readOnly: true,
 		},
-		{
-			name: "list_system_template_scripts",
-			title: "List Codecut System Template Scripts",
-			description:
-				"List Codecut system template scripts from the browser local Templates UI library for one explicit project bridge session.",
-			inputSchema: projectOnlyInputSchema,
-			readOnly: true,
+		readOnly: true,
+	},
+	{
+		name: "list_system_template_scripts",
+		title: "List Codecut System Template Scripts",
+		description:
+			"List Codecut system template scripts from the browser local Templates UI library for one explicit project bridge session.",
+		inputSchema: projectOnlyInputSchema,
+		readOnly: true,
+	},
+	{
+		name: "get_system_template_script",
+		title: "Get Codecut System Template Script",
+		description:
+			"Read one complete Codecut system template script by exact template ID from the browser local Templates UI library.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			templateId: templateIdSchema,
 		},
-		{
-			name: "get_system_template_script",
-			title: "Get Codecut System Template Script",
-			description:
-				"Read one complete Codecut system template script by exact template ID from the browser local Templates UI library.",
-			inputSchema: {
-				projectId: projectIdSchema,
-				templateId: templateIdSchema,
-			},
-			readOnly: true,
+		readOnly: true,
+	},
+	{
+		name: "resolve_system_template_script",
+		title: "Resolve Codecut System Template Script",
+		description:
+			"Resolve one Codecut system template script by ID, name, alias, or default trigger type from the browser local Templates UI library.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			requestedTemplate: z
+				.string()
+				.trim()
+				.min(1)
+				.describe("Template ID, exact name, or alias mentioned by the user.")
+				.optional(),
+			triggerType: systemTemplateTriggerTypeSchema.optional(),
 		},
-		{
-			name: "resolve_system_template_script",
-			title: "Resolve Codecut System Template Script",
-			description:
-				"Resolve one Codecut system template script by ID, name, alias, or default trigger type from the browser local Templates UI library.",
-			inputSchema: {
-				projectId: projectIdSchema,
-				requestedTemplate: z
-					.string()
-					.trim()
-					.min(1)
-					.describe("Template ID, exact name, or alias mentioned by the user.")
-					.optional(),
-				triggerType: systemTemplateTriggerTypeSchema.optional(),
-			},
-			readOnly: true,
+		readOnly: true,
+	},
+	{
+		name: "import_system_template_script",
+		title: "Import Codecut System Template Script",
+		description:
+			"Import one user-confirmed reference-derived template draft into the Codecut system template library used by Templates UI and future Codex planning context.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			templateJsonFile: templateJsonFileSchema,
+			confirmedByUser: z
+				.literal(true)
+				.describe(
+					"Must be true only after the user explicitly confirmed this exact template draft for import.",
+				),
 		},
-		{
-			name: "import_system_template_script",
-			title: "Import Codecut System Template Script",
-			description:
-				"Import one user-confirmed reference-derived template draft into the Codecut system template library used by Templates UI and future Codex planning context.",
-			inputSchema: {
-				projectId: projectIdSchema,
-				templateJsonFile: templateJsonFileSchema,
-				confirmedByUser: z
-					.literal(true)
-					.describe(
-						"Must be true only after the user explicitly confirmed this exact template draft for import.",
-					),
-			},
-			readOnly: false,
-		},
+		readOnly: false,
+	},
 	{
 		name: "update_system_template_script",
 		title: "Update Codecut System Template Script",
@@ -1449,7 +1458,8 @@ export const CODECUT_MCP_TOOLS = [
 
 export const CODECUT_WORKSPACE_LEGACY_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace.html`;
 export const CODECUT_WORKSPACE_HASHED_RESOURCE_URI_TEMPLATE = `ui://codecut/${pluginVersion()}/workspace-{contentVersion}.html`;
-export const CODECUT_WORKSPACE_CONTENT_VERSION = codecutWorkspaceContentVersion();
+export const CODECUT_WORKSPACE_CONTENT_VERSION =
+	codecutWorkspaceContentVersion();
 export const CODECUT_WORKSPACE_RESOURCE_URI = `ui://codecut/${pluginVersion()}/workspace-${CODECUT_WORKSPACE_CONTENT_VERSION}.html`;
 
 function codecutWorkspaceContentVersion() {
@@ -1627,7 +1637,9 @@ function codecutMcpAppsGlobalScript() {
 	if (exportStart === -1) {
 		throw new Error("Could not find ext-apps browser export block.");
 	}
-	const exportBlock = source.slice(exportStart).match(/^export\{([^}]+)\};?\s*$/s);
+	const exportBlock = source
+		.slice(exportStart)
+		.match(/^export\{([^}]+)\};?\s*$/s);
 	if (!exportBlock) {
 		throw new Error("Could not parse ext-apps browser export block.");
 	}
@@ -2287,12 +2299,11 @@ function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 	};
 }
 
-export async function recoverCodecutSetup(
-	input,
-	{ confirmationRoot } = {},
-) {
+export async function recoverCodecutSetup(input, { confirmationRoot } = {}) {
 	const projectId = String(input?.projectId || "").trim();
-	const pendingConfirmationId = String(input?.pendingConfirmationId || "").trim();
+	const pendingConfirmationId = String(
+		input?.pendingConfirmationId || "",
+	).trim();
 	try {
 		const recovered = await readCodecutSetupResult({
 			root: confirmationRoot,
@@ -2500,7 +2511,9 @@ function inferWorkspaceTaskType(input = {}) {
 	const text = [
 		input.projectName,
 		input.requirements,
-		...(Array.isArray(input.requirementOptions) ? input.requirementOptions : []),
+		...(Array.isArray(input.requirementOptions)
+			? input.requirementOptions
+			: []),
 		...(Array.isArray(input.recommendedRequirementOptions)
 			? input.recommendedRequirementOptions
 			: []),
@@ -2623,7 +2636,8 @@ function normalizeWorkspaceIntent(intent) {
 			intent.durationGoalRangeSeconds,
 		),
 		durationContract: normalizeDurationContract(intent.durationContract, {
-			durationGoalMode: intent.durationGoalMode === "custom" ? "custom" : "auto",
+			durationGoalMode:
+				intent.durationGoalMode === "custom" ? "custom" : "auto",
 		}),
 		captionLanguage: String(intent.captionLanguage || "auto").trim() || "auto",
 		transitionPreference:
@@ -2696,7 +2710,8 @@ function validateWorkspaceDurationContract(normalized) {
 	if (!parsed.success) {
 		return {
 			ok: false,
-			message: parsed.error.issues[0]?.message || "Duration contract is invalid.",
+			message:
+				parsed.error.issues[0]?.message || "Duration contract is invalid.",
 		};
 	}
 	if (
@@ -2772,7 +2787,11 @@ function getWorkspaceMediaExtension(value, { isUrl = false } = {}) {
 	return extname(rawValue).toLowerCase();
 }
 
-function validateWorkspaceMediaFileType({ mimeType, sourcePath, isUrl = false }) {
+function validateWorkspaceMediaFileType({
+	mimeType,
+	sourcePath,
+	isUrl = false,
+}) {
 	if (!isWorkspaceMediaMimeType(mimeType)) {
 		return {
 			ok: false,
@@ -3191,7 +3210,9 @@ function appendOptionalCliArgs(command, args, mappings) {
 }
 
 function assertOnlyToolArgs(args, allowedKeys, toolName) {
-	const unexpected = Object.keys(args ?? {}).filter((key) => !allowedKeys.has(key));
+	const unexpected = Object.keys(args ?? {}).filter(
+		(key) => !allowedKeys.has(key),
+	);
 	if (unexpected.length > 0) {
 		throw new Error(
 			`${toolName} does not accept argument(s): ${unexpected.join(", ")}`,
@@ -3450,10 +3471,10 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 						: { type: requireStringArg(args, "type") }),
 				},
 			});
-			case "search_media":
-				return buildSendArgs({
-					projectId,
-					toolName,
+		case "search_media":
+			return buildSendArgs({
+				projectId,
+				toolName,
 				args: {
 					query: requireStringArg(args, "query"),
 					...(args.scope === undefined
@@ -3462,41 +3483,43 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 					...(args.mediaId === undefined
 						? {}
 						: { mediaId: requireStringArg(args, "mediaId") }),
-						...(optionalNumberArg(args, "limit") === undefined
-							? {}
-							: { limit: optionalNumberArg(args, "limit") }),
-					},
-				});
-			case "list_system_template_scripts":
-				return buildSendArgs({
-					projectId,
-					toolName,
-					args: {},
-				});
-			case "get_system_template_script":
-				return buildSendArgs({
-					projectId,
-					toolName,
-					args: {
-						templateId: requireStringArg(args, "templateId"),
-					},
-				});
-			case "resolve_system_template_script":
-				return buildSendArgs({
-					projectId,
-					toolName,
-					args: {
-						...(args.requestedTemplate === undefined
-							? {}
-							: { requestedTemplate: requireStringArg(args, "requestedTemplate") }),
-						...(args.triggerType === undefined
-							? {}
-							: { triggerType: requireStringArg(args, "triggerType") }),
-					},
-				});
-			case "import_system_template_script":
-				requireConfirmedByUser(args);
-				return [
+					...(optionalNumberArg(args, "limit") === undefined
+						? {}
+						: { limit: optionalNumberArg(args, "limit") }),
+				},
+			});
+		case "list_system_template_scripts":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {},
+			});
+		case "get_system_template_script":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					templateId: requireStringArg(args, "templateId"),
+				},
+			});
+		case "resolve_system_template_script":
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					...(args.requestedTemplate === undefined
+						? {}
+						: {
+								requestedTemplate: requireStringArg(args, "requestedTemplate"),
+							}),
+					...(args.triggerType === undefined
+						? {}
+						: { triggerType: requireStringArg(args, "triggerType") }),
+				},
+			});
+		case "import_system_template_script":
+			requireConfirmedByUser(args);
+			return [
 				"scripts/codex-bridge.mjs",
 				"import-system-template-script",
 				"--project-id",
@@ -3957,11 +3980,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				},
 			});
 		case "build_volcengine_url_captions":
-			assertOnlyToolArgs(
-				args,
-				new Set(["projectId", "mediaUrl"]),
-				toolName,
-			);
+			assertOnlyToolArgs(args, new Set(["projectId", "mediaUrl"]), toolName);
 			return buildSendArgs({
 				projectId,
 				toolName,
@@ -3992,7 +4011,10 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 					: ["--quality", requireStringArg(args, "quality")]),
 				...(args.includeAudio === undefined
 					? []
-					: ["--include-audio", String(requireBooleanArg(args, "includeAudio"))]),
+					: [
+							"--include-audio",
+							String(requireBooleanArg(args, "includeAudio")),
+						]),
 				"--output-file",
 				requireStringArg(args, "outputFile"),
 				"--overwrite",

@@ -72,6 +72,21 @@ function validPlan() {
 		captionStyle: {
 			preset: "talking-head-pop",
 			position: "lower-safe",
+			size: "medium",
+		},
+		captionSource: {
+			type: "post-cut-audio",
+			tool: "build-post-cut-captions",
+			source: "edited_timeline_audio",
+			trace: [
+				{
+					mediaId: "narration-1",
+					timelineStart: 0,
+					sourceStart: 0,
+					sourceEnd: 30,
+					captionCount: 2,
+				},
+			],
 		},
 		rationale: "Uses existing narration over muted B-roll.",
 	};
@@ -353,6 +368,21 @@ describe("validateNarratedRemixPlan", () => {
 				captionStyle: {
 					preset: "talking-head-pop",
 					position: "lower-safe",
+					size: "medium",
+				},
+				captionSource: {
+					type: "post-cut-audio",
+					tool: "build-post-cut-captions",
+					source: "edited_timeline_audio",
+					trace: [
+						{
+							mediaId: "narration-1",
+							timelineStart: 0,
+							sourceStart: 0,
+							sourceEnd: 28.866667,
+							captionCount: 2,
+						},
+					],
 				},
 			},
 			projectId: "project-1",
@@ -683,10 +713,7 @@ describe("validateNarratedRemixPlan", () => {
 		for (const [field, overlay] of [
 			["fontSize", validTextOverlay({ fontSize: 39 })],
 			["boxWidth", validTextOverlay({ boxWidth: 101 })],
-			[
-				"position.x",
-				validTextOverlay({ position: { x: 961, y: -240 } }),
-			],
+			["position.x", validTextOverlay({ position: { x: 961, y: -240 } })],
 			["backgroundPaddingX", validTextOverlay({ backgroundPaddingX: 101 })],
 		] as const) {
 			const result = validateNarratedRemixPlan({
