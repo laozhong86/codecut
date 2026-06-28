@@ -1,13 +1,17 @@
 # Workflow Stage Contract
 
-This reference turns broad editing requests into user-visible Codecut stages
-without changing the runtime truth. It is a product and agent-facing workflow
-map. The executable contracts remain `docs/codex-driven-editing.md`, the stage
+This reference maps broad video production requests into user-visible CodeCut
+stages. It is the current stage contract for CodeCut's Agent-driven visual video
+production model: Codex performs the production workflow, while CodeCut exposes
+workspace proof, editor progress, timeline state, preview, manual adjustment,
+and export readiness.
+
+The executable contracts remain `docs/codex-driven-editing.md`, the stage
 skills, MCP schemas, and executor readback.
 
 ## CodeCut Skill Architecture v1
 
-Codecut uses an entry router plus stage skills plus atomic MCP tools:
+CodeCut uses an entry router plus stage skills plus atomic MCP tools:
 
 - `codecut` routes requests and does not execute stage work.
 - Stage skills own one gate, input set, output shape, artifacts, stop
@@ -26,7 +30,7 @@ The primary stage proof path is:
 Stage artifacts should use the existing workspace folders from `00-brief`
 through `07-exports`. A skill-local `.artifacts` folder may exist only as
 temporary implementation scratch for a future isolated helper; it must not
-become the primary Codecut artifact path or a second source of project truth.
+become the primary CodeCut artifact path or a second source of project truth.
 
 ## Purpose
 
@@ -49,8 +53,9 @@ Expected benefits:
   of a generic "editing failed".
 - Better user trust: every stage has a user-visible status and concrete proof
   artifact.
-- Cleaner product architecture: Codecut keeps one deterministic executor path
-  while Codex owns judgment, workflow routing, and communication.
+- Cleaner product architecture: CodeCut keeps Agent production decisions,
+  stage proof, tool side effects, visual editor state, timeline readback, and
+  export proof separated without reducing the product to an executor-only workflow.
 - Clearer cover ownership: project-cover judgment lives in a stage skill while
   runtime code only imports image assets, sets cover metadata, and reads state.
 
@@ -93,7 +98,7 @@ preserving one canonical place for stop and readback expectations.
 `evidence-build` is a Codex-side workflow phase, not a loadable stage skill. It
 must not appear as a Stage Table owner or as the reported `Stage` value.
 
-- Evidence-building proof uses Codecut read-only tools such as transcript,
+- Evidence-building proof uses CodeCut read-only tools such as transcript,
   `VideoContext`, visual context, contact sheets, range inspection, and quality
   reports.
 - Scriptwriting is a loadable upstream content brief, not a timeline execution
@@ -121,11 +126,11 @@ must not appear as a Stage Table owner or as the reported `Stage` value.
   composition affordances, script-match suggestions, risks, and blockers.
 - `codecut-edit-planning` owns workflow recipes and Codex planning judgment for
   one selected intent.
-- Codecut runtime code owns only deterministic validation and timeline mutation.
+- CodeCut runtime code owns only deterministic validation and timeline mutation.
 
 ## Non-Transferable Boundaries
 
-Do not use FFmpeg, shell scripts, or subtitle burn-in as the Codecut editing path.
+Do not use FFmpeg, shell scripts, or subtitle burn-in as the CodeCut editing path.
 FFmpeg may exist as an internal executor dependency for media inspection,
 transcription, or future verified export runtime, but not as a shortcut around
 timeline state.
@@ -133,7 +138,7 @@ timeline state.
 Do not let MCP tools choose the workflow. Tools expose capabilities; skills and
 Codex planning choose how to combine them for the user's job.
 
-Do not treat a local MP4 as completion without matching Codecut timeline readback.
+Do not treat a local MP4 as completion without matching CodeCut timeline readback.
 Completion requires executor readback first; export is an additional side effect
 only when requested and verified.
 
