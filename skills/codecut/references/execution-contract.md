@@ -271,3 +271,7 @@ If a bridge command stays pending until timeout, stop the editing loop. If the c
   timeline, apply a NarratedRemixPlan, or substitute a different voice unless
   the user supplies a real executable voice id, a local reference audio path, or
   explicit approval to use another available voice.
+- Built-in CodeCut voice-library entries returned by
+  `list_codecut_builtin_voice_packs` are valid local reference audio paths for
+  `generate_runninghub_voice_clone`; plain voice display names that are not
+  returned by that tool are not executable.

@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { runInNewContext } from "node:vm";
 
 import {
@@ -40,6 +41,10 @@ function setupIntent(overrides = {}) {
 			"Cut a high-retention short for a product launch.\nShow a hook, proof, and CTA with readable captions.",
 		...overrides,
 	};
+}
+
+function slashPath(value) {
+	return String(value).replaceAll("\\", "/");
 }
 
 function readStyleDeclarations(html, selector) {
@@ -491,11 +496,12 @@ describe("Codecut MCP server contract", () => {
 		expect(
 			serverModule.CODECUT_WORKSPACE_TOOLS.map((tool) => tool.name),
 		).toEqual([
-			"open_codecut_workspace",
-			"inspect_codecut_setup",
-			"recover_codecut_setup",
-			"submit_codecut_setup",
-		]);
+				"open_codecut_workspace",
+				"inspect_codecut_setup",
+				"recover_codecut_setup",
+				"list_codecut_builtin_voice_packs",
+				"submit_codecut_setup",
+			]);
 
 		const openTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
 			(tool) => tool.name === "open_codecut_workspace",
@@ -503,16 +509,21 @@ describe("Codecut MCP server contract", () => {
 		const submitTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
 			(tool) => tool.name === "submit_codecut_setup",
 		);
-		const recoverTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
-			(tool) => tool.name === "recover_codecut_setup",
-		);
-		expect(openTool.readOnly).toBe(true);
-		expect(openTool.modelVisible).toBe(true);
-		expect(recoverTool.readOnly).toBe(true);
-		expect(recoverTool.modelVisible).toBe(true);
-		expect(recoverTool.meta).toBeUndefined();
-		expect(submitTool.readOnly).toBe(false);
-		expect(submitTool.modelVisible).toBe(true);
+			const recoverTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
+				(tool) => tool.name === "recover_codecut_setup",
+			);
+			const voiceTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
+				(tool) => tool.name === "list_codecut_builtin_voice_packs",
+			);
+			expect(openTool.readOnly).toBe(true);
+			expect(openTool.modelVisible).toBe(true);
+			expect(recoverTool.readOnly).toBe(true);
+			expect(recoverTool.modelVisible).toBe(true);
+			expect(recoverTool.meta).toBeUndefined();
+			expect(submitTool.readOnly).toBe(false);
+			expect(submitTool.modelVisible).toBe(true);
+			expect(voiceTool.readOnly).toBe(true);
+			expect(voiceTool.modelVisible).toBe(true);
 		expect(submitTool.description).toContain(
 			"confirmedByUser true after the user explicitly confirms",
 		);
@@ -841,10 +852,41 @@ describe("Codecut MCP server contract", () => {
 			'<button id="submit-button" class="create-project-cta" type="submit" data-i18n="createProject">Create project</button>',
 		);
 		expect(html).toContain(".create-project-cta");
-		expect(html).toContain("--cc-create-cta-background");
-	});
+			expect(html).toContain("--cc-create-cta-background");
+		});
 
-	test("serves the workspace widget at the legacy resource URI", async () => {
+		test("lists built-in voice packs with executable RunningHub clone paths", async () => {
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"list_codecut_builtin_voice_packs",
+				{},
+			);
+
+			expect(result.structuredContent).toMatchObject({
+				status: "ready",
+				defaultVoicePackId: "podcast-female",
+			});
+			const podcastFemale = result.structuredContent.voicePacks.find(
+				(voice) => voice.id === "podcast-female",
+			);
+			const podcastFemaleAudioPath = podcastFemale.audioPath;
+			expect(podcastFemale).toMatchObject({
+				id: "podcast-female",
+				name: "播客女",
+				provider: "runninghub-voice-clone",
+				executableTool: "generate_runninghub_voice_clone",
+			});
+			expect(slashPath(podcastFemaleAudioPath)).toContain(
+				"apps/web/public/voices/podcast-female.mp3",
+			);
+			expect(isAbsolute(podcastFemaleAudioPath)).toBe(true);
+			expect(existsSync(podcastFemaleAudioPath)).toBe(true);
+			expect(result.content[0].text).toContain("播客女");
+			expect(result.content[0].text).toContain(
+				"generate_runninghub_voice_clone",
+			);
+		});
+
+		test("serves the workspace widget at the legacy resource URI", async () => {
 		const transport = new StdioClientTransport({
 			command: "node",
 			args: ["mcp/server.mjs"],
@@ -2355,6 +2397,16 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				"Voice display names are not executable voiceType values",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"Built-in voice library",
+			);
+			expect(result.structuredContent.continuePrompt).toContain("播客女");
+			expect(slashPath(result.structuredContent.continuePrompt)).toContain(
+				"apps/web/public/voices/podcast-female.mp3",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"generate_runninghub_voice_clone",
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				"Stop before timeline mutation if the requested voice cannot be resolved",

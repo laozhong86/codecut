@@ -1161,6 +1161,11 @@ RunningHub and Volcengine voice generation can bind protected terms to the
 generated audio asset. Volcengine uses an existing `voice_type`; it does not
 train a new voice:
 
+Use `list_codecut_builtin_voice_packs` before asking the user for another
+voice when a bundled CodeCut voice-library entry would satisfy the request. For
+example, `播客女` is returned with an absolute local `audioPath` that can be
+passed to `generate_runninghub_voice_clone`.
+
 ```bash
 node scripts/codex-bridge.mjs generate-runninghub-voice-design \
   --project-id <id> \
@@ -1408,7 +1413,9 @@ Do not start the render if either freshness gate fails.
 - If provider-backed voice generation fails, report it as an external voice gate
   and stop before timeline mutation. A display name such as a sound-library label
   is not a substitute for an executable provider `voice_type` or a local
-  reference audio path.
+  reference audio path. A built-in voice-library entry returned by
+  `list_codecut_builtin_voice_packs` is executable because the tool returns a
+  verified local reference audio path.
 - If TTS, BGM, SFX, append mode, arbitrary CSS, or visual effects are requested for narrated remix, stop and report that the current `NarratedRemixPlan v1` path only supports existing narration audio, video or image B-roll, optional independent controlled text overlays, and captions.
 - If transitions are requested, Codex must generate adjacent clip timings before applying the EditPlan. Do not rely on Codecut to reposition clips.
 - A transition request is complete only after readback shows native
