@@ -2115,6 +2115,27 @@ export async function submitCodecutSetup(
 				"confirmedByUser must be true after explicit user confirmation before CodeCut setup submission.",
 		});
 	}
+	const existingSetupResult = await readExistingCodecutSetupResult({
+		root: confirmationRoot,
+		projectId: normalized.projectId,
+		pendingConfirmationId: normalized.pendingConfirmationId,
+	});
+	if (existingSetupResult) {
+		const structuredContent = {
+			status: "created",
+			reusedSetupResult: true,
+			...existingSetupResult,
+		};
+		return {
+			content: [
+				{
+					type: "text",
+					text: `CodeCut project ${structuredContent.projectId} already created at revision ${structuredContent.revision}.\n\n[Open CodeCut editor](${structuredContent.editorUrl})`,
+				},
+			],
+			structuredContent,
+		};
+	}
 	let confirmationToken;
 	try {
 		confirmationToken = await mintCodecutConfirmationToken({
@@ -2302,6 +2323,26 @@ export async function submitCodecutSetup(
 		],
 		structuredContent,
 	};
+}
+
+async function readExistingCodecutSetupResult({
+	root,
+	projectId,
+	pendingConfirmationId,
+}) {
+	try {
+		return await readCodecutSetupResult({
+			root,
+			projectId,
+			pendingConfirmationId,
+		});
+	} catch (error) {
+		const message = extractErrorMessage(error);
+		if (message.startsWith("No confirmed CodeCut setup result found")) {
+			return null;
+		}
+		throw error;
+	}
 }
 
 function buildConfirmedSetupFromWorkspaceIntent(normalized) {

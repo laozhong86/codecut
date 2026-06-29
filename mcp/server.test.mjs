@@ -2415,6 +2415,91 @@ describe("Codecut MCP server contract", () => {
 		}
 	});
 
+	test("reuses a confirmed setup result on repeated submission without creating again", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const filePath = join(directory, "source.mp4");
+		await writeFile(filePath, "video");
+		const opened = serverModule.openCodecutWorkspace(
+			setupIntent({ mediaSources: [{ kind: "filePath", filePath }] }),
+			{ confirmationRoot: directory },
+		);
+		const pendingConfirmationId = opened.structuredContent.pendingConfirmationId;
+		const calls = [];
+		const bridgeToolImpl = async (toolName, args) => {
+			calls.push({ toolName, args });
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "launch-cut-canonical",
+						name: "Launch Cut",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+					},
+				};
+			}
+			if (toolName === "import_media") {
+				return {
+					structuredContent: {
+						status: "completed",
+						results: [
+							{
+								success: true,
+								data: {
+									assets: [{ id: "media-1", name: "source.mp4" }],
+								},
+							},
+						],
+					},
+				};
+			}
+			if (toolName === "get_project_info") {
+				return {
+					structuredContent: {
+						results: [{ success: true, data: { revision: 2 } }],
+					},
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+		const intent = setupIntent({
+			pendingConfirmationId,
+			mediaSources: [{ kind: "filePath", filePath }],
+		});
+
+		try {
+			const first = await serverModule.submitCodecutSetup(intent, {
+				bridgeToolImpl,
+				confirmationRoot: directory,
+				workspaceSourceRoot: directory,
+			});
+			const second = await serverModule.submitCodecutSetup(intent, {
+				bridgeToolImpl,
+				confirmationRoot: directory,
+				workspaceSourceRoot: directory,
+			});
+
+			expect(calls.map((call) => call.toolName)).toEqual([
+				"create_project",
+				"import_media",
+				"get_project_info",
+			]);
+			expect(second.structuredContent).toMatchObject({
+				status: "created",
+				reusedSetupResult: true,
+				projectId: "launch-cut-canonical",
+				projectName: "Launch Cut",
+				pendingConfirmationId,
+				confirmationToken: first.structuredContent.confirmationToken,
+				continuePrompt: first.structuredContent.continuePrompt,
+			});
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+		}
+	});
+
 	test("routes template draft setup to the reference-template skill and stops before editing", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
 		const opened = serverModule.openCodecutWorkspace(
