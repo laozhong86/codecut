@@ -3132,6 +3132,12 @@ function runningHubVoiceSourceFileName({
 
 function parseTimelineReadyWavAudio({ audioBytes }: { audioBytes: Buffer }): {
 	duration: number;
+	audioFormat: number;
+	channelCount: number;
+	sampleRate: number;
+	bitsPerSample: number;
+	dataOffset: number;
+	dataSize: number;
 } {
 	if (
 		audioBytes.byteLength < 44 ||
@@ -3143,6 +3149,11 @@ function parseTimelineReadyWavAudio({ audioBytes }: { audioBytes: Buffer }): {
 
 	let offset = 12;
 	let byteRate: number | null = null;
+	let audioFormat: number | null = null;
+	let channelCount: number | null = null;
+	let sampleRate: number | null = null;
+	let bitsPerSample: number | null = null;
+	let dataOffset: number | null = null;
 	let dataSize: number | null = null;
 	while (offset + 8 <= audioBytes.byteLength) {
 		const chunkId = audioBytes.subarray(offset, offset + 4).toString("ascii");
@@ -3157,31 +3168,31 @@ function parseTimelineReadyWavAudio({ audioBytes }: { audioBytes: Buffer }): {
 			if (chunkSize < 16) {
 				throw new Error("RunningHub voice WAV result has an invalid fmt chunk");
 			}
-			const audioFormat = audioBytes.readUInt16LE(chunkDataOffset);
-			const channelCount = audioBytes.readUInt16LE(chunkDataOffset + 2);
-			const sampleRate = audioBytes.readUInt32LE(chunkDataOffset + 4);
+			const parsedAudioFormat = audioBytes.readUInt16LE(chunkDataOffset);
+			const parsedChannelCount = audioBytes.readUInt16LE(chunkDataOffset + 2);
+			const parsedSampleRate = audioBytes.readUInt32LE(chunkDataOffset + 4);
 			const parsedByteRate = audioBytes.readUInt32LE(chunkDataOffset + 8);
 			const blockAlign = audioBytes.readUInt16LE(chunkDataOffset + 12);
-			const bitsPerSample = audioBytes.readUInt16LE(chunkDataOffset + 14);
-			if (audioFormat !== 1 && audioFormat !== 3) {
-				throw new Error(
-					`RunningHub voice WAV result uses unsupported audio format: ${audioFormat}`,
-				);
-			}
+			const parsedBitsPerSample = audioBytes.readUInt16LE(chunkDataOffset + 14);
 			if (
-				channelCount <= 0 ||
-				sampleRate <= 0 ||
+				parsedChannelCount <= 0 ||
+				parsedSampleRate <= 0 ||
 				parsedByteRate <= 0 ||
 				blockAlign <= 0 ||
-				bitsPerSample <= 0
+				parsedBitsPerSample <= 0
 			) {
 				throw new Error(
 					"RunningHub voice WAV result has invalid audio metadata",
 				);
 			}
 			byteRate = parsedByteRate;
+			audioFormat = parsedAudioFormat;
+			channelCount = parsedChannelCount;
+			sampleRate = parsedSampleRate;
+			bitsPerSample = parsedBitsPerSample;
 		}
 		if (chunkId === "data") {
+			dataOffset = chunkDataOffset;
 			dataSize = chunkSize;
 		}
 
@@ -3191,14 +3202,100 @@ function parseTimelineReadyWavAudio({ audioBytes }: { audioBytes: Buffer }): {
 	if (!byteRate) {
 		throw new Error("RunningHub voice WAV result is missing a fmt chunk");
 	}
+	if (
+		audioFormat === null ||
+		channelCount === null ||
+		sampleRate === null ||
+		bitsPerSample === null
+	) {
+		throw new Error("RunningHub voice WAV result has invalid audio metadata");
+	}
 	if (!dataSize) {
+		throw new Error("RunningHub voice WAV result is missing audio data");
+	}
+	if (dataOffset === null) {
 		throw new Error("RunningHub voice WAV result is missing audio data");
 	}
 	const duration = dataSize / byteRate;
 	if (!Number.isFinite(duration) || duration <= 0) {
 		throw new Error("RunningHub voice WAV result has invalid duration");
 	}
-	return { duration };
+	return {
+		duration,
+		audioFormat,
+		channelCount,
+		sampleRate,
+		bitsPerSample,
+		dataOffset,
+		dataSize,
+	};
+}
+
+function encodePcmS16Wav({
+	samples,
+	sampleRate,
+	channelCount,
+}: {
+	samples: Int16Array;
+	sampleRate: number;
+	channelCount: number;
+}): Buffer {
+	const bytesPerSample = 2;
+	const dataSize = samples.length * bytesPerSample;
+	const buffer = Buffer.alloc(44 + dataSize);
+	buffer.write("RIFF", 0, "ascii");
+	buffer.writeUInt32LE(36 + dataSize, 4);
+	buffer.write("WAVE", 8, "ascii");
+	buffer.write("fmt ", 12, "ascii");
+	buffer.writeUInt32LE(16, 16);
+	buffer.writeUInt16LE(1, 20);
+	buffer.writeUInt16LE(channelCount, 22);
+	buffer.writeUInt32LE(sampleRate, 24);
+	buffer.writeUInt32LE(sampleRate * channelCount * bytesPerSample, 28);
+	buffer.writeUInt16LE(channelCount * bytesPerSample, 32);
+	buffer.writeUInt16LE(bytesPerSample * 8, 34);
+	buffer.write("data", 36, "ascii");
+	buffer.writeUInt32LE(dataSize, 40);
+	for (let index = 0; index < samples.length; index += 1) {
+		buffer.writeInt16LE(samples[index] ?? 0, 44 + index * bytesPerSample);
+	}
+	return buffer;
+}
+
+function normalizeTimelineReadyWavAudio({ audioBytes }: { audioBytes: Buffer }) {
+	const parsedWav = parseTimelineReadyWavAudio({ audioBytes });
+	if (parsedWav.audioFormat === 1 && parsedWav.bitsPerSample === 16) {
+		return {
+			audioBytes,
+			duration: parsedWav.duration,
+		};
+	}
+	if (parsedWav.audioFormat !== 3 || parsedWav.bitsPerSample !== 32) {
+		throw new Error(
+			`RunningHub voice WAV result uses unsupported timeline format: audioFormat=${parsedWav.audioFormat}, bitsPerSample=${parsedWav.bitsPerSample}`,
+		);
+	}
+	if (parsedWav.dataSize % Float32Array.BYTES_PER_ELEMENT !== 0) {
+		throw new Error("RunningHub voice WAV result has invalid float32 data");
+	}
+	const inputSampleCount = parsedWav.dataSize / Float32Array.BYTES_PER_ELEMENT;
+	const samples = new Int16Array(inputSampleCount);
+	for (let index = 0; index < inputSampleCount; index += 1) {
+		const floatSample = audioBytes.readFloatLE(
+			parsedWav.dataOffset + index * Float32Array.BYTES_PER_ELEMENT,
+		);
+		const clamped = Math.max(-1, Math.min(1, floatSample));
+		samples[index] =
+			clamped < 0 ? Math.round(clamped * 32768) : Math.round(clamped * 32767);
+	}
+	return {
+		audioBytes: encodePcmS16Wav({
+			samples,
+			sampleRate: parsedWav.sampleRate,
+			channelCount: parsedWav.channelCount,
+		}),
+		duration: parsedWav.duration,
+	};
 }
 
 function convertDecodedRunningHubSampleToF32({
@@ -3257,11 +3354,11 @@ async function normalizeRunningHubVoiceAudio({
 	mimeType: string;
 }): Promise<{ audioBytes: Buffer; mimeType: "audio/wav"; duration: number }> {
 	if (mimeType === "audio/wav" || mimeType === "audio/x-wav") {
-		const parsedWav = parseTimelineReadyWavAudio({ audioBytes });
+		const normalizedWav = normalizeTimelineReadyWavAudio({ audioBytes });
 		return {
-			audioBytes,
+			audioBytes: normalizedWav.audioBytes,
 			mimeType: "audio/wav",
-			duration: parsedWav.duration,
+			duration: normalizedWav.duration,
 		};
 	}
 
