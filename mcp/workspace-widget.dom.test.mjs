@@ -76,7 +76,7 @@ function createFakeElement() {
 	};
 }
 
-function buildFollowUpHarness(html) {
+function buildFollowUpHarness(html, openai = { sendFollowUpMessage: async () => ({}) }) {
 	const normalizedHtml = html.replace(/\r\n?/g, "\n");
 	const i18n = extractBetween(
 		normalizedHtml,
@@ -87,6 +87,11 @@ function buildFollowUpHarness(html) {
 		normalizedHtml,
 		"function normalizeUiLanguage",
 		"\n\n        function applyLanguage",
+	);
+	const errorFormatting = extractBetween(
+		normalizedHtml,
+		"function formatErrorMessage",
+		"\n\n        function renderBlocked",
 	);
 	const followUp = extractBetween(
 		normalizedHtml,
@@ -104,9 +109,7 @@ function buildFollowUpHarness(html) {
 			followUp: followUpElement,
 		},
 		window: {
-			openai: {
-				sendFollowUpMessage: async () => ({}),
-			},
+			openai,
 		},
 	});
 
@@ -115,6 +118,7 @@ function buildFollowUpHarness(html) {
 ${i18n}
 let activeLanguage = "en";
 ${translation}
+${errorFormatting}
 ${followUp}
 globalThis.setLanguage = (value) => {
 	activeLanguage = normalizeUiLanguage(value);
@@ -258,6 +262,51 @@ test("workspace widget does not claim follow-up delivery without showing recover
 	expect(rendered).toContain("project-123");
 	expect(rendered).toContain("ccpending_123");
 	expect(rendered).not.toContain("已发送后续任务给 Codex");
+});
+
+test("workspace widget sends follow-up prompts as plain text", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const messages = [];
+	const harness = buildFollowUpHarness(html, {
+		sendFollowUpMessage: async (message) => {
+			messages.push(message);
+			return {};
+		},
+	});
+
+	await harness.sendWidgetFollowUp("Continue editing prompt", {
+		projectId: "project-123",
+		intent: { pendingConfirmationId: "ccpending_123" },
+	});
+
+	expect(messages).toEqual(["Continue editing prompt"]);
+});
+
+test("workspace widget formats follow-up object errors and preserves recovery identifiers", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const harness = buildFollowUpHarness(html, {
+		sendFollowUpMessage: async () => {
+			throw {
+				message: "Host returned an error from the server tool.",
+				detail: { code: "host_tool_error" },
+			};
+		},
+	});
+
+	harness.setLanguage("zh-CN");
+	await harness.sendWidgetFollowUp("Continue editing prompt", {
+		projectId: "project-123",
+		intent: { pendingConfirmationId: "ccpending_123" },
+	});
+
+	const rendered = harness.followUpHtml();
+	expect(rendered).toContain("Host returned an error from the server tool.");
+	expect(rendered).toContain("recover_codecut_setup");
+	expect(rendered).toContain("project-123");
+	expect(rendered).toContain("ccpending_123");
+	expect(rendered).toContain("Continue editing prompt");
+	expect(rendered).toContain("重试发送后续任务");
+	expect(rendered).not.toContain("[object Object]");
 });
 
 test("workspace widget host tool calls fail fast when the host bridge never returns", async () => {
