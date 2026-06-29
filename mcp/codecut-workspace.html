@@ -651,6 +651,8 @@
             followUpRequested: "Asked Codex to continue.",
             followUpRecoveryHint: "If the thread does not continue, recover the setup with these identifiers.",
             followUpUnavailable: "window.openai.sendFollowUpMessage is unavailable.",
+            followUpFailed: "Could not send the Codex follow-up.",
+            missingFollowUpPrompt: "CodeCut did not receive a follow-up prompt.",
             recoverSetupLabel: "Recover with recover_codecut_setup",
             retryFollowUp: "Retry follow-up",
             openaiUnavailable: "window.openai is unavailable.",
@@ -760,6 +762,8 @@
             followUpRequested: "已请求 Codex 继续。",
             followUpRecoveryHint: "如果会话没有自动出现下一条消息，请用这些信息恢复创建结果。",
             followUpUnavailable: "window.openai.sendFollowUpMessage 不可用。",
+            followUpFailed: "无法发送 Codex 后续任务。",
+            missingFollowUpPrompt: "CodeCut 没有收到后续任务内容。",
             recoverSetupLabel: "使用 recover_codecut_setup 恢复",
             retryFollowUp: "重试发送后续任务",
             openaiUnavailable: "window.openai 不可用。",
@@ -1600,7 +1604,7 @@
             await sendFollowUp(payload.continuePrompt, payload);
           } catch (error) {
             renderBlocked({
-              error: error instanceof Error ? error.message : String(error),
+              error: formatErrorMessage(error, t("setupFailed")),
             });
           } finally {
             fields.submitButton.disabled = false;
@@ -1652,7 +1656,7 @@
         function renderEditorOpenError(error) {
           const existing = document.getElementById("open-editor-error");
           if (existing) existing.remove();
-          const message = error instanceof Error ? error.message : String(error);
+          const message = formatErrorMessage(error, t("openEditorFailed"));
           const errorText = document.createElement("p");
           errorText.id = "open-editor-error";
           errorText.className = "error";
@@ -1669,32 +1673,41 @@
         async function sendFollowUp(prompt, payload = {}) {
           fields.followUp.classList.remove("hidden");
           fields.followUp.innerHTML = `<strong>${escapeHtml(t("continuing"))}</strong>`;
+          let followUpPrompt = "";
           try {
+            followUpPrompt = typeof prompt === "string" && prompt.trim() ? prompt : "";
+            if (!followUpPrompt) throw new Error(t("missingFollowUpPrompt"));
             const api = window.openai || {};
             if (typeof api.sendFollowUpMessage !== "function") {
               throw new Error(t("followUpUnavailable"));
             }
-            await api.sendFollowUpMessage({ prompt });
+            await api.sendFollowUpMessage(followUpPrompt);
             renderFollowUpRequested(payload);
           } catch (error) {
             fields.followUp.innerHTML = "";
             const title = document.createElement("strong");
             title.className = "error";
-            title.textContent = error instanceof Error ? error.message : String(error);
+            title.textContent = formatErrorMessage(error, t("followUpFailed"));
+            const recovery = document.createElement("div");
+            recovery.innerHTML = followUpRecoveryHtml(payload);
             const pre = document.createElement("pre");
-            pre.textContent = prompt || "";
+            pre.textContent = followUpPrompt;
             const retry = document.createElement("button");
             retry.type = "button";
             retry.textContent = t("retryFollowUp");
-            retry.addEventListener("click", () => sendFollowUp(prompt, payload));
-            fields.followUp.append(title, pre, retry);
+            retry.addEventListener("click", () => sendFollowUp(followUpPrompt, payload));
+            if (recovery.innerHTML) {
+              fields.followUp.append(title, recovery, pre, retry);
+            } else {
+              fields.followUp.append(title, pre, retry);
+            }
           }
         }
 
-        function renderFollowUpRequested(payload = {}) {
+        function followUpRecoveryHtml(payload = {}) {
           const projectId = payload.projectId || payload.intent?.projectId || "";
           const pendingConfirmationId = payload.pendingConfirmationId || payload.intent?.pendingConfirmationId || "";
-          const recovery = projectId && pendingConfirmationId
+          return projectId && pendingConfirmationId
             ? `
               <p class="muted">${escapeHtml(t("followUpRecoveryHint"))}</p>
               <p><strong>${escapeHtml(t("recoverSetupLabel"))}:</strong></p>
@@ -1702,6 +1715,10 @@
               <p><strong>pendingConfirmationId:</strong> <code>${escapeHtml(pendingConfirmationId)}</code></p>
             `
             : "";
+        }
+
+        function renderFollowUpRequested(payload = {}) {
+          const recovery = followUpRecoveryHtml(payload);
           fields.followUp.innerHTML = `
             <strong class="ok">${escapeHtml(t("followUpRequested"))}</strong>
             ${recovery}
