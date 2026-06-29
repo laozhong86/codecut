@@ -1,3 +1,8 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { extname, join } from "node:path";
+import { promisify } from "node:util";
 import { canTracktHaveAudio } from "@/lib/timeline";
 import { canElementHaveAudio } from "@/lib/timeline/element-utils";
 import { mediaSupportsAudio } from "@/lib/media/media-utils";
@@ -46,11 +51,18 @@ type DecodedAudio = {
 	channels: Float32Array[];
 };
 
+type ExecFileImpl = (
+	command: string,
+	args: string[],
+) => Promise<{ stdout: string | Buffer; stderr: string | Buffer }>;
+
 export type NodeAudioMix = {
 	sampleRate: number;
 	numberOfChannels: number;
 	channels: [Float32Array, Float32Array];
 };
+
+const execFileAsync = promisify(execFile) as ExecFileImpl;
 
 function isMutedTimelineElement({ element }: { element: TimelineElement }) {
 	return "muted" in element && element.muted === true;
@@ -306,7 +318,7 @@ async function decodeBareAudioFile({ file }: { file: File }) {
 	}
 }
 
-async function decodeAudioFile({ file }: { file: File }) {
+async function decodeAudioFileWithNodeRuntime({ file }: { file: File }) {
 	if (isBareAudioContainer({ file })) {
 		return decodeBareAudioFile({ file });
 	}
@@ -360,6 +372,139 @@ async function decodeAudioFile({ file }: { file: File }) {
 		if (decoder.state !== "closed") {
 			decoder.close();
 		}
+	}
+}
+
+function fileExtensionForFfmpegInput({ file }: { file: File }) {
+	const extension = extname(file.name).toLowerCase();
+	if (/^\.[a-z0-9]+$/.test(extension)) return extension;
+	if (file.type.includes("mp4")) return ".mp4";
+	if (file.type.includes("webm")) return ".webm";
+	if (file.type.includes("matroska")) return ".mkv";
+	if (file.type.includes("mpeg") || file.type.includes("mp3")) return ".mp3";
+	if (file.type.includes("wav") || file.type.includes("wave")) return ".wav";
+	return ".media";
+}
+
+async function writeTempAudioInputFile({
+	file,
+	directory,
+}: {
+	file: File;
+	directory: string;
+}) {
+	const inputPath = join(
+		directory,
+		`source${fileExtensionForFfmpegInput({ file })}`,
+	);
+	const bytes = await file.arrayBuffer();
+	await writeFile(inputPath, Buffer.from(bytes));
+	return inputPath;
+}
+
+function decodeInterleavedF32Pcm({
+	bytes,
+	sampleRate,
+	channelCount,
+	fileName,
+}: {
+	bytes: Buffer;
+	sampleRate: number;
+	channelCount: number;
+	fileName: string;
+}): DecodedAudio {
+	const bytesPerSample = Float32Array.BYTES_PER_ELEMENT;
+	const frameByteSize = channelCount * bytesPerSample;
+	if (bytes.byteLength === 0 || bytes.byteLength % frameByteSize !== 0) {
+		throw new Error(
+			`FFmpeg decoded invalid PCM audio for ${fileName}: ${bytes.byteLength} bytes`,
+		);
+	}
+	const frameCount = bytes.byteLength / frameByteSize;
+	const channels = Array.from(
+		{ length: channelCount },
+		() => new Float32Array(frameCount),
+	);
+	for (let frame = 0; frame < frameCount; frame += 1) {
+		for (let channel = 0; channel < channelCount; channel += 1) {
+			channels[channel][frame] = bytes.readFloatLE(
+				(frame * channelCount + channel) * bytesPerSample,
+			);
+		}
+	}
+	return {
+		sampleRate,
+		numberOfChannels: channelCount,
+		channels,
+	};
+}
+
+async function decodeAudioFileWithFfmpeg({
+	file,
+	execFileImpl,
+	primaryError,
+}: {
+	file: File;
+	execFileImpl: ExecFileImpl;
+	primaryError: unknown;
+}): Promise<DecodedAudio> {
+	const directory = await mkdtemp(join(tmpdir(), "codecut-audio-decode-"));
+	try {
+		const inputPath = await writeTempAudioInputFile({ file, directory });
+		const outputPath = join(directory, "audio.f32le");
+		await execFileImpl("ffmpeg", [
+			"-v",
+			"error",
+			"-y",
+			"-i",
+			inputPath,
+			"-vn",
+			"-map",
+			"0:a:0",
+			"-f",
+			"f32le",
+			"-acodec",
+			"pcm_f32le",
+			"-ac",
+			String(OUTPUT_CHANNELS),
+			"-ar",
+			String(OUTPUT_SAMPLE_RATE),
+			outputPath,
+		]);
+		const bytes = await readFile(outputPath);
+		return decodeInterleavedF32Pcm({
+			bytes,
+			sampleRate: OUTPUT_SAMPLE_RATE,
+			channelCount: OUTPUT_CHANNELS,
+			fileName: file.name,
+		});
+	} catch (error) {
+		const primaryMessage =
+			primaryError instanceof Error ? primaryError.message : String(primaryError);
+		const ffmpegMessage = error instanceof Error ? error.message : String(error);
+		throw new Error(
+			`Node renderer cannot decode audio source ${file.name} with node decoder or FFmpeg. Node decoder: ${primaryMessage}. FFmpeg: ${ffmpegMessage}`,
+		);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+}
+
+async function decodeAudioFile({
+	file,
+	execFileImpl,
+}: {
+	file: File;
+	execFileImpl: ExecFileImpl;
+}) {
+	try {
+		return await decodeAudioFileWithNodeRuntime({ file });
+	} catch (error) {
+		return decodeAudioFileWithFfmpeg({
+			file,
+			execFileImpl,
+			primaryError: error,
+		});
 	}
 }
 
@@ -422,10 +567,12 @@ export async function mixTimelineAudio({
 	tracks,
 	mediaAssets,
 	duration,
+	execFileImpl = execFileAsync,
 }: {
 	tracks: TimelineTrack[];
 	mediaAssets: MediaAsset[];
 	duration: number;
+	execFileImpl?: ExecFileImpl;
 }): Promise<NodeAudioMix | null> {
 	const clips = await collectAudioClips({ tracks, mediaAssets });
 	if (clips.length === 0) return null;
@@ -438,7 +585,7 @@ export async function mixTimelineAudio({
 	let decodedClipCount = 0;
 
 	for (const clip of clips) {
-		const decoded = await decodeAudioFile({ file: clip.file });
+		const decoded = await decodeAudioFile({ file: clip.file, execFileImpl });
 		if (!decoded) {
 			if (clip.sourceKind === "audio") {
 				throw new Error(`Timeline audio source has no audio track: ${clip.id}`);

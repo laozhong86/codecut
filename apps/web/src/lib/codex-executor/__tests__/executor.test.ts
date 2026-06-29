@@ -371,6 +371,59 @@ async function createFixtureBareAudio({
 	return Buffer.from(target.buffer);
 }
 
+function createFixtureFloatWav({
+	duration = 1,
+	sampleRate = 48_000,
+}: {
+	duration?: number;
+	sampleRate?: number;
+} = {}): Buffer {
+	const channels = 2;
+	const bytesPerSample = 4;
+	const frameCount = Math.ceil(duration * sampleRate);
+	const dataSize = frameCount * channels * bytesPerSample;
+	const buffer = Buffer.alloc(44 + dataSize);
+	buffer.write("RIFF", 0, "ascii");
+	buffer.writeUInt32LE(36 + dataSize, 4);
+	buffer.write("WAVE", 8, "ascii");
+	buffer.write("fmt ", 12, "ascii");
+	buffer.writeUInt32LE(16, 16);
+	buffer.writeUInt16LE(3, 20);
+	buffer.writeUInt16LE(channels, 22);
+	buffer.writeUInt32LE(sampleRate, 24);
+	buffer.writeUInt32LE(sampleRate * channels * bytesPerSample, 28);
+	buffer.writeUInt16LE(channels * bytesPerSample, 32);
+	buffer.writeUInt16LE(bytesPerSample * 8, 34);
+	buffer.write("data", 36, "ascii");
+	buffer.writeUInt32LE(dataSize, 40);
+	for (let index = 0; index < frameCount; index += 1) {
+		const sample = Math.sin((2 * Math.PI * 440 * index) / sampleRate) * 0.2;
+		for (let channel = 0; channel < channels; channel += 1) {
+			buffer.writeFloatLE(sample, 44 + (index * channels + channel) * 4);
+		}
+	}
+	return buffer;
+}
+
+function readFixtureWavFmt(buffer: Buffer) {
+	let offset = 12;
+	while (offset + 8 <= buffer.byteLength) {
+		const chunkId = buffer.subarray(offset, offset + 4).toString("ascii");
+		const chunkSize = buffer.readUInt32LE(offset + 4);
+		const chunkDataOffset = offset + 8;
+		if (chunkId === "fmt ") {
+			return {
+				audioFormat: buffer.readUInt16LE(chunkDataOffset),
+				channelCount: buffer.readUInt16LE(chunkDataOffset + 2),
+				sampleRate: buffer.readUInt32LE(chunkDataOffset + 4),
+				bitsPerSample: buffer.readUInt16LE(chunkDataOffset + 14),
+			};
+		}
+		offset = chunkDataOffset + chunkSize + (chunkSize % 2);
+	}
+	throw new Error("Fixture WAV has no fmt chunk.");
+}
+
 async function createFixtureAudioMp4({
 	duration = 1,
 	sampleRate = 48_000,
@@ -1780,6 +1833,62 @@ describe("codex executor", () => {
 				providerTaskId: "voice-clone-task-1",
 				protectedTerms: ["今天的测试"],
 			});
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	test("generate_runninghub_voice_clone normalizes float WAV results to PCM S16 WAV", async () => {
+		await createExecutorProject({ projectId, name: "Codex cut" });
+		const tempDir = await mkdtemp(join(tmpdir(), "voice-clone-"));
+		const referencePath = join(tempDir, "reference.wav");
+		await writeFile(
+			referencePath,
+			await createFixtureBareAudio({ format: "wav" }),
+		);
+		const cloneBytes = createFixtureFloatWav({ duration: 1.25 });
+		expect(readFixtureWavFmt(cloneBytes)).toMatchObject({
+			audioFormat: 3,
+			bitsPerSample: 32,
+		});
+
+		try {
+			const result = await executeCodexExecutorEnvelope({
+				envelope: envelope({
+					tool: "generate_runninghub_voice_clone",
+					args: {
+						audioPath: referencePath,
+						text: "欢迎来到今天的测试",
+					},
+				}),
+				env: { RUNNINGHUB_API_KEY: "rh-key" },
+				generateVoiceClone: async () => ({
+					taskId: "voice-clone-task-float-wav",
+					audioBytes: cloneBytes,
+					mimeType: "audio/wav",
+				}),
+			});
+
+			expect(result.results[0]).toMatchObject({
+				tool: "generate_runninghub_voice_clone",
+				success: true,
+			});
+			const state = await getExecutorProjectState({ projectId });
+			const asset = state.mediaAssets.find(
+				(item) =>
+					item.id ===
+					resultData<{ mediaId: string }>(result.results[0]).mediaId,
+			);
+			expect(asset).toMatchObject({
+				type: "audio",
+				mimeType: "audio/wav",
+			});
+			const savedBytes = await readFile(asset?.path ?? "");
+			expect(readFixtureWavFmt(savedBytes)).toMatchObject({
+				audioFormat: 1,
+				bitsPerSample: 16,
+			});
+			expect(savedBytes.equals(cloneBytes)).toBe(false);
 		} finally {
 			await rm(tempDir, { recursive: true, force: true });
 		}
