@@ -62,10 +62,16 @@ function createFakeElement() {
 		classList: {
 			add() {},
 			remove() {},
+			toggle() {},
+			contains() {
+				return false;
+			},
 		},
 		innerHTML: "",
 		textContent: "",
 		type: "",
+		disabled: false,
+		value: "",
 		addEventListener() {},
 		append(...children) {
 			this.children.push(...children);
@@ -73,6 +79,15 @@ function createFakeElement() {
 				.map((child) => child?.innerHTML || child?.textContent || "")
 				.join("");
 		},
+		appendChild(child) {
+			this.children.push(child);
+			this.innerHTML += child?.innerHTML || child?.textContent || "";
+		},
+		closest() {
+			return null;
+		},
+		insertAdjacentElement() {},
+		setAttribute() {},
 	};
 }
 
@@ -201,6 +216,118 @@ globalThis.readWorkspaceDefaults = () => {
 	return context;
 }
 
+function buildSubmitHarness(html, toolResult) {
+	const normalizedHtml = html.replace(/\r\n?/g, "\n");
+	const resetReadyState = extractBetween(
+		normalizedHtml,
+		"function resetReadyState",
+		"\n\n        function renderMediaSources",
+	);
+	const submitFlow = extractBetween(
+		normalizedHtml,
+		"async function submit",
+		"\n\n        fields.projectName.addEventListener",
+	);
+	const submitButton = createFakeElement();
+	const resultElement = createFakeElement();
+	const followUpElement = createFakeElement();
+	const openEditorLink = createFakeElement();
+	const calls = [];
+	const sentFollowUpMessages = [];
+	const context = vm.createContext({
+		calls,
+		Error,
+		Promise,
+		sentFollowUpMessages,
+		String,
+		toolResult,
+		document: {
+			createElement: createFakeElement,
+			getElementById(id) {
+				if (id === "open-editor-link") return openEditorLink;
+				return null;
+			},
+		},
+		fields: {
+			submitButton,
+			result: resultElement,
+			followUp: followUpElement,
+		},
+		window: {
+			openai: {
+				openExternal: async () => ({}),
+				sendFollowUpMessage: async (message) => {
+					sentFollowUpMessages.push(message);
+					return {};
+				},
+			},
+		},
+	});
+
+	vm.runInContext(
+		`
+let activeLanguage = "en";
+let currentPendingConfirmationId = "ccpending_1234567890abcdef12345678";
+let setupSubmitted = false;
+function t(key) {
+	return {
+		createProject: "Create project",
+		creating: "Creating",
+		projectCreated: "Project created",
+		openEditor: "Open editor",
+		setupFailed: "Setup failed",
+		setupBlocked: "Setup blocked",
+		openEditorFailed: "Open editor failed",
+		continuing: "Continuing",
+		followUpFailed: "Could not send follow-up",
+		followUpUnavailable: "Follow-up unavailable",
+		followUpRequested: "Asked Codex to continue.",
+		followUpRecoveryHint: "Recover this setup if needed.",
+		recoverSetupLabel: "Recover with recover_codecut_setup",
+		retryFollowUp: "Retry follow-up",
+		missingFollowUpPrompt: "Missing follow-up prompt",
+	}[key] || key;
+}
+function collectIntent() {
+	return { pendingConfirmationId: currentPendingConfirmationId, confirmedByUser: true };
+}
+async function callTool(name, args) {
+	calls.push({ name, args });
+	return toolResult;
+}
+function structuredContent(result) {
+	return result?.structuredContent || result || {};
+}
+function formatErrorMessage(value, fallback) {
+	if (value instanceof Error) return value.message || fallback;
+	if (typeof value === "string") return value || fallback;
+	return fallback;
+}
+function renderChecks() {
+	return null;
+}
+function renderBlocked(payload) {
+	fields.result.innerHTML = formatErrorMessage(payload?.error || payload?.message, t("setupBlocked"));
+}
+function renderSubmitting() {
+	fields.result.innerHTML = t("creating");
+}
+${resetReadyState}
+${submitFlow}
+globalThis.submitWidget = () => submit({ preventDefault() {} });
+globalThis.resetWidgetReadyState = resetReadyState;
+globalThis.buttonState = () => ({
+	disabled: fields.submitButton.disabled,
+	text: fields.submitButton.textContent,
+});
+globalThis.callCount = () => calls.length;
+globalThis.sentFollowUps = () => sentFollowUpMessages;
+`,
+		context,
+	);
+	return context;
+}
+
 test("workspace widget preserves URL media sources through normalization and collection", async () => {
 	const html = await readFile("mcp/codecut-workspace.html", "utf8");
 	const harness = buildMediaHarness(html);
@@ -307,6 +434,39 @@ test("workspace widget formats follow-up object errors and preserves recovery id
 	expect(rendered).toContain("Continue editing prompt");
 	expect(rendered).toContain("重试发送后续任务");
 	expect(rendered).not.toContain("[object Object]");
+});
+
+test("workspace widget keeps create-project submission locked after success", async () => {
+	const html = await readFile("mcp/codecut-workspace.html", "utf8");
+	const harness = buildSubmitHarness(html, {
+		structuredContent: {
+			status: "created",
+			projectId: "project-123",
+			revision: 2,
+			editorUrl: "http://127.0.0.1:4100/en/editor/project-123",
+			importedMedia: [],
+			intent: { pendingConfirmationId: "ccpending_1234567890abcdef12345678" },
+			continuePrompt: "Continue CodeCut editing.",
+		},
+	});
+
+	await harness.submitWidget();
+
+	expect(harness.buttonState()).toEqual({
+		disabled: true,
+		text: "Project created",
+	});
+	expect(harness.callCount()).toBe(1);
+	expect(harness.sentFollowUps()).toEqual(["Continue CodeCut editing."]);
+
+	harness.resetWidgetReadyState();
+	expect(harness.buttonState()).toEqual({
+		disabled: true,
+		text: "Project created",
+	});
+
+	await harness.submitWidget();
+	expect(harness.callCount()).toBe(1);
 });
 
 test("workspace widget host tool calls fail fast when the host bridge never returns", async () => {

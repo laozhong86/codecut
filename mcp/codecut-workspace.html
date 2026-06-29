@@ -805,6 +805,7 @@
         let currentProjectId = "";
         let currentPendingConfirmationId = "";
         let currentDurationContract = null;
+        let setupSubmitted = false;
         let activeLanguage = "en";
 
         function normalizeUiLanguage(value) {
@@ -917,6 +918,11 @@
         }
 
         function resetReadyState() {
+          if (setupSubmitted) {
+            fields.submitButton.disabled = true;
+            fields.submitButton.textContent = t("projectCreated");
+            return;
+          }
           fields.submitButton.disabled = false;
           fields.submitButton.textContent = t("createProject");
         }
@@ -1581,6 +1587,10 @@
 
         async function submit(event) {
           event.preventDefault();
+          if (setupSubmitted) {
+            resetReadyState();
+            return;
+          }
           if (!currentPendingConfirmationId) {
             renderSetupUnavailable();
             return;
@@ -1595,6 +1605,7 @@
               renderBlocked(payload?.status ? payload : { error: payload.error || t("setupFailed") });
               return;
             }
+            setupSubmitted = true;
             renderSuccess(payload);
             try {
               await openEditor(payload.editorUrl);
@@ -1607,8 +1618,7 @@
               error: formatErrorMessage(error, t("setupFailed")),
             });
           } finally {
-            fields.submitButton.disabled = false;
-            fields.submitButton.textContent = t("createProject");
+            resetReadyState();
           }
         }
 
