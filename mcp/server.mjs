@@ -42,6 +42,25 @@ const bridgeAllowedEnvKeys = new Set([
 	"RUNNINGHUB_API_KEY",
 	"VOLCENGINE_OPEN_SPEECH_API_KEY",
 ]);
+const defaultBuiltinVoicePackId = "podcast-female";
+const builtinVoicePacks = [
+	{
+		id: "podcast-female",
+		name: "播客女",
+		provider: "runninghub-voice-clone",
+		referenceAudioRelativePath: "apps/web/public/voices/podcast-female.mp3",
+		referenceAudioMimeType: "audio/mpeg",
+		executableTool: "generate_runninghub_voice_clone",
+	},
+	{
+		id: "podcast-male",
+		name: "播客男",
+		provider: "runninghub-voice-clone",
+		referenceAudioRelativePath: "apps/web/public/voices/podcast-male.mp3",
+		referenceAudioMimeType: "audio/mpeg",
+		executableTool: "generate_runninghub_voice_clone",
+	},
+];
 const workspaceResourceMimeType = "text/html;profile=mcp-app";
 const codecutServiceStartCommand = "bun run dev:web";
 const defaultCodecutReadinessUrl = "http://127.0.0.1:4100/en/projects";
@@ -1545,18 +1564,27 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		modelVisible: false,
 		meta: codecutWorkspaceAppOnlyMeta,
 	},
-	{
-		name: "recover_codecut_setup",
-		title: "Recover CodeCut Workspace Setup",
-		description:
-			"Recover a confirmed CodeCut setup result when the workspace app created the project but could not send the follow-up message back to Codex. Requires the projectId and pendingConfirmationId shown by open_codecut_workspace, then returns the confirmed setup token and continue prompt produced by submit_codecut_setup.",
+		{
+			name: "recover_codecut_setup",
+			title: "Recover CodeCut Workspace Setup",
+			description:
+				"Recover a confirmed CodeCut setup result when the workspace app created the project but could not send the follow-up message back to Codex. Requires the projectId and pendingConfirmationId shown by open_codecut_workspace, then returns the confirmed setup token and continue prompt produced by submit_codecut_setup.",
 		inputSchema: workspaceRecoverInputSchema,
-		readOnly: true,
-		modelVisible: true,
-	},
-	{
-		name: "submit_codecut_setup",
-		title: "Submit CodeCut Workspace Setup",
+			readOnly: true,
+			modelVisible: true,
+		},
+		{
+			name: "list_codecut_builtin_voice_packs",
+			title: "List CodeCut Built-In Voice Packs",
+			description:
+				"List CodeCut's bundled voice-library entries with executable local reference audio paths for RunningHub voice cloning. This is read-only and does not call a provider.",
+			inputSchema: {},
+			readOnly: true,
+			modelVisible: true,
+		},
+		{
+			name: "submit_codecut_setup",
+			title: "Submit CodeCut Workspace Setup",
 		description:
 			"Confirm a pending CodeCut workspace setup, create the executor project, import confirmed local media, persist the confirmed taskType setup contract, and return editor context. Requires the pendingConfirmationId returned by open_codecut_workspace and confirmedByUser true after the user explicitly confirms creating this project in chat or submits the CodeCut setup widget.",
 		inputSchema: workspaceIntentInputSchema,
@@ -1565,6 +1593,73 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		meta: codecutWorkspaceSubmitToolMeta,
 	},
 ];
+
+function listBuiltinVoicePacks({ root = pluginRoot } = {}) {
+	const voicePacks = builtinVoicePacks.map((voicePack) => {
+		const audioPath = resolve(root, voicePack.referenceAudioRelativePath);
+		return {
+			id: voicePack.id,
+			name: voicePack.name,
+			provider: voicePack.provider,
+			audioPath,
+			referenceAudioMimeType: voicePack.referenceAudioMimeType,
+			executableTool: voicePack.executableTool,
+		};
+	});
+	const missingVoicePacks = voicePacks.filter(
+		(voicePack) => !existsSync(voicePack.audioPath),
+	);
+	if (missingVoicePacks.length) {
+		const missingNames = missingVoicePacks
+			.map((voicePack) => `${voicePack.name} (${voicePack.audioPath})`)
+			.join(", ");
+		return {
+			status: "blocked",
+			defaultVoicePackId: defaultBuiltinVoicePackId,
+			voicePacks,
+			error: `Built-in voice reference audio is missing: ${missingNames}`,
+		};
+	}
+	return {
+		status: "ready",
+		defaultVoicePackId: defaultBuiltinVoicePackId,
+		voicePacks,
+	};
+}
+
+function buildBuiltinVoicePackListResult() {
+	const structuredContent = listBuiltinVoicePacks();
+	const readyVoicePacks = structuredContent.voicePacks
+		.map(
+			(voicePack) =>
+				`${voicePack.name} (${voicePack.id}) -> ${voicePack.executableTool} audioPath="${voicePack.audioPath}"`,
+		)
+		.join("\n");
+	return {
+		content: [
+			{
+				type: "text",
+				text: `CodeCut built-in voice library:\n${readyVoicePacks}`,
+			},
+		],
+		structuredContent,
+		isError: structuredContent.status !== "ready",
+	};
+}
+
+function buildBuiltinVoiceLibraryPrompt() {
+	const structuredContent = listBuiltinVoicePacks();
+	if (structuredContent.status !== "ready") {
+		return `Built-in voice library is unavailable: ${structuredContent.error}`;
+	}
+	const defaultVoicePack = structuredContent.voicePacks.find(
+		(voicePack) => voicePack.id === structuredContent.defaultVoicePackId,
+	);
+	if (!defaultVoicePack) {
+		throw new Error("Default built-in voice pack is missing.");
+	}
+	return `Built-in voice library: "${defaultVoicePack.name}" (${defaultVoicePack.id}) is executable through ${defaultVoicePack.executableTool} with audioPath "${defaultVoicePack.audioPath}". Call list_codecut_builtin_voice_packs to inspect all bundled voice-library entries before asking the user for a Volcengine voice_type.`;
+}
 
 function readCodecutFontManifest() {
 	const manifestPath = resolve(
@@ -3194,6 +3289,7 @@ function buildContinuePrompt({
 
 	const guardrails = [
 		"Voice display names are not executable voiceType values. Use a real Volcengine voice_type, a local reference audio path for RunningHub cloning, or explicit user approval to use another available voice.",
+		buildBuiltinVoiceLibraryPrompt(),
 		"Stop before timeline mutation if the requested voice cannot be resolved or a voice generation tool returns a provider/runtime error.",
 	];
 	if (intent.generateIntroCover === true) {
@@ -4446,6 +4542,9 @@ export async function callCodecutWorkspaceTool(
 	}
 	if (toolName === "recover_codecut_setup") {
 		return recoverCodecutSetup(input, { confirmationRoot });
+	}
+	if (toolName === "list_codecut_builtin_voice_packs") {
+		return buildBuiltinVoicePackListResult();
 	}
 	if (toolName === "submit_codecut_setup") {
 		const blocked = await assertCodecutServiceReady({ cwd, env, fetchImpl });
