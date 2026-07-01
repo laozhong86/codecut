@@ -143,6 +143,7 @@ describe("requirement confirmation store", () => {
 			patch: {
 				titlePreferences: {
 					enabled: true,
+					mode: "custom",
 					text: "别乱花钱",
 					stylePreset: "hook_title",
 				},
@@ -153,6 +154,7 @@ describe("requirement confirmation store", () => {
 		expect(confirmed.status).toBe("confirmed");
 		expect(confirmed.confirmedSetup.titlePreferences).toEqual({
 			enabled: true,
+			mode: "custom",
 			text: "别乱花钱",
 			stylePreset: "hook_title",
 		});

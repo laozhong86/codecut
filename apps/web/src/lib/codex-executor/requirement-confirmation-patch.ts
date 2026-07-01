@@ -10,6 +10,7 @@ export type RequirementConfirmationFormState = {
 	templatePreferenceMode: RequirementDraft["templatePreference"]["mode"];
 	requestedTemplate: string;
 	titleEnabled: boolean;
+	titleMode: NonNullable<RequirementDraft["titlePreferences"]["mode"]>;
 	titleText: string;
 	titleStylePreset: NonNullable<
 		RequirementDraft["titlePreferences"]["stylePreset"]
@@ -19,7 +20,10 @@ export type RequirementConfirmationFormState = {
 	captionSize: "small" | "medium" | "large";
 	captionStylePreset: RequirementDraft["captionPreferences"]["stylePreset"];
 	voiceEnabled: boolean;
-	voicePackId: "none" | "podcast-female" | "podcast-male";
+	voicePackId: "none" | "podcast-female" | "podcast-male" | "custom";
+	customVoiceFileName: string;
+	customVoiceFileUrl: string;
+	customVoiceFilePath: string;
 	outputQuality: "low" | "medium" | "high" | "very_high";
 	requirements: string;
 };
@@ -37,6 +41,11 @@ export function formStateFromRequirementDraft(
 				? draft.templatePreference.requestedTemplate
 				: "",
 		titleEnabled: draft.titlePreferences.enabled,
+		titleMode:
+			draft.titlePreferences.mode ??
+			(draft.titlePreferences.enabled && !draft.titlePreferences.text
+				? "auto"
+				: "custom"),
 		titleText: draft.titlePreferences.text ?? draft.requestedProjectName,
 		titleStylePreset: draft.titlePreferences.stylePreset ?? "hook_title",
 		captionEnabled: draft.captionPreferences.enabled,
@@ -45,6 +54,9 @@ export function formStateFromRequirementDraft(
 		captionStylePreset: draft.captionPreferences.stylePreset,
 		voiceEnabled: draft.voicePreferences.enabled,
 		voicePackId: draft.voicePreferences?.voicePackId ?? "none",
+		customVoiceFileName: draft.voicePreferences.customVoiceFile?.name ?? "",
+		customVoiceFileUrl: draft.voicePreferences.customVoiceFile?.url ?? "",
+		customVoiceFilePath: draft.voicePreferences.customVoiceFile?.path ?? "",
 		outputQuality: draft.exportPreferences.quality,
 		requirements: draft.timelinePreferences.requirements,
 	};
@@ -96,16 +108,35 @@ export function buildRequirementConfirmationPatch({
 	}
 
 	const nextTitlePreferences = form.titleEnabled
-		? {
-				enabled: true,
-				text: form.titleText,
-				stylePreset: form.titleStylePreset,
-			}
+		? form.titleMode === "custom"
+			? {
+					enabled: true,
+					mode: "custom" as const,
+					text: form.titleText,
+					stylePreset: form.titleStylePreset,
+				}
+			: {
+					enabled: true,
+					mode: "auto" as const,
+					stylePreset: form.titleStylePreset,
+				}
 		: { enabled: false };
+	const nextTitleMode = nextTitlePreferences.enabled
+		? nextTitlePreferences.mode
+		: undefined;
+	const nextTitleText = nextTitlePreferences.enabled
+		? "text" in nextTitlePreferences
+			? nextTitlePreferences.text
+			: undefined
+		: undefined;
+	const nextTitleStylePreset = nextTitlePreferences.enabled
+		? nextTitlePreferences.stylePreset
+		: undefined;
 	if (
 		draft.titlePreferences.enabled !== nextTitlePreferences.enabled ||
-		draft.titlePreferences.text !== nextTitlePreferences.text ||
-		draft.titlePreferences.stylePreset !== nextTitlePreferences.stylePreset
+		draft.titlePreferences.mode !== nextTitleMode ||
+		draft.titlePreferences.text !== nextTitleText ||
+		draft.titlePreferences.stylePreset !== nextTitleStylePreset
 	) {
 		patch.titlePreferences = nextTitlePreferences;
 	}
@@ -125,13 +156,36 @@ export function buildRequirementConfirmationPatch({
 		};
 	}
 
-	const nextVoicePreferences = {
-		enabled: form.voiceEnabled,
-		voicePackId: form.voiceEnabled ? form.voicePackId : "none",
-	} as const;
+	const nextVoicePreferences =
+		form.voiceEnabled && form.voicePackId === "custom"
+			? {
+					enabled: true,
+					voicePackId: "custom" as const,
+					customVoiceFile: {
+						name: form.customVoiceFileName,
+						url: form.customVoiceFileUrl,
+						...(form.customVoiceFilePath
+							? { path: form.customVoiceFilePath }
+							: {}),
+					},
+				}
+			: ({
+					enabled: form.voiceEnabled,
+					voicePackId: form.voiceEnabled ? form.voicePackId : "none",
+				} as const);
+	const nextCustomVoiceFile =
+		nextVoicePreferences.voicePackId === "custom"
+			? nextVoicePreferences.customVoiceFile
+			: undefined;
 	if (
 		draft.voicePreferences.enabled !== nextVoicePreferences.enabled ||
-		draft.voicePreferences.voicePackId !== nextVoicePreferences.voicePackId
+		draft.voicePreferences.voicePackId !== nextVoicePreferences.voicePackId ||
+		draft.voicePreferences.customVoiceFile?.name !==
+			nextCustomVoiceFile?.name ||
+		draft.voicePreferences.customVoiceFile?.url !==
+			nextCustomVoiceFile?.url ||
+		draft.voicePreferences.customVoiceFile?.path !==
+			nextCustomVoiceFile?.path
 	) {
 		patch.voicePreferences = nextVoicePreferences;
 	}

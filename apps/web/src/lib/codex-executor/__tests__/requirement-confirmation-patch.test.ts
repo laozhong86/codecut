@@ -93,11 +93,49 @@ describe("requirement confirmation patch builder", () => {
 		});
 	});
 
+	test("defaults to a real voice when the user enables voiceover from none", () => {
+		const draft = requirementDraftFixture();
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			voiceEnabled: true,
+			voicePackId: "podcast-female" as const,
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			voicePreferences: { enabled: true, voicePackId: "podcast-female" },
+		});
+	});
+
+	test("submits custom voice file metadata", () => {
+		const draft = requirementDraftFixture();
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			voiceEnabled: true,
+			voicePackId: "custom" as const,
+			customVoiceFileName: "voice.wav",
+			customVoiceFileUrl: "blob:voice",
+			customVoiceFilePath: "voice.wav",
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			voicePreferences: {
+				enabled: true,
+				voicePackId: "custom",
+				customVoiceFile: {
+					name: "voice.wav",
+					url: "blob:voice",
+					path: "voice.wav",
+				},
+			},
+		});
+	});
+
 	test("submits title and caption enablement changes", () => {
 		const draft = requirementDraftFixture();
 		const form = {
 			...formStateFromRequirementDraft(draft),
 			titleEnabled: true,
+			titleMode: "custom" as const,
 			titleText: "别乱花钱",
 			titleStylePreset: "hook_title" as const,
 			captionEnabled: false,
@@ -106,6 +144,7 @@ describe("requirement confirmation patch builder", () => {
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
 			titlePreferences: {
 				enabled: true,
+				mode: "custom",
 				text: "别乱花钱",
 				stylePreset: "hook_title",
 			},
@@ -115,6 +154,24 @@ describe("requirement confirmation patch builder", () => {
 				font: "auto",
 				size: "medium",
 				stylePreset: "short-form-bold",
+			},
+		});
+	});
+
+	test("submits automatic title mode without fixed title text", () => {
+		const draft = requirementDraftFixture();
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			titleEnabled: true,
+			titleMode: "auto" as const,
+			titleStylePreset: "hook_title" as const,
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			titlePreferences: {
+				enabled: true,
+				mode: "auto",
+				stylePreset: "hook_title",
 			},
 		});
 	});

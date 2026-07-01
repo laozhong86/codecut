@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { z } from "zod";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -33,10 +34,14 @@ function setupIntent(overrides = {}) {
 			format: "mp4",
 			quality: "high",
 			includeAudio: true,
+			captionEnabled: true,
 			captionFont: "auto",
 			captionSize: "medium",
 			captionStylePreset: "creator-clean",
+			voiceEnabled: false,
+			voicePackId: "none",
 		},
+		titlePreferences: { enabled: false },
 		generateIntroCover: true,
 		requirements:
 			"Cut a high-retention short for a product launch.\nShow a hook, proof, and CTA with readable captions.",
@@ -610,6 +615,9 @@ describe("Codecut MCP server contract", () => {
 			]).success,
 		).toBe(false);
 		expect(
+			z.object(submitTool.inputSchema).strict().safeParse(setupIntent()).success,
+		).toBe(true);
+		expect(
 			openTool.inputSchema.transitionPreference.safeParse("auto").success,
 		).toBe(true);
 		expect(
@@ -849,6 +857,8 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain('id="brief"');
 		expect(html).not.toContain('id="success-criteria"');
 		expect(html).toContain('voiceEnabled: fields.voicePack.value !== "none"');
+		expect(html).toContain("captionEnabled: true");
+		expect(html).toContain("titlePreferences: currentTitlePreferences");
 		expect(html).toContain("durationGoalMode");
 		expect(html).toContain("durationGoalRangeSeconds");
 		expect(html).toContain('introCoverRecommended: "用AI 生成新的封面"');
@@ -934,6 +944,7 @@ describe("Codecut MCP server contract", () => {
 					projectId: "22-abc123",
 					output: {
 						...setupIntent().output,
+						voiceEnabled: true,
 						voicePackId: "podcast-female",
 					},
 				}),
@@ -2236,6 +2247,7 @@ describe("Codecut MCP server contract", () => {
 			projectName: "Grouped Controls",
 			titlePreferences: {
 				enabled: true,
+				mode: "custom",
 				text: "固定标题",
 				stylePreset: "hook_title",
 			},
@@ -2246,6 +2258,7 @@ describe("Codecut MCP server contract", () => {
 		expect(selected.structuredContent.intentDefaults).toMatchObject({
 			titlePreferences: {
 				enabled: true,
+				mode: "custom",
 				text: "固定标题",
 				stylePreset: "hook_title",
 			},
@@ -2513,7 +2526,11 @@ describe("Codecut MCP server contract", () => {
 
 			const builtInVoice = await serverModule.inspectCodecutSetup(
 				setupIntent({
-					output: { ...setupIntent().output, voicePackId: "podcast-female" },
+					output: {
+						...setupIntent().output,
+						voiceEnabled: true,
+						voicePackId: "podcast-female",
+					},
 				}),
 				{ bridgeToolImpl },
 			);
@@ -2850,6 +2867,7 @@ describe("Codecut MCP server contract", () => {
 					transitionPreference: "dissolve",
 					output: {
 						...setupIntent().output,
+						voiceEnabled: true,
 						voicePackId: "podcast-male",
 						captionSize: "large",
 						captionStylePreset: "product-punch",

@@ -72,6 +72,7 @@ const builtinVoicePackIds = builtinVoicePacks.map((voicePack) => voicePack.id);
 const workspaceVoicePackChoiceValues = [
 	noBuiltinVoicePackId,
 	...builtinVoicePackIds,
+	"custom",
 ];
 const workspaceResourceMimeType = "text/html;profile=mcp-app";
 const codecutWebRedirectDomains = [
@@ -366,7 +367,15 @@ const workspaceMediaSourceSchema = z
 	.strict();
 const workspaceMediaSourcesSchema = z.array(workspaceMediaSourceSchema);
 
-const workspaceOutputSchema = z
+const customVoiceFileSchema = z
+	.object({
+		name: z.string().trim().min(1),
+		url: z.string().trim().min(1),
+		path: z.string().trim().min(1).optional(),
+	})
+	.strict();
+
+const workspaceOutputBaseSchema = z
 	.object({
 		format: outputFormatSchema,
 		quality: outputQualitySchema,
@@ -377,12 +386,35 @@ const workspaceOutputSchema = z
 		captionStylePreset: captionStylePresetSchema,
 		voiceEnabled: z.boolean(),
 		voicePackId: workspaceVoicePackIdSchema.optional(),
+		customVoiceFile: customVoiceFileSchema.optional(),
 	})
 	.strict();
+const workspaceOutputSchema = workspaceOutputBaseSchema
+	.superRefine((value, ctx) => {
+		if (value.voiceEnabled && value.voicePackId === "custom") {
+			if (!value.customVoiceFile) {
+				ctx.addIssue({
+					code: "custom",
+					message:
+						"output.customVoiceFile is required when custom voice is enabled.",
+					path: ["customVoiceFile"],
+				});
+			}
+		}
+		if (value.voicePackId !== "custom" && value.customVoiceFile) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"output.customVoiceFile is only allowed when voicePackId is custom.",
+				path: ["customVoiceFile"],
+			});
+		}
+	});
 
 const titlePreferencesBaseSchema = z
 	.object({
 		enabled: z.boolean(),
+		mode: z.enum(["auto", "custom"]).optional(),
 		text: z.string().trim().min(1).optional(),
 		stylePreset: titleStylePresetSchema.optional(),
 	})
@@ -390,10 +422,18 @@ const titlePreferencesBaseSchema = z
 const titlePreferencesSchema = titlePreferencesBaseSchema.superRefine(
 	(value, ctx) => {
 		if (!value.enabled) return;
-		if (!value.text) {
+		if (!value.mode) {
 			ctx.addIssue({
 				code: "custom",
-				message: "titlePreferences.text is required when title is enabled.",
+				message: "titlePreferences.mode is required when title is enabled.",
+				path: ["mode"],
+			});
+		}
+		if (value.mode === "custom" && !value.text) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"titlePreferences.text is required when custom title is enabled.",
 				path: ["text"],
 			});
 		}
@@ -451,6 +491,7 @@ const confirmedSetupPatchSchema = z
 			.object({
 				enabled: z.boolean().optional(),
 				voicePackId: workspaceVoicePackIdSchema.optional(),
+				customVoiceFile: customVoiceFileSchema.optional(),
 			})
 			.strict()
 			.optional(),
@@ -526,7 +567,7 @@ const workspaceOpenInputSchema = {
 	templatePreference: templatePreferenceSchema.optional(),
 	locale: z.string().trim().optional(),
 	uiLanguage: z.string().trim().optional(),
-	output: workspaceOutputSchema.partial().optional(),
+	output: workspaceOutputBaseSchema.partial().optional(),
 	titlePreferences: titlePreferencesBaseSchema.partial().optional(),
 	generateIntroCover: z.boolean().optional(),
 };
@@ -2740,12 +2781,13 @@ async function validateCodecutSetupIntent(intent) {
 		captionStylePresetValues.includes(normalized.output.captionStylePreset),
 		"Caption style preset must be a supported CodeCut caption preset.",
 	);
+	const voiceCheck = validateWorkspaceVoiceChoice(normalized.output);
 	pushCheck(
 		checks,
 		"voice-pack",
-		"Built-in voice",
-		workspaceVoicePackChoiceValues.includes(normalized.output.voicePackId),
-		"Built-in voice must be none, podcast-female, or podcast-male.",
+		"Voice",
+		voiceCheck.ok,
+		voiceCheck.message,
 	);
 
 	return {
@@ -3065,6 +3107,9 @@ function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 			voicePackId: normalized.output.voiceEnabled
 				? normalized.output.voicePackId
 				: noBuiltinVoicePackId,
+			...(normalized.output.voicePackId === "custom"
+				? { customVoiceFile: normalized.output.customVoiceFile }
+				: {}),
 		},
 		templatePreference: normalized.templatePreference,
 		exportPreferences: {
@@ -3185,6 +3230,13 @@ function buildWorkspaceIntentDefaults(input = {}) {
 			voicePackId: resolveWorkspaceVoicePackIdDefault(
 				input.output?.voicePackId,
 			),
+			...(input.output?.customVoiceFile
+				? {
+						customVoiceFile: normalizeCustomVoiceFile(
+							input.output.customVoiceFile,
+						),
+					}
+				: {}),
 		},
 		titlePreferences: normalizeWorkspaceTitlePreferences(
 			input.titlePreferences,
@@ -3229,9 +3281,11 @@ function normalizeWorkspaceTitlePreferences(value) {
 	if (!value || typeof value !== "object" || value.enabled !== true) {
 		return { enabled: false };
 	}
+	const mode = value.mode === "custom" ? "custom" : "auto";
 	return {
 		enabled: true,
-		text: String(value.text || "").trim(),
+		mode,
+		...(mode === "custom" ? { text: String(value.text || "").trim() } : {}),
 		stylePreset: String(value.stylePreset || "hook_title").trim(),
 	};
 }
@@ -3447,15 +3501,51 @@ function validateTemplatePreference(value) {
 	};
 }
 
+function validateWorkspaceVoiceChoice(output) {
+	if (!workspaceVoicePackChoiceValues.includes(output.voicePackId)) {
+		return {
+			ok: false,
+			message:
+				"Voice must be none, podcast-female, podcast-male, or custom.",
+		};
+	}
+	if (output.voicePackId === "custom") {
+		const parsed = customVoiceFileSchema.safeParse(output.customVoiceFile);
+		if (!parsed.success) {
+			return {
+				ok: false,
+				message:
+					parsed.error.issues[0]?.message ||
+					"Custom voice requires a selected audio file.",
+			};
+		}
+	}
+	return { ok: true, message: "Voice choice is valid." };
+}
+
 function normalizeWorkspaceVoicePackId(value) {
 	const normalized = String(value ?? "").trim();
 	return normalized || noBuiltinVoicePackId;
 }
 
+function normalizeCustomVoiceFile(value) {
+	if (!value || typeof value !== "object") return undefined;
+	const name = String(value.name || "").trim();
+	const url = String(value.url || "").trim();
+	const path = String(value.path || "").trim();
+	return {
+		name,
+		url,
+		...(path ? { path } : {}),
+	};
+}
+
 function resolveWorkspaceVoicePackIdDefault(value) {
 	const normalized = normalizeWorkspaceVoicePackId(value);
 	if (workspaceVoicePackChoiceValues.includes(normalized)) return normalized;
-	throw new Error("voicePackId must be none, podcast-female, or podcast-male.");
+	throw new Error(
+		"voicePackId must be none, podcast-female, podcast-male, or custom.",
+	);
 }
 
 function buildWorkspaceProjectSlug(projectName) {
@@ -3519,6 +3609,9 @@ function normalizeWorkspaceIntent(intent) {
 					normalizeWorkspaceVoicePackId(intent.output?.voicePackId) !==
 						noBuiltinVoicePackId),
 			voicePackId: normalizeWorkspaceVoicePackId(intent.output?.voicePackId),
+			customVoiceFile: normalizeCustomVoiceFile(
+				intent.output?.customVoiceFile,
+			),
 		},
 		titlePreferences: normalizeWorkspaceTitlePreferences(
 			intent.titlePreferences,

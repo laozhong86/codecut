@@ -103,7 +103,7 @@ describe("ConfirmedSetup durationContract", () => {
 		});
 	});
 
-	test("accepts only built-in voice pack ids in voice preferences", () => {
+	test("accepts built-in and custom voice preferences", () => {
 		const parsed = ConfirmedSetupSchema.parse(
 			confirmedSetup({
 				voicePreferences: {
@@ -116,6 +116,28 @@ describe("ConfirmedSetup durationContract", () => {
 		expect(parsed.voicePreferences).toEqual({
 			enabled: true,
 			voicePackId: "podcast-female",
+		});
+		const custom = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				voicePreferences: {
+					enabled: true,
+					voicePackId: "custom",
+					customVoiceFile: {
+						name: "voice.wav",
+						url: "blob:voice",
+						path: "voice.wav",
+					},
+				},
+			}),
+		);
+		expect(custom.voicePreferences).toEqual({
+			enabled: true,
+			voicePackId: "custom",
+			customVoiceFile: {
+				name: "voice.wav",
+				url: "blob:voice",
+				path: "voice.wav",
+			},
 		});
 		expect(() =>
 			ConfirmedSetupSchema.parse(
@@ -137,6 +159,16 @@ describe("ConfirmedSetup durationContract", () => {
 				}),
 			),
 		).toThrow("voicePreferences.voicePackId must be a voice");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					voicePreferences: {
+						enabled: true,
+						voicePackId: "custom",
+					},
+				}),
+			),
+		).toThrow("voicePreferences.customVoiceFile is required");
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
@@ -182,6 +214,7 @@ describe("ConfirmedSetup durationContract", () => {
 			confirmedSetup({
 				titlePreferences: {
 					enabled: true,
+					mode: "custom",
 					text: "别乱花钱",
 					stylePreset: "hook_title",
 				},
@@ -201,6 +234,7 @@ describe("ConfirmedSetup durationContract", () => {
 
 		expect(parsed.titlePreferences).toEqual({
 			enabled: true,
+			mode: "custom",
 			text: "别乱花钱",
 			stylePreset: "hook_title",
 		});
@@ -211,12 +245,31 @@ describe("ConfirmedSetup durationContract", () => {
 		});
 	});
 
-	test("requires title text and style when fixed title is enabled", () => {
+	test("accepts automatic title mode without fixed title text", () => {
+		const parsed = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				titlePreferences: {
+					enabled: true,
+					mode: "auto",
+					stylePreset: "hook_title",
+				},
+			}),
+		);
+
+		expect(parsed.titlePreferences).toEqual({
+			enabled: true,
+			mode: "auto",
+			stylePreset: "hook_title",
+		});
+	});
+
+	test("requires title text and style when custom title is enabled", () => {
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
 					titlePreferences: {
 						enabled: true,
+						mode: "custom",
 					},
 				}),
 			),

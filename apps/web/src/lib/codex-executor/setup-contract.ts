@@ -155,12 +155,22 @@ export const BuiltInVoicePackIdSchema = z.enum([
 	"none",
 	"podcast-female",
 	"podcast-male",
+	"custom",
 ]);
+
+const CustomVoiceFileSchema = z
+	.object({
+		name: z.string().trim().min(1),
+		url: z.string().trim().min(1),
+		path: z.string().trim().min(1).optional(),
+	})
+	.strict();
 
 const VoicePreferencesBaseSchema = z
 	.object({
 		enabled: z.boolean(),
 		voicePackId: BuiltInVoicePackIdSchema,
+		customVoiceFile: CustomVoiceFileSchema.optional(),
 	})
 	.strict();
 
@@ -172,6 +182,22 @@ const VoicePreferencesSchema = VoicePreferencesBaseSchema.superRefine(
 				message:
 					"voicePreferences.voicePackId must be a voice when voice is enabled.",
 				path: ["voicePackId"],
+			});
+		}
+		if (value.enabled && value.voicePackId === "custom" && !value.customVoiceFile) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"voicePreferences.customVoiceFile is required when custom voice is enabled.",
+				path: ["customVoiceFile"],
+			});
+		}
+		if (value.voicePackId !== "custom" && value.customVoiceFile) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"voicePreferences.customVoiceFile is only allowed for custom voice.",
+				path: ["customVoiceFile"],
 			});
 		}
 		if (!value.enabled && value.voicePackId !== "none") {
@@ -201,6 +227,7 @@ export const TemplatePreferenceSchema = z.discriminatedUnion("mode", [
 const TitlePreferencesBaseSchema = z
 	.object({
 		enabled: z.boolean(),
+		mode: z.enum(["auto", "custom"]).optional(),
 		text: z.string().trim().min(1).optional(),
 		stylePreset: EditPlanTextStylePresetSchema.optional(),
 	})
@@ -209,12 +236,22 @@ const TitlePreferencesBaseSchema = z
 const TitlePreferencesSchema = TitlePreferencesBaseSchema.superRefine(
 	(value, ctx) => {
 		if (!value.enabled) return;
-		if (!value.text) {
+		if (!value.mode) {
 			ctx.addIssue({
 				code: "custom",
-				message: "titlePreferences.text is required when title is enabled.",
-				path: ["text"],
+				message: "titlePreferences.mode is required when title is enabled.",
+				path: ["mode"],
 			});
+		}
+		if (!value.text) {
+			if (value.mode === "custom") {
+				ctx.addIssue({
+					code: "custom",
+					message:
+						"titlePreferences.text is required when custom title is enabled.",
+					path: ["text"],
+				});
+			}
 		}
 		if (!value.stylePreset) {
 			ctx.addIssue({
@@ -405,14 +442,18 @@ export function assertEditPlanTextPreferences({
 	}
 	if (!confirmedSetup.titlePreferences.enabled) {
 		if (title) {
-			throw new Error("Fixed titles are disabled in confirmedSetup.");
+			throw new Error("Titles are disabled in confirmedSetup.");
 		}
 		return;
 	}
 	if (!title) {
-		throw new Error("Fixed title is required by confirmedSetup.");
+		throw new Error("Title is required by confirmedSetup.");
 	}
-	if (title.text !== confirmedSetup.titlePreferences.text) {
+	const titleMode = confirmedSetup.titlePreferences.mode ?? "custom";
+	if (
+		titleMode === "custom" &&
+		title.text !== confirmedSetup.titlePreferences.text
+	) {
 		throw new Error(
 			`title.text conflicts with confirmedSetup.titlePreferences.text: expected ${confirmedSetup.titlePreferences.text}.`,
 		);
@@ -592,11 +633,13 @@ export function applyConfirmedSetupPatch({
 				"timelinePreferences.transitionPreference",
 				"timelinePreferences.generateIntroCover",
 				"titlePreferences.enabled",
+				"titlePreferences.mode",
 				"titlePreferences.text",
 				"titlePreferences.stylePreset",
 				"captionPreferences.enabled",
 				"voicePreferences.enabled",
 				"voicePreferences.voicePackId",
+				"voicePreferences.customVoiceFile",
 				"templatePreference",
 			].some(
 				(prefix) =>
@@ -611,6 +654,9 @@ function normalizePatchedVoicePreferences(
 ): VoicePreferences {
 	if (!value.enabled) {
 		return { enabled: false, voicePackId: "none" };
+	}
+	if (value.voicePackId !== "custom") {
+		return { enabled: true, voicePackId: value.voicePackId };
 	}
 	return value;
 }

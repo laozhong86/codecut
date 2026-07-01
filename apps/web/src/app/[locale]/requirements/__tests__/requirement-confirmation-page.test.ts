@@ -20,6 +20,7 @@ describe("requirement confirmation page UI", () => {
 		expect(source).toContain("voicePackId");
 		expect(source).toContain("女声");
 		expect(source).toContain("男声");
+		expect(source).toContain("自定义");
 		expect(source).toContain("确认需求");
 		expect(source).toContain("/api/codex-requirements/");
 	});
@@ -59,10 +60,18 @@ describe("requirement confirmation page UI", () => {
 		expect(client).toContain("指定模板");
 		expect(client).toContain("模板名称");
 		expect(client).toContain("form.titleEnabled &&");
+		expect(client).toContain("titleMode");
+		expect(client).toContain("自动生成");
+		expect(client).toContain("标题文本");
+		expect(client).toContain("字体样式");
+		expect(client).toContain("选择文件");
+		expect(client).toContain("文件URL");
+		expect(client).toContain("文件路径");
 		expect(client).toContain("form.captionEnabled &&");
 		expect(client).toContain("form.voiceEnabled &&");
 		expect(client).toContain('form.templatePreferenceMode === "specified"');
-		expect(client).toContain("固定标题");
+		expect(client).not.toContain("固定标题");
+		expect(client).not.toContain("等待确认");
 	});
 
 	test("keeps video cover control the same height as other spec controls", async () => {

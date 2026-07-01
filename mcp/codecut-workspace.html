@@ -845,6 +845,7 @@
         let currentProjectId = "";
         let currentPendingConfirmationId = "";
         let currentDurationContract = null;
+        let currentTitlePreferences = { enabled: false };
         let setupSubmitted = false;
         let activeLanguage = "en";
 
@@ -943,6 +944,7 @@
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
           setSelectValue(fields.voicePack, defaults.output?.voicePackId || "none");
+          currentTitlePreferences = normalizeTitlePreferences(defaults.titlePreferences);
           fields.generateIntroCover.checked = defaults.generateIntroCover !== false;
           renderChoiceOptions(fields.requirementOptions, defaults.requirementOptions || [defaults.requirements || t("requirementsPlaceholder")], defaults.recommendedRequirementOptions || [], fields.requirements);
           fields.requirements.value = "";
@@ -960,6 +962,19 @@
             select.appendChild(option);
           }
           select.value = normalized;
+        }
+
+        function normalizeTitlePreferences(value) {
+          if (!value || typeof value !== "object" || value.enabled !== true) {
+            return { enabled: false };
+          }
+          const mode = value.mode === "custom" ? "custom" : "auto";
+          return {
+            enabled: true,
+            mode,
+            ...(mode === "custom" ? { text: String(value.text || "").trim() } : {}),
+            stylePreset: String(value.stylePreset || "hook_title").trim(),
+          };
         }
 
         function resetReadyState() {
@@ -1520,12 +1535,14 @@
               format: fields.outputFormat.value,
               quality: fields.outputQuality.value,
               includeAudio: fields.includeAudio.value === "true",
+              captionEnabled: true,
               captionFont: fields.captionFont.value,
               captionSize: fields.captionSize.value,
               captionStylePreset: fields.captionStylePreset.value,
               voiceEnabled: fields.voicePack.value !== "none",
               voicePackId: fields.voicePack.value,
             },
+            titlePreferences: currentTitlePreferences,
             generateIntroCover: collectIntroCoverChoice(),
             requirements: collectChoiceText(fields.requirementOptions, fields.requirements),
           };

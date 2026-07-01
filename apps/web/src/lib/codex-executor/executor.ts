@@ -29,6 +29,7 @@ import {
 import { buildPostCutCaptionEntries } from "@/lib/agent-bridge/edit-plan/caption-chunking";
 import { resolveCaptionStylePreset } from "@/lib/agent-bridge/edit-plan/text-presets";
 import { applyNarratedRemixPlanToEditor } from "@/lib/agent-bridge/narrated-remix/apply";
+import { NarratedRemixPlanSchema } from "@/lib/agent-bridge/narrated-remix/schema";
 import {
 	type ProbeAudio,
 	buildVideoContextWithTranscriber,
@@ -2470,6 +2471,29 @@ function validateEditPlanTextPreferences({
 	}
 }
 
+function validateCaptionPreferences({
+	state,
+	captionCount,
+	hasCaptionStyle,
+}: {
+	state: ExecutorProjectState;
+	captionCount: number;
+	hasCaptionStyle: boolean;
+}) {
+	if (!state.confirmedSetup || state.confirmedSetup.captionPreferences.enabled) {
+		return null;
+	}
+	if (captionCount === 0 && !hasCaptionStyle) return null;
+	return {
+		success: false,
+		message: "Captions are disabled in confirmedSetup.",
+		data: {
+			valid: false,
+			revision: state.revision,
+		},
+	};
+}
+
 async function runValidateEditPlan({
 	state,
 	args,
@@ -3013,9 +3037,16 @@ async function runApplyNarratedRemixPlan({
 	args: Record<string, unknown>;
 }) {
 	const parsed = applyNarratedRemixPlanArgsSchema.parse(args);
+	const parsedPlan = NarratedRemixPlanSchema.parse(parsed.plan);
 	const mediaAssets = await toMediaAssets(state.mediaAssets);
+	const captionPreferencesError = validateCaptionPreferences({
+		state,
+		captionCount: parsedPlan.captions.length,
+		hasCaptionStyle: parsedPlan.captionStyle !== undefined,
+	});
+	if (captionPreferencesError) return captionPreferencesError;
 	const result = applyNarratedRemixPlanToEditor({
-		plan: parsed.plan,
+		plan: parsedPlan,
 		projectId: state.project.id,
 		replaceExisting: parsed.replaceExisting,
 		durationContract:

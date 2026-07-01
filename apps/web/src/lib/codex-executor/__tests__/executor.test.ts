@@ -170,6 +170,7 @@ function confirmedSetupFixture({
 		| "edit_execution";
 	titlePreferences?: {
 		enabled: boolean;
+		mode?: "auto" | "custom";
 		text?: string;
 		stylePreset?: "hook_title" | "lower_title";
 	};
@@ -191,7 +192,7 @@ function confirmedSetupFixture({
 		| "comment-bubble"
 		| "minimal-reel";
 	voiceEnabled?: boolean;
-	voicePackId?: "none" | "podcast-female" | "podcast-male";
+	voicePackId?: "none" | "podcast-female" | "podcast-male" | "custom";
 	exportFormat?: "mp4" | "webm";
 	exportQuality?: "low" | "medium" | "high" | "very_high";
 	includeAudio?: boolean;
@@ -868,7 +869,7 @@ describe("codex executor", () => {
 		});
 		expect(titleResult.results[0]).toMatchObject({
 			success: false,
-			message: "Fixed titles are disabled in confirmedSetup.",
+			message: "Titles are disabled in confirmedSetup.",
 		});
 	});
 
@@ -6162,6 +6163,91 @@ describe("codex executor", () => {
 				{ type: "text", content: "Opening line" },
 				{ type: "text", content: "Closing line" },
 			],
+		});
+	});
+
+	test("rejects narrated remix captions when confirmed captions are disabled", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Narrated remix without captions",
+			confirmedSetup: confirmedSetupFixture({ captionEnabled: false }),
+		});
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "broll.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 8,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const narrationImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.mp3",
+					mimeType: "audio/mpeg",
+					base64: Buffer.from("narration").toString("base64"),
+					size: 9,
+					lastModified: 1,
+					duration: 8,
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
+			narrationImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_narrated_remix_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 8, aspectRatio: "9:16" },
+						visualBeats: [
+							{
+								id: "beat-1",
+								mediaId: videoId,
+								sourceStart: 0,
+								sourceEnd: 8,
+								timelineStart: 0,
+								muted: true,
+								reason: "Single source video.",
+							},
+						],
+						narration: { mediaId: narrationId, sourceStart: 0 },
+						captions: [{ text: "Should be blocked", startTime: 0, duration: 2 }],
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+							size: "medium",
+						},
+						rationale: "This should respect confirmed captions.",
+					},
+				},
+			}),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "apply_narrated_remix_plan",
+			success: false,
+			message: "Captions are disabled in confirmedSetup.",
+			data: {
+				valid: false,
+			},
 		});
 	});
 

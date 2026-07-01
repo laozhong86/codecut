@@ -141,6 +141,7 @@ describe("codex requirement confirmation API routes", () => {
 					patch: {
 						titlePreferences: {
 							enabled: true,
+							mode: "custom",
 							text: "别乱花钱",
 							stylePreset: "hook_title",
 						},
@@ -162,6 +163,7 @@ describe("codex requirement confirmation API routes", () => {
 				confirmedSetup: {
 					titlePreferences: {
 						enabled: true,
+						mode: "custom",
 						text: "别乱花钱",
 						stylePreset: "hook_title",
 					},

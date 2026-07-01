@@ -43,6 +43,14 @@ const CheckSchema = z
 	})
 	.strict();
 
+const CustomVoiceFileSchema = z
+	.object({
+		name: z.string().trim().min(1),
+		url: z.string().trim().min(1),
+		path: z.string().trim().min(1).optional(),
+	})
+	.strict();
+
 export const RequirementDraftInputSchema = z
 	.object({
 		originalUserMessage: z.string().trim().min(1),
@@ -57,6 +65,7 @@ export const RequirementDraftInputSchema = z
 			.object({
 				enabled: z.boolean(),
 				voicePackId: BuiltInVoicePackIdSchema,
+				customVoiceFile: CustomVoiceFileSchema.optional(),
 			})
 			.strict(),
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
@@ -107,6 +116,7 @@ export const RequirementConfirmationPatchSchema = z
 			.object({
 				enabled: z.boolean(),
 				voicePackId: BuiltInVoicePackIdSchema,
+				customVoiceFile: CustomVoiceFileSchema.optional(),
 			})
 			.strict()
 			.optional(),
