@@ -108,37 +108,62 @@ Project folder:
     accepted-updates.md
 ```
 
+## Requirement Confirmation Root
+
+New creative jobs first write requirement confirmation files under:
+
+```text
+.codecut-workspace/requirements/<draftId>/
+  draft.json
+  confirmed.json
+  cancelled.json
+  events.jsonl
+```
+
+`open_codecut_requirement_confirmation` writes only `draft.json` and returns a
+confirmation page URL. It does not render an inline MCP App opener; open the
+returned URL in the Codex in-app browser when browser control is available. It
+must not create an executor project, import media, or initialize
+`.codecut-workspace/projects/<projectId>/`. Only a confirmed
+`get_codecut_requirement_confirmation` readback may be passed to
+`create_codecut_project_from_requirement`.
+
 ## Required Order
 
 1. Understand the user message and write intent analysis.
-2. Call `open_codecut_workspace`, then wait for explicit user confirmation in
-   chat or widget submission before calling `submit_codecut_setup` with
-   `confirmedByUser: true`.
-3. Use the workspace index created by `submit_codecut_setup`.
-4. Carry the returned confirmation token into all workspace side-effect
+2. Call `open_codecut_requirement_confirmation`, open its returned
+   confirmation URL in the Codex in-app browser when available, then wait for
+   the user to confirm or cancel in the web confirmation page.
+3. Call `get_codecut_requirement_confirmation` and continue only when it
+   returns `status: "confirmed"`.
+4. Call `create_codecut_project_from_requirement` with the confirmed `draftId`.
+5. Use the workspace index created by `create_codecut_project_from_requirement`.
+6. Carry the returned confirmation token into all workspace side-effect
    commands.
-5. Save and classify all provided local materials.
-6. Run ffprobe inventory for video/audio assets.
-7. Ask clarification questions with choices and one recommended option when
+7. Save and classify all provided local materials.
+8. Run ffprobe inventory for video/audio assets.
+9. Ask clarification questions with choices and one recommended option when
    requirement intake still needs them.
-8. Write route and planning documents.
-9. At the start of edit planning, read confirmed local methodology from
+10. Write route and planning documents.
+11. At the start of edit planning, read confirmed local methodology from
    `.codecut-workspace/user-methodology/` when present. Current user
    instructions override stored methodology.
-10. Create the Codecut executor project only when editing execution begins.
-11. Before reporting editing completion, record visual QA under
+12. Create the Codecut executor project only when editing execution begins.
+13. Before reporting editing completion, record visual QA under
     `06-verification/visual-qa/<runId>/`.
-12. After MP4 export, extract frames from the final exported file and update the
+14. After MP4 export, extract frames from the final exported file and update the
     visual QA verdict before reporting delivery.
-13. After verified completion, write a methodology proposal under
+15. After verified completion, write a methodology proposal under
     `08-learning/methodology-proposal.md` and ask the user whether to update
     `.codecut-workspace/user-methodology/`.
 
 ## CLI
 
 Initialize only for an explicitly recovered confirmed project that is missing
-`workspace.json`. New widget-created jobs are initialized by
-`submit_codecut_setup`; do not rerun this command for those projects.
+`workspace.json`. New requirement-confirmed jobs are initialized by
+`create_codecut_project_from_requirement`; legacy widget-created jobs are
+initialized by `submit_codecut_setup`. Do not rerun this command for those
+projects.
 
 ```bash
 node scripts/codecut-workspace.mjs init \

@@ -92,21 +92,26 @@ source pack; unrelated jobs should get separate project IDs.
 Required pre-edit order for user-provided materials:
 
 1. Understand the user message and write intent analysis.
-2. Call `open_codecut_workspace` with a concrete `projectId` and business
-   project name. Complete setup fields are not create-project confirmation.
-   Wait for the user to explicitly confirm creating the project in chat or
-   submit the widget, then call `submit_codecut_setup` with the returned
-   `pendingConfirmationId` and `confirmedByUser: true`.
-3. Use the workspace index initialized by `submit_codecut_setup`; do not rerun
+2. Call `open_codecut_requirement_confirmation` with a business project name
+   and the known requirement fields. This writes only local requirement
+   confirmation files and opens a web confirmation page; it must not create a
+   project, import media, or initialize a project workspace.
+3. Wait for the user to confirm or cancel in the web page, then call
+   `get_codecut_requirement_confirmation`. Continue only when it returns
+   `status: "confirmed"`.
+4. Call `create_codecut_project_from_requirement` with the confirmed `draftId`.
+5. Use the workspace index initialized by
+   `create_codecut_project_from_requirement`; do not rerun
    `scripts/codecut-workspace.mjs init` for that project.
-4. Copy provided files into categorized local folders.
-5. Run ffprobe material inventory for video/audio assets.
-6. Ask clarification questions with concrete choices and exactly one
+6. Copy provided files into categorized local folders.
+7. Run ffprobe material inventory for video/audio assets.
+8. Ask clarification questions with concrete choices and exactly one
    recommended option per question.
-7. Write workflow route, content breakdown, hook selection, script documents,
+9. Write workflow route, content breakdown, hook selection, script documents,
    decision ledger, and timeline restructure notes when they are relevant.
-8. Continue with the Codecut executor project returned by setup only after the
-   workspace index exists and the user-facing editing direction is clear.
+10. Continue with the Codecut executor project returned by confirmed
+    requirement creation only after the workspace index exists and the
+    user-facing editing direction is clear.
 
 Workspace files are local evidence and planning artifacts. They are not Codecut
 timeline state and are excluded from git and plugin-cache sync.
@@ -191,9 +196,9 @@ or video URLs; local files are not uploaded implicitly.
 
 ## Local Web Service Gate
 
-Before calling `open_codecut_workspace`, asking the user to open a setup
-widget, or navigating the Codex in-app browser, Codex must verify that Codecut
-is serving the MVP origin:
+Before calling `open_codecut_requirement_confirmation`, asking the user to open
+a requirement confirmation page, or navigating the Codex in-app browser, Codex
+must verify that Codecut is serving the MVP origin:
 
 ```bash
 curl -fsS -o /dev/null http://127.0.0.1:4100/en/projects
@@ -212,17 +217,25 @@ check succeeds. If the app cannot start or
 `http://127.0.0.1:4100/en/projects` remains unavailable, stop the workflow and
 report `P0 blocked: Codecut web service is not available on 127.0.0.1:4100`.
 
-Do not render `open_codecut_workspace`, ask the user to open the Browser,
-import media, inspect bridge env, or send bridge commands until this service
-gate passes. `open_codecut_workspace` must return `service_unavailable` instead
-of widget metadata when this gate fails. Do not switch to another port,
-external origin, or magic default. The browser URL, bridge URL, and editor
-origin must stay aligned on `http://127.0.0.1:4100`.
+Do not call `open_codecut_requirement_confirmation`, ask the user to open the
+browser, import media, inspect bridge env, or send bridge commands until this
+service gate passes. `open_codecut_requirement_confirmation` must return
+`service_unavailable` instead of confirmation page metadata when this gate
+fails. Do not switch to another port, external origin, or magic default. The
+browser URL, bridge URL, and editor origin must stay aligned on
+`http://127.0.0.1:4100`.
 
-If a host mounts the workspace widget for a failed or malformed
-`open_codecut_workspace` result, the widget must fail closed: no setup form, no
-project creation CTA, and no `submit_codecut_setup` call without the pending
-confirmation ID from a successful `open_codecut_workspace` result.
+After `open_codecut_requirement_confirmation` succeeds, use the returned
+`confirmationUrl` as the real form URL. Do not attach an inline MCP App opener
+or `openai/outputTemplate` to that tool. Open the URL in the Codex in-app
+browser when browser control is available; if the host cannot be controlled,
+show the URL as a fallback.
+
+If a host mounts the requirement confirmation page for a failed or malformed
+`open_codecut_requirement_confirmation` result, the page must fail closed: no
+confirmation form and no project creation. Project creation can only happen
+after `get_codecut_requirement_confirmation` returns `status: "confirmed"` and
+`create_codecut_project_from_requirement` is called explicitly.
 
 ## CLI Runtime And Human Preview
 
@@ -892,52 +905,55 @@ node scripts/codex-bridge.mjs build-visual-context \
 When the request includes one absolute local media file and a concrete target such as "1 minute vertical short", Codex should execute directly:
 
 1. Reserve a readable `projectId` and business project name.
-2. Call `open_codecut_workspace` with the known setup fields, then wait for the
-   user to explicitly confirm creating the project in chat or submit the
-   widget. After confirmation, call `submit_codecut_setup` with the returned
-   `pendingConfirmationId` and `confirmedByUser: true` so it can create the
-   executor project, initialize the workspace index, and return the confirmed
-   setup token.
-   If the widget created the project but the Codex thread did not receive the
-   follow-up prompt, call `recover_codecut_setup` with that `projectId` and the
-   original `pendingConfirmationId` before opening another setup widget.
-3. Verify `.codecut-workspace/projects/<projectId>/workspace.json` exists from
+2. Call `open_codecut_requirement_confirmation` with the known setup fields.
+   This creates only a local requirement draft and returns the web confirmation
+   page URL. Open that URL in the Codex in-app browser when available, then
+   wait for the user to confirm or cancel in that page.
+3. Call `get_codecut_requirement_confirmation` and continue only when it
+   returns `status: "confirmed"`.
+4. Call `create_codecut_project_from_requirement` with the confirmed `draftId`
+   so it can create the executor project, initialize the workspace index, and
+   return the confirmed setup token.
+5. Verify `.codecut-workspace/projects/<projectId>/workspace.json` exists from
    setup. Do not rerun `codecut-workspace init`.
-4. Add the local file with `codecut-workspace add-assets
+6. Add the local file with `codecut-workspace add-assets
    --confirmation-token <token>`.
-5. Run `codecut-workspace probe-assets --confirmation-token <token>`.
-6. Ask any missing clarification questions with choices and one recommended option.
-7. Write workflow route, content breakdown, hook selection, and timeline restructure notes with the confirmed setup token.
-8. Confirm the local Codecut service is ready.
-9. Open the returned `editorUrl` in the Codex in-app browser, then run
+7. Run `codecut-workspace probe-assets --confirmation-token <token>`.
+8. Ask any missing clarification questions with choices and one recommended option.
+9. Write workflow route, content breakdown, hook selection, and timeline restructure notes with the confirmed setup token.
+10. Confirm the local Codecut service is ready.
+11. Open the returned `editorUrl` in the Codex in-app browser, then run
    `doctor-install` and `doctor`.
-10. Apply explicit project settings for vertical/square output.
-11. Import the local file with the confirmed setup token.
-12. List media and select the imported audio/video asset.
-13. Transcribe through the local executor when the selected outcome needs transcript evidence.
-14. Audit material facts and resolve one P0 video template.
-15. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
-16. Inspect ambiguous or reframe-sensitive source ranges with
+12. Apply explicit project settings for vertical/square output.
+13. Import the local file with the confirmed setup token.
+14. List media and select the imported audio/video asset.
+15. Transcribe through the local executor when the selected outcome needs transcript evidence.
+16. Audit material facts and resolve one P0 video template.
+17. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
+18. Inspect ambiguous or reframe-sensitive source ranges with
    `inspect-video-range` before writing the EditPlan.
-17. Write an EditingDecisionLedger for EditPlan templates, or a strict NarratedRemixPlan for `narrated-broll`.
-18. For EditPlan templates, generate, validate, preview, and apply a clip-first
+19. Write an EditingDecisionLedger for EditPlan templates, or a strict NarratedRemixPlan for `narrated-broll`.
+20. For EditPlan templates, generate, validate, preview, and apply a clip-first
     EditPlan v1 when edited audio captions are required.
-19. For EditPlan templates with captions, run `build-post-cut-captions`, then
+21. For EditPlan templates with captions, run `build-post-cut-captions`, then
     validate, preview, and apply the final EditPlan v1 with captions.
-20. For `narrated-broll`, apply the final strict NarratedRemixPlan v1.
-21. Verify with `verify-timeline`, `get_timeline_state`, and
+22. For `narrated-broll`, apply the final strict NarratedRemixPlan v1.
+23. Verify with `verify-timeline`, `get_timeline_state`, and
     `build-video-quality-report`.
-22. Keep the opened editor URL available for human preview.
+24. Keep the opened editor URL available for human preview.
 
 Do not spend the first turn auditing all skill references. Read only the workflow document and the matching recipe unless an implementation or validation failure requires deeper reference lookup.
 
 ## CLI Commands
 
-After `open_codecut_workspace` and `submit_codecut_setup` return a confirmed
-setup token, initialize the local pre-edit workspace before editing execution:
+After `open_codecut_requirement_confirmation`,
+`get_codecut_requirement_confirmation`, and
+`create_codecut_project_from_requirement` return a confirmed setup token, use
+the initialized local pre-edit workspace before editing execution:
 
-If the widget submit path consumed the pending confirmation but the follow-up
-message did not reach the Codex thread, recover the same confirmed setup first:
+Legacy setup-widget projects may still need recovery. If the widget submit path
+consumed the pending confirmation but the follow-up message did not reach the
+Codex thread, recover the same confirmed setup first:
 
 ```text
 recover_codecut_setup(projectId: "<id>", pendingConfirmationId: "ccpending_...")

@@ -497,6 +497,9 @@ describe("Codecut MCP server contract", () => {
 			serverModule.CODECUT_WORKSPACE_TOOLS.map((tool) => tool.name),
 		).toEqual([
 				"open_codecut_workspace",
+				"open_codecut_requirement_confirmation",
+				"get_codecut_requirement_confirmation",
+				"create_codecut_project_from_requirement",
 				"inspect_codecut_setup",
 				"recover_codecut_setup",
 				"list_codecut_builtin_voice_packs",
@@ -509,15 +512,30 @@ describe("Codecut MCP server contract", () => {
 		const submitTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
 			(tool) => tool.name === "submit_codecut_setup",
 		);
+		const requirementOpenTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
+			(tool) => tool.name === "open_codecut_requirement_confirmation",
+		);
+		const requirementGetTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
+			(tool) => tool.name === "get_codecut_requirement_confirmation",
+		);
+		const requirementCreateTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
+			(tool) => tool.name === "create_codecut_project_from_requirement",
+		);
 			const recoverTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
 				(tool) => tool.name === "recover_codecut_setup",
 			);
 			const voiceTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
 				(tool) => tool.name === "list_codecut_builtin_voice_packs",
-			);
-			expect(openTool.readOnly).toBe(true);
-			expect(openTool.modelVisible).toBe(true);
-			expect(recoverTool.readOnly).toBe(true);
+				);
+				expect(openTool.readOnly).toBe(true);
+				expect(openTool.modelVisible).toBe(true);
+				expect(requirementOpenTool.readOnly).toBe(false);
+				expect(requirementOpenTool.modelVisible).toBe(true);
+				expect(requirementGetTool.readOnly).toBe(true);
+				expect(requirementGetTool.modelVisible).toBe(true);
+				expect(requirementCreateTool.readOnly).toBe(false);
+				expect(requirementCreateTool.modelVisible).toBe(true);
+				expect(recoverTool.readOnly).toBe(true);
 			expect(recoverTool.modelVisible).toBe(true);
 			expect(recoverTool.meta).toBeUndefined();
 			expect(submitTool.readOnly).toBe(false);
@@ -608,6 +626,7 @@ describe("Codecut MCP server contract", () => {
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
 		});
+		expect(requirementOpenTool.meta).toBeUndefined();
 
 		const html = await serverModule.readCodecutWorkspaceHtml();
 		const widgetHtml = stripCodecutInjectedBridge(html);
@@ -860,12 +879,318 @@ describe("Codecut MCP server contract", () => {
 			'<button id="submit-button" class="create-project-cta" type="submit" data-i18n="createProject">Create project</button>',
 		);
 		expect(html).toContain(".create-project-cta");
-			expect(html).toContain("--cc-create-cta-background");
-		});
+				expect(html).toContain("--cc-create-cta-background");
+			});
 
-		test("lists built-in voice packs with executable RunningHub clone paths", async () => {
+	test("opens requirement confirmation without creating a project", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-mcp-"));
+		const calls = [];
+		try {
 			const result = await serverModule.callCodecutWorkspaceTool(
-				"list_codecut_builtin_voice_packs",
+				"open_codecut_requirement_confirmation",
+				setupIntent({
+					projectName: "22号解说口播保留原片时长",
+					projectId: "22-abc123",
+					output: {
+						...setupIntent().output,
+						voicePackId: "podcast-female",
+					},
+				}),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+					bridgeToolImpl: async (toolName, args) => {
+						calls.push({ toolName, args });
+						throw new Error(`Unexpected bridge tool ${toolName}`);
+					},
+				},
+			);
+
+			expect(calls).toEqual([]);
+			expect(result.structuredContent).toMatchObject({
+				status: "awaiting_user_confirmation",
+				nextAction: "open_requirement_confirmation_page",
+			});
+			expect(result.structuredContent.draftId).toMatch(/^ccreq_/);
+			expect(result.structuredContent.confirmationUrl).toContain(
+				"/en/requirements/",
+			);
+			expect(result.content[0].text).toContain(
+				"Open the confirmation URL in the Codex in-app browser",
+			);
+			expect(result._meta).toBeUndefined();
+
+			const draft = JSON.parse(
+				await readFile(
+					join(
+						directory,
+						".codecut-workspace",
+						"requirements",
+						result.structuredContent.draftId,
+						"draft.json",
+					),
+					"utf8",
+				),
+			);
+			expect(draft.requestedProjectName).toBe("22号解说口播保留原片时长");
+			expect(draft.voicePreferences.voicePackId).toBe("podcast-female");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("normalizes requirement confirmation locale to supported web routes", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-mcp-"));
+		try {
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_requirement_confirmation",
+				setupIntent({
+					locale: "zh-CN",
+					uiLanguage: "zh-CN",
+				}),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+
+			expect(result.structuredContent.confirmationUrl).toContain(
+				"/zh/requirements/",
+			);
+			expect(result.structuredContent.confirmationUrl).not.toContain(
+				"/zh-CN/requirements/",
+			);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("reads pending requirement confirmation without bridge side effects", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-mcp-"));
+		try {
+			const opened = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_requirement_confirmation",
+				setupIntent(),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+
+			const readback = await serverModule.callCodecutWorkspaceTool(
+				"get_codecut_requirement_confirmation",
+				{ draftId: opened.structuredContent.draftId },
+				{
+					cwd: directory,
+					bridgeToolImpl: async (toolName) => {
+						throw new Error(`Unexpected bridge tool ${toolName}`);
+					},
+				},
+			);
+
+			expect(readback.structuredContent).toMatchObject({
+				status: "awaiting_user_confirmation",
+				draftId: opened.structuredContent.draftId,
+				nextAction: "wait_for_user_confirmation",
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("blocks project creation while requirement is pending", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-mcp-"));
+		const calls = [];
+		try {
+			const opened = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_requirement_confirmation",
+				setupIntent(),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"create_codecut_project_from_requirement",
+				{ draftId: opened.structuredContent.draftId },
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+					bridgeToolImpl: async (toolName, args) => {
+						calls.push({ toolName, args });
+						throw new Error(`Unexpected bridge tool ${toolName}`);
+					},
+				},
+			);
+
+			expect(calls).toEqual([]);
+			expect(result.structuredContent).toMatchObject({
+				status: "confirmation_required",
+				nextAction: "wait_for_user_confirmation",
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("creates a project from a confirmed requirement", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-mcp-"));
+		const filePath = join(directory, "source.mp4");
+		await writeFile(filePath, "video");
+		const calls = [];
+		const bridgeToolImpl = async (toolName, args) => {
+			calls.push({ toolName, args });
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "launch-cut-001",
+						name: "Launch Cut",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-001",
+					},
+				};
+			}
+			if (toolName === "import_media") {
+				return {
+					structuredContent: {
+						status: "completed",
+						results: [
+							{
+								success: true,
+								data: {
+									assets: [{ id: "media-1", name: "source.mp4" }],
+								},
+							},
+						],
+					},
+				};
+			}
+			if (toolName === "get_project_info") {
+				return {
+					structuredContent: {
+						results: [{ success: true, data: { revision: 2 } }],
+					},
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+
+		try {
+			const opened = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_requirement_confirmation",
+				setupIntent({
+					projectId: "launch-cut-001",
+					projectName: "Launch Cut",
+					mediaSources: [{ kind: "filePath", filePath }],
+					output: {
+						...setupIntent().output,
+						voicePackId: "podcast-male",
+					},
+				}),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+			const draft = opened.structuredContent.draft;
+			await writeFile(
+				join(
+					directory,
+					".codecut-workspace",
+					"requirements",
+					draft.draftId,
+					"confirmed.json",
+				),
+				`${JSON.stringify(
+					{
+						version: 1,
+						draftId: draft.draftId,
+						status: "confirmed",
+						confirmedAt: "2026-07-01T00:00:00.000Z",
+						source: "codecut_requirement_confirmation",
+						confirmedBy: "local_web_page",
+						confirmedSetup: {
+							version: 1,
+							taskType: draft.taskType,
+							confirmedAt: "2026-07-01T00:00:00.000Z",
+							source: "codecut_setup_confirmation",
+							timelinePreferences: draft.timelinePreferences,
+							captionPreferences: draft.captionPreferences,
+							voicePreferences: draft.voicePreferences,
+							exportPreferences: draft.exportPreferences,
+							changes: [],
+						},
+					},
+					null,
+					2,
+				)}\n`,
+				"utf8",
+			);
+
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"create_codecut_project_from_requirement",
+				{ draftId: draft.draftId },
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+						CODECUT_CONFIRMATION_ROOT: directory,
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+					bridgeToolImpl,
+				},
+			);
+
+			expect(calls.map((call) => call.toolName)).toEqual([
+				"create_project",
+				"import_media",
+				"get_project_info",
+			]);
+			expect(calls[0].args.confirmedSetup.voicePreferences).toEqual({
+				voicePackId: "podcast-male",
+			});
+			expect(result.structuredContent).toMatchObject({
+				status: "created",
+				projectId: "launch-cut-001",
+				importedMedia: [{ id: "media-1", name: "source.mp4" }],
+			});
+			expect(result.structuredContent.confirmationToken).toMatch(
+				/^ccconfirmed_/,
+			);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+			test("lists built-in voice packs with executable RunningHub clone paths", async () => {
+				const result = await serverModule.callCodecutWorkspaceTool(
+					"list_codecut_builtin_voice_packs",
 				{},
 			);
 
@@ -1145,6 +1470,20 @@ describe("Codecut MCP server contract", () => {
 		expect(html).toContain("pendingConfirmationIdFromPayload(api.toolOutput)");
 		expect(html).toContain(
 			"pendingConfirmationId: currentPendingConfirmationId",
+		);
+	});
+
+	test("requirement confirmation uses the real web page instead of an inline MCP opener", async () => {
+		const source = await readFile(
+			new URL("./server.mjs", import.meta.url),
+			"utf8",
+		);
+
+		expect(source).not.toContain("CODECUT_REQUIREMENT_CONFIRMATION_RESOURCE_URI");
+		expect(source).not.toContain("readCodecutRequirementConfirmationHtml");
+		expect(source).not.toContain("registerCodecutRequirementConfirmationResource");
+		expect(existsSync(new URL("./codecut-requirement-confirmation.html", import.meta.url))).toBe(
+			false,
 		);
 	});
 

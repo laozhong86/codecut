@@ -278,7 +278,7 @@ describe("CodeCut plugin startup guidance", () => {
 		}
 	});
 
-	test("routes new creative intake through the workspace widget before text fallback", async () => {
+	test("routes new creative intake through requirement confirmation before text fallback", async () => {
 		const routerSkill = await readFile(
 			join(pluginRoot, "skills", "codecut", "SKILL.md"),
 			"utf8",
@@ -302,6 +302,7 @@ describe("CodeCut plugin startup guidance", () => {
 			"utf8",
 		);
 		const normalizedRouterSkill = routerSkill.replace(/\r\n/g, "\n");
+		const compactRouterSkill = normalizedRouterSkill.replace(/\s+/g, " ");
 
 		for (const content of [
 			routerSkill,
@@ -309,19 +310,22 @@ describe("CodeCut plugin startup guidance", () => {
 			intakeSkill,
 			intakeAgentCard,
 		]) {
-			expect(content).toContain("open_codecut_workspace");
+			expect(content).toContain("open_codecut_requirement_confirmation");
 		}
 
-		expect(intakeSkill).toContain("workspace widget tool is unavailable");
+		expect(intakeSkill).toContain("requirement confirmation tool is unavailable");
 		expect(intakeSkill).toContain("tool_search");
-		expect(intakeSkill).toContain("mcp__codecut_mcp.open_codecut_workspace");
+		expect(intakeSkill).toContain(
+			"mcp__codecut_mcp.open_codecut_requirement_confirmation",
+		);
 		expect(intakeSkill).toContain("text-only questions");
+		expect(intakeSkill).toContain("create_codecut_project_from_requirement");
 		expect(normalizedRouterSkill).toContain("run `ffprobe` on that local file");
-		expect(normalizedRouterSkill).toContain(
+		expect(compactRouterSkill).toContain(
 			"before loading stage skills, reading other local files",
 		);
 		expect(routerSkill).toContain("loading stage skills");
-		expect(normalizedRouterSkill).toContain("running unrelated shell\ncommands");
+		expect(compactRouterSkill).toContain("running unrelated shell commands");
 		expect(routerSkill).toContain(
 			"before loading child skills or unrelated shell",
 		);
@@ -330,7 +334,7 @@ describe("CodeCut plugin startup guidance", () => {
 		);
 	});
 
-	test("documents fresh-thread widget intake verification", async () => {
+	test("documents fresh-thread requirement confirmation verification", async () => {
 		const agents = await readFile(join(pluginRoot, "AGENTS.md"), "utf8");
 		const checklist = await readFile(
 			join(pluginRoot, "docs", "codecut-widget-intake-fresh-thread.md"),
@@ -340,13 +344,17 @@ describe("CodeCut plugin startup guidance", () => {
 		for (const content of [agents, checklist]) {
 			expect(content).toContain("fresh-thread");
 			expect(content).toContain("verify-codecut-widget-intake-thread.mjs");
-			expect(content).toContain("open_codecut_workspace");
+			expect(content).toContain("open_codecut_requirement_confirmation");
+			expect(content).toContain("get_codecut_requirement_confirmation");
 		}
 		expect(checklist).toContain("do not inspect skills");
 		expect(checklist).toContain(
-			"Use tool_search only if open_codecut_workspace is not visible",
+			"Use tool_search only if open_codecut_requirement_confirmation",
 		);
-			expect(checklist).toContain("The only allowed CodeCut MCP tool call is");
+		expect(checklist).toContain(
+			"codecut_mcp.open_codecut_requirement_confirmation",
+		);
+		expect(checklist).toContain("--require-confirmed-requirement true");
 	});
 
 	test("keeps bridge env command details on the executor surface", async () => {
@@ -636,7 +644,9 @@ describe("CodeCut plugin startup guidance", () => {
 		expect(frameworkSkill).toContain(
 			"Source-only acquisition is not a creative editing job",
 		);
-		expect(frameworkSkill).toContain("Do not open the creative editing widget");
+		expect(frameworkSkill).toContain(
+			"Do not open the creative editing confirmation page",
+		);
 		expect(frameworkAgentCard).toContain(
 			"source-only download/save/extract requests",
 		);

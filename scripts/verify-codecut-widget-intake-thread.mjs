@@ -14,6 +14,7 @@ function usage() {
 		"  node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <id>",
 		"  node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <id> --session-file <path>",
 		"  node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <id> --require-follow-up true",
+		"  node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <id> --require-confirmed-requirement true",
 		"",
 		"Pass only after a fresh @codecut validation thread has rendered the Codecut workspace widget.",
 	].join("\n");
@@ -129,6 +130,97 @@ function isWidgetCall(item) {
 	return false;
 }
 
+function isRequirementOpenCall(item) {
+	if (
+		item.type === "mcpToolCall" &&
+		item.server === "codecut_mcp" &&
+		item.tool === "open_codecut_requirement_confirmation"
+	) {
+		return true;
+	}
+	if (
+		item.type === "function_call" &&
+		(item.name ===
+			"mcp__codecut_mcp.open_codecut_requirement_confirmation" ||
+			item.name === "open_codecut_requirement_confirmation")
+	) {
+		return true;
+	}
+	return false;
+}
+
+function nestedStatus(value) {
+	if (!value || typeof value !== "object") return undefined;
+	if (typeof value.status === "string") return value.status;
+	return (
+		nestedStatus(value.structuredContent) ||
+		nestedStatus(value.result) ||
+		nestedStatus(value.output) ||
+		nestedStatus(value.payload)
+	);
+}
+
+function isRequirementConfirmedReadback(item) {
+	const isGetCall =
+		(item.type === "mcpToolCall" &&
+			item.server === "codecut_mcp" &&
+			item.tool === "get_codecut_requirement_confirmation") ||
+		(item.type === "function_call" &&
+			(item.name ===
+				"mcp__codecut_mcp.get_codecut_requirement_confirmation" ||
+				item.name === "get_codecut_requirement_confirmation"));
+	if (!isGetCall) return false;
+	return nestedStatus(item) === "confirmed";
+}
+
+function containsOpenAiOutputTemplate(value) {
+	if (!value || typeof value !== "object") return false;
+	if (Object.prototype.hasOwnProperty.call(value, "openai/outputTemplate")) {
+		return true;
+	}
+	for (const entry of Object.values(value)) {
+		if (containsOpenAiOutputTemplate(entry)) return true;
+	}
+	return false;
+}
+
+function containsRequirementConfirmationResourceUri(value) {
+	if (typeof value === "string") {
+		return value.startsWith("ui://codecut/") && value.includes("requirement-confirmation");
+	}
+	if (!value || typeof value !== "object") return false;
+	for (const entry of Object.values(value)) {
+		if (containsRequirementConfirmationResourceUri(entry)) return true;
+	}
+	return false;
+}
+
+function hasRequirementInlineOpener(item) {
+	if (!isRequirementOpenCall(item)) return false;
+	return (
+		containsOpenAiOutputTemplate(item) ||
+		containsRequirementConfirmationResourceUri(item)
+	);
+}
+
+function isProjectSideEffectCall(item) {
+	if (item.type === "mcpToolCall" && item.server === "codecut_mcp") {
+		return (
+			item.tool === "submit_codecut_setup" ||
+			item.tool === "create_codecut_project_from_requirement"
+		);
+	}
+	if (item.type === "function_call") {
+		return [
+			"mcp__codecut_mcp.submit_codecut_setup",
+			"submit_codecut_setup",
+			"mcp__codecut_mcp.create_codecut_project_from_requirement",
+			"create_codecut_project_from_requirement",
+		].includes(item.name);
+	}
+	return false;
+}
+
 function isShellCall(item) {
 	return item.type === "function_call" && item.name === "exec_command";
 }
@@ -155,9 +247,24 @@ function flagEnabled(value) {
 	return value === true || value === "true" || value === "1";
 }
 
-export function assertWidgetIntakeThread({ threadId, records, requireFollowUp = false }) {
+export function assertWidgetIntakeThread({
+	threadId,
+	records,
+	requireFollowUp = false,
+	requireConfirmedRequirement = false,
+}) {
 	const items = records.flatMap((record) => collectItems(record, []));
 	const widgetCallCount = items.filter(isWidgetCall).length;
+	const requirementOpenCallCount = items.filter(isRequirementOpenCall).length;
+	const requirementConfirmedReadbackCount = items.filter(
+		isRequirementConfirmedReadback,
+	).length;
+	const requirementInlineOpenerCount = items.filter(
+		hasRequirementInlineOpener,
+	).length;
+	const projectSideEffectCallCount = items.filter(
+		isProjectSideEffectCall,
+	).length;
 	const disallowedShellCallCount = items.filter(isShellCall).length;
 	const disallowedFileChangeCount = items.filter(isFileChange).length;
 	const textFallbackCount = items.filter(isTextFallback).length;
@@ -168,6 +275,51 @@ export function assertWidgetIntakeThread({ threadId, records, requireFollowUp = 
 	}
 	if (disallowedFileChangeCount > 0) {
 		throw new Error("Fresh widget validation thread must not write files.");
+	}
+	if (flagEnabled(requireConfirmedRequirement)) {
+		if (requirementOpenCallCount === 0) {
+			throw new Error(
+				"Codecut requirement confirmation was not proven: missing codecut_mcp.open_codecut_requirement_confirmation mcpToolCall.",
+			);
+		}
+		if (requirementOpenCallCount > 1) {
+			throw new Error(
+				`Codecut requirement confirmation regressed: expected exactly one open_codecut_requirement_confirmation call, found ${requirementOpenCallCount}.`,
+			);
+		}
+		if (requirementInlineOpenerCount > 0) {
+			throw new Error(
+				"Codecut requirement confirmation regressed: found inline MCP App opener metadata.",
+			);
+		}
+		if (projectSideEffectCallCount > 0) {
+			throw new Error(
+				"Codecut requirement confirmation regressed: project creation ran during intake validation.",
+			);
+		}
+		if (requirementConfirmedReadbackCount === 0) {
+			throw new Error(
+				"Codecut requirement confirmation was not proven: missing confirmed get_codecut_requirement_confirmation readback.",
+			);
+		}
+		if (textFallbackCount > 0) {
+			throw new Error(
+				"Codecut requirement confirmation regressed: found text fallback prompt after requirement validation.",
+			);
+		}
+		return {
+			status: "passed",
+			threadId,
+			widgetCallCount,
+			requirementOpenCallCount,
+			requirementConfirmedReadbackCount,
+			requirementInlineOpenerCount,
+			projectSideEffectCallCount,
+			disallowedShellCallCount,
+			disallowedFileChangeCount,
+			textFallbackCount,
+			followUpMessageCount,
+		};
 	}
 	if (widgetCallCount === 0) {
 		const suffix =
@@ -196,6 +348,10 @@ export function assertWidgetIntakeThread({ threadId, records, requireFollowUp = 
 		status: "passed",
 		threadId,
 		widgetCallCount,
+		requirementOpenCallCount,
+		requirementConfirmedReadbackCount,
+		requirementInlineOpenerCount,
+		projectSideEffectCallCount,
 		disallowedShellCallCount,
 		disallowedFileChangeCount,
 		textFallbackCount,
@@ -207,6 +363,7 @@ export async function runWidgetIntakeVerification({
 	threadId,
 	sessionFile,
 	requireFollowUp,
+	requireConfirmedRequirement,
 	sessionsRoot = join(process.env.CODEX_HOME ?? join(homedir(), ".codex"), "sessions"),
 }) {
 	if (!threadId) {
@@ -221,6 +378,7 @@ export async function runWidgetIntakeVerification({
 		threadId,
 		records,
 		requireFollowUp: flagEnabled(requireFollowUp),
+		requireConfirmedRequirement: flagEnabled(requireConfirmedRequirement),
 	});
 	return { ...report, sessionFile: filePath };
 }
@@ -237,6 +395,7 @@ if (isCli) {
 			sessionFile: flags.sessionFile,
 			sessionsRoot: flags.sessionsRoot,
 			requireFollowUp: flags.requireFollowUp,
+			requireConfirmedRequirement: flags.requireConfirmedRequirement,
 		});
 		console.log(JSON.stringify(result, null, 2));
 	} catch (error) {

@@ -928,8 +928,9 @@ export async function runPluginFreshness({
 			"Current Codex session tool surface cannot be proven from this shell command. Validate in a fresh Codex session with tool_search.",
 		data: {
 			requiresFreshSession: true,
-			toolSearchQuery: "open_codecut_workspace Codecut MCP",
-			expectedTool: "codecut_mcp.open_codecut_workspace",
+			toolSearchQuery:
+				"open_codecut_requirement_confirmation CodeCut requirement confirmation page",
+			expectedTool: "codecut_mcp.open_codecut_requirement_confirmation",
 			reason:
 				"Codex sessions and MCP server processes may keep old plugin schemas after source/cache updates.",
 		},

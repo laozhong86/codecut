@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -68,6 +74,10 @@ const workspaceVoicePackChoiceValues = [
 	...builtinVoicePackIds,
 ];
 const workspaceResourceMimeType = "text/html;profile=mcp-app";
+const codecutWebRedirectDomains = [
+	"http://127.0.0.1:4100",
+	"http://localhost:4100",
+];
 const codecutServiceStartCommand = "bun run dev:web";
 const defaultCodecutReadinessUrl = "http://127.0.0.1:4100/en/projects";
 const captionFontOptionsToken = "<!-- CODECUT_CAPTION_FONT_OPTIONS -->";
@@ -428,6 +438,16 @@ const workspaceRecoverInputSchema = {
 		.trim()
 		.min(1)
 		.describe("Pending confirmation ID returned by open_codecut_workspace."),
+};
+
+const requirementDraftIdSchema = z
+	.string()
+	.trim()
+	.regex(/^ccreq_[a-z0-9_-]+$/)
+	.describe("CodeCut requirement confirmation draft ID.");
+
+const requirementConfirmationReadInputSchema = {
+	draftId: requirementDraftIdSchema,
 };
 
 const workspaceOpenInputSchema = {
@@ -1526,7 +1546,7 @@ const codecutWorkspaceResourceMeta = {
 	"openai/widgetCSP": {
 		connect_domains: [],
 		resource_domains: [],
-		redirect_domains: ["http://127.0.0.1:4100"],
+		redirect_domains: codecutWebRedirectDomains,
 	},
 };
 
@@ -1567,6 +1587,33 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		readOnly: true,
 		modelVisible: true,
 		meta: codecutWorkspaceToolMeta,
+	},
+	{
+		name: "open_codecut_requirement_confirmation",
+		title: "Open CodeCut Requirement Confirmation",
+		description:
+			"Create a durable local CodeCut requirement confirmation draft and return the local web confirmation URL. This writes only .codecut-workspace/requirements/<draftId>/draft.json and must not create projects, import media, generate media, mutate timelines, or export files.",
+		inputSchema: workspaceOpenInputSchema,
+		readOnly: false,
+		modelVisible: true,
+	},
+	{
+		name: "get_codecut_requirement_confirmation",
+		title: "Get CodeCut Requirement Confirmation",
+		description:
+			"Read a durable CodeCut requirement confirmation draft. Returns awaiting_user_confirmation, confirmed, or cancelled without creating projects, importing media, mutating timelines, or exporting files.",
+		inputSchema: requirementConfirmationReadInputSchema,
+		readOnly: true,
+		modelVisible: true,
+	},
+	{
+		name: "create_codecut_project_from_requirement",
+		title: "Create CodeCut Project From Requirement",
+		description:
+			"Create the CodeCut executor project only after a durable requirement confirmation draft is confirmed. Pending or cancelled drafts stop before project creation, media import, timeline mutation, or export.",
+		inputSchema: requirementConfirmationReadInputSchema,
+		readOnly: false,
+		modelVisible: true,
 	},
 	{
 		name: "inspect_codecut_setup",
@@ -1977,6 +2024,327 @@ export function openCodecutWorkspace(input = {}, { confirmationRoot } = {}) {
 			widgetData: { pendingConfirmationId, intentDefaults },
 		},
 	};
+}
+
+function nowIso() {
+	return new Date().toISOString();
+}
+
+function resolveRequirementStoreRoot({ cwd = pluginRoot, env = process.env } = {}) {
+	return resolve(env.CODECUT_REQUIREMENT_ROOT || cwd);
+}
+
+function requirementStoreDirectory(root, draftId) {
+	return join(resolve(root), ".codecut-workspace", "requirements", draftId);
+}
+
+function writeRequirementJson(filePath, value) {
+	mkdirSync(dirname(filePath), { recursive: true });
+	writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function appendRequirementEvent(root, draftId, event) {
+	const directory = requirementStoreDirectory(root, draftId);
+	mkdirSync(directory, { recursive: true });
+	writeFileSync(
+		join(directory, "events.jsonl"),
+		`${JSON.stringify({ ...event, at: nowIso() })}\n`,
+		{ encoding: "utf8", flag: "a" },
+	);
+}
+
+function newRequirementDraftId(requestedProjectId) {
+	const suffix = randomBytes(5).toString("hex");
+	const stem =
+		String(requestedProjectId || "")
+			.trim()
+			.toLowerCase()
+			.replace(/[^a-z0-9_-]+/g, "-") || "draft";
+	return `ccreq_${stem}_${suffix}`;
+}
+
+function buildRequirementDraftFromInput(input = {}) {
+	assertNoLegacyWorkspaceOpenFields(input);
+	const intentDefaults = buildWorkspaceIntentDefaults(input);
+	const normalized = normalizeWorkspaceIntent({
+		...intentDefaults,
+		confirmedByUser: false,
+	});
+	const confirmedSetup = buildConfirmedSetupFromWorkspaceIntent(normalized);
+	return {
+		version: 1,
+		draftId: newRequirementDraftId(normalized.projectId),
+		status: "awaiting_user_confirmation",
+		createdAt: nowIso(),
+		source: "codecut_requirement_confirmation",
+		originalUserMessage: normalized.requirements,
+		requestedProjectName: normalized.projectName,
+		requestedProjectId: normalized.projectId,
+		mediaSources: normalized.mediaSources,
+		taskType: normalized.taskType,
+		timelinePreferences: confirmedSetup.timelinePreferences,
+		captionPreferences: confirmedSetup.captionPreferences,
+		voicePreferences: confirmedSetup.voicePreferences,
+		exportPreferences: confirmedSetup.exportPreferences,
+		checks: [
+			{
+				id: "setup-intent",
+				ok: true,
+				message: "Requirement draft was normalized from CodeCut setup fields.",
+			},
+		],
+	};
+}
+
+function confirmationUrlForDraft({
+	draftId,
+	cwd = pluginRoot,
+	env = process.env,
+	locale,
+}) {
+	const bridgeEnv = buildBridgeProcessEnv({ cwd, env });
+	const baseUrl = bridgeEnv.CODECUT_AGENT_BRIDGE_URL || "http://127.0.0.1:4100";
+	const normalizedLocale = normalizeWebLocale(locale);
+	return `${baseUrl.replace(/\/$/, "")}/${encodeURIComponent(normalizedLocale)}/requirements/${encodeURIComponent(draftId)}`;
+}
+
+const SUPPORTED_WEB_LOCALES = new Set([
+	"en",
+	"zh",
+	"ja",
+	"ko",
+	"es",
+	"pt",
+	"fr",
+	"de",
+	"id",
+	"vi",
+	"ru",
+	"it",
+]);
+
+function normalizeWebLocale(locale) {
+	const raw = String(locale || "en").trim().replace(/_/g, "-").toLowerCase();
+	if (!raw) return "en";
+	const language = raw.split("-")[0];
+	if (SUPPORTED_WEB_LOCALES.has(language)) return language;
+	return "en";
+}
+
+export function openCodecutRequirementConfirmation(
+	input = {},
+	{ root = pluginRoot, cwd = pluginRoot, env = process.env } = {},
+) {
+	const draft = buildRequirementDraftFromInput(input);
+	const directory = requirementStoreDirectory(root, draft.draftId);
+	mkdirSync(directory, { recursive: true });
+	writeRequirementJson(join(directory, "draft.json"), draft);
+	appendRequirementEvent(root, draft.draftId, { type: "draft_created" });
+	const locale = buildWorkspaceIntentDefaults(input).uiLanguage || "en";
+	const confirmationUrl = confirmationUrlForDraft({
+		draftId: draft.draftId,
+		cwd,
+		env,
+		locale,
+	});
+	return {
+		content: [
+			{
+				type: "text",
+				text: `CodeCut requirement confirmation draft is ready. Open the confirmation URL in the Codex in-app browser for user confirmation: ${confirmationUrl}`,
+			},
+		],
+		structuredContent: {
+			status: "awaiting_user_confirmation",
+			nextAction: "open_requirement_confirmation_page",
+			draftId: draft.draftId,
+			confirmationUrl,
+			draft,
+		},
+	};
+}
+
+export function readCodecutRequirementConfirmation({
+	draftId,
+	root = pluginRoot,
+	cwd = pluginRoot,
+	env = process.env,
+} = {}) {
+	const parsedDraftId = requirementDraftIdSchema.parse(draftId);
+	const directory = requirementStoreDirectory(root, parsedDraftId);
+	const draft = JSON.parse(readFileSync(join(directory, "draft.json"), "utf8"));
+	const confirmationUrl = confirmationUrlForDraft({
+		draftId: parsedDraftId,
+		cwd,
+		env,
+		locale: "en",
+	});
+	try {
+		const confirmation = JSON.parse(
+			readFileSync(join(directory, "confirmed.json"), "utf8"),
+		);
+		if (confirmation.status === "confirmed") {
+			return {
+				content: [
+					{
+						type: "text",
+						text: `CodeCut requirement ${parsedDraftId} is confirmed.`,
+					},
+				],
+				structuredContent: {
+					status: "confirmed",
+					nextAction: "create_project_from_confirmed_requirement",
+					draftId: parsedDraftId,
+					confirmationUrl,
+					draft,
+					confirmed: confirmation,
+					confirmedSetup: confirmation.confirmedSetup,
+				},
+			};
+		}
+		return {
+			content: [
+				{
+					type: "text",
+					text: `CodeCut requirement ${parsedDraftId} was cancelled.`,
+				},
+			],
+			structuredContent: {
+				status: "cancelled",
+				nextAction: "stop_before_project_creation",
+				draftId: parsedDraftId,
+				confirmationUrl,
+				draft,
+				cancelled: confirmation,
+			},
+		};
+	} catch (error) {
+		if (
+			typeof error === "object" &&
+			error !== null &&
+			"code" in error &&
+			error.code === "ENOENT"
+		) {
+			return {
+				content: [
+					{
+						type: "text",
+						text: `CodeCut requirement ${parsedDraftId} is waiting for user confirmation: ${confirmationUrl}`,
+					},
+				],
+				structuredContent: {
+					status: "awaiting_user_confirmation",
+					nextAction: "wait_for_user_confirmation",
+					draftId: parsedDraftId,
+					confirmationUrl,
+					draft,
+				},
+			};
+		}
+		throw error;
+	}
+}
+
+function buildWorkspaceIntentFromConfirmedRequirement({
+	draft,
+	confirmedSetup,
+	pendingConfirmationId,
+}) {
+	const durationGoal = confirmedSetup.timelinePreferences.durationGoal;
+	return {
+		pendingConfirmationId,
+		confirmedByUser: true,
+		projectId: draft.requestedProjectId,
+		projectName: draft.requestedProjectName,
+		taskType: confirmedSetup.taskType,
+		mediaSource: draft.mediaSources[0],
+		mediaSources: draft.mediaSources,
+		targetAspectRatio: confirmedSetup.timelinePreferences.aspectRatio,
+		durationGoalMode: durationGoal.mode,
+		...(durationGoal.rangeSeconds
+			? { durationGoalRangeSeconds: durationGoal.rangeSeconds }
+			: {}),
+		durationContract: confirmedSetup.timelinePreferences.durationContract,
+		captionLanguage: confirmedSetup.captionPreferences.language,
+		transitionPreference:
+			confirmedSetup.timelinePreferences.transitionPreference,
+		output: {
+			format: confirmedSetup.exportPreferences.format,
+			quality: confirmedSetup.exportPreferences.quality,
+			includeAudio: confirmedSetup.exportPreferences.includeAudio,
+			captionFont: confirmedSetup.captionPreferences.font,
+			captionSize: confirmedSetup.captionPreferences.size,
+			captionStylePreset: confirmedSetup.captionPreferences.stylePreset,
+			voicePackId:
+				confirmedSetup.voicePreferences?.voicePackId ||
+				noBuiltinVoicePackId,
+		},
+		generateIntroCover:
+			confirmedSetup.timelinePreferences.generateIntroCover,
+		requirements: confirmedSetup.timelinePreferences.requirements,
+	};
+}
+
+export async function createCodecutProjectFromRequirement(
+	input,
+	{
+		root = pluginRoot,
+		cwd = pluginRoot,
+		env = process.env,
+		confirmationRoot,
+		bridgeToolImpl = callBridgeCliTool,
+		statImpl = stat,
+		workspaceSourceRoot = root,
+	} = {},
+) {
+	const readback = readCodecutRequirementConfirmation({
+		draftId: input?.draftId,
+		root,
+		cwd,
+		env,
+	});
+	const state = readback.structuredContent;
+	if (state.status === "awaiting_user_confirmation") {
+		return buildSetupBlockedResult({
+			status: "confirmation_required",
+			nextAction: "wait_for_user_confirmation",
+			draftId: state.draftId,
+			projectId: state.draft.requestedProjectId,
+			projectName: state.draft.requestedProjectName,
+			confirmationUrl: state.confirmationUrl,
+			error: "Requirement confirmation is still pending.",
+		});
+	}
+	if (state.status === "cancelled") {
+		return buildSetupBlockedResult({
+			status: "requirement_cancelled",
+			nextAction: "stop_before_project_creation",
+			draftId: state.draftId,
+			projectId: state.draft.requestedProjectId,
+			projectName: state.draft.requestedProjectName,
+			confirmationUrl: state.confirmationUrl,
+			error: "Requirement confirmation was cancelled.",
+		});
+	}
+
+	const pendingConfirmationId = createPendingCodecutConfirmation({
+		root: confirmationRoot,
+	});
+	const setupIntent = buildWorkspaceIntentFromConfirmedRequirement({
+		draft: state.draft,
+		confirmedSetup: state.confirmedSetup,
+		pendingConfirmationId,
+	});
+	const result = await submitCodecutSetup(setupIntent, {
+		bridgeToolImpl,
+		statImpl,
+		confirmationRoot,
+		workspaceSourceRoot,
+	});
+	if (result?.structuredContent && typeof result.structuredContent === "object") {
+		result.structuredContent.requirementDraftId = state.draftId;
+	}
+	return result;
 }
 
 function buildCodecutSetupInvalidResult(error) {
@@ -4578,7 +4946,13 @@ function registerCodecutWorkspaceHashedResourceTemplate(server) {
 export async function callCodecutWorkspaceTool(
 	toolName,
 	input,
-	{ cwd = pluginRoot, env = process.env, fetchImpl = fetch } = {},
+	{
+		cwd = pluginRoot,
+		env = process.env,
+		fetchImpl = fetch,
+		bridgeToolImpl = callBridgeCliTool,
+		statImpl = stat,
+	} = {},
 ) {
 	const confirmationRoot = resolveCodecutConfirmationRoot({ env });
 	if (toolName === "open_codecut_workspace") {
@@ -4588,6 +4962,58 @@ export async function callCodecutWorkspaceTool(
 			return openCodecutWorkspace(input, { confirmationRoot });
 		} catch (error) {
 			return buildCodecutSetupInvalidResult(extractErrorMessage(error));
+		}
+	}
+	if (toolName === "open_codecut_requirement_confirmation") {
+		const blocked = await assertCodecutServiceReady({ cwd, env, fetchImpl });
+		if (blocked) return blocked;
+		try {
+			return openCodecutRequirementConfirmation(input, {
+				root: resolveRequirementStoreRoot({ cwd, env }),
+				cwd,
+				env,
+			});
+		} catch (error) {
+			return buildCodecutSetupInvalidResult(extractErrorMessage(error));
+		}
+	}
+	if (toolName === "get_codecut_requirement_confirmation") {
+		try {
+			return readCodecutRequirementConfirmation({
+				draftId: input?.draftId,
+				root: resolveRequirementStoreRoot({ cwd, env }),
+				cwd,
+				env,
+			});
+		} catch (error) {
+			return buildSetupErrorResult({
+				status: "requirement_confirmation_unavailable",
+				nextAction: "open_codecut_requirement_confirmation",
+				draftId: input?.draftId,
+				error: extractErrorMessage(error),
+			});
+		}
+	}
+	if (toolName === "create_codecut_project_from_requirement") {
+		const blocked = await assertCodecutServiceReady({ cwd, env, fetchImpl });
+		if (blocked) return buildCodecutServiceBlockedSetupResult(blocked, input);
+		try {
+			return createCodecutProjectFromRequirement(input, {
+				root: resolveRequirementStoreRoot({ cwd, env }),
+				cwd,
+				env,
+				confirmationRoot,
+				bridgeToolImpl,
+				statImpl,
+				workspaceSourceRoot: resolveRequirementStoreRoot({ cwd, env }),
+			});
+		} catch (error) {
+			return buildSetupErrorResult({
+				status: "requirement_project_creation_unavailable",
+				nextAction: "get_codecut_requirement_confirmation",
+				draftId: input?.draftId,
+				error: extractErrorMessage(error),
+			});
 		}
 	}
 	if (toolName === "inspect_codecut_setup") {
@@ -4614,7 +5040,11 @@ export async function callCodecutWorkspaceTool(
 	if (toolName === "submit_codecut_setup") {
 		const blocked = await assertCodecutServiceReady({ cwd, env, fetchImpl });
 		if (blocked) return buildCodecutServiceBlockedSetupResult(blocked, input);
-		return submitCodecutSetup(input, { confirmationRoot });
+		return submitCodecutSetup(input, {
+			confirmationRoot,
+			bridgeToolImpl,
+			statImpl,
+		});
 	}
 	throw new Error(`Unsupported CodeCut workspace tool: ${toolName}`);
 }
