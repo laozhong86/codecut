@@ -1,0 +1,59 @@
+name: codecut-title-generation
+version: 1
+type: strategy
+primary_dimension: planning
+
+intent:
+  one_line: Generate source-backed short-video title candidates before CodeCut edit planning.
+  target_user: Codex preparing fixed top titles, cover titles, and platform titles that can hand off cleanly to CodeCut planning.
+  success_looks_like:
+    - Top 3 title candidates include formula source, trigger family, material evidence, proof check, risk, and recommendation reason.
+    - fixedTopTitle, coverTitle, and platformTitle lanes are separated.
+    - The default platform is marked as generic short-video when the user does not specify one.
+    - Title quality handoff includes platform, primary keyword, title purpose, and weak title risk.
+    - The skill reports proof gaps instead of inventing claims.
+
+known_failure_modes:
+  - mode: A category label is accepted as the final title.
+    severity: high
+    example: The agent chooses 遮白发 instead of a material-backed hook such as 有白发别急着染.
+  - mode: Xiaohongshu formulas are copied wholesale into CodeCut.
+    severity: high
+    example: The agent pastes all 75 formulas from dbs-xhs-title instead of selecting trigger families that fit the material and platform.
+  - mode: Title generation mutates the timeline.
+    severity: high
+    example: The agent adds a top text overlay before edit planning consumes the title brief.
+  - mode: Viral outcome is promised.
+    severity: high
+    example: The agent says a title is guaranteed to go viral without performance proof.
+
+style_constraints:
+  must_have:
+    - Top 3 with formula source.
+    - Material evidence and proof check per candidate.
+    - Risk and recommendation reason per ranked candidate.
+    - Separate fixedTopTitle coverTitle and platformTitle lanes.
+    - Title Quality Handoff for title_quality.
+  must_not_have:
+    - Do not copy all 75 formulas.
+    - No guaranteed viral claims.
+    - No timeline mutation.
+    - No executor, import, export, or apply claims.
+    - No fake proof, fake data, or unsupported performance claims.
+
+arena_config:
+  noise_band: 0.2
+  min_matches: 8
+  sample_size: 20
+
+holdout_config:
+  train_ratio: 0.6
+  holdout_ratio: 0.4
+  min_holdout_size: 5
+
+gardening:
+  usage_log_entrypoint: _runtime/logs/codecut-title-generation/usage.jsonl
+  retrospective_log_entrypoint: _runtime/logs/codecut-title-generation/retrospective.jsonl
+  log_entry_note: Record requested lanes, platform, formula families used, material evidence quality, selected titles, title_quality handoff, and user corrections. Do not fabricate performance data.
+
+cold_start_mode: true

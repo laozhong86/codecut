@@ -1,0 +1,4 @@
+interface:
+  display_name: "CodeCut Title Generation"
+  short_description: "Generate source-backed fixed top, cover, and platform titles."
+  default_prompt: "Use $codecut-title-generation when a CodeCut job needs source-backed title generation or title improvement before edit planning, including 标题根据素材生成, 顶部固定标题, 封面标题, 视频标题, 爆款标题, fixed top title, cover title, platform title, publish title, or title optimization. Return Top 3 title candidates with formula source, trigger family, material evidence, proof check, risk, recommendation reason, and a title_quality handoff. Do not mutate the timeline, import media, apply an EditPlan, export files, copy all dbs-xhs-title formulas, or claim guaranteed virality."

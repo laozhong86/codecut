@@ -10,6 +10,7 @@ intent:
     - Source-only acquisition requests do not trigger creative editing intake.
     - New creative editing jobs with missing setup fields open the workspace widget before shell, file reads, or text fallback.
     - Material understanding requests route to `codecut-material-understanding` before edit planning.
+    - Title generation requests route to `codecut-title-generation` before edit planning.
     - Timeline mutation routes through strict EditPlan or NarratedRemixPlan paths instead of low-level repair tools.
     - Completion reports include readback proof and explicitly state when MP4 export was not produced.
 
@@ -26,11 +27,15 @@ known_failure_modes:
   - mode: Material understanding is skipped before composition planning.
     severity: high
     example: The agent chooses picture-in-picture or replacement material without a material-understanding report.
+  - mode: Title generation is skipped before edit planning.
+    severity: high
+    example: The agent writes a generic fixed top title such as 遮白发 directly into an EditPlan instead of first producing a title brief.
 
 style_constraints:
   must_have:
     - Stage ownership language stays concise and operational.
     - Material ingest, material understanding, and edit planning stay separate.
+    - Title generation and edit planning stay separate.
     - Runtime gaps are reported instead of silently downgraded.
   must_not_have:
     - Generic workflow optimism without executor or readback proof.

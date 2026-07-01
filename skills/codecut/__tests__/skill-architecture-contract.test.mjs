@@ -18,6 +18,7 @@ const stageSkills = [
 	"codecut-reference-template",
 	"codecut-executor-apply",
 	"codecut-cover-generation",
+	"codecut-title-generation",
 	"codecut-edit-planning",
 ];
 const requiredSections = [
@@ -37,6 +38,7 @@ const expectedStageOwners = new Map([
 	["material-ingest", ["codecut-material-ingest"]],
 	["material-understanding", ["codecut-material-understanding"]],
 	["reference-template", ["codecut-reference-template"]],
+	["title-generation", ["codecut-title-generation"]],
 	["edit-planning", ["codecut-edit-planning"]],
 	["executor-apply", ["codecut-executor-apply"]],
 	["cover-generation", ["codecut-cover-generation"]],
@@ -48,6 +50,7 @@ const supportingFileStages = [
 	"`material-ingest`",
 	"`material-understanding`",
 	"`reference-template`",
+	"`title-generation`",
 	"`edit-planning`",
 	"`executor-apply`",
 	"`timeline-inspection`",
@@ -154,6 +157,7 @@ describe("CodeCut skill architecture v1 contract", () => {
 			"`evidence-build` is a Codex-side workflow phase",
 		);
 		expect(workflowContract).toContain("`codecut-material-understanding`");
+		expect(workflowContract).toContain("`codecut-title-generation`");
 		expect(workflowContract).toContain("`codecut-edit-planning`");
 		expect(workflowContract).not.toMatch(
 			/`evidence-build` and `edit-planning` are Codex-side workflow phases/,
@@ -230,6 +234,29 @@ describe("CodeCut skill architecture v1 contract", () => {
 		expect(router).toContain("帮我理解素材");
 		expect(openai).toContain("script-to-material matching");
 		expect(manifest).toContain("Material understanding requests route");
+	});
+
+	test("router exposes title generation before edit planning", () => {
+		const router = readProjectFile("skills", "codecut", "SKILL.md");
+		const openai = readProjectFile("skills", "codecut", "agents", "openai.yaml");
+		const manifest = readProjectFile("skills", "codecut", "manifest.yaml");
+		const workflowContract = readProjectFile(
+			"skills",
+			"codecut",
+			"references",
+			"workflow-stage-contract.md",
+		);
+
+		for (const content of [router, openai, manifest, workflowContract]) {
+			expect(content).toContain("codecut-title-generation");
+		}
+		expect(router).toContain("标题根据素材生成");
+		expect(router).toContain("顶部固定标题");
+		expect(router).toContain("爆款标题");
+		expect(workflowContract).toMatch(
+			/material-understanding[\s\S]+title-generation[\s\S]+edit-planning/,
+		);
+		expect(manifest).toContain("Title generation requests route");
 	});
 
 	test("router exposes methodology capture triggers at planning start, feedback time, and completion", () => {

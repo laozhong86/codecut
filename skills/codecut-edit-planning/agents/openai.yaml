@@ -8,9 +8,13 @@ interface:
     apply. Require passed requirement intake, material audit,
     material-understanding report when material roles, script matching,
     replacement, picture-in-picture, split-screen, or circular talking-head
-    suitability matters, and needed transcript, VideoContext, visual, business,
-    template, or platform evidence.
+    suitability matters, TitleGenerationBrief from $codecut-title-generation
+    when generated fixed top, cover, platform, optimized, or 爆款 titles are
+    needed, and needed transcript, VideoContext, visual, business, template, or
+    platform evidence.
     Do not call executor tools, mutate timelines, import or export media, create
     baked MP4 replacement paths, make unconfirmed defaults, or silently
-    downgrade unsupported requests. Hand off only the plan draft and verification
-    spec to $codecut-executor-apply.
+    downgrade unsupported requests. Do not invent generated titles during edit
+    planning; hand back to $codecut-title-generation when the TitleGenerationBrief
+    is missing. Hand off only the plan draft and verification spec to
+    $codecut-executor-apply.

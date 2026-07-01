@@ -103,4 +103,17 @@ describe("codecut edit planning skill contract", () => {
 		expect(longToShort).toContain("No candidate clip passes standalone coherence");
 		expect(longToShort).toContain("verification spec");
 	});
+
+	test("requires title generation brief before generated title planning", () => {
+		const skill = readSkillFile("SKILL.md");
+		const manifest = readSkillFile("manifest.yaml");
+		const openai = readSkillFile("agents/openai.yaml");
+
+		for (const content of [skill, manifest, openai]) {
+			expect(content).toContain("codecut-title-generation");
+			expect(content).toContain("TitleGenerationBrief");
+		}
+		expect(skill).toContain("must not invent generated titles during edit planning");
+		expect(skill).toContain("04-planning/title-generation-brief.md");
+	});
 });

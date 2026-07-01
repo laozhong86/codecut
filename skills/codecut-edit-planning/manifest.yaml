@@ -9,6 +9,7 @@ intent:
   success_looks_like:
     - One primary workflow recipe is selected from confirmed intent and material evidence.
     - Material-understanding reports are used before material replacement, picture-in-picture, split-screen, circular talking-head, or script-match decisions.
+    - TitleGenerationBrief from codecut-title-generation is used before planning generated fixed top, cover, or platform titles.
     - Candidate clips are compared before the final plan draft when story, platform, tutorial, product proof, or broad highlight judgment affects the edit.
     - Planning artifacts live under the CodeCut project workspace.
     - Unsupported requested behavior is reported as a blocker instead of being weakened into a different edit.
@@ -26,11 +27,15 @@ known_failure_modes:
   - mode: Material suitability is guessed by planning.
     severity: high
     example: A clip is chosen for circular PIP without a material-understanding report proving talking-head suitability and crop risk.
+  - mode: Generated title copy is invented during edit planning.
+    severity: high
+    example: A plan writes 遮白发 as a fixed top title even though the requirement asked for a title generated from source material and no TitleGenerationBrief exists.
 
 style_constraints:
   must_have:
     - Planning artifacts are tied to requirement intake, material audit, and evidence.
     - Material-understanding evidence is cited when material roles, matching, or composition suitability matters.
+    - TitleGenerationBrief and codecut-title-generation are cited when generated titles are needed.
     - Handoff names the exact plan draft and verification spec for executor apply.
     - Runtime gaps are reported directly.
   must_not_have:
@@ -38,6 +43,7 @@ style_constraints:
     - Hidden defaults for platform, aspect ratio, caption policy, output form, or duration.
     - Weaker replacement edits when the requested plan cannot be represented safely.
     - Material role, script-match, or composition-suitability guesses from filenames.
+    - Generated title guesses without TitleGenerationBrief.
 
 arena_config:
   noise_band: 0.15
