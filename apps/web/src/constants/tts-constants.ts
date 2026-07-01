@@ -11,7 +11,7 @@ export const VOICE_PACKS: VoicePack[] = [
 	{ id: "default", name: "Default", provider: "legacy-tts" },
 	{
 		id: "podcast-female",
-		name: "播客女",
+		name: "女声",
 		provider: "runninghub-voice-clone",
 		referenceAudioUrl: "/voices/podcast-female.mp3",
 		referenceAudioFileName: "podcast-female.mp3",
@@ -19,7 +19,7 @@ export const VOICE_PACKS: VoicePack[] = [
 	},
 	{
 		id: "podcast-male",
-		name: "播客男",
+		name: "男声",
 		provider: "runninghub-voice-clone",
 		referenceAudioUrl: "/voices/podcast-male.mp3",
 		referenceAudioFileName: "podcast-male.mp3",

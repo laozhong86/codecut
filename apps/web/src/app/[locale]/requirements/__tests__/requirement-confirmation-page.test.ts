@@ -18,8 +18,8 @@ describe("requirement confirmation page UI", () => {
 		expect(source).toContain("mediaSources");
 		expect(source).toContain("voicePackId");
 		expect(source).toContain("无配音");
-		expect(source).toContain("播客女");
-		expect(source).toContain("播客男");
+		expect(source).toContain("女声");
+		expect(source).toContain("男声");
 		expect(source).toContain("确认需求");
 		expect(source).toContain("/api/codex-requirements/");
 	});

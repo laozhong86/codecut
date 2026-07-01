@@ -286,8 +286,8 @@ export function RequirementConfirmationClient({
 							}
 						>
 							<option value="none">{t("无配音")}</option>
-							<option value="podcast-female">{t("播客女")}</option>
-							<option value="podcast-male">{t("播客男")}</option>
+							<option value="podcast-female">{t("女声")}</option>
+							<option value="podcast-male">{t("男声")}</option>
 						</select>
 					</label>
 					<label className="grid gap-2 text-sm font-medium">

@@ -199,7 +199,7 @@ describe("TTS service", () => {
 		).rejects.toThrow("TTS spokenScript is missing protected term 'Bosuya'.");
 	});
 
-	test("uses the built-in podcast female voice through RunningHub clone and stores provider metadata", async () => {
+	test("uses the built-in female voice through RunningHub clone and stores provider metadata", async () => {
 		const { generateAndInsertSpeech } = await import("../service");
 		const addedAssets: Array<{
 			projectId: string;
@@ -257,7 +257,7 @@ describe("TTS service", () => {
 		expect(result).toEqual({ duration: 7.25 });
 		expect(cloneVoiceFromReference).toHaveBeenCalledWith({
 			text: "欢迎来到今天的节目。",
-			name: "播客女",
+			name: "女声",
 			apiKeySource: "runtime",
 			referenceAudioFile: expect.any(File),
 		});

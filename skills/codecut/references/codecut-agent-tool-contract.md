@@ -47,7 +47,7 @@ Current callable MCP tools relevant to Codex-driven editing:
 | --- | --- |
 | `get_project_info` | Confirm the active project, canvas, tracks, duration, and media summary. |
 | `list_media_assets` | Inspect imported media assets. |
-| `list_codecut_builtin_voice_packs` | List bundled CodeCut voice-library entries such as `播客女` with absolute local `audioPath` values that can be passed to `generate_runninghub_voice_clone`. |
+| `list_codecut_builtin_voice_packs` | List bundled CodeCut voice-library entries such as `女声` with absolute local `audioPath` values that can be passed to `generate_runninghub_voice_clone`. |
 | `list_system_template_scripts` | List browser-local Codecut system template script summaries before answering “有哪些模板” or applying a named template. |
 | `get_system_template_script` | Read one complete browser-local Codecut system template script by exact ID. |
 | `resolve_system_template_script` | Resolve one browser-local Codecut system template script by ID, name, alias, or default trigger type. |
