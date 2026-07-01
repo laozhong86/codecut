@@ -24,7 +24,7 @@ describe("fresh-session MCP smoke helpers", () => {
 			},
 		};
 		const templateImportTool = {
-			name: "import_system_template_script",
+			name: "import_template",
 			inputSchema: {
 				properties: {
 					projectId: {},
@@ -34,7 +34,7 @@ describe("fresh-session MCP smoke helpers", () => {
 			},
 		};
 		const templateUpdateTool = {
-			name: "update_system_template_script",
+			name: "update_template",
 			inputSchema: {
 				properties: {
 					projectId: {},
@@ -44,7 +44,7 @@ describe("fresh-session MCP smoke helpers", () => {
 			},
 		};
 		const templateDeleteTool = {
-			name: "delete_system_template_script",
+			name: "delete_template",
 			inputSchema: {
 				properties: {
 					projectId: {},
@@ -54,7 +54,7 @@ describe("fresh-session MCP smoke helpers", () => {
 			},
 		};
 		const templateListTool = {
-			name: "list_system_template_scripts",
+			name: "list_templates",
 			inputSchema: {
 				properties: {
 					projectId: {},
@@ -62,7 +62,7 @@ describe("fresh-session MCP smoke helpers", () => {
 			},
 		};
 		const templateGetTool = {
-			name: "get_system_template_script",
+			name: "get_template",
 			inputSchema: {
 				properties: {
 					projectId: {},
@@ -71,7 +71,7 @@ describe("fresh-session MCP smoke helpers", () => {
 			},
 		};
 		const templateResolveTool = {
-			name: "resolve_system_template_script",
+			name: "resolve_template",
 			inputSchema: {
 				properties: {
 					projectId: {},
@@ -91,12 +91,12 @@ describe("fresh-session MCP smoke helpers", () => {
 			...REQUIRED_MCP_TOOLS.filter(
 				(name) =>
 						name !== "import_media" &&
-						name !== "list_system_template_scripts" &&
-						name !== "get_system_template_script" &&
-						name !== "resolve_system_template_script" &&
-						name !== "import_system_template_script" &&
-						name !== "update_system_template_script" &&
-						name !== "delete_system_template_script",
+						name !== "list_templates" &&
+						name !== "get_template" &&
+						name !== "resolve_template" &&
+						name !== "import_template" &&
+						name !== "update_template" &&
+						name !== "delete_template",
 			).map((name) => ({ name, inputSchema: { properties: {} } })),
 		];
 
@@ -140,7 +140,7 @@ describe("fresh-session MCP smoke helpers", () => {
 								},
 							},
 								{
-									name: "list_system_template_scripts",
+									name: "list_templates",
 									inputSchema: {
 										properties: {
 											projectId: {},
@@ -148,7 +148,7 @@ describe("fresh-session MCP smoke helpers", () => {
 									},
 								},
 								{
-									name: "get_system_template_script",
+									name: "get_template",
 									inputSchema: {
 										properties: {
 											projectId: {},
@@ -157,7 +157,7 @@ describe("fresh-session MCP smoke helpers", () => {
 									},
 								},
 								{
-									name: "resolve_system_template_script",
+									name: "resolve_template",
 									inputSchema: {
 										properties: {
 											projectId: {},
@@ -167,7 +167,7 @@ describe("fresh-session MCP smoke helpers", () => {
 									},
 								},
 								{
-									name: "import_system_template_script",
+									name: "import_template",
 									inputSchema: {
 										properties: {
 										projectId: {},
@@ -177,7 +177,7 @@ describe("fresh-session MCP smoke helpers", () => {
 								},
 							},
 							{
-								name: "update_system_template_script",
+								name: "update_template",
 								inputSchema: {
 									properties: {
 										projectId: {},
@@ -187,7 +187,7 @@ describe("fresh-session MCP smoke helpers", () => {
 								},
 							},
 							{
-								name: "delete_system_template_script",
+								name: "delete_template",
 								inputSchema: {
 									properties: {
 										projectId: {},
@@ -199,12 +199,12 @@ describe("fresh-session MCP smoke helpers", () => {
 							...REQUIRED_MCP_TOOLS.filter(
 									(name) =>
 										name !== "import_media" &&
-										name !== "list_system_template_scripts" &&
-										name !== "get_system_template_script" &&
-										name !== "resolve_system_template_script" &&
-										name !== "import_system_template_script" &&
-										name !== "update_system_template_script" &&
-										name !== "delete_system_template_script",
+										name !== "list_templates" &&
+										name !== "get_template" &&
+										name !== "resolve_template" &&
+										name !== "import_template" &&
+										name !== "update_template" &&
+										name !== "delete_template",
 							).map((name) => ({ name, inputSchema: { properties: {} } })),
 						],
 					}),

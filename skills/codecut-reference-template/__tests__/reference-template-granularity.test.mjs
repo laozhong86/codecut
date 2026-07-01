@@ -12,7 +12,7 @@ function readSkillFile(relativePath) {
 describe("codecut reference template granularity guidance", () => {
 	test("requires per-reference beat and copy breakdown before template import confirmation", () => {
 		const skill = readSkillFile("SKILL.md");
-		const contract = readSkillFile("references/template-script-contract.md");
+		const contract = readSkillFile("references/template-contract.md");
 
 		for (const content of [skill, contract]) {
 			expect(content).toContain("Per-Reference Beat And Copy Breakdown");
@@ -41,7 +41,7 @@ describe("codecut reference template granularity guidance", () => {
 		const metadata = readSkillFile("agents/openai.yaml");
 
 		expect(metadata).toContain("confirmed draft");
-		expect(metadata).toContain("system-template import");
+		expect(metadata).toContain("template import");
 		expect(metadata).toContain("visual-only");
 		expect(metadata).toContain("not import-ready");
 		expect(metadata).toContain("unsupported runtime gaps");

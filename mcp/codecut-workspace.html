@@ -495,6 +495,17 @@
               </select>
             </label>
             <label>
+              <span data-i18n="templatePreference">Template</span>
+              <select id="template-preference-mode" name="templatePreferenceMode">
+                <option value="auto" data-i18n="templatePreferenceAuto">Auto match</option>
+                <option value="specified" data-i18n="templatePreferenceSpecified">Specified template</option>
+              </select>
+            </label>
+            <label>
+              <span data-i18n="requestedTemplate">Requested template</span>
+              <input id="requested-template" name="requestedTemplate" type="text" data-i18n-placeholder="requestedTemplatePlaceholder">
+            </label>
+            <label>
               <span data-i18n="format">Format</span>
               <select id="output-format" name="outputFormat">
                 <option value="mp4">mp4</option>
@@ -629,6 +640,11 @@
             transitionPreferenceSlideDown: "Slide down",
             transitionPreferenceZoomIn: "Zoom in",
             transitionPreferenceZoomOut: "Zoom out",
+            templatePreference: "Template",
+            templatePreferenceAuto: "Auto match",
+            templatePreferenceSpecified: "Specified template",
+            requestedTemplate: "Requested template",
+            requestedTemplatePlaceholder: "Template ID, name, or alias",
             format: "Format",
             quality: "Quality",
             qualityLow: "low",
@@ -744,6 +760,11 @@
             transitionPreferenceSlideDown: "向下滑动",
             transitionPreferenceZoomIn: "推近",
             transitionPreferenceZoomOut: "拉远",
+            templatePreference: "模板",
+            templatePreferenceAuto: "自动匹配",
+            templatePreferenceSpecified: "指定模板",
+            requestedTemplate: "指定模板",
+            requestedTemplatePlaceholder: "模板 ID、名称或别名",
             format: "格式",
             quality: "质量",
             qualityLow: "低",
@@ -806,6 +827,8 @@
           captionSize: document.getElementById("caption-size"),
           captionStylePreset: document.getElementById("caption-style-preset"),
           transitionPreference: document.getElementById("transition-preference"),
+          templatePreferenceMode: document.getElementById("template-preference-mode"),
+          requestedTemplate: document.getElementById("requested-template"),
           outputFormat: document.getElementById("output-format"),
           outputQuality: document.getElementById("output-quality"),
           includeAudio: document.getElementById("include-audio"),
@@ -912,6 +935,10 @@
           setSelectValue(fields.captionSize, defaults.output?.captionSize || "medium");
           setSelectValue(fields.captionStylePreset, defaults.output?.captionStylePreset || "creator-clean");
           setSelectValue(fields.transitionPreference, defaults.transitionPreference || "auto");
+          setSelectValue(fields.templatePreferenceMode, defaults.templatePreference?.mode || "auto");
+          fields.requestedTemplate.value = defaults.templatePreference?.mode === "specified"
+            ? String(defaults.templatePreference.requestedTemplate || "")
+            : "";
           setSelectValue(fields.outputFormat, defaults.output?.format || "mp4");
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
@@ -1462,6 +1489,16 @@
           return normalizeDurationContract(null, durationGoal);
         }
 
+        function collectTemplatePreference() {
+          if (fields.templatePreferenceMode.value === "specified") {
+            return {
+              mode: "specified",
+              requestedTemplate: fields.requestedTemplate.value.trim(),
+            };
+          }
+          return { mode: "auto" };
+        }
+
         function collectIntent() {
           const mediaSources = collectMediaSources();
           const durationGoal = collectDurationGoal();
@@ -1478,6 +1515,7 @@
             durationContract: collectDurationContract(durationGoal),
             captionLanguage: fields.captionLanguage.value.trim() || "auto",
             transitionPreference: fields.transitionPreference.value,
+            templatePreference: collectTemplatePreference(),
             output: {
               format: fields.outputFormat.value,
               quality: fields.outputQuality.value,

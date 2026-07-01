@@ -9,7 +9,7 @@ import { streamChatCompletion } from "./llm-client";
 import { buildSystemPrompt } from "./system-prompt";
 import { getAllToolSchemas, getToolByName } from "./tools";
 import { type AgentTool, buildToolSchema } from "./tools/types";
-import { localTemplateScriptService } from "@/lib/template-scripts";
+import { templateService } from "@/lib/templates";
 import type {
 	AgentLLMConfig,
 	AgentMessage,
@@ -254,7 +254,7 @@ export async function runAgentLoop({
 
 	const baseToolSchemas = getAllToolSchemas();
 	const conversationMessages = [...messages];
-	const localTemplateScripts = await localTemplateScriptService.listTemplates();
+	const templates = await templateService.listTemplates();
 	let rounds = 0;
 
 	while (rounds < MAX_TOOL_ROUNDS) {
@@ -265,7 +265,7 @@ export async function runAgentLoop({
 
 		const systemPrompt = buildSystemPrompt({
 			roleId: activeRoleId,
-			localTemplateScripts,
+			templates,
 		});
 		const toolSchemas = switchRoleTool
 			? [...baseToolSchemas, buildToolSchema({ tool: switchRoleTool })]

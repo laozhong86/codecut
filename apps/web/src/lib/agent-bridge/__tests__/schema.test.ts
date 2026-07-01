@@ -83,36 +83,36 @@ describe("agent bridge schema", () => {
 		).toBe(true);
 	});
 
-	test("accepts the system template import tool", () => {
+	test("accepts the template import tool", () => {
 		const result = BridgeToolNameSchema.safeParse(
-			"import_system_template_script",
+			"import_template",
 		);
 		expect(result.success).toBe(true);
 	});
 
-	test("accepts the system template update tool", () => {
+	test("accepts the template update tool", () => {
 		const result = BridgeToolNameSchema.safeParse(
-			"update_system_template_script",
+			"update_template",
 		);
 		expect(result.success).toBe(true);
 	});
 
-	test("accepts the system template delete tool", () => {
+	test("accepts the template delete tool", () => {
 		const result = BridgeToolNameSchema.safeParse(
-			"delete_system_template_script",
+			"delete_template",
 		);
 		expect(result.success).toBe(true);
 	});
 
-	test("accepts the system template query tools", () => {
+	test("accepts the template query tools", () => {
 		expect(
-			BridgeToolNameSchema.safeParse("list_system_template_scripts").success,
+			BridgeToolNameSchema.safeParse("list_templates").success,
 		).toBe(true);
 		expect(
-			BridgeToolNameSchema.safeParse("get_system_template_script").success,
+			BridgeToolNameSchema.safeParse("get_template").success,
 		).toBe(true);
 		expect(
-			BridgeToolNameSchema.safeParse("resolve_system_template_script").success,
+			BridgeToolNameSchema.safeParse("resolve_template").success,
 		).toBe(true);
 	});
 

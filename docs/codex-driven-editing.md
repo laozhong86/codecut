@@ -121,9 +121,9 @@ Required pre-edit order for user-provided materials:
 Workspace files are local evidence and planning artifacts. They are not Codecut
 timeline state and are excluded from git and plugin-cache sync.
 
-## Video Template Manifest
+## Template Library
 
-P0 video templates live in `apps/web/src/lib/video-templates/registry.ts` and are validated by `apps/web/src/lib/video-templates/schema.ts`. They are Agent planning constraints, not a runtime template marketplace, automatic repair layer, or silent fallback.
+Codecut templates live in `apps/web/src/lib/templates/registry.ts` and are validated by `apps/web/src/lib/templates/schema.ts`. Built-in templates and user-imported templates share one `Template` schema and one resolver. They are Agent planning constraints, not a runtime template marketplace, automatic repair layer, or silent fallback.
 
 Every manifest declares:
 
@@ -135,7 +135,7 @@ Every manifest declares:
 - `stopConditions`: unsupported requests that must stop before mutation.
 - `verification`: the readback proof expected after apply.
 
-P0 template ids:
+Built-in template IDs:
 
 | Template ID | Use case | Required evidence | Execution path |
 | --- | --- | --- | --- |
@@ -148,7 +148,8 @@ Selection order:
 
 ```text
 material audit
-  -> template resolve
+  -> resolve_template
+  -> write 04-planning/template-resolution.json and markdown evidence
   -> EditingDecisionLedger or NarratedRemixPlan
   -> strict EditPlan v1 or NarratedRemixPlan v1
   -> apply_edit_plan or apply_narrated_remix_plan
@@ -873,7 +874,7 @@ After application, Codex must verify `get_timeline_state` proof fields:
 14. Codex selects the target media asset for editing.
 15. Codex calls `transcribe_media` for that media asset when the selected outcome needs transcript evidence.
 16. Codex audits material facts: transcript, visual proof, product facts, existing narration audio, and visual B-roll.
-17. Codex resolves one P0 video template or reports why no implemented template can satisfy the request.
+17. Codex calls `resolve_template` and writes `04-planning/template-resolution.json` plus short markdown evidence, or reports why no template can satisfy the request.
 18. Codex calls `build_video_context` for transcript-first planning when a long
    source video needs structured context.
 19. Codex calls `build-visual-context` when tutorial, product-proof,
@@ -966,7 +967,7 @@ When the request includes one absolute local media file and a concrete target su
 13. Import the local file with the confirmed setup token.
 14. List media and select the imported audio/video asset.
 15. Transcribe through the local executor when the selected outcome needs transcript evidence.
-16. Audit material facts and resolve one P0 video template.
+16. Audit material facts and resolve one Codecut template.
 17. Build local VideoContext with `build-video-context` when long-video or transcript-first planning needs source-timestamped context.
 18. Inspect ambiguous or reframe-sensitive source ranges with
    `inspect-video-range` before writing the EditPlan.
@@ -1109,25 +1110,25 @@ Bytes/base64 imports do not have a reliable source path to probe, so callers
 must provide required video or audio metadata explicitly. Verify imports with
 `list_media_assets` before sourceCrop, cover-fit, or export-sensitive planning.
 
-Import a user-confirmed reference-derived template draft into Codecut system
-templates only after explicit confirmation:
+Import a user-confirmed reference-derived template draft into Codecut templates
+only after explicit confirmation:
 
 ```bash
-node scripts/codex-bridge.mjs import-system-template-script \
+node scripts/codex-bridge.mjs import-template \
   --project-id <id> \
-  --template-json-file /absolute/path/local-template-script.json \
+  --template-json-file /absolute/path/template.json \
 	  --confirmed-by-user true
 ```
 
-Read browser-local Codecut system template scripts only after opening the
-editor URL for one project so the browser bridge is mounted. These reads do not
-mutate templates or timelines; system template scripts remain planning data and
-do not replace EditPlan validation or timeline readback:
+Read browser-local Codecut templates only after opening the editor URL for one
+project so the browser bridge is mounted. These reads do not mutate templates or
+timelines; templates remain planning data and do not replace EditPlan validation
+or timeline readback:
 
 ```bash
 node scripts/codex-bridge.mjs send \
   --project-id <id> \
-  --tool list_system_template_scripts \
+  --tool list_templates \
   --args-json '{}'
 ```
 

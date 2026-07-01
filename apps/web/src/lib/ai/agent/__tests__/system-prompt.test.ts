@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { EditorCore } from "@/core";
 import { buildDefaultScene } from "@/lib/scenes";
-import { createLocalTemplateScript } from "@/lib/template-scripts";
+import { createTemplate } from "@/lib/templates";
 import { buildSystemPrompt } from "../system-prompt";
 
 function initializePromptProject() {
@@ -41,39 +41,44 @@ describe("buildSystemPrompt", () => {
 		EditorCore.reset();
 	});
 
-	test("exposes the P0 video template planning contract", () => {
+	test("exposes the unified template planning contract", () => {
 		initializePromptProject();
 
 		const prompt = buildSystemPrompt();
 
-		expect(prompt).toContain("P0 Video Template Contract");
+		expect(prompt).toContain("Template Contract");
 		expect(prompt).toContain("talking-head-short");
 		expect(prompt).toContain("tutorial-demo");
 		expect(prompt).toContain("product-proof-ad");
 		expect(prompt).toContain("narrated-broll");
 		expect(prompt).toContain("Templates are planning constraints");
+		expect(prompt).toContain("call resolve_template");
 		expect(prompt).toContain("does not support TTS");
 		expect(prompt).toContain("BGM");
 		expect(prompt).toContain("SFX");
 		expect(prompt).toContain("video or image B-roll");
 		expect(prompt).toContain("independent timed text elements");
 		expect(prompt).not.toContain("does not support TTS, BGM, SFX, image B-roll");
+		expect(prompt).not.toContain(["P0", "Video", "Template"].join(" "));
+		expect(prompt).not.toContain(["system", "template", "script"].join(" "));
 	});
 
-	test("exposes Codecut system template scripts as read-only editing context", () => {
+	test("exposes Codecut templates as editing context", () => {
 		initializePromptProject();
 
 		const prompt = buildSystemPrompt({
-			localTemplateScripts: [
-				createLocalTemplateScript({
+			templates: [
+				createTemplate({
 					id: "ugc-proof",
-					name: "UGC proof script",
+					name: "UGC proof template",
+					source: "user",
+					readOnly: false,
 					trigger: {
 						types: ["product-proof-ad"],
 						defaultForTypes: ["product-proof-ad"],
 						aliases: ["ugc proof"],
 					},
-					script: {
+					plan: {
 						objective: "Build a proof-led product short.",
 						steps: [
 							{
@@ -84,18 +89,37 @@ describe("buildSystemPrompt", () => {
 						],
 						verification: ["Claims must map to visible proof."],
 					},
+					execution: {
+						path: "edit-plan-v1",
+						requiredEvidence: [
+							"transcript",
+							"visual-proof",
+							"product-facts",
+						],
+						defaultStructure: ["hook", "proof", "CTA"],
+						captionPreset: "creator-clean",
+						stopConditions: ["Product facts are missing."],
+					},
 					now: new Date("2026-06-22T00:00:00.000Z"),
 				}),
 			],
 		});
 
-		expect(prompt).toContain("Codecut System Template Scripts");
+		expect(prompt).toContain("Codecut Templates");
 		expect(prompt).toContain("ugc-proof");
 		expect(prompt).toContain("Default triggers: product-proof-ad");
+		expect(prompt).toContain("Execution path: edit-plan-v1");
+		expect(prompt).toContain(
+			"Required evidence: transcript, visual-proof, product-facts",
+		);
 		expect(prompt).toContain("Open with the strongest visible proof.");
-		expect(prompt).toContain("Read the matching system template script");
+		expect(prompt).toContain("Before any EditingDecisionLedger");
 		expect(prompt).toContain(
 			"Do not read draft template JSON files as the source of truth",
+		);
+		expect(prompt).toContain("import_template");
+		expect(prompt).not.toContain(
+			["import", "system", "template", "script"].join("_"),
 		);
 	});
 });

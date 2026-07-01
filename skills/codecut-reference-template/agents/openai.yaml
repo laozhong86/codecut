@@ -6,7 +6,7 @@ interface:
     videos to learn editing style, derive reusable techniques, draft a Codecut
     template, import a confirmed draft, or apply a saved template to new source
     material. Treat draft files as provenance only until the user confirms the
-    exact draft for system-template import. Collect speech, visible-copy,
+    exact draft for template import. Collect speech, visible-copy,
     timing, and visual evidence when they drive the reference; label visual-only
     drafts as not import-ready when transcript or copy evidence is missing. Name
     unsupported runtime gaps instead of silently downgrading effects. Applying a

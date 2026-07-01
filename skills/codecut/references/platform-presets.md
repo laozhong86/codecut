@@ -2,7 +2,7 @@
 
 Use platform presets to constrain EditPlan defaults. Presets are planning defaults, not hidden runtime fallbacks. If the user gives a different requirement, use the user's explicit requirement and state the tradeoff.
 
-P0 video templates read these presets as parameter guidance after template resolution. Presets do not select a weaker template, invent missing evidence, or repair unsupported execution paths. The execution order is material audit -> template resolve -> platform preset parameters -> decision ledger or strict plan -> apply -> readback.
+Codecut templates read these presets as parameter guidance after template resolution. Presets do not select a weaker template, invent missing evidence, or repair unsupported execution paths. The execution order is material audit -> template resolve -> platform preset parameters -> decision ledger or strict plan -> apply -> readback.
 
 ## Short-Form Vertical
 

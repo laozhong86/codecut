@@ -27,12 +27,12 @@ export const BridgeToolNameSchema = z.enum([
 	"build_volcengine_url_captions",
 	"transcribe_volcengine_media",
 	"build_volcengine_media_captions",
-	"list_system_template_scripts",
-	"get_system_template_script",
-	"resolve_system_template_script",
-	"import_system_template_script",
-	"update_system_template_script",
-	"delete_system_template_script",
+	"list_templates",
+	"get_template",
+	"resolve_template",
+	"import_template",
+	"update_template",
+	"delete_template",
 ]);
 
 export const BridgeCommandSchema = z

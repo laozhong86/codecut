@@ -8,7 +8,7 @@ import { maskedEffectTools } from "./masked-effect-tools";
 import { mediaTools } from "./media-tools";
 import { narratedRemixTools } from "./narrated-remix-tools";
 import { projectTools } from "./project-tools";
-import { systemTemplateTools } from "./system-template-tools";
+import { templateTools } from "./template-tools";
 import { timelineTools } from "./timeline-tools";
 import { transcriptionTools } from "./transcription-tools";
 import { ttsTools } from "./tts-tools";
@@ -21,7 +21,7 @@ const ALL_TOOLS: AgentTool[] = [
 	...transcriptionTools,
 	...editPlanTools,
 	...narratedRemixTools,
-	...systemTemplateTools,
+	...templateTools,
 	...maskedEffectTools,
 	...captionTools,
 	...aiGenerationTools,
