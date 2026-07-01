@@ -86,8 +86,8 @@ describe("codecut scriptwriting skill contract", () => {
 		expect(manifest).toContain("name: codecut-scriptwriting");
 		expect(manifest).toContain("type: strategy");
 		expect(openai).toContain("Use $codecut-scriptwriting");
-		expect(openai).toContain("cover titles");
 		expect(openai).toContain("voiceover scripts");
+		expect(openai).toContain("$codecut-title-generation");
 	});
 
 	test("is routed from the CodeCut entrypoint as an upstream non-mutation skill", () => {
@@ -104,5 +104,18 @@ describe("codecut scriptwriting skill contract", () => {
 			expect(content).toContain("ScriptwritingBrief");
 			expect(content).toContain("timeline mutation");
 		}
+	});
+
+	test("delegates title-only jobs to the dedicated title generation skill", () => {
+		const skill = expectFile("SKILL.md");
+		const openai = expectFile("agents/openai.yaml");
+		const manifest = expectFile("manifest.yaml");
+
+		for (const content of [skill, openai, manifest]) {
+			expect(content).toContain("codecut-title-generation");
+		}
+		expect(skill).toContain("Title-only requests belong to");
+		expect(skill).toContain("voiceover script");
+		expect(skill).toContain("De-AI");
 	});
 });

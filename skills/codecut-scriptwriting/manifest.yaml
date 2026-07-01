@@ -4,10 +4,12 @@ type: strategy
 primary_dimension: planning
 
 intent:
-  one_line: Generate CodeCut-ready cover titles, video titles, voiceover scripts, and de-AI copy before editing.
+  one_line: Generate CodeCut-ready hooks, voiceover scripts, and de-AI copy before editing.
   target_user: Codex preparing short-form video copy that can hand off cleanly to CodeCut planning and timeline work.
   success_looks_like:
     - Cover titles and video titles are separated instead of merged into one field.
+    - Mixed script jobs may reference cover title and video title lanes from TitleGenerationBrief.
+    - Title-only requests route to codecut-title-generation before scriptwriting.
     - Title candidates include trigger family, rationale, proof check, and Top 3 judgment.
     - Voiceover scripts are written as visual beats that later CodeCut planning can map to timeline decisions.
     - De-AI rewrites preserve facts while removing generic AI phrasing.
@@ -17,6 +19,9 @@ known_failure_modes:
   - mode: Cover title and video title are collapsed into one generic headline.
     severity: high
     example: Agent outputs only one title and never states whether it is for the cover or platform discovery.
+  - mode: Title-only work bypasses the dedicated title generation skill.
+    severity: high
+    example: Agent generates a fixed top title directly in scriptwriting instead of using codecut-title-generation.
   - mode: De-AI rewrite adds fake slang or fake intimacy.
     severity: high
     example: Agent rewrites a product proof script into forced internet slang that the creator would not say.
@@ -30,6 +35,7 @@ known_failure_modes:
 style_constraints:
   must_have:
     - Separate coverTitle and videoTitle lanes.
+    - Route title-only work through codecut-title-generation.
     - Proof checks for claims and titles.
     - Spoken beats with visual intent for voiceover scripts.
     - Explicit de-AI diagnosis before rewrite.

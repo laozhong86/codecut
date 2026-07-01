@@ -20,6 +20,7 @@ stage.
 | --- | --- | --- | --- | --- |
 | Need to classify edit intent or choose one recipe | `references/editing-intent-router.md` | The user asks for a cut, subtitle pass, narration remix, project inspection, platform short, product proof, tutorial, or style application | Requirement intake, material audit, material-understanding report, or required evidence is missing | None; this skill does not mutate timeline state |
 | Need material replacement, picture-in-picture, split-screen, circular talking-head, or script-to-material decisions | `../codecut-material-understanding/SKILL.md`, then the matching recipe | Material role, visual suitability, crop risk, or script match affects the edit | `02-inventory/material-understanding.json` is missing, stale, or lacks needed evidence | Handoff verification spec only |
+| Need generated fixed top, cover, or platform title in the plan | `../codecut-title-generation/SKILL.md` | The requirement asks for 标题根据素材生成, 顶部固定标题, 封面标题, 视频标题, 标题优化, or 爆款标题 and the user did not provide an explicit final title | `04-planning/title-generation-brief.md` or TitleGenerationBrief handoff is missing | Handoff verification spec only |
 | Need to apply confirmed user methodology at the start of planning | `../codecut-methodology-capture/SKILL.md` for private-store rules, then the matching recipe | `.codecut-workspace/user-methodology/profile.md` or `rules.md` exists | Current user instructions conflict with stored methodology | Read-only methodology context only |
 | Need long-to-short, platform short, product proof, tutorial, or broad highlight planning | `references/workflow-recipes/long-to-short.md` | Candidate clip comparison, story structure, proof, crop viability, or first-frame promise affects the result | No candidate clip passes standalone coherence or required transcript/visual/business evidence is missing | Handoff verification spec only |
 | Need speech cleanup or talking-head polish planning | `references/workflow-recipes/talking-head-polish.md` | Filler, restarts, repeated setup, dead air, or sentence-boundary cleanup affects the edit | Transcript timestamps or retained-meaning evidence is missing | Handoff verification spec only |
@@ -40,6 +41,7 @@ verify completed edits, or repair timeline state. Use
 `codecut-requirement-intake` for missing setup decisions,
 `codecut-material-ingest` for source facts, `codecut-material-understanding` for
 material roles, content meaning, script matches, and composition affordances,
+`codecut-title-generation` for generated fixed top, cover, and platform titles,
 `codecut-reference-template` for reference-derived constraints, and
 `codecut-executor-apply` for validation, apply, readback, quality reports, and
 export.
@@ -58,6 +60,9 @@ export.
   or user-supplied timed captions when they affect the edit.
 - Reference-template constraints when the user asks to apply a saved or
   reference-derived style.
+- TitleGenerationBrief when the requirement asks for generated titles, title
+  optimization, fixed top title, cover title, platform title, or 爆款标题 and
+  the user did not provide an explicit final title.
 - PlatformStrategyBrief when content-platform strategy is part of the job.
 - Confirmed local methodology from `.codecut-workspace/user-methodology/`
   when present. Current user instructions override stored methodology.
@@ -74,6 +79,9 @@ export.
 - Verification spec for `codecut-executor-apply`, including expected plan file,
   validation target, readback fields, visual QA needs, caption quality checks,
   and export proof only when export was requested.
+- Title handoff notes that copy the selected title from TitleGenerationBrief and
+  carry title_quality platform, primary keyword, purpose, and weak-title risk
+  into the verification spec when available.
 
 ## Artifacts
 
@@ -83,6 +91,7 @@ exists:
 - `.codecut-workspace/projects/<projectId>/04-planning/intent-route.md`
 - `.codecut-workspace/projects/<projectId>/04-planning/editing-decision-ledger.md`
 - `.codecut-workspace/projects/<projectId>/04-planning/candidate-clips.json`
+- `.codecut-workspace/projects/<projectId>/04-planning/title-generation-brief.md`
 - `.codecut-workspace/projects/<projectId>/04-planning/plan-drafts/edit-plan.json`
 - `.codecut-workspace/projects/<projectId>/04-planning/plan-drafts/narrated-remix-plan.json`
 - `.codecut-workspace/projects/<projectId>/04-planning/verification-spec.json`
@@ -98,6 +107,11 @@ artifact path.
 - Material-understanding report is missing or stale when material selection,
   script matching, crop risk, replacement, PIP, split-screen, or circular
   talking-head composition affects the plan.
+- TitleGenerationBrief is missing when the requirement asks for generated title
+  copy and the user did not provide an explicit final title. Edit planning must
+  not invent generated titles during edit planning; record the missing brief in
+  planning-blockers instead.
+- The planner must not invent generated titles during edit planning.
 - Required transcript, visual evidence, product facts, business facts, caption
   source, or platform strategy is missing.
 - No candidate clip passes standalone coherence for the requested result.
@@ -117,8 +131,9 @@ Report `Stage`, `Status`, `Proof`, `Next`, and `Risk`.
 Hand back to `codecut-requirement-intake` when user choices are missing, to
 `codecut-material-ingest` when source facts are missing, to
 `codecut-material-understanding` when material roles, script matching, or
-composition suitability evidence is missing, and to `codecut-reference-template`
-when style evidence or template confirmation is missing.
+composition suitability evidence is missing, to `codecut-title-generation` when
+generated title copy is missing, and to `codecut-reference-template` when style
+evidence or template confirmation is missing.
 
 Hand off to `codecut-executor-apply` only when the selected recipe, decision
 ledger, strict plan draft, and verification spec exist. The handoff must name

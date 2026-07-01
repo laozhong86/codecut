@@ -1370,6 +1370,25 @@ describe("codex executor", () => {
 		return { plan, videoId };
 	}
 
+	async function replaceAppliedPlanTitle({
+		plan,
+		title,
+	}: {
+		plan: ReturnType<typeof qualityPlan>;
+		title: string;
+	}) {
+		const state = await getExecutorProjectState({ projectId });
+		for (const track of state.tracks) {
+			if (track.type !== "text") continue;
+			for (const element of track.elements) {
+				if (element.type === "text" && element.content === plan.title.text) {
+					element.content = title;
+				}
+			}
+		}
+		await writeDraftState(state);
+	}
+
 	test("imports media and exposes project info without a browser-mounted bridge", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 
@@ -7158,18 +7177,9 @@ describe("codex executor", () => {
 
 	test("build_video_quality_report includes explicit title quality and exported file checks", async () => {
 		const { plan } = await createAppliedQualityFixture();
-		const state = await getExecutorProjectState({ projectId });
 		const title = "Churn?";
-		for (const track of state.tracks) {
-			if (track.type === "text") {
-				for (const element of track.elements) {
-					if (element.type === "text" && element.content === plan.title.text) {
-						element.content = title;
-					}
-				}
-			}
-		}
-		await writeDraftState(state);
+		await replaceAppliedPlanTitle({ plan, title });
+		const state = await getExecutorProjectState({ projectId });
 		const outputFile = join(stateDir, "quality-export.mp4");
 		await writeFile(outputFile, "mp4-bytes");
 
@@ -7306,6 +7316,143 @@ describe("codex executor", () => {
 				expect.objectContaining({ code: "title_generic" }),
 			]),
 		);
+	});
+
+	test("build_video_quality_report leaves title quality unknown without a rubric", async () => {
+		const { plan } = await createAppliedQualityFixture();
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan,
+					inspection: { startTime: 0, endTime: 1, frameCount: 1 },
+				},
+			}),
+		});
+		const data = resultData<{
+			checks: Array<{
+				id: string;
+				category: string;
+				status: string;
+				evidence?: Record<string, unknown>;
+			}>;
+		}>(result.results[0]);
+		const titleCheck = data.checks.find(
+			(check) => check.id === "titleQuality.planningRubric",
+		);
+
+		expect(titleCheck).toMatchObject({
+			category: "title_quality",
+			status: "unknown",
+			evidence: {
+				titlePresent: true,
+			},
+		});
+	});
+
+	test("build_video_quality_report warns for generic Chinese category titles", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const title = "遮白发";
+		await replaceAppliedPlanTitle({ plan, title });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan: {
+						...plan,
+						title: {
+							...plan.title,
+							text: title,
+						},
+					},
+					inspection: { startTime: 0, endTime: 1, frameCount: 1 },
+					titleRubric: {
+						platform: "generic",
+						primaryKeyword: "白发",
+					},
+				},
+			}),
+		});
+		const data = resultData<{
+			status: string;
+			checks: Array<{
+				id: string;
+				category: string;
+				status: string;
+				evidence?: {
+					issues?: Array<{ code: string }>;
+				};
+			}>;
+		}>(result.results[0]);
+		const titleCheck = data.checks.find(
+			(check) => check.id === "titleQuality.planningRubric",
+		);
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			message: "Built VideoQualityReport: warning",
+		});
+		expect(data.status).toBe("warning");
+		expect(titleCheck).toMatchObject({
+			category: "title_quality",
+			status: "warning",
+		});
+		expect(titleCheck?.evidence?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "title_weak_hook" }),
+				expect.objectContaining({ code: "title_generic" }),
+			]),
+		);
+	});
+
+	test("build_video_quality_report passes title quality for action-led Chinese short titles", async () => {
+		const { plan } = await createAppliedQualityFixture();
+		const title = "有白发别急着染";
+		await replaceAppliedPlanTitle({ plan, title });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_video_quality_report",
+				args: {
+					plan: {
+						...plan,
+						title: {
+							...plan.title,
+							text: title,
+						},
+					},
+					inspection: { startTime: 0, endTime: 1, frameCount: 1 },
+					titleRubric: {
+						platform: "generic",
+						primaryKeyword: "白发",
+					},
+				},
+			}),
+		});
+		const data = resultData<{
+			status: string;
+			checks: Array<{
+				id: string;
+				category: string;
+				status: string;
+				evidence?: Record<string, unknown>;
+			}>;
+		}>(result.results[0]);
+		const titleCheck = data.checks.find(
+			(check) => check.id === "titleQuality.planningRubric",
+		);
+
+		expect(titleCheck).toMatchObject({
+			category: "title_quality",
+			status: "pass",
+			evidence: {
+				primaryKeyword: "白发",
+				hasHookSignal: true,
+				genericTitle: false,
+			},
+		});
 	});
 
 	test("build_video_quality_report fails when scripted TTS captions are not represented", async () => {

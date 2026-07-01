@@ -1,7 +1,7 @@
 ---
 name: codecut-scriptwriting
 description: |
-  Use when CodeCut needs pre-edit content writing for short-form video: cover titles, video titles, hooks, voiceover scripts, spoken-word drafts, script rewrites, and de-AI / 去 AI 味 copy cleanup before editing or timeline planning. Trigger on requests mentioning 封面标题, 视频标题, 标题优化, 口播脚本, 口播稿, 口播文案, 去AI味, 去 AI 味, 文案润色, hook, script, voiceover, narration, or spoken script for a CodeCut job.
+  Use when CodeCut needs pre-edit content writing for short-form video: hooks, voiceover scripts, spoken-word drafts, script rewrites, and de-AI / 去 AI 味 copy cleanup before editing or timeline planning. Title-only requests should use codecut-title-generation first. Trigger on requests mentioning 口播脚本, 口播稿, 口播文案, 去AI味, 去 AI 味, 文案润色, hook, script, voiceover, narration, or spoken script for a CodeCut job.
 ---
 
 # CodeCut Scriptwriting
@@ -14,10 +14,17 @@ EditPlan, or claim export readiness.
 
 Use it before CodeCut editing when the job needs one or more of:
 
-- Cover title: the large on-frame title for the poster or first visual.
-- Video title: the platform-facing title/caption title used for discovery.
+- Title support inside a broader script brief: consume or reference a
+  `TitleGenerationBrief` when a title is part of a larger scriptwriting job.
 - Voiceover script: spoken copy with beats, duration, and visual intent.
 - De-AI rewrite: removing generic AI tone while preserving facts and proof.
+
+Title-only requests belong to `codecut-title-generation`: 标题根据素材生成,
+顶部固定标题, 封面标题, 视频标题, 标题优化, 爆款标题, fixed top title, cover
+title, platform title, publish title, and title optimization. If a request mixes
+title generation with voiceover script or De-AI work, run
+`codecut-title-generation` first, then use this skill for the spoken or rewrite
+lanes.
 
 If the user asks to place the title into the actual timeline, set a project
 cover, add text overlays, or export the edited video, hand off to the normal
@@ -64,6 +71,9 @@ Decide which lanes are required:
 - `videoTitle`: slightly more descriptive, built for discovery/search/caption.
 - `voiceoverScript`: spoken beats that can drive later CodeCut planning.
 - `deAiRewrite`: diagnosis plus rewritten copy.
+
+For title-only jobs, stop here and route to `codecut-title-generation` instead
+of generating title candidates in this skill.
 
 Do not merge cover title and video title. A good cover title can be too short
 for discovery, and a good video title can be too long for the cover.
