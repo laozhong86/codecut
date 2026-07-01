@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { createRequire } from "node:module";
 import { stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import {
 	basename,
 	dirname,
@@ -2030,8 +2030,31 @@ function nowIso() {
 	return new Date().toISOString();
 }
 
+function hasPluginManifest(root) {
+	return existsSync(join(root, ".codex-plugin", "plugin.json"));
+}
+
+function findPluginRoot(cwd) {
+	let current = resolve(cwd);
+	while (true) {
+		if (hasPluginManifest(current)) return current;
+		const parent = dirname(current);
+		if (parent === current) return resolve(cwd);
+		current = parent;
+	}
+}
+
+function sharedRequirementStoreRoot(env) {
+	const home = env.HOME?.trim() || homedir();
+	return resolve(home, ".codex", "codecut");
+}
+
 function resolveRequirementStoreRoot({ cwd = pluginRoot, env = process.env } = {}) {
-	return resolve(env.CODECUT_REQUIREMENT_ROOT || cwd);
+	const explicitRoot = env.CODECUT_REQUIREMENT_ROOT?.trim();
+	if (explicitRoot) return resolve(explicitRoot);
+	const root = findPluginRoot(cwd);
+	if (hasPluginManifest(root)) return sharedRequirementStoreRoot(env);
+	return root;
 }
 
 function requirementStoreDirectory(root, draftId) {

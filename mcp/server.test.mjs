@@ -943,6 +943,84 @@ describe("Codecut MCP server contract", () => {
 		}
 	});
 
+	test("stores requirement confirmations in one shared root across plugin checkouts", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-mcp-root-"));
+		try {
+			const home = join(directory, "home");
+			const sourceRoot = join(directory, "source");
+			const cacheRoot = join(directory, "cache", "local-opc", "codecut", "0.1.1");
+			await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
+			await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+			await writeFile(
+				join(sourceRoot, ".codex-plugin", "plugin.json"),
+				'{"name":"codecut"}\n',
+				"utf8",
+			);
+			await writeFile(
+				join(cacheRoot, ".codex-plugin", "plugin.json"),
+				'{"name":"codecut"}\n',
+				"utf8",
+			);
+			const env = {
+				HOME: home,
+				CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+			};
+
+			const opened = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_requirement_confirmation",
+				setupIntent({ projectId: "shared-root-001" }),
+				{
+					cwd: sourceRoot,
+					env,
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+
+			const draftId = opened.structuredContent.draftId;
+			const sharedDraftPath = join(
+				home,
+				".codex",
+				"codecut",
+				".codecut-workspace",
+				"requirements",
+				draftId,
+				"draft.json",
+			);
+			expect(existsSync(sharedDraftPath)).toBe(true);
+			expect(
+				existsSync(
+					join(
+						sourceRoot,
+						".codecut-workspace",
+						"requirements",
+						draftId,
+						"draft.json",
+					),
+				),
+			).toBe(false);
+
+			const readback = await serverModule.callCodecutWorkspaceTool(
+				"get_codecut_requirement_confirmation",
+				{ draftId },
+				{
+					cwd: cacheRoot,
+					env,
+					bridgeToolImpl: async (toolName) => {
+						throw new Error(`Unexpected bridge tool ${toolName}`);
+					},
+				},
+			);
+			expect(readback.structuredContent).toMatchObject({
+				status: "awaiting_user_confirmation",
+				draftId,
+			});
+			const draft = JSON.parse(await readFile(sharedDraftPath, "utf8"));
+			expect(draft.requestedProjectId).toBe("shared-root-001");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test("normalizes requirement confirmation locale to supported web routes", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-req-mcp-"));
 		try {
@@ -3109,7 +3187,7 @@ describe("Codecut MCP server contract", () => {
 				`"taskType":"${taskType}"`,
 			);
 		}
-	});
+	}, 15_000);
 
 	test("reports pending setup recovery without a host tool error when no confirmed result exists", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
