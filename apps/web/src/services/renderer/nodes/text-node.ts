@@ -6,6 +6,8 @@ import { BaseNode } from "./base-node";
 import { applyVisualKeyframes } from "../keyframes";
 import {
 	createTextLayout,
+	getTextLayoutHeight,
+	getTextLayoutLineHeightScale,
 	type TextLayoutLine,
 	type TextLayoutRun,
 	type TextRunStyle,
@@ -161,7 +163,7 @@ export function measureTextElementBounds({
 	const lineHeight = scaledFontSize * 1.3;
 	const measuredTextWidth =
 		scaledBoxWidth ?? Math.max(0, ...layout.lines.map((line) => line.width));
-	const textHeight = layout.lines.length * lineHeight;
+	const textHeight = getTextLayoutHeight({ lines: layout.lines, lineHeight });
 	const hasBackground =
 		includeBackground &&
 		!!element.backgroundColor &&
@@ -322,15 +324,16 @@ export class TextNode extends BaseNode<TextNodeParams> {
 		context.textAlign = "left";
 		context.textBaseline = "middle";
 
-		const totalHeight = layout.lines.length * lineHeight;
-		const startY =
-			textBaseline === "bottom"
-				? -totalHeight + lineHeight / 2
-				: -totalHeight / 2 + lineHeight / 2;
+		const lineHeights = layout.lines.map(
+			(line) => lineHeight * getTextLayoutLineHeightScale(line),
+		);
+		const totalHeight = lineHeights.reduce((sum, height) => sum + height, 0);
+		let lineTop = textBaseline === "bottom" ? -totalHeight : -totalHeight / 2;
 
 		for (let lineIndex = 0; lineIndex < layout.lines.length; lineIndex += 1) {
 			const line = layout.lines[lineIndex];
-			const lineY = startY + lineIndex * lineHeight;
+			const currentLineHeight = lineHeights[lineIndex] ?? lineHeight;
+			const lineY = lineTop + currentLineHeight / 2;
 			let runX = this.getLineStartX({
 				line,
 				scaledBoxWidth,
@@ -346,6 +349,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
 				});
 				runX += runWidth;
 			}
+			lineTop += currentLineHeight;
 		}
 
 		context.globalAlpha = prevAlpha;
@@ -377,7 +381,10 @@ export class TextNode extends BaseNode<TextNodeParams> {
 			lineHeight,
 		);
 		const textWidth = scaledBoxWidth ?? maxLineWidth;
-		const textHeight = layoutLines.length * lineHeight;
+		const textHeight = getTextLayoutHeight({
+			lines: layoutLines,
+			lineHeight,
+		});
 		const padX = this.params.backgroundPaddingX ?? 8;
 		const padY = this.params.backgroundPaddingY ?? 4;
 		const borderRadius = this.params.backgroundBorderRadius ?? 0;

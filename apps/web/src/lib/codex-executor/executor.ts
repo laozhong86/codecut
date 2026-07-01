@@ -560,6 +560,18 @@ const textStrokeSchema = z
 	})
 	.strict();
 
+const textRichSpanSchema = z
+	.object({
+		start: z.number().int().min(0),
+		end: z.number().int().min(0),
+		color: z.string().min(1).optional(),
+		fontScale: z.number().positive().optional(),
+		fontWeight: z.enum(["normal", "bold"]).optional(),
+		fontStyle: z.enum(["normal", "italic"]).optional(),
+		stroke: textStrokeSchema.optional(),
+	})
+	.strict();
+
 const textShadowSchema = z
 	.object({
 		color: z.string().min(1),
@@ -593,6 +605,7 @@ const addTextEntrySchema = z
 		fontWeight: z.enum(["normal", "bold"]).optional(),
 		fontStyle: z.enum(["normal", "italic"]).optional(),
 		textDecoration: z.enum(["none", "underline", "line-through"]).optional(),
+		richSpans: z.array(textRichSpanSchema).optional(),
 		boxWidth: z.number().positive().optional(),
 		stroke: textStrokeSchema.optional(),
 		shadow: textShadowSchema.optional(),
@@ -734,6 +747,7 @@ const setClipPropertiesArgsSchema = z
 				textDecoration: z
 					.enum(["none", "underline", "line-through"])
 					.optional(),
+				richSpans: z.array(textRichSpanSchema).optional(),
 			})
 			.strict()
 			.refine((value) => Object.keys(value).length > 0, {

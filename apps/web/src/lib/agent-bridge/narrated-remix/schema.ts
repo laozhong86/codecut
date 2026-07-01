@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { EditPlanCaptionStyleSchema } from "@/lib/agent-bridge/edit-plan/schema";
+import {
+	EditPlanCaptionStyleSchema,
+	EditPlanTextRichSpanSchema,
+} from "@/lib/agent-bridge/edit-plan/schema";
 
 export const NarratedRemixAspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 const HexColorSchema = z
@@ -53,6 +56,7 @@ const NarratedRemixTextOverlayBaseSchema = z
 			.strict(),
 		textAlign: z.enum(["left", "center", "right"]),
 		fontWeight: z.enum(["normal", "bold"]),
+		richSpans: z.array(EditPlanTextRichSpanSchema).optional(),
 	})
 	.strict();
 

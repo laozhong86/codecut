@@ -285,6 +285,7 @@ function buildTextOverlayElement({
 			boxWidth: overlay.boxWidth,
 			textAlign: overlay.textAlign,
 			fontWeight: overlay.fontWeight,
+			richSpans: overlay.richSpans,
 			fontStyle: "normal",
 			textDecoration: "none",
 			opacity: 1,

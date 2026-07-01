@@ -185,6 +185,22 @@ describe("buildCanvasFont", () => {
 		expect(bounds.leftOffset).toBeCloseTo(-23.6);
 	});
 
+	test("measures multi-line text height using each line's largest rich span scale", () => {
+		const bounds = measureTextElementBounds({
+			element: textElement({
+				content: "小\n大",
+				richSpans: [{ start: 2, end: 3, fontScale: 2 }],
+				fontSize: 10,
+				backgroundColor: "#ffffff",
+			}),
+			canvasHeight: 90,
+			measureText: measureCjkGlyphs,
+			includeBackground: true,
+		});
+
+		expect(bounds.height).toBeCloseTo(47);
+	});
+
 	test("renders configured shadow for filled text without requiring stroke", async () => {
 		const renderer = createTextRenderer({ onEnsureFontFamily: () => {} });
 		const node = new TextNode({

@@ -568,6 +568,41 @@ const transformSchema = z
 	})
 	.strict();
 
+const textStrokeSchema = z
+	.object({
+		color: z.string().min(1),
+		width: z.number().nonnegative(),
+	})
+	.strict();
+
+const textRichSpanStrokeSchema = z
+	.object({
+		color: z.string().min(1),
+		width: z.number().positive(),
+	})
+	.strict();
+
+const textRichSpanSchema = z
+	.object({
+		start: z.number().int().min(0),
+		end: z.number().int().min(0),
+		color: z.string().min(1).optional(),
+		fontScale: z.number().positive().optional(),
+		fontWeight: z.enum(["normal", "bold"]).optional(),
+		fontStyle: z.enum(["normal", "italic"]).optional(),
+		stroke: textRichSpanStrokeSchema.optional(),
+	})
+	.strict();
+
+const textShadowSchema = z
+	.object({
+		color: z.string().min(1),
+		blur: z.number().nonnegative(),
+		offsetX: z.number(),
+		offsetY: z.number(),
+	})
+	.strict();
+
 const clipPropertiesSchema = z
 	.object({
 		duration: z.number().positive().optional(),
@@ -588,22 +623,7 @@ const clipPropertiesSchema = z
 		fontWeight: z.enum(["normal", "bold"]).optional(),
 		fontStyle: z.enum(["normal", "italic"]).optional(),
 		textDecoration: z.enum(["none", "underline", "line-through"]).optional(),
-	})
-	.strict();
-
-const textStrokeSchema = z
-	.object({
-		color: z.string().min(1),
-		width: z.number().nonnegative(),
-	})
-	.strict();
-
-const textShadowSchema = z
-	.object({
-		color: z.string().min(1),
-		blur: z.number().nonnegative(),
-		offsetX: z.number(),
-		offsetY: z.number(),
+		richSpans: z.array(textRichSpanSchema).optional(),
 	})
 	.strict();
 
@@ -623,6 +643,7 @@ const textEntrySchema = z
 		fontWeight: z.enum(["normal", "bold"]).optional(),
 		fontStyle: z.enum(["normal", "italic"]).optional(),
 		textDecoration: z.enum(["none", "underline", "line-through"]).optional(),
+		richSpans: z.array(textRichSpanSchema).optional(),
 		boxWidth: z.number().positive().optional(),
 		stroke: textStrokeSchema.optional(),
 		shadow: textShadowSchema.optional(),
@@ -1128,7 +1149,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "add_texts",
 		title: "Add Codecut Texts",
 		description:
-			"Add one or more text elements to an existing or newly created text track.",
+			"Add one or more text elements to an existing or newly created text track. Use one multiline text entry with richSpans for grouped title/stat styling that shares timing, position, background, and motion.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			...confirmationTokenInputSchema,
@@ -1255,7 +1276,8 @@ export const CODECUT_MCP_TOOLS = [
 	{
 		name: "set_clip_properties",
 		title: "Set Codecut Clip Properties",
-		description: "Set whitelisted clip properties by stable element ID.",
+		description:
+			"Set whitelisted clip properties by stable element ID, including text richSpans for editable per-range color, scale, weight, style, and stroke.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			...confirmationTokenInputSchema,

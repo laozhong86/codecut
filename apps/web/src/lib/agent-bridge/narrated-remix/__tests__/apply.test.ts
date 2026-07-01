@@ -853,6 +853,80 @@ describe("applyNarratedRemixPlanToEditor", () => {
 		]);
 	});
 
+	test("projects rich text overlays as one editable text element", () => {
+		const updates: TimelineTrack[][] = [];
+		const result = applyNarratedRemixPlanToEditor({
+			plan: {
+				...validPlan(),
+				textOverlays: [
+					{
+						name: "TikTok stats title",
+						text: "Tiktok 爆款视频拆解\n2290万播放\n47万点赞",
+						startTime: 0,
+						duration: 30,
+						fontSize: 5.5,
+						color: "#ff8a1c",
+						backgroundColor: "#07131f",
+						backgroundOpacity: 0.78,
+						backgroundPaddingX: 20,
+						backgroundPaddingY: 8,
+						backgroundBorderRadius: 8,
+						boxWidth: 92,
+						position: { x: 0, y: -760 },
+						textAlign: "center",
+						fontWeight: "bold",
+						richSpans: [
+							{
+								start: 0,
+								end: 13,
+								color: "#ffffff",
+								fontScale: 0.84,
+								fontWeight: "bold",
+							},
+						],
+					},
+				],
+			},
+			projectId: "project-1",
+			replaceExisting: true,
+			editor: editorWithMedia({
+				mediaAssets: [
+					mediaAsset(),
+					mediaAsset({ id: "video-2", name: "B-roll 2.mp4" }),
+					audioAsset(),
+				],
+				onUpdate: (tracks) => updates.push(tracks),
+			}),
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			summary: {
+				textOverlayElementCount: 1,
+			},
+		});
+		const textOverlayTrack = updates[0].find(
+			(track) => track.type === "text" && track.name === "Text Overlays",
+		);
+		expect(textOverlayTrack?.elements).toMatchObject([
+			{
+				type: "text",
+				name: "TikTok stats title",
+				content: "Tiktok 爆款视频拆解\n2290万播放\n47万点赞",
+				color: "#ff8a1c",
+				richSpans: [
+					{
+						start: 0,
+						end: 13,
+						color: "#ffffff",
+						fontScale: 0.84,
+						fontWeight: "bold",
+					},
+				],
+			},
+		]);
+	});
+
 	test("does not mutate the timeline when validation fails", () => {
 		let updateCount = 0;
 		const result = applyNarratedRemixPlanToEditor({

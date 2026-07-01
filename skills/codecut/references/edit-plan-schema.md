@@ -179,6 +179,10 @@ Current validation fail-fast checks include:
 - `richSpans` must use integer `[start, end)` code point indexes, must be
   ordered and non-overlapping, and must stay inside the corresponding title or
   caption text.
+- For grouped multiline title/stat blocks that share one time range, position,
+  background, and motion, use one editable text element with newline-separated
+  content and `richSpans`. Split into separate text layers only when timing,
+  position, background, or animation must differ.
 - BGM/SFX audio assets must exist in the imported media library and must be
   `type === "audio"`.
 - BGM/SFX volume must be `0..1`; BGM mode is only `loop_to_timeline`.
@@ -332,7 +336,16 @@ only this shape when calling `apply_narrated_remix_plan`:
     boxWidth: number,
     position: { x: number, y: number },
     textAlign: "left" | "center" | "right",
-    fontWeight: "normal" | "bold"
+    fontWeight: "normal" | "bold",
+    richSpans?: Array<{
+      start: number,
+      end: number,
+      color?: string,
+      fontScale?: number,
+      fontWeight?: "normal" | "bold",
+      fontStyle?: "normal" | "italic",
+      stroke?: { color: string, width: number }
+    }>
   }>,
   captions: Array<{
     text: string,
@@ -369,6 +382,9 @@ Current validation fail-fast checks include:
 - visual beat total duration must equal `target.durationSec`.
 - top-level `textOverlays`, when present, must fit inside
   `target.durationSec` and use controlled local `TextElement` style fields.
+- `textOverlays[].richSpans`, when present, must use integer `[start, end)`
+  code point indexes from `Array.from(text)`, must be sorted and
+  non-overlapping, and must stay inside the overlay text.
 - captions must fit inside `target.durationSec`.
 - captions require top-level `captionStyle` and must pass the same duration,
   overlap, two-line, and orphan-line quality contract as EditPlan captions.

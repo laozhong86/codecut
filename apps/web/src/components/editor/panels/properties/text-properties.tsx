@@ -63,6 +63,7 @@ export function TextProperties({
 		enabled: isSingleElement,
 	});
 	const containerRef = useRef<HTMLDivElement>(null);
+	const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 	const [, forceRender] = useReducer((x: number) => x + 1, 0);
 	const isEditingFontSize = useRef(false);
 	const isEditingOpacity = useRef(false);
@@ -81,6 +82,8 @@ export function TextProperties({
 	const keywordStartDraft = useRef("0");
 	const keywordEndDraft = useRef("1");
 	const keywordColorDraft = useRef("#ffd84d");
+	const keywordFontScaleDraft = useRef("1.15");
+	const keywordBoldDraft = useRef(true);
 
 	const buildBatchUpdates = (updates: Partial<Record<string, unknown>>) =>
 		elementRefs.map((ref) => ({
@@ -138,12 +141,15 @@ export function TextProperties({
 	const contentLength = Array.from(element.content).length;
 	const keywordStart = parseInt(keywordStartDraft.current, 10);
 	const keywordEnd = parseInt(keywordEndDraft.current, 10);
+	const keywordFontScale = Number.parseFloat(keywordFontScaleDraft.current);
 	const canAddKeyword =
 		Number.isInteger(keywordStart) &&
 		Number.isInteger(keywordEnd) &&
+		Number.isFinite(keywordFontScale) &&
 		keywordStart >= 0 &&
 		keywordEnd > keywordStart &&
 		keywordEnd <= contentLength &&
+		keywordFontScale > 0 &&
 		!element.richSpans.some(
 			(span) => keywordStart < span.end && keywordEnd > span.start,
 		);
@@ -236,14 +242,29 @@ export function TextProperties({
 		});
 	};
 
+	const syncKeywordRangeFromSelection = () => {
+		const textarea = contentTextareaRef.current;
+		if (!textarea) return;
+		const selectionStart = Array.from(
+			textarea.value.slice(0, textarea.selectionStart),
+		).length;
+		const selectionEnd = Array.from(
+			textarea.value.slice(0, textarea.selectionEnd),
+		).length;
+		if (selectionEnd <= selectionStart) return;
+		keywordStartDraft.current = selectionStart.toString();
+		keywordEndDraft.current = selectionEnd.toString();
+		forceRender();
+	};
+
 	const addKeywordSpan = () => {
 		if (!canAddKeyword) return;
 		const richSpan: TextRichSpan = {
 			start: keywordStart,
 			end: keywordEnd,
 			color: keywordColorDraft.current,
-			fontScale: 1.15,
-			fontWeight: "bold",
+			fontScale: keywordFontScale,
+			fontWeight: keywordBoldDraft.current ? "bold" : "normal",
 			stroke: { color: "#000000", width: 2 },
 		};
 		updateRichSpans({
@@ -432,9 +453,11 @@ export function TextProperties({
 							collapsible={false}
 						>
 							<Textarea
+								ref={contentTextareaRef}
 								placeholder={t("Name")}
 								value={contentDisplay}
 								className="bg-accent min-h-20"
+								onSelect={syncKeywordRangeFromSelection}
 								onFocus={() => {
 									isEditingContent.current = true;
 									contentDraft.current = element.content;
@@ -659,7 +682,11 @@ export function TextProperties({
 										preset={preset}
 										onClick={() => {
 											editor.timeline.updateElements({
-												updates: buildBatchUpdates(preset.styles),
+												updates: buildBatchUpdates(
+													preset.buildStyles
+														? preset.buildStyles(element)
+														: (preset.styles ?? {}),
+												),
 											});
 										}}
 									/>
@@ -668,7 +695,7 @@ export function TextProperties({
 						</PropertyGroup>
 						<PropertyGroup title={t("Keywords")} collapsible={false}>
 							<div className="space-y-3">
-								<div className="grid grid-cols-3 gap-2">
+								<div className="grid grid-cols-4 gap-2">
 									<Input
 										type="number"
 										min={0}
@@ -699,6 +726,38 @@ export function TextProperties({
 										}}
 										className="bg-accent h-8 rounded-sm px-2 text-center !text-xs"
 									/>
+									<Input
+										type="number"
+										min={0.1}
+										step={0.05}
+										value={keywordFontScaleDraft.current}
+										onChange={(event) => {
+											keywordFontScaleDraft.current = event.target.value;
+											forceRender();
+										}}
+										className="bg-accent h-8 rounded-sm px-2 text-center !text-xs"
+									/>
+								</div>
+								<div className="flex items-center gap-2">
+									<Button
+										variant="outline"
+										size="sm"
+										onMouseDown={(event) => event.preventDefault()}
+										onClick={syncKeywordRangeFromSelection}
+										className="h-8 flex-1"
+									>
+										{t("Use selection")}
+									</Button>
+									<div className="flex h-8 items-center gap-2 rounded-sm border px-2">
+										<Switch
+											checked={keywordBoldDraft.current}
+											onCheckedChange={(checked) => {
+												keywordBoldDraft.current = checked;
+												forceRender();
+											}}
+										/>
+										<span className="text-xs">{t("Bold")}</span>
+									</div>
 								</div>
 								<Button
 									variant="outline"
@@ -717,7 +776,8 @@ export function TextProperties({
 												className="bg-accent flex items-center justify-between gap-2 rounded-sm px-2 py-1 text-xs"
 											>
 												<span className="truncate">
-													{span.start}-{span.end} {span.color ?? element.color}
+													{span.start}-{span.end} {span.color ?? element.color} x
+													{span.fontScale ?? 1} {span.fontWeight ?? "normal"}
 												</span>
 												<Button
 													variant="ghost"

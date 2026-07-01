@@ -228,9 +228,28 @@ describe("Codecut MCP server contract", () => {
 					duration: 2,
 					content: "Hook",
 					fontFamily: "CodecutYanBoSong",
+					richSpans: [
+						{
+							start: 0,
+							end: 4,
+							color: "#ffffff",
+							fontScale: 0.84,
+							fontWeight: "bold",
+						},
+					],
 				},
 			]).success,
 		).toBe(true);
+		expect(
+			addTexts?.inputSchema.entries.safeParse([
+				{
+					startTime: 0,
+					duration: 2,
+					content: "Hook",
+					richSpans: [{ start: 0.5, end: 4, color: "#ffffff" }],
+				},
+			]).success,
+		).toBe(false);
 		expect(
 			addTexts?.inputSchema.entries.safeParse([
 				{
@@ -244,6 +263,15 @@ describe("Codecut MCP server contract", () => {
 		expect(
 			setClipProperties?.inputSchema.properties.safeParse({
 				fontFamily: "Inter",
+				richSpans: [
+					{
+						start: 0,
+						end: 4,
+						color: "#ffffff",
+						fontScale: 0.84,
+						fontWeight: "bold",
+					},
+				],
 			}).success,
 		).toBe(true);
 		expect(
