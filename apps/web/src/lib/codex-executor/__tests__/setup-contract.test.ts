@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { ConfirmedSetupSchema } from "../setup-contract";
+import {
+	applyConfirmedSetupPatch,
+	ConfirmedSetupSchema,
+} from "../setup-contract";
 
 function confirmedSetup(overrides: Record<string, unknown> = {}) {
 	return {
@@ -29,6 +32,7 @@ function confirmedSetup(overrides: Record<string, unknown> = {}) {
 			quality: "high",
 			includeAudio: true,
 		},
+		templatePreference: { mode: "auto" },
 		changes: [],
 		...overrides,
 	};
@@ -42,6 +46,54 @@ describe("ConfirmedSetup durationContract", () => {
 			totalDurationMode: "auto",
 			sourceCoverageMode: "selected_segments",
 			toleranceSeconds: 0.2,
+		});
+		expect(parsed.templatePreference).toEqual({ mode: "auto" });
+	});
+
+	test("accepts specified template preference with requested template", () => {
+		const parsed = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				templatePreference: {
+					mode: "specified",
+					requestedTemplate: "TikTok 解说视频模板",
+				},
+			}),
+		);
+
+		expect(parsed.templatePreference).toEqual({
+			mode: "specified",
+			requestedTemplate: "TikTok 解说视频模板",
+		});
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					templatePreference: { mode: "specified" },
+				}),
+			),
+		).toThrow();
+	});
+
+	test("template preference changes require replan", () => {
+		const applied = applyConfirmedSetupPatch({
+			confirmedSetup: ConfirmedSetupSchema.parse(confirmedSetup()),
+			patch: {
+				templatePreference: {
+					mode: "specified",
+					requestedTemplate: "talking-head-short",
+				},
+			},
+			reason: "user_selected_template",
+			changedAt: "2026-07-01T00:00:00.000Z",
+		});
+
+		expect(applied.requiresReplan).toBe(true);
+		expect(applied.changedFields).toEqual([
+			"templatePreference.mode",
+			"templatePreference.requestedTemplate",
+		]);
+		expect(applied.confirmedSetup.templatePreference).toEqual({
+			mode: "specified",
+			requestedTemplate: "talking-head-short",
 		});
 	});
 
