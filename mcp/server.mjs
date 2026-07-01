@@ -1837,6 +1837,11 @@ function codecutMcpHostBridgeScript() {
     if (typeof message === "string") return message;
     if (message?.prompt) return String(message.prompt);
     if (typeof message?.content === "string") return message.content;
+    if (Array.isArray(message?.content)) {
+      return message.content
+        .map((part) => typeof part?.text === "string" ? part.text : "")
+        .join("");
+    }
     return "";
   }
 

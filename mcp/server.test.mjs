@@ -1246,7 +1246,8 @@ describe("Codecut MCP server contract", () => {
 
 		runInNewContext(bridgeScript, context);
 		await context.window.openai.sendFollowUpMessage({
-			prompt: "Continue now.",
+			role: "user",
+			content: [{ type: "text", text: "Continue now." }],
 		});
 
 		expect(sentMessages).toEqual([
