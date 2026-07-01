@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type {
-	RequirementDraft,
-	RequirementConfirmationPatch,
-} from "@/lib/codex-executor/requirement-confirmation";
+import type { RequirementDraft } from "@/lib/codex-executor/requirement-confirmation";
+import {
+	buildRequirementConfirmationPatch,
+	formStateFromRequirementDraft,
+	type RequirementConfirmationFormState,
+} from "@/lib/codex-executor/requirement-confirmation-patch";
 
 type RequirementReadback =
 	| {
@@ -25,30 +27,6 @@ type RequirementReadback =
 			cancelled: unknown;
 	  };
 
-type FormState = {
-	aspectRatio: "9:16" | "16:9" | "1:1";
-	durationMode: "auto" | "preserve_source" | "custom_range";
-	captionLanguage: string;
-	captionSize: "small" | "medium" | "large";
-	captionStylePreset: RequirementDraft["captionPreferences"]["stylePreset"];
-	voicePackId: "none" | "podcast-female" | "podcast-male";
-	outputQuality: "low" | "medium" | "high" | "very_high";
-	requirements: string;
-};
-
-function formStateFromDraft(draft: RequirementDraft): FormState {
-	return {
-		aspectRatio: draft.timelinePreferences.aspectRatio,
-		durationMode: draft.timelinePreferences.durationContract.totalDurationMode,
-		captionLanguage: draft.captionPreferences.language,
-		captionSize: draft.captionPreferences.size,
-		captionStylePreset: draft.captionPreferences.stylePreset,
-		voicePackId: draft.voicePreferences?.voicePackId ?? "none",
-		outputQuality: draft.exportPreferences.quality,
-		requirements: draft.timelinePreferences.requirements,
-	};
-}
-
 function mediaSourceLabel(source: RequirementDraft["mediaSources"][number]) {
 	if (source.kind === "filePath") return source.filePath;
 	if (source.kind === "directoryPath") return source.directoryPath;
@@ -59,37 +37,6 @@ function mediaSourceKey(source: RequirementDraft["mediaSources"][number]) {
 	return `${source.kind}:${mediaSourceLabel(source)}:${source.mimeType ?? ""}`;
 }
 
-function buildPatch({
-	draft,
-	form,
-}: {
-	draft: RequirementDraft;
-	form: FormState;
-}): RequirementConfirmationPatch {
-	return {
-		timelinePreferences: {
-			...draft.timelinePreferences,
-			aspectRatio: form.aspectRatio,
-			durationContract: {
-				...draft.timelinePreferences.durationContract,
-				totalDurationMode: form.durationMode,
-			},
-			requirements: form.requirements,
-		},
-		captionPreferences: {
-			...draft.captionPreferences,
-			language: form.captionLanguage,
-			size: form.captionSize,
-			stylePreset: form.captionStylePreset,
-		},
-		voicePreferences: { voicePackId: form.voicePackId },
-		exportPreferences: {
-			...draft.exportPreferences,
-			quality: form.outputQuality,
-		},
-	};
-}
-
 export function RequirementConfirmationClient({
 	draftId,
 }: {
@@ -97,7 +44,9 @@ export function RequirementConfirmationClient({
 }) {
 	const { t } = useTranslation();
 	const [readback, setReadback] = useState<RequirementReadback | null>(null);
-	const [form, setForm] = useState<FormState | null>(null);
+	const [form, setForm] = useState<RequirementConfirmationFormState | null>(
+		null,
+	);
 	const [error, setError] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -114,7 +63,7 @@ export function RequirementConfirmationClient({
 			.then((payload) => {
 				if (!active) return;
 				setReadback(payload);
-				setForm(formStateFromDraft(payload.draft));
+				setForm(formStateFromRequirementDraft(payload.draft));
 			})
 			.catch((loadError) => {
 				if (!active) return;
@@ -145,7 +94,9 @@ export function RequirementConfirmationClient({
 				{
 					method: "POST",
 					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ patch: buildPatch({ draft, form }) }),
+					body: JSON.stringify({
+						patch: buildRequirementConfirmationPatch({ draft, form }),
+					}),
 				},
 			);
 			const payload = await response.json();
@@ -242,7 +193,8 @@ export function RequirementConfirmationClient({
 							onChange={(event) =>
 								setForm({
 									...form,
-									aspectRatio: event.target.value as FormState["aspectRatio"],
+									aspectRatio: event.target
+										.value as RequirementConfirmationFormState["aspectRatio"],
 								})
 							}
 						>
@@ -260,7 +212,7 @@ export function RequirementConfirmationClient({
 								setForm({
 									...form,
 									durationMode: event.target
-										.value as FormState["durationMode"],
+										.value as RequirementConfirmationFormState["durationMode"],
 								})
 							}
 						>
@@ -291,7 +243,8 @@ export function RequirementConfirmationClient({
 							onChange={(event) =>
 								setForm({
 									...form,
-									captionSize: event.target.value as FormState["captionSize"],
+									captionSize: event.target
+										.value as RequirementConfirmationFormState["captionSize"],
 								})
 							}
 						>
@@ -309,7 +262,7 @@ export function RequirementConfirmationClient({
 								setForm({
 									...form,
 									captionStylePreset: event.target
-										.value as FormState["captionStylePreset"],
+										.value as RequirementConfirmationFormState["captionStylePreset"],
 								})
 							}
 						>
@@ -327,7 +280,8 @@ export function RequirementConfirmationClient({
 							onChange={(event) =>
 								setForm({
 									...form,
-									voicePackId: event.target.value as FormState["voicePackId"],
+									voicePackId: event.target
+										.value as RequirementConfirmationFormState["voicePackId"],
 								})
 							}
 						>
@@ -345,7 +299,7 @@ export function RequirementConfirmationClient({
 								setForm({
 									...form,
 									outputQuality: event.target
-										.value as FormState["outputQuality"],
+										.value as RequirementConfirmationFormState["outputQuality"],
 								})
 							}
 						>
