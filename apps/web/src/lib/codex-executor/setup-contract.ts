@@ -149,6 +149,18 @@ const ExportPreferencesSchema = z
 	})
 	.strict();
 
+export const BuiltInVoicePackIdSchema = z.enum([
+	"none",
+	"podcast-female",
+	"podcast-male",
+]);
+
+const VoicePreferencesSchema = z
+	.object({
+		voicePackId: BuiltInVoicePackIdSchema,
+	})
+	.strict();
+
 export const ConfirmedSetupTaskTypeSchema = z.enum([
 	"template_draft",
 	"template_import",
@@ -174,6 +186,7 @@ export const ConfirmedSetupSchema = z
 		source: z.literal("codecut_setup_confirmation"),
 		timelinePreferences: TimelinePreferencesSchema,
 		captionPreferences: CaptionPreferencesSchema,
+		voicePreferences: VoicePreferencesSchema.optional(),
 		exportPreferences: ExportPreferencesSchema,
 		changes: z.array(ConfirmedSetupChangeSchema),
 	})
@@ -184,11 +197,13 @@ const TimelinePreferencesPatchSchema =
 const CaptionPreferencesPatchSchema =
 	CaptionPreferencesSchema.partial().strict();
 const ExportPreferencesPatchSchema = ExportPreferencesSchema.partial().strict();
+const VoicePreferencesPatchSchema = VoicePreferencesSchema.partial().strict();
 
 export const ConfirmedSetupPatchSchema = z
 	.object({
 		timelinePreferences: TimelinePreferencesPatchSchema.optional(),
 		captionPreferences: CaptionPreferencesPatchSchema.optional(),
+		voicePreferences: VoicePreferencesPatchSchema.optional(),
 		exportPreferences: ExportPreferencesPatchSchema.optional(),
 	})
 	.strict()
@@ -196,6 +211,7 @@ export const ConfirmedSetupPatchSchema = z
 		if (
 			value.timelinePreferences === undefined &&
 			value.captionPreferences === undefined &&
+			value.voicePreferences === undefined &&
 			value.exportPreferences === undefined
 		) {
 			ctx.addIssue({
@@ -219,6 +235,7 @@ export type ConfirmedSetup = z.infer<typeof ConfirmedSetupSchema>;
 export type ConfirmedSetupPatch = z.infer<typeof ConfirmedSetupPatchSchema>;
 export type CaptionPreferences = ConfirmedSetup["captionPreferences"];
 export type ExportPreferences = ConfirmedSetup["exportPreferences"];
+export type VoicePreferences = ConfirmedSetup["voicePreferences"];
 export type DurationContract = z.infer<typeof DurationContractSchema>;
 export type DurationGoal = z.infer<typeof DurationGoalSchema>;
 
@@ -409,6 +426,13 @@ export function applyConfirmedSetupPatch({
 			...confirmedSetup.captionPreferences,
 			...(parsedPatch.captionPreferences ?? {}),
 		},
+		voicePreferences:
+			parsedPatch.voicePreferences === undefined
+				? confirmedSetup.voicePreferences
+				: {
+						...confirmedSetup.voicePreferences,
+						...parsedPatch.voicePreferences,
+					},
 		exportPreferences: {
 			...confirmedSetup.exportPreferences,
 			...(parsedPatch.exportPreferences ?? {}),
@@ -432,6 +456,7 @@ export function applyConfirmedSetupPatch({
 				"timelinePreferences.durationContract",
 				"timelinePreferences.transitionPreference",
 				"timelinePreferences.generateIntroCover",
+				"voicePreferences.voicePackId",
 			].some(
 				(prefix) =>
 					change.field === prefix || change.field.startsWith(`${prefix}.`),

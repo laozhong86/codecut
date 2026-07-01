@@ -61,6 +61,12 @@ const builtinVoicePacks = [
 		executableTool: "generate_runninghub_voice_clone",
 	},
 ];
+const noBuiltinVoicePackId = "none";
+const builtinVoicePackIds = builtinVoicePacks.map((voicePack) => voicePack.id);
+const workspaceVoicePackChoiceValues = [
+	noBuiltinVoicePackId,
+	...builtinVoicePackIds,
+];
 const workspaceResourceMimeType = "text/html;profile=mcp-app";
 const codecutServiceStartCommand = "bun run dev:web";
 const defaultCodecutReadinessUrl = "http://127.0.0.1:4100/en/projects";
@@ -173,6 +179,7 @@ const secondsSchema = z.number().nonnegative();
 const targetAspectRatioSchema = z.enum(["9:16", "16:9", "1:1"]);
 const outputFormatSchema = z.enum(["mp4", "webm"]);
 const outputQualitySchema = z.enum(["low", "medium", "high", "very_high"]);
+const workspaceVoicePackIdSchema = z.enum(workspaceVoicePackChoiceValues);
 const codecutFontManifest = readCodecutFontManifest();
 const codecutCaptionFonts = codecutFontManifest.localFonts;
 const codecutFontsourceFonts = codecutFontManifest.fontsourceFonts || [];
@@ -340,6 +347,7 @@ const workspaceOutputSchema = z
 		captionFont: captionFontSchema,
 		captionSize: captionSizeSchema,
 		captionStylePreset: captionStylePresetSchema,
+		voicePackId: workspaceVoicePackIdSchema.optional(),
 	})
 	.strict();
 
@@ -377,6 +385,12 @@ const confirmedSetupPatchSchema = z
 				format: outputFormatSchema.optional(),
 				quality: outputQualitySchema.optional(),
 				includeAudio: z.boolean().optional(),
+			})
+			.strict()
+			.optional(),
+		voicePreferences: z
+			.object({
+				voicePackId: workspaceVoicePackIdSchema.optional(),
 			})
 			.strict()
 			.optional(),
@@ -1652,13 +1666,33 @@ function buildBuiltinVoiceLibraryPrompt() {
 	if (structuredContent.status !== "ready") {
 		return `Built-in voice library is unavailable: ${structuredContent.error}`;
 	}
-	const defaultVoicePack = structuredContent.voicePacks.find(
-		(voicePack) => voicePack.id === structuredContent.defaultVoicePackId,
+	const entries = structuredContent.voicePacks
+		.map(
+			(voicePack) =>
+				`"${voicePack.name}" (${voicePack.id}) -> ${voicePack.executableTool} audioPath "${voicePack.audioPath}"`,
+		)
+		.join("; ");
+	return `Built-in voice library: ${entries}. Call list_codecut_builtin_voice_packs to inspect all bundled voice-library entries before asking the user for a Volcengine voice_type.`;
+}
+
+function buildSelectedBuiltinVoicePrompt(intent) {
+	const selectedVoicePackId = normalizeWorkspaceVoicePackId(
+		intent.output?.voicePackId,
 	);
-	if (!defaultVoicePack) {
-		throw new Error("Default built-in voice pack is missing.");
+	if (selectedVoicePackId === noBuiltinVoicePackId) {
+		return "Selected built-in voice: 无配音 (none). Do not generate voiceover from the built-in voice library unless the user explicitly changes the voice selection.";
 	}
-	return `Built-in voice library: "${defaultVoicePack.name}" (${defaultVoicePack.id}) is executable through ${defaultVoicePack.executableTool} with audioPath "${defaultVoicePack.audioPath}". Call list_codecut_builtin_voice_packs to inspect all bundled voice-library entries before asking the user for a Volcengine voice_type.`;
+	const structuredContent = listBuiltinVoicePacks();
+	if (structuredContent.status !== "ready") {
+		return `Selected built-in voice ${selectedVoicePackId} is unavailable: ${structuredContent.error}`;
+	}
+	const selectedVoicePack = structuredContent.voicePacks.find(
+		(voicePack) => voicePack.id === selectedVoicePackId,
+	);
+	if (!selectedVoicePack) {
+		throw new Error(`Selected built-in voice pack is missing: ${selectedVoicePackId}`);
+	}
+	return `Selected built-in voice: ${selectedVoicePack.name} (${selectedVoicePack.id}). Use ${selectedVoicePack.executableTool} with audioPath "${selectedVoicePack.audioPath}" when generating the requested narration.`;
 }
 
 function readCodecutFontManifest() {
@@ -2155,6 +2189,13 @@ async function validateCodecutSetupIntent(intent) {
 		captionStylePresetValues.includes(normalized.output.captionStylePreset),
 		"Caption style preset must be a supported CodeCut caption preset.",
 	);
+	pushCheck(
+		checks,
+		"voice-pack",
+		"Built-in voice",
+		workspaceVoicePackChoiceValues.includes(normalized.output.voicePackId),
+		"Built-in voice must be none, podcast-female, or podcast-male.",
+	);
 
 	return {
 		status: checks.every((check) => check.ok) ? "ready" : "blocked",
@@ -2466,6 +2507,9 @@ function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 			size: normalized.output.captionSize,
 			stylePreset: normalized.output.captionStylePreset,
 		},
+		voicePreferences: {
+			voicePackId: normalized.output.voicePackId,
+		},
 		exportPreferences: {
 			format: normalized.output.format,
 			quality: normalized.output.quality,
@@ -2572,6 +2616,9 @@ function buildWorkspaceIntentDefaults(input = {}) {
 			captionFont: input.output?.captionFont || "auto",
 			captionSize: input.output?.captionSize || "medium",
 			captionStylePreset: input.output?.captionStylePreset || "creator-clean",
+			voicePackId: resolveWorkspaceVoicePackIdDefault(
+				input.output?.voicePackId,
+			),
 		},
 		generateIntroCover:
 			typeof input.generateIntroCover === "boolean"
@@ -2785,6 +2832,17 @@ function normalizeWorkspaceTransitionPreference(value) {
 	);
 }
 
+function normalizeWorkspaceVoicePackId(value) {
+	const normalized = String(value ?? "").trim();
+	return normalized || noBuiltinVoicePackId;
+}
+
+function resolveWorkspaceVoicePackIdDefault(value) {
+	const normalized = normalizeWorkspaceVoicePackId(value);
+	if (workspaceVoicePackChoiceValues.includes(normalized)) return normalized;
+	throw new Error("voicePackId must be none, podcast-female, or podcast-male.");
+}
+
 function buildWorkspaceProjectSlug(projectName) {
 	const slug =
 		String(projectName || "codecut-project")
@@ -2838,6 +2896,7 @@ function normalizeWorkspaceIntent(intent) {
 			captionFont: String(intent.output?.captionFont || ""),
 			captionSize: String(intent.output?.captionSize || ""),
 			captionStylePreset: String(intent.output?.captionStylePreset || ""),
+			voicePackId: normalizeWorkspaceVoicePackId(intent.output?.voicePackId),
 		},
 		generateIntroCover: intent.generateIntroCover,
 		requirements: String(intent.requirements || "").trim(),
@@ -3289,6 +3348,7 @@ function buildContinuePrompt({
 
 	const guardrails = [
 		"Voice display names are not executable voiceType values. Use a real Volcengine voice_type, a local reference audio path for RunningHub cloning, or explicit user approval to use another available voice.",
+		buildSelectedBuiltinVoicePrompt(intent),
 		buildBuiltinVoiceLibraryPrompt(),
 		"Stop before timeline mutation if the requested voice cannot be resolved or a voice generation tool returns a provider/runtime error.",
 	];

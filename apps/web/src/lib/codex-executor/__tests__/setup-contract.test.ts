@@ -45,6 +45,29 @@ describe("ConfirmedSetup durationContract", () => {
 		});
 	});
 
+	test("accepts only built-in voice pack ids in voice preferences", () => {
+		const parsed = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				voicePreferences: {
+					voicePackId: "podcast-female",
+				},
+			}),
+		);
+
+		expect(parsed.voicePreferences).toEqual({
+			voicePackId: "podcast-female",
+		});
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					voicePreferences: {
+						voicePackId: "播客女",
+					},
+				}),
+			),
+		).toThrow();
+	});
+
 	test("requires source duration when preserving total duration", () => {
 		expect(() =>
 			ConfirmedSetupSchema.parse(
