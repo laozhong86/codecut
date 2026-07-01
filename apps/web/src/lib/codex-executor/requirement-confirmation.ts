@@ -51,11 +51,14 @@ export const RequirementDraftInputSchema = z
 		mediaSources: z.array(MediaSourceSchema).min(1),
 		taskType: ConfirmedSetupTaskTypeSchema,
 		timelinePreferences: ConfirmedSetupSchema.shape.timelinePreferences,
+		titlePreferences: ConfirmedSetupSchema.shape.titlePreferences,
 		captionPreferences: ConfirmedSetupSchema.shape.captionPreferences,
 		voicePreferences: z
-			.object({ voicePackId: BuiltInVoicePackIdSchema })
-			.strict()
-			.optional(),
+			.object({
+				enabled: z.boolean(),
+				voicePackId: BuiltInVoicePackIdSchema,
+			})
+			.strict(),
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
 		exportPreferences: ConfirmedSetupSchema.shape.exportPreferences,
 		checks: z.array(CheckSchema),
@@ -97,10 +100,14 @@ export const RequirementConfirmationPatchSchema = z
 	.object({
 		timelinePreferences:
 			ConfirmedSetupSchema.shape.timelinePreferences.optional(),
+		titlePreferences: ConfirmedSetupSchema.shape.titlePreferences.optional(),
 		captionPreferences:
 			ConfirmedSetupSchema.shape.captionPreferences.optional(),
 		voicePreferences: z
-			.object({ voicePackId: BuiltInVoicePackIdSchema })
+			.object({
+				enabled: z.boolean(),
+				voicePackId: BuiltInVoicePackIdSchema,
+			})
 			.strict()
 			.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
@@ -108,9 +115,7 @@ export const RequirementConfirmationPatchSchema = z
 	})
 	.strict();
 
-export type RequirementDraftInput = z.infer<
-	typeof RequirementDraftInputSchema
->;
+export type RequirementDraftInput = z.infer<typeof RequirementDraftInputSchema>;
 export type RequirementDraft = z.infer<typeof RequirementDraftSchema>;
 export type ConfirmedRequirement = z.infer<typeof ConfirmedRequirementSchema>;
 export type CancelledRequirement = z.infer<typeof CancelledRequirementSchema>;
@@ -257,6 +262,7 @@ export async function confirmRequirementDraft({
 			source: "codecut_setup_confirmation",
 			timelinePreferences:
 				parsedPatch.timelinePreferences ?? draft.timelinePreferences,
+			titlePreferences: parsedPatch.titlePreferences ?? draft.titlePreferences,
 			captionPreferences:
 				parsedPatch.captionPreferences ?? draft.captionPreferences,
 			voicePreferences: parsedPatch.voicePreferences ?? draft.voicePreferences,

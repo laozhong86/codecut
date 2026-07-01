@@ -229,6 +229,13 @@ const captionStylePresetValues = [
 	"comment-bubble",
 	"minimal-reel",
 ];
+const titleStylePresetValues = [
+	"hook_title",
+	"lower_title",
+	"social_hook",
+	"product_badge",
+	"chapter_bumper",
+];
 const captionMotionPresetValues = ["slam-in", "soft-reveal", "pop-bounce"];
 const transitionTypeValues = [
 	"fade",
@@ -291,6 +298,7 @@ const editorFontFamilySchema = z.enum(editorFontFamilyValues);
 const captionFontSchema = z.enum(captionFontValues);
 const captionSizeSchema = z.enum(captionSizeValues);
 const captionStylePresetSchema = z.enum(captionStylePresetValues);
+const titleStylePresetSchema = z.enum(titleStylePresetValues);
 const captionMotionPresetSchema = z.enum(captionMotionPresetValues);
 const transitionPreferenceSchema = z.enum(transitionPreferenceValues);
 const workspaceTaskTypeSchema = z.enum(workspaceTaskTypeValues);
@@ -363,12 +371,42 @@ const workspaceOutputSchema = z
 		format: outputFormatSchema,
 		quality: outputQualitySchema,
 		includeAudio: z.boolean(),
+		captionEnabled: z.boolean(),
 		captionFont: captionFontSchema,
 		captionSize: captionSizeSchema,
 		captionStylePreset: captionStylePresetSchema,
+		voiceEnabled: z.boolean(),
 		voicePackId: workspaceVoicePackIdSchema.optional(),
 	})
 	.strict();
+
+const titlePreferencesBaseSchema = z
+	.object({
+		enabled: z.boolean(),
+		text: z.string().trim().min(1).optional(),
+		stylePreset: titleStylePresetSchema.optional(),
+	})
+	.strict();
+const titlePreferencesSchema = titlePreferencesBaseSchema.superRefine(
+	(value, ctx) => {
+		if (!value.enabled) return;
+		if (!value.text) {
+			ctx.addIssue({
+				code: "custom",
+				message: "titlePreferences.text is required when title is enabled.",
+				path: ["text"],
+			});
+		}
+		if (!value.stylePreset) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"titlePreferences.stylePreset is required when title is enabled.",
+				path: ["stylePreset"],
+			});
+		}
+	},
+);
 
 const confirmedSetupDurationGoalSchema = z
 	.object({
@@ -390,8 +428,10 @@ const confirmedSetupPatchSchema = z
 			})
 			.strict()
 			.optional(),
+		titlePreferences: titlePreferencesBaseSchema.partial().strict().optional(),
 		captionPreferences: z
 			.object({
+				enabled: z.boolean().optional(),
 				language: z.string().trim().min(1).optional(),
 				font: captionFontSchema.optional(),
 				size: captionSizeSchema.optional(),
@@ -409,6 +449,7 @@ const confirmedSetupPatchSchema = z
 			.optional(),
 		voicePreferences: z
 			.object({
+				enabled: z.boolean().optional(),
 				voicePackId: workspaceVoicePackIdSchema.optional(),
 			})
 			.strict()
@@ -438,6 +479,7 @@ const workspaceIntentInputSchema = {
 	transitionPreference: transitionPreferenceSchema,
 	templatePreference: templatePreferenceSchema.optional(),
 	output: workspaceOutputSchema,
+	titlePreferences: titlePreferencesSchema,
 	generateIntroCover: z.boolean(),
 	requirements: z.string(),
 };
@@ -485,6 +527,7 @@ const workspaceOpenInputSchema = {
 	locale: z.string().trim().optional(),
 	uiLanguage: z.string().trim().optional(),
 	output: workspaceOutputSchema.partial().optional(),
+	titlePreferences: titlePreferencesBaseSchema.partial().optional(),
 	generateIntroCover: z.boolean().optional(),
 };
 
@@ -2178,6 +2221,7 @@ function buildRequirementDraftFromInput(input = {}) {
 		mediaSources: normalized.mediaSources,
 		taskType: normalized.taskType,
 		timelinePreferences: confirmedSetup.timelinePreferences,
+		titlePreferences: confirmedSetup.titlePreferences,
 		captionPreferences: confirmedSetup.captionPreferences,
 		voicePreferences: confirmedSetup.voicePreferences,
 		templatePreference: confirmedSetup.templatePreference,
@@ -2382,12 +2426,15 @@ function buildWorkspaceIntentFromConfirmedRequirement({
 			format: confirmedSetup.exportPreferences.format,
 			quality: confirmedSetup.exportPreferences.quality,
 			includeAudio: confirmedSetup.exportPreferences.includeAudio,
+			captionEnabled: confirmedSetup.captionPreferences.enabled,
 			captionFont: confirmedSetup.captionPreferences.font,
 			captionSize: confirmedSetup.captionPreferences.size,
 			captionStylePreset: confirmedSetup.captionPreferences.stylePreset,
+			voiceEnabled: confirmedSetup.voicePreferences.enabled,
 			voicePackId:
-				confirmedSetup.voicePreferences?.voicePackId || noBuiltinVoicePackId,
+				confirmedSetup.voicePreferences.voicePackId || noBuiltinVoicePackId,
 		},
+		titlePreferences: confirmedSetup.titlePreferences,
 		generateIntroCover: confirmedSetup.timelinePreferences.generateIntroCover,
 		requirements: confirmedSetup.timelinePreferences.requirements,
 	};
@@ -2644,6 +2691,16 @@ async function validateCodecutSetupIntent(intent) {
 		"Intro cover duration contract",
 		introCoverDurationContractCheck.ok,
 		introCoverDurationContractCheck.message,
+	);
+	const titlePreferencesCheck = validateWorkspaceTitlePreferences(
+		normalized.titlePreferences,
+	);
+	pushCheck(
+		checks,
+		"title-preferences",
+		"Fixed title",
+		titlePreferencesCheck.ok,
+		titlePreferencesCheck.message,
 	);
 	pushCheck(
 		checks,
@@ -2995,14 +3052,19 @@ function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 			generateIntroCover: normalized.generateIntroCover,
 			requirements: normalized.requirements,
 		},
+		titlePreferences: normalized.titlePreferences,
 		captionPreferences: {
+			enabled: normalized.output.captionEnabled,
 			language: normalized.captionLanguage,
 			font: normalized.output.captionFont,
 			size: normalized.output.captionSize,
 			stylePreset: normalized.output.captionStylePreset,
 		},
 		voicePreferences: {
-			voicePackId: normalized.output.voicePackId,
+			enabled: normalized.output.voiceEnabled,
+			voicePackId: normalized.output.voiceEnabled
+				? normalized.output.voicePackId
+				: noBuiltinVoicePackId,
 		},
 		templatePreference: normalized.templatePreference,
 		exportPreferences: {
@@ -3108,13 +3170,25 @@ function buildWorkspaceIntentDefaults(input = {}) {
 				typeof input.output?.includeAudio === "boolean"
 					? input.output.includeAudio
 					: true,
+			captionEnabled:
+				typeof input.output?.captionEnabled === "boolean"
+					? input.output.captionEnabled
+					: true,
 			captionFont: input.output?.captionFont || "auto",
 			captionSize: input.output?.captionSize || "medium",
 			captionStylePreset: input.output?.captionStylePreset || "creator-clean",
+			voiceEnabled:
+				typeof input.output?.voiceEnabled === "boolean"
+					? input.output.voiceEnabled
+					: input.output?.voicePackId !== undefined &&
+						input.output.voicePackId !== noBuiltinVoicePackId,
 			voicePackId: resolveWorkspaceVoicePackIdDefault(
 				input.output?.voicePackId,
 			),
 		},
+		titlePreferences: normalizeWorkspaceTitlePreferences(
+			input.titlePreferences,
+		),
 		generateIntroCover:
 			typeof input.generateIntroCover === "boolean"
 				? input.generateIntroCover
@@ -3149,6 +3223,17 @@ function shouldGenerateIntroCoverByDefault(durationContract) {
 		return false;
 	}
 	return true;
+}
+
+function normalizeWorkspaceTitlePreferences(value) {
+	if (!value || typeof value !== "object" || value.enabled !== true) {
+		return { enabled: false };
+	}
+	return {
+		enabled: true,
+		text: String(value.text || "").trim(),
+		stylePreset: String(value.stylePreset || "hook_title").trim(),
+	};
 }
 
 function buildWorkspaceOpenMediaSources(input = {}) {
@@ -3424,11 +3509,20 @@ function normalizeWorkspaceIntent(intent) {
 			format: String(intent.output?.format || ""),
 			quality: String(intent.output?.quality || ""),
 			includeAudio: Boolean(intent.output?.includeAudio),
+			captionEnabled: intent.output?.captionEnabled !== false,
 			captionFont: String(intent.output?.captionFont || ""),
 			captionSize: String(intent.output?.captionSize || ""),
 			captionStylePreset: String(intent.output?.captionStylePreset || ""),
+			voiceEnabled:
+				intent.output?.voiceEnabled === true ||
+				(intent.output?.voiceEnabled !== false &&
+					normalizeWorkspaceVoicePackId(intent.output?.voicePackId) !==
+						noBuiltinVoicePackId),
 			voicePackId: normalizeWorkspaceVoicePackId(intent.output?.voicePackId),
 		},
+		titlePreferences: normalizeWorkspaceTitlePreferences(
+			intent.titlePreferences,
+		),
 		generateIntroCover: intent.generateIntroCover,
 		requirements: String(intent.requirements || "").trim(),
 	};
@@ -3517,6 +3611,18 @@ function validateWorkspaceIntroCoverDurationContract(normalized) {
 		};
 	}
 	return { ok: true, message: "Intro cover duration contract is valid." };
+}
+
+function validateWorkspaceTitlePreferences(titlePreferences) {
+	const parsed = titlePreferencesSchema.safeParse(titlePreferences);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			message:
+				parsed.error.issues[0]?.message || "Title preferences are invalid.",
+		};
+	}
+	return { ok: true, message: "Title preferences are valid." };
 }
 
 function normalizeWorkspaceMediaSource(mediaSource = {}) {

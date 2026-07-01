@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
 	EditPlanAspectRatioSchema,
 	EditPlanCaptionStylePresetSchema,
+	EditPlanTextStylePresetSchema,
 	EditPlanTransitionTypeSchema,
 	type EditPlanCaptionStyle,
 } from "@/lib/agent-bridge/edit-plan/schema";
@@ -134,6 +135,7 @@ const TimelinePreferencesSchema = TimelinePreferencesBaseSchema.superRefine(
 
 const CaptionPreferencesSchema = z
 	.object({
+		enabled: z.boolean(),
 		language: z.string().trim().min(1),
 		font: CaptionFontSchema,
 		size: CaptionSizeSchema,
@@ -155,11 +157,32 @@ export const BuiltInVoicePackIdSchema = z.enum([
 	"podcast-male",
 ]);
 
-const VoicePreferencesSchema = z
+const VoicePreferencesBaseSchema = z
 	.object({
+		enabled: z.boolean(),
 		voicePackId: BuiltInVoicePackIdSchema,
 	})
 	.strict();
+
+const VoicePreferencesSchema = VoicePreferencesBaseSchema.superRefine(
+	(value, ctx) => {
+		if (value.enabled && value.voicePackId === "none") {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"voicePreferences.voicePackId must be a voice when voice is enabled.",
+				path: ["voicePackId"],
+			});
+		}
+		if (!value.enabled && value.voicePackId !== "none") {
+			ctx.addIssue({
+				code: "custom",
+				message: "voicePreferences.voicePackId must be none when voice is disabled.",
+				path: ["voicePackId"],
+			});
+		}
+	},
+);
 
 export const TemplatePreferenceSchema = z.discriminatedUnion("mode", [
 	z
@@ -174,6 +197,35 @@ export const TemplatePreferenceSchema = z.discriminatedUnion("mode", [
 		})
 		.strict(),
 ]);
+
+const TitlePreferencesBaseSchema = z
+	.object({
+		enabled: z.boolean(),
+		text: z.string().trim().min(1).optional(),
+		stylePreset: EditPlanTextStylePresetSchema.optional(),
+	})
+	.strict();
+
+const TitlePreferencesSchema = TitlePreferencesBaseSchema.superRefine(
+	(value, ctx) => {
+		if (!value.enabled) return;
+		if (!value.text) {
+			ctx.addIssue({
+				code: "custom",
+				message: "titlePreferences.text is required when title is enabled.",
+				path: ["text"],
+			});
+		}
+		if (!value.stylePreset) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"titlePreferences.stylePreset is required when title is enabled.",
+				path: ["stylePreset"],
+			});
+		}
+	},
+);
 
 export const ConfirmedSetupTaskTypeSchema = z.enum([
 	"template_draft",
@@ -199,8 +251,9 @@ export const ConfirmedSetupSchema = z
 		confirmedAt: z.string().trim().min(1),
 		source: z.literal("codecut_setup_confirmation"),
 		timelinePreferences: TimelinePreferencesSchema,
+		titlePreferences: TitlePreferencesSchema,
 		captionPreferences: CaptionPreferencesSchema,
-		voicePreferences: VoicePreferencesSchema.optional(),
+		voicePreferences: VoicePreferencesSchema,
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
 		exportPreferences: ExportPreferencesSchema,
 		changes: z.array(ConfirmedSetupChangeSchema),
@@ -209,14 +262,18 @@ export const ConfirmedSetupSchema = z
 
 const TimelinePreferencesPatchSchema =
 	TimelinePreferencesBaseSchema.partial().strict();
+const TitlePreferencesPatchSchema =
+	TitlePreferencesBaseSchema.partial().strict();
 const CaptionPreferencesPatchSchema =
 	CaptionPreferencesSchema.partial().strict();
 const ExportPreferencesPatchSchema = ExportPreferencesSchema.partial().strict();
-const VoicePreferencesPatchSchema = VoicePreferencesSchema.partial().strict();
+const VoicePreferencesPatchSchema =
+	VoicePreferencesBaseSchema.partial().strict();
 
 export const ConfirmedSetupPatchSchema = z
 	.object({
 		timelinePreferences: TimelinePreferencesPatchSchema.optional(),
+		titlePreferences: TitlePreferencesPatchSchema.optional(),
 		captionPreferences: CaptionPreferencesPatchSchema.optional(),
 		voicePreferences: VoicePreferencesPatchSchema.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
@@ -226,6 +283,7 @@ export const ConfirmedSetupPatchSchema = z
 	.superRefine((value, ctx) => {
 		if (
 			value.timelinePreferences === undefined &&
+			value.titlePreferences === undefined &&
 			value.captionPreferences === undefined &&
 			value.voicePreferences === undefined &&
 			value.templatePreference === undefined &&
@@ -250,6 +308,7 @@ export const UpdateProjectPreferencesArgsSchema = z
 
 export type ConfirmedSetup = z.infer<typeof ConfirmedSetupSchema>;
 export type ConfirmedSetupPatch = z.infer<typeof ConfirmedSetupPatchSchema>;
+export type TitlePreferences = ConfirmedSetup["titlePreferences"];
 export type CaptionPreferences = ConfirmedSetup["captionPreferences"];
 export type ExportPreferences = ConfirmedSetup["exportPreferences"];
 export type VoicePreferences = ConfirmedSetup["voicePreferences"];
@@ -260,6 +319,7 @@ export type DurationGoal = z.infer<typeof DurationGoalSchema>;
 export function captionStyleFromConfirmedSetup(
 	confirmedSetup: ConfirmedSetup,
 ): EditPlanCaptionStyle {
+	assertCaptionsEnabled(confirmedSetup);
 	return {
 		preset: confirmedSetup.captionPreferences.stylePreset,
 		position: "lower-safe",
@@ -318,6 +378,50 @@ export function resolveCaptionStyleForContract({
 		);
 	}
 	return expected;
+}
+
+export function assertCaptionsEnabled(confirmedSetup?: ConfirmedSetup) {
+	if (confirmedSetup?.captionPreferences.enabled === false) {
+		throw new Error("Captions are disabled in confirmedSetup.");
+	}
+}
+
+export function assertEditPlanTextPreferences({
+	confirmedSetup,
+	title,
+	captionCount,
+	hasCaptionStyle,
+}: {
+	confirmedSetup?: ConfirmedSetup;
+	title?: { text: string; stylePreset?: string };
+	captionCount: number;
+	hasCaptionStyle: boolean;
+}) {
+	if (!confirmedSetup) return;
+	if (!confirmedSetup.captionPreferences.enabled) {
+		if (captionCount > 0 || hasCaptionStyle) {
+			throw new Error("Captions are disabled in confirmedSetup.");
+		}
+	}
+	if (!confirmedSetup.titlePreferences.enabled) {
+		if (title) {
+			throw new Error("Fixed titles are disabled in confirmedSetup.");
+		}
+		return;
+	}
+	if (!title) {
+		throw new Error("Fixed title is required by confirmedSetup.");
+	}
+	if (title.text !== confirmedSetup.titlePreferences.text) {
+		throw new Error(
+			`title.text conflicts with confirmedSetup.titlePreferences.text: expected ${confirmedSetup.titlePreferences.text}.`,
+		);
+	}
+	if (title.stylePreset !== confirmedSetup.titlePreferences.stylePreset) {
+		throw new Error(
+			`title.stylePreset conflicts with confirmedSetup.titlePreferences.stylePreset: expected ${confirmedSetup.titlePreferences.stylePreset}.`,
+		);
+	}
 }
 
 export function resolveCaptionLanguageForContract({
@@ -433,24 +537,35 @@ export function applyConfirmedSetupPatch({
 	changedFields: string[];
 	requiresReplan: boolean;
 } {
-	const parsedPatch = ConfirmedSetupPatchSchema.parse(patch);
+	const parsedPatchInput = ConfirmedSetupPatchSchema.parse(patch);
+	const voicePreferences =
+		parsedPatchInput.voicePreferences === undefined
+			? confirmedSetup.voicePreferences
+			: normalizePatchedVoicePreferences({
+					...confirmedSetup.voicePreferences,
+					...parsedPatchInput.voicePreferences,
+				});
+	const parsedPatch = {
+		...parsedPatchInput,
+		...(parsedPatchInput.voicePreferences === undefined
+			? {}
+			: { voicePreferences }),
+	};
 	const next = ConfirmedSetupSchema.parse({
 		...confirmedSetup,
 		timelinePreferences: {
 			...confirmedSetup.timelinePreferences,
 			...(parsedPatch.timelinePreferences ?? {}),
 		},
+		titlePreferences: {
+			...confirmedSetup.titlePreferences,
+			...(parsedPatch.titlePreferences ?? {}),
+		},
 		captionPreferences: {
 			...confirmedSetup.captionPreferences,
 			...(parsedPatch.captionPreferences ?? {}),
 		},
-		voicePreferences:
-			parsedPatch.voicePreferences === undefined
-				? confirmedSetup.voicePreferences
-				: {
-						...confirmedSetup.voicePreferences,
-						...parsedPatch.voicePreferences,
-					},
+		voicePreferences,
 		templatePreference:
 			parsedPatch.templatePreference ?? confirmedSetup.templatePreference,
 		exportPreferences: {
@@ -476,6 +591,11 @@ export function applyConfirmedSetupPatch({
 				"timelinePreferences.durationContract",
 				"timelinePreferences.transitionPreference",
 				"timelinePreferences.generateIntroCover",
+				"titlePreferences.enabled",
+				"titlePreferences.text",
+				"titlePreferences.stylePreset",
+				"captionPreferences.enabled",
+				"voicePreferences.enabled",
 				"voicePreferences.voicePackId",
 				"templatePreference",
 			].some(
@@ -484,6 +604,15 @@ export function applyConfirmedSetupPatch({
 			),
 		),
 	};
+}
+
+function normalizePatchedVoicePreferences(
+	value: VoicePreferences,
+): VoicePreferences {
+	if (!value.enabled) {
+		return { enabled: false, voicePackId: "none" };
+	}
+	return value;
 }
 
 function collectPatchChanges({

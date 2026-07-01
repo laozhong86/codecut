@@ -144,10 +144,14 @@ function wordAsrContractFields() {
 
 function confirmedSetupFixture({
 	taskType = "edit_execution",
+	titlePreferences = { enabled: false },
+	captionEnabled = true,
 	captionLanguage = "auto",
 	captionFont = "auto",
 	captionSize = "medium",
 	captionStylePreset = "creator-clean",
+	voiceEnabled = false,
+	voicePackId = "none",
 	exportFormat = "mp4",
 	exportQuality = "high",
 	includeAudio = true,
@@ -164,6 +168,12 @@ function confirmedSetupFixture({
 		| "template_import"
 		| "template_apply_sample"
 		| "edit_execution";
+	titlePreferences?: {
+		enabled: boolean;
+		text?: string;
+		stylePreset?: "hook_title" | "lower_title";
+	};
+	captionEnabled?: boolean;
 	captionLanguage?: string;
 	captionFont?: string;
 	captionSize?: "small" | "medium" | "large";
@@ -180,6 +190,8 @@ function confirmedSetupFixture({
 		| "social-highlight"
 		| "comment-bubble"
 		| "minimal-reel";
+	voiceEnabled?: boolean;
+	voicePackId?: "none" | "podcast-female" | "podcast-male";
 	exportFormat?: "mp4" | "webm";
 	exportQuality?: "low" | "medium" | "high" | "very_high";
 	includeAudio?: boolean;
@@ -200,11 +212,17 @@ function confirmedSetupFixture({
 			generateIntroCover,
 			requirements: "Create a clear short video.",
 		},
+		titlePreferences,
 		captionPreferences: {
+			enabled: captionEnabled,
 			language: captionLanguage,
 			font: captionFont,
 			size: captionSize,
 			stylePreset: captionStylePreset,
+		},
+		voicePreferences: {
+			enabled: voiceEnabled,
+			voicePackId,
 		},
 		templatePreference,
 		exportPreferences: {
@@ -728,6 +746,132 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("add_captions fails fast when captions are disabled in confirmedSetup", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Caption disabled setup",
+			confirmedSetup: confirmedSetupFixture({
+				captionEnabled: false,
+			}),
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_captions",
+				args: { language: "auto", modelId: "whisper-tiny" },
+			}),
+			transcribeMediaRange: async () => {
+				throw new Error("caption transcription should not run");
+			},
+		});
+
+		expect(result.results[0]).toMatchObject({
+			success: false,
+			message: "Captions are disabled in confirmedSetup.",
+		});
+	});
+
+	test("apply_edit_plan rejects captions and fixed titles disabled by confirmedSetup", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Disabled text contract",
+			confirmedSetup: confirmedSetupFixture({
+				captionEnabled: false,
+				titlePreferences: { enabled: false },
+			}),
+		});
+		const importResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "source.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 5,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const mediaId = resultData<{ assets: Array<{ id: string }> }>(
+			importResult.results[0],
+		).assets[0].id;
+
+		const captionResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 5, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 5,
+								timelineStart: 0,
+								fit: "cover",
+								reason: "Main clip",
+							},
+						],
+						captions: [{ text: "字幕", startTime: 0, duration: 2 }],
+						captionStyle: {
+							preset: "creator-clean",
+							position: "lower-safe",
+							size: "medium",
+						},
+						rationale: "Caption should be blocked.",
+					},
+				},
+			}),
+		});
+		const titleResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_edit_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						sourceMediaId: mediaId,
+						target: { durationSec: 5, aspectRatio: "9:16" },
+						clips: [
+							{
+								id: "clip-1",
+								sourceStart: 0,
+								sourceEnd: 5,
+								timelineStart: 0,
+								fit: "cover",
+								reason: "Main clip",
+							},
+						],
+						title: {
+							text: "固定标题",
+							startTime: 0,
+							duration: 5,
+							stylePreset: "hook_title",
+						},
+						rationale: "Title should be blocked.",
+					},
+				},
+			}),
+		});
+
+		expect(captionResult.results[0]).toMatchObject({
+			success: false,
+			message: "Captions are disabled in confirmedSetup.",
+		});
+		expect(titleResult.results[0]).toMatchObject({
+			success: false,
+			message: "Fixed titles are disabled in confirmedSetup.",
+		});
+	});
+
 	test("update_project_preferences rejects stale revisions", async () => {
 		await createExecutorProject({
 			projectId,
@@ -860,6 +1004,44 @@ describe("codex executor", () => {
 		expect(caption).toMatchObject({
 			content: "字幕偏好修改验证",
 			style: { fontSize: 4.212 },
+		});
+	});
+
+	test("update_project_preferences disables captions without applying caption styling", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Disable captions setup",
+			confirmedSetup: confirmedSetupFixture({
+				captionEnabled: true,
+				captionSize: "medium",
+			}),
+		});
+		const beforeUpdate = await getExecutorProjectState({ projectId });
+
+		const updateResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "update_project_preferences",
+				args: {
+					projectId,
+					baseRevision: beforeUpdate.revision,
+					confirmationToken: "ccconfirmed_test",
+					patch: {
+						captionPreferences: { enabled: false },
+					},
+					reason: "user_disabled_captions",
+				},
+			}),
+		});
+
+		expect(updateResult.results[0]).toMatchObject({
+			success: true,
+			data: {
+				confirmedSetup: {
+					captionPreferences: { enabled: false },
+				},
+				updatedCaptionElementIds: [],
+				requiresReplan: true,
+			},
 		});
 	});
 

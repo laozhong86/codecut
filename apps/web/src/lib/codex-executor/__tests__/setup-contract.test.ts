@@ -21,11 +21,17 @@ function confirmedSetup(overrides: Record<string, unknown> = {}) {
 			generateIntroCover: true,
 			requirements: "Create a clear short video.",
 		},
+		titlePreferences: { enabled: false },
 		captionPreferences: {
+			enabled: true,
 			language: "auto",
 			font: "auto",
 			size: "medium",
 			stylePreset: "creator-clean",
+		},
+		voicePreferences: {
+			enabled: false,
+			voicePackId: "none",
 		},
 		exportPreferences: {
 			format: "mp4",
@@ -101,23 +107,120 @@ describe("ConfirmedSetup durationContract", () => {
 		const parsed = ConfirmedSetupSchema.parse(
 			confirmedSetup({
 				voicePreferences: {
+					enabled: true,
 					voicePackId: "podcast-female",
 				},
 			}),
 		);
 
 		expect(parsed.voicePreferences).toEqual({
+			enabled: true,
 			voicePackId: "podcast-female",
 		});
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
 					voicePreferences: {
+						enabled: true,
 						voicePackId: "女声",
 					},
 				}),
 			),
 		).toThrow();
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					voicePreferences: {
+						enabled: true,
+						voicePackId: "none",
+					},
+				}),
+			),
+		).toThrow("voicePreferences.voicePackId must be a voice");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					voicePreferences: {
+						enabled: false,
+						voicePackId: "podcast-female",
+					},
+				}),
+			),
+		).toThrow("voicePreferences.voicePackId must be none");
+	});
+
+	test("clears the selected voice when voice is disabled by patch", () => {
+		const applied = applyConfirmedSetupPatch({
+			confirmedSetup: ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					voicePreferences: {
+						enabled: true,
+						voicePackId: "podcast-female",
+					},
+				}),
+			),
+			patch: {
+				voicePreferences: { enabled: false },
+			},
+			reason: "user_disabled_voice",
+			changedAt: "2026-07-01T00:00:00.000Z",
+		});
+
+		expect(applied.confirmedSetup.voicePreferences).toEqual({
+			enabled: false,
+			voicePackId: "none",
+		});
+		expect(applied.changedFields).toEqual([
+			"voicePreferences.enabled",
+			"voicePreferences.voicePackId",
+		]);
+		expect(applied.requiresReplan).toBe(true);
+	});
+
+	test("accepts title, caption, and voice enablement preferences", () => {
+		const parsed = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				titlePreferences: {
+					enabled: true,
+					text: "别乱花钱",
+					stylePreset: "hook_title",
+				},
+				captionPreferences: {
+					enabled: false,
+					language: "zh-CN",
+					font: "auto",
+					size: "medium",
+					stylePreset: "short-form-bold",
+				},
+				voicePreferences: {
+					enabled: false,
+					voicePackId: "none",
+				},
+			}),
+		);
+
+		expect(parsed.titlePreferences).toEqual({
+			enabled: true,
+			text: "别乱花钱",
+			stylePreset: "hook_title",
+		});
+		expect(parsed.captionPreferences.enabled).toBe(false);
+		expect(parsed.voicePreferences).toEqual({
+			enabled: false,
+			voicePackId: "none",
+		});
+	});
+
+	test("requires title text and style when fixed title is enabled", () => {
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					titlePreferences: {
+						enabled: true,
+					},
+				}),
+			),
+		).toThrow("titlePreferences.text is required");
 	});
 
 	test("requires source duration when preserving total duration", () => {
