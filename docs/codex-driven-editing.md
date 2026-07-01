@@ -234,14 +234,19 @@ After `open_codecut_requirement_confirmation` succeeds, use the returned
 `confirmationUrl` as the real form URL. Do not attach an inline MCP App opener
 or `openai/outputTemplate` to that tool. Open the URL in the Codex in-app
 browser when browser control is available; if the host cannot be controlled,
-show the URL as a fallback.
+show the URL as a fallback. Codex must not click the form's confirm or cancel
+buttons, script the form controls, or submit the confirmation API. Requirement
+confirmation is a human action. If the user asks Codex to continue before they
+say they confirmed the web page, Codex may only reopen the confirmation page and
+stop again.
 
 The `draftId` from `open_codecut_requirement_confirmation` is the only valid
 draft for the current fresh creative job. Do not call
 `get_codecut_requirement_confirmation` for an older `ccreq_*` before opening a
 new requirement confirmation page in the current intake. A confirmed readback
 whose `draftId` differs from the opened draft is a routing failure, not a usable
-confirmation.
+confirmation. `get_codecut_requirement_confirmation` should run only after the
+user explicitly says they confirmed or cancelled in the web page.
 
 If a host mounts the requirement confirmation page for a failed or malformed
 `open_codecut_requirement_confirmation` result, the page must fail closed: no
