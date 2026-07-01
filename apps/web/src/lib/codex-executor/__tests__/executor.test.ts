@@ -152,6 +152,7 @@ function confirmedSetupFixture({
 	exportQuality = "high",
 	includeAudio = true,
 	generateIntroCover = true,
+	templatePreference = { mode: "auto" },
 	durationContract = {
 		totalDurationMode: "auto",
 		sourceCoverageMode: "selected_segments",
@@ -183,6 +184,7 @@ function confirmedSetupFixture({
 	exportQuality?: "low" | "medium" | "high" | "very_high";
 	includeAudio?: boolean;
 	generateIntroCover?: boolean;
+	templatePreference?: ConfirmedSetup["templatePreference"];
 	durationContract?: DurationContract;
 } = {}): ConfirmedSetup {
 	return {
@@ -204,6 +206,7 @@ function confirmedSetupFixture({
 			size: captionSize,
 			stylePreset: captionStylePreset,
 		},
+		templatePreference,
 		exportPreferences: {
 			format: exportFormat,
 			quality: exportQuality,

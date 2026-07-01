@@ -45,6 +45,10 @@ function validDraftInput(): RequirementDraftInput {
 			stylePreset: "short-form-bold",
 		},
 		voicePreferences: { voicePackId: "none" },
+		templatePreference: {
+			mode: "specified",
+			requestedTemplate: "TikTok 解说视频模板",
+		},
 		exportPreferences: {
 			format: "mp4",
 			quality: "high",
@@ -118,6 +122,10 @@ describe("requirement confirmation store", () => {
 		expect(readback.draft.requestedProjectName).toBe(
 			"22号解说口播保留原片时长",
 		);
+		expect(readback.draft.templatePreference).toEqual({
+			mode: "specified",
+			requestedTemplate: "TikTok 解说视频模板",
+		});
 	});
 
 	test("writes confirmed requirement with embedded confirmed setup", async () => {
@@ -139,6 +147,10 @@ describe("requirement confirmation store", () => {
 		expect(confirmed.confirmedSetup.voicePreferences?.voicePackId).toBe(
 			"podcast-female",
 		);
+		expect(confirmed.confirmedSetup.templatePreference).toEqual({
+			mode: "specified",
+			requestedTemplate: "TikTok 解说视频模板",
+		});
 
 		const file = JSON.parse(
 			await readFile(
@@ -153,6 +165,30 @@ describe("requirement confirmation store", () => {
 			),
 		);
 		expect(file.status).toBe("confirmed");
+		expect(file.confirmedSetup.templatePreference).toEqual({
+			mode: "specified",
+			requestedTemplate: "TikTok 解说视频模板",
+		});
+	});
+
+	test("confirmation patch can update template preference", async () => {
+		const root = await mkdtemp(join(tmpdir(), "codecut-req-"));
+		const draft = await createRequirementDraft({
+			root,
+			input: validDraftInput(),
+		});
+
+		const confirmed = await confirmRequirementDraft({
+			root,
+			draftId: draft.draftId,
+			patch: {
+				templatePreference: { mode: "auto" },
+			},
+		});
+
+		expect(confirmed.confirmedSetup.templatePreference).toEqual({
+			mode: "auto",
+		});
 	});
 
 	test("writes cancelled status", async () => {

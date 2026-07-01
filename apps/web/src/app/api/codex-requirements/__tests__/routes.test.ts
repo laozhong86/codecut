@@ -66,6 +66,10 @@ function validDraftInput(): RequirementDraftInput {
 			stylePreset: "short-form-bold",
 		},
 		voicePreferences: { voicePackId: "none" },
+		templatePreference: {
+			mode: "specified",
+			requestedTemplate: "TikTok 解说视频模板",
+		},
 		exportPreferences: {
 			format: "mp4",
 			quality: "high",
@@ -113,6 +117,10 @@ describe("codex requirement confirmation API routes", () => {
 			draft: {
 				draftId: draft.draftId,
 				requestedProjectName: "22号解说口播保留原片时长",
+				templatePreference: {
+					mode: "specified",
+					requestedTemplate: "TikTok 解说视频模板",
+				},
 			},
 		});
 	});
@@ -130,6 +138,7 @@ describe("codex requirement confirmation API routes", () => {
 				body: {
 					patch: {
 						voicePreferences: { voicePackId: "podcast-female" },
+						templatePreference: { mode: "auto" },
 					},
 				},
 			}),
@@ -142,6 +151,7 @@ describe("codex requirement confirmation API routes", () => {
 			confirmed: {
 				confirmedSetup: {
 					voicePreferences: { voicePackId: "podcast-female" },
+					templatePreference: { mode: "auto" },
 				},
 			},
 		});
@@ -159,6 +169,9 @@ describe("codex requirement confirmation API routes", () => {
 			),
 		);
 		expect(confirmedFile.status).toBe("confirmed");
+		expect(confirmedFile.confirmedSetup.templatePreference).toEqual({
+			mode: "auto",
+		});
 	});
 
 	test("cancels requirement and returns cancelled readback", async () => {

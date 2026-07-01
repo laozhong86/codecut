@@ -161,6 +161,20 @@ const VoicePreferencesSchema = z
 	})
 	.strict();
 
+export const TemplatePreferenceSchema = z.discriminatedUnion("mode", [
+	z
+		.object({
+			mode: z.literal("auto"),
+		})
+		.strict(),
+	z
+		.object({
+			mode: z.literal("specified"),
+			requestedTemplate: z.string().trim().min(1),
+		})
+		.strict(),
+]);
+
 export const ConfirmedSetupTaskTypeSchema = z.enum([
 	"template_draft",
 	"template_import",
@@ -187,6 +201,7 @@ export const ConfirmedSetupSchema = z
 		timelinePreferences: TimelinePreferencesSchema,
 		captionPreferences: CaptionPreferencesSchema,
 		voicePreferences: VoicePreferencesSchema.optional(),
+		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
 		exportPreferences: ExportPreferencesSchema,
 		changes: z.array(ConfirmedSetupChangeSchema),
 	})
@@ -204,6 +219,7 @@ export const ConfirmedSetupPatchSchema = z
 		timelinePreferences: TimelinePreferencesPatchSchema.optional(),
 		captionPreferences: CaptionPreferencesPatchSchema.optional(),
 		voicePreferences: VoicePreferencesPatchSchema.optional(),
+		templatePreference: TemplatePreferenceSchema.optional(),
 		exportPreferences: ExportPreferencesPatchSchema.optional(),
 	})
 	.strict()
@@ -212,6 +228,7 @@ export const ConfirmedSetupPatchSchema = z
 			value.timelinePreferences === undefined &&
 			value.captionPreferences === undefined &&
 			value.voicePreferences === undefined &&
+			value.templatePreference === undefined &&
 			value.exportPreferences === undefined
 		) {
 			ctx.addIssue({
@@ -236,6 +253,7 @@ export type ConfirmedSetupPatch = z.infer<typeof ConfirmedSetupPatchSchema>;
 export type CaptionPreferences = ConfirmedSetup["captionPreferences"];
 export type ExportPreferences = ConfirmedSetup["exportPreferences"];
 export type VoicePreferences = ConfirmedSetup["voicePreferences"];
+export type TemplatePreference = ConfirmedSetup["templatePreference"];
 export type DurationContract = z.infer<typeof DurationContractSchema>;
 export type DurationGoal = z.infer<typeof DurationGoalSchema>;
 
@@ -433,6 +451,8 @@ export function applyConfirmedSetupPatch({
 						...confirmedSetup.voicePreferences,
 						...parsedPatch.voicePreferences,
 					},
+		templatePreference:
+			parsedPatch.templatePreference ?? confirmedSetup.templatePreference,
 		exportPreferences: {
 			...confirmedSetup.exportPreferences,
 			...(parsedPatch.exportPreferences ?? {}),
@@ -457,6 +477,7 @@ export function applyConfirmedSetupPatch({
 				"timelinePreferences.transitionPreference",
 				"timelinePreferences.generateIntroCover",
 				"voicePreferences.voicePackId",
+				"templatePreference",
 			].some(
 				(prefix) =>
 					change.field === prefix || change.field.startsWith(`${prefix}.`),

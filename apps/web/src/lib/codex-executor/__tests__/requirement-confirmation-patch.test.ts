@@ -43,6 +43,10 @@ function requirementDraftFixture(): RequirementDraft {
 			stylePreset: "short-form-bold",
 		},
 		voicePreferences: { voicePackId: "none" },
+		templatePreference: {
+			mode: "specified",
+			requestedTemplate: "TikTok 解说视频模板",
+		},
 		exportPreferences: {
 			format: "mp4",
 			quality: "high",

@@ -70,6 +70,7 @@ function confirmedSetupBody(
 			size: captionSize,
 			stylePreset: "product-punch",
 		},
+		templatePreference: { mode: "auto" },
 		exportPreferences: {
 			format: "mp4",
 			quality: "high",

@@ -8,6 +8,7 @@ import {
 	BuiltInVoicePackIdSchema,
 	ConfirmedSetupSchema,
 	ConfirmedSetupTaskTypeSchema,
+	TemplatePreferenceSchema,
 } from "./setup-contract";
 
 const MediaSourceSchema = z.union([
@@ -55,6 +56,7 @@ export const RequirementDraftInputSchema = z
 			.object({ voicePackId: BuiltInVoicePackIdSchema })
 			.strict()
 			.optional(),
+		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
 		exportPreferences: ConfirmedSetupSchema.shape.exportPreferences,
 		checks: z.array(CheckSchema),
 	})
@@ -101,6 +103,7 @@ export const RequirementConfirmationPatchSchema = z
 			.object({ voicePackId: BuiltInVoicePackIdSchema })
 			.strict()
 			.optional(),
+		templatePreference: TemplatePreferenceSchema.optional(),
 		exportPreferences: ConfirmedSetupSchema.shape.exportPreferences.optional(),
 	})
 	.strict();
@@ -257,6 +260,8 @@ export async function confirmRequirementDraft({
 			captionPreferences:
 				parsedPatch.captionPreferences ?? draft.captionPreferences,
 			voicePreferences: parsedPatch.voicePreferences ?? draft.voicePreferences,
+			templatePreference:
+				parsedPatch.templatePreference ?? draft.templatePreference,
 			exportPreferences:
 				parsedPatch.exportPreferences ?? draft.exportPreferences,
 			changes: [],
