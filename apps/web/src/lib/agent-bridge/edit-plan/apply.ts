@@ -76,6 +76,15 @@ export type ApplyEditPlanResult =
 	| { success: false; message: string; path?: string };
 
 type TextElementRaw = Parameters<typeof buildTextElement>[0]["raw"];
+type EditPlanTextItem = {
+	text: string;
+	startTime: number;
+	duration: number;
+	name: string;
+	richSpans?: EditPlanTextRichSpan[];
+	motionPreset?: EditPlanTextMotionPreset;
+	raw?: TextElementRaw;
+};
 
 function hasTimelineElements({ tracks }: { tracks: TimelineTrack[] }): boolean {
 	return tracks.some((track) => track.elements.length > 0);
@@ -89,6 +98,52 @@ function collectElementIds({
 	return new Set(
 		tracks.flatMap((track) => track.elements.map((element) => element.id)),
 	);
+}
+
+function renameTrack({
+	editor,
+	trackId,
+	name,
+}: {
+	editor: EditPlanEditor;
+	trackId: string;
+	name: string;
+}) {
+	editor.timeline.updateTracks(
+		editor.timeline
+			.getTracks()
+			.map((track) => (track.id === trackId ? { ...track, name } : track)),
+	);
+}
+
+function insertTextItemsOnTrack({
+	editor,
+	trackName,
+	trackIndex,
+	items,
+}: {
+	editor: EditPlanEditor;
+	trackName: string;
+	trackIndex: number;
+	items: EditPlanTextItem[];
+}): string[] {
+	if (items.length === 0) return [];
+	const trackId = editor.timeline.addTrack({
+		type: "text",
+		index: trackIndex,
+	});
+	renameTrack({ editor, trackId, name: trackName });
+	const insertedElementIds: string[] = [];
+	for (const item of items) {
+		insertedElementIds.push(
+			...insertElementAndCollectIds({
+				editor,
+				trackId,
+				element: createTextElement(item),
+			}),
+		);
+	}
+	return insertedElementIds;
 }
 
 function getNewElementIds({
@@ -548,17 +603,9 @@ export function applyEditPlanToEditor({
 		transitionCount += 1;
 	}
 
-	const textItems: Array<{
-		text: string;
-		startTime: number;
-		duration: number;
-		name: string;
-		richSpans?: EditPlanTextRichSpan[];
-		motionPreset?: EditPlanTextMotionPreset;
-		raw?: TextElementRaw;
-	}> = [];
+	const titleItems: EditPlanTextItem[] = [];
 	if (normalizedPlan.title) {
-		textItems.push({
+		titleItems.push({
 			...normalizedPlan.title,
 			name: "EditPlan Title",
 			motionPreset: normalizedPlan.title.motionPreset,
@@ -570,6 +617,7 @@ export function applyEditPlanToEditor({
 				: undefined,
 		});
 	}
+	const captionItems: EditPlanTextItem[] = [];
 	const captionRaw = normalizedPlan.captionStyle
 		? resolveCaptionStylePreset({
 				captionStyle: normalizedPlan.captionStyle,
@@ -583,7 +631,7 @@ export function applyEditPlanToEditor({
 	) {
 		const caption = normalizedPlan.captions?.[index];
 		if (!caption) continue;
-		textItems.push({
+		captionItems.push({
 			...caption,
 			name: `Caption ${index + 1}`,
 			motionPreset: normalizedPlan.captionStyle?.motionPreset,
@@ -591,18 +639,23 @@ export function applyEditPlanToEditor({
 		});
 	}
 
-	if (textItems.length > 0) {
-		const textTrackId = editor.timeline.addTrack({ type: "text", index: 0 });
-		for (const item of textItems) {
-			const insertedIds = insertElementAndCollectIds({
-				editor,
-				trackId: textTrackId,
-				element: createTextElement(item),
-			});
-			appliedElementIds.push(...insertedIds);
-			textElementCount += insertedIds.length;
-		}
-	}
+	const insertedTitleIds = insertTextItemsOnTrack({
+		editor,
+		trackName: "Text Overlays",
+		trackIndex: 0,
+		items: titleItems,
+	});
+	appliedElementIds.push(...insertedTitleIds);
+	textElementCount += insertedTitleIds.length;
+
+	const insertedCaptionIds = insertTextItemsOnTrack({
+		editor,
+		trackName: "Captions",
+		trackIndex: titleItems.length > 0 ? 1 : 0,
+		items: captionItems,
+	});
+	appliedElementIds.push(...insertedCaptionIds);
+	textElementCount += insertedCaptionIds.length;
 
 	if (normalizedPlan.audio) {
 		const audioTrackId = editor.timeline.addTrack({ type: "audio" });

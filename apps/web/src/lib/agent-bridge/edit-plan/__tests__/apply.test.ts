@@ -495,7 +495,7 @@ describe("applyEditPlanToEditor", () => {
 		expect(videoElements[0]?.transform.scale).toBeCloseTo(3.16049, 4);
 	});
 
-	test("inserts title and captions on a text track", () => {
+	test("inserts title and captions on separate text tracks", () => {
 		const editor = fakeEditor();
 
 		applyEditPlanToEditor({
@@ -505,17 +505,27 @@ describe("applyEditPlanToEditor", () => {
 			editor,
 		});
 
-		const textElements = editor.timeline
+		const textTracks = editor.timeline
 			.getTracks()
-			.flatMap((track) => (track.type === "text" ? track.elements : []));
+			.filter((track): track is TextTrack => track.type === "text");
+		const titleTrack = textTracks.find(
+			(track) => track.name === "Text Overlays",
+		);
+		const captionTrack = textTracks.find((track) => track.name === "Captions");
 
-		expect(textElements).toMatchObject([
+		expect(textTracks.map((track) => track.name)).toEqual([
+			"Text Overlays",
+			"Captions",
+		]);
+		expect(titleTrack?.elements).toMatchObject([
 			{
 				type: "text",
 				content: "The key insight",
 				startTime: 0,
 				duration: 3,
 			},
+		]);
+		expect(captionTrack?.elements).toMatchObject([
 			{
 				type: "text",
 				content: "This is the key insight.",

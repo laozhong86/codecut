@@ -1441,6 +1441,12 @@ Do not start the render if either freshness gate fails.
 - If `validate_edit_plan` or `preview_edit_plan` fails, Codex must correct the plan before applying. Do not skip directly to `apply_edit_plan`.
 - If `apply_narrated_remix_plan` fails validation, Codex must correct the NarratedRemixPlan. Codecut must not auto-fix it.
 - If `verify_timeline` fails, Codex must inspect the returned mismatch fields and correct the plan or verification JSON. Do not treat a failed verification as success because `apply_edit_plan` completed.
+- EditPlan titles and captions must read back on separate text tracks:
+  `Text Overlays` for `EditPlan Title`, and `Captions` for `Caption N`
+  elements. Title text must be verified with `titleCount`; captions must be
+  verified with `captionCount`.
+- When an EditPlan contains both a fixed title and captions, include
+  `titleCaptionTrackSeparated: true` in the `verify_timeline` verification JSON.
 - If the timeline is not empty, Codex must pass `replaceExisting=true` only when replacing the current cut is intentional.
 - If BGM/SFX is requested, Codex must import or select valid audio assets before writing the EditPlan. Missing or non-audio assets must stop the workflow.
 - If provider-backed voice generation fails, report it as an external voice gate

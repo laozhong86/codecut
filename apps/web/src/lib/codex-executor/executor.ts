@@ -940,9 +940,11 @@ const verifyTimelineArgsSchema = z
 				totalDuration: z.number().nonnegative().optional(),
 				trackCount: z.number().int().nonnegative().optional(),
 				clipCount: z.number().int().nonnegative().optional(),
+				titleCount: z.number().int().nonnegative().optional(),
 				captionCount: z.number().int().nonnegative().optional(),
 				audioCount: z.number().int().nonnegative().optional(),
 				transitionCount: z.number().int().nonnegative().optional(),
+				titleCaptionTrackSeparated: z.boolean().optional(),
 				mediaIds: z.array(z.string().min(1)).optional(),
 			})
 			.strict(),
@@ -2747,7 +2749,10 @@ function timelineVerificationActuals({
 	state: ExecutorProjectState;
 }) {
 	const mediaIds = new Set<string>();
+	const titleTrackIds = new Set<string>();
+	const captionTrackIds = new Set<string>();
 	let clipCount = 0;
+	let titleCount = 0;
 	let captionCount = 0;
 	let audioCount = 0;
 	let transitionCount = 0;
@@ -2764,7 +2769,17 @@ function timelineVerificationActuals({
 				clipCount += 1;
 			}
 			if (track.type === "text" && element.type === "text") {
-				captionCount += 1;
+				if (element.name === "EditPlan Title") {
+					titleCount += 1;
+					titleTrackIds.add(track.id);
+				} else if (
+					track.name === "Captions" ||
+					/^Caption \d+$/.test(element.name) ||
+					/^Imported Subtitle \d+$/.test(element.name)
+				) {
+					captionCount += 1;
+					captionTrackIds.add(track.id);
+				}
 			}
 			if (track.type === "audio" && element.type === "audio") {
 				audioCount += 1;
@@ -2776,9 +2791,14 @@ function timelineVerificationActuals({
 		totalDuration: calculateTotalDuration({ tracks: state.tracks }),
 		trackCount: state.tracks.length,
 		clipCount,
+		titleCount,
 		captionCount,
 		audioCount,
 		transitionCount,
+		titleCaptionTrackSeparated:
+			titleTrackIds.size === 0 ||
+			captionTrackIds.size === 0 ||
+			[...titleTrackIds].every((trackId) => !captionTrackIds.has(trackId)),
 		mediaIds: [...mediaIds].sort(),
 	};
 }
@@ -2800,17 +2820,19 @@ function runVerifyTimeline({
 	const actual = timelineVerificationActuals({ state });
 	const failures: Array<{
 		field: string;
-		expected: number | string[];
-		actual: number | string[];
+		expected: number | string[] | boolean;
+		actual: number | string[] | boolean;
 	}> = [];
 
 	for (const field of [
 		"totalDuration",
 		"trackCount",
 		"clipCount",
+		"titleCount",
 		"captionCount",
 		"audioCount",
 		"transitionCount",
+		"titleCaptionTrackSeparated",
 	] as const) {
 		if (expected[field] !== undefined && actual[field] !== expected[field]) {
 			failures.push({

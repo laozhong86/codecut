@@ -3808,6 +3808,24 @@ describe("codex executor", () => {
 		const timelineResult = await executeCodexExecutorEnvelope({
 			envelope: envelope({ tool: "get_timeline_state", args: {} }),
 		});
+		const verifyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "verify_timeline",
+				args: {
+					verification: {
+						totalDuration: 10,
+						trackCount: 4,
+						clipCount: 2,
+						titleCount: 1,
+						captionCount: 1,
+						audioCount: 5,
+						transitionCount: 1,
+						titleCaptionTrackSeparated: true,
+						mediaIds: [videoId, bgmId, sfxId],
+					},
+				},
+			}),
+		});
 
 		expect(applyResult.results[0]).toMatchObject({
 			success: true,
@@ -3831,6 +3849,7 @@ describe("codex executor", () => {
 				tracks: [
 					{
 						type: "text",
+						name: "Text Overlays",
 						elements: [
 							{
 								type: "text",
@@ -3841,6 +3860,12 @@ describe("codex executor", () => {
 									backgroundOpacity: 0.72,
 								},
 							},
+						],
+					},
+						{
+							type: "text",
+							name: "Captions",
+							elements: [
 							{
 								type: "text",
 								content: "资源不等于能力",
@@ -3931,7 +3956,17 @@ describe("codex executor", () => {
 				],
 			},
 		});
-	});
+		expect(verifyResult.results[0]).toMatchObject({
+				success: true,
+				data: {
+					actual: {
+						titleCount: 1,
+						captionCount: 1,
+						titleCaptionTrackSeparated: true,
+					},
+				},
+			});
+		});
 
 	test("transcribes imported media through the local executor runtime", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
