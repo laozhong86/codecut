@@ -8,6 +8,7 @@ import {
 } from "@/lib/agent-bridge/edit-plan/schema";
 import type { buildTextElement } from "@/lib/timeline/element-utils";
 import { isCodecutLocalFontFamily } from "@/lib/codecut-fonts";
+import builtinCharacterOptions from "./builtin-character-options.json";
 
 type TextElementRaw = Parameters<typeof buildTextElement>[0]["raw"];
 
@@ -158,6 +159,32 @@ export const BuiltInVoicePackIdSchema = z.enum([
 	"custom",
 ]);
 
+const builtInCharacterIds = new Set([
+	"none",
+	...builtinCharacterOptions.map((character) => character.id),
+]);
+
+export const BuiltInCharacterIdSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.refine((value) => builtInCharacterIds.has(value), {
+		message:
+			"characterPreferences.characterId must be none or a built-in role.",
+	});
+
+const CharacterPreferencesSchema = z
+	.object({
+		characterId: BuiltInCharacterIdSchema,
+	})
+	.strict();
+
+const BgmPreferencesSchema = z
+	.object({
+		mode: z.enum(["none", "smart_match"]),
+	})
+	.strict();
+
 const CustomVoiceFileSchema = z
 	.object({
 		name: z.string().trim().min(1),
@@ -291,6 +318,8 @@ export const ConfirmedSetupSchema = z
 		titlePreferences: TitlePreferencesSchema,
 		captionPreferences: CaptionPreferencesSchema,
 		voicePreferences: VoicePreferencesSchema,
+		characterPreferences: CharacterPreferencesSchema,
+		bgmPreferences: BgmPreferencesSchema,
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
 		exportPreferences: ExportPreferencesSchema,
 		changes: z.array(ConfirmedSetupChangeSchema),
@@ -306,6 +335,9 @@ const CaptionPreferencesPatchSchema =
 const ExportPreferencesPatchSchema = ExportPreferencesSchema.partial().strict();
 const VoicePreferencesPatchSchema =
 	VoicePreferencesBaseSchema.partial().strict();
+const CharacterPreferencesPatchSchema =
+	CharacterPreferencesSchema.partial().strict();
+const BgmPreferencesPatchSchema = BgmPreferencesSchema.partial().strict();
 
 export const ConfirmedSetupPatchSchema = z
 	.object({
@@ -313,6 +345,8 @@ export const ConfirmedSetupPatchSchema = z
 		titlePreferences: TitlePreferencesPatchSchema.optional(),
 		captionPreferences: CaptionPreferencesPatchSchema.optional(),
 		voicePreferences: VoicePreferencesPatchSchema.optional(),
+		characterPreferences: CharacterPreferencesPatchSchema.optional(),
+		bgmPreferences: BgmPreferencesPatchSchema.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
 		exportPreferences: ExportPreferencesPatchSchema.optional(),
 	})
@@ -323,6 +357,8 @@ export const ConfirmedSetupPatchSchema = z
 			value.titlePreferences === undefined &&
 			value.captionPreferences === undefined &&
 			value.voicePreferences === undefined &&
+			value.characterPreferences === undefined &&
+			value.bgmPreferences === undefined &&
 			value.templatePreference === undefined &&
 			value.exportPreferences === undefined
 		) {
@@ -349,6 +385,8 @@ export type TitlePreferences = ConfirmedSetup["titlePreferences"];
 export type CaptionPreferences = ConfirmedSetup["captionPreferences"];
 export type ExportPreferences = ConfirmedSetup["exportPreferences"];
 export type VoicePreferences = ConfirmedSetup["voicePreferences"];
+export type CharacterPreferences = ConfirmedSetup["characterPreferences"];
+export type BgmPreferences = ConfirmedSetup["bgmPreferences"];
 export type TemplatePreference = ConfirmedSetup["templatePreference"];
 export type DurationContract = z.infer<typeof DurationContractSchema>;
 export type DurationGoal = z.infer<typeof DurationGoalSchema>;
@@ -607,6 +645,14 @@ export function applyConfirmedSetupPatch({
 			...(parsedPatch.captionPreferences ?? {}),
 		},
 		voicePreferences,
+		characterPreferences: {
+			...confirmedSetup.characterPreferences,
+			...(parsedPatch.characterPreferences ?? {}),
+		},
+		bgmPreferences: {
+			...confirmedSetup.bgmPreferences,
+			...(parsedPatch.bgmPreferences ?? {}),
+		},
 		templatePreference:
 			parsedPatch.templatePreference ?? confirmedSetup.templatePreference,
 		exportPreferences: {
@@ -640,6 +686,8 @@ export function applyConfirmedSetupPatch({
 				"voicePreferences.enabled",
 				"voicePreferences.voicePackId",
 				"voicePreferences.customVoiceFile",
+				"characterPreferences.characterId",
+				"bgmPreferences.mode",
 				"templatePreference",
 			].some(
 				(prefix) =>

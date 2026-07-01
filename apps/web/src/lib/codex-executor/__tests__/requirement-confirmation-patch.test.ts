@@ -45,6 +45,8 @@ function requirementDraftFixture(): RequirementDraft {
 			stylePreset: "short-form-bold",
 		},
 		voicePreferences: { enabled: false, voicePackId: "none" },
+		characterPreferences: { characterId: "none" },
+		bgmPreferences: { mode: "none" },
 		templatePreference: {
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
@@ -80,11 +82,22 @@ describe("requirement confirmation patch builder", () => {
 		expect(form.requestedTemplate).toBe("TikTok 解说视频模板");
 	});
 
+	test("reads character and BGM preferences from the requirement draft", () => {
+		const draft: RequirementDraft = {
+			...requirementDraftFixture(),
+			characterPreferences: { characterId: "ugc-female-host" },
+			bgmPreferences: { mode: "smart_match" },
+		};
+		const form = formStateFromRequirementDraft(draft);
+
+		expect(form.characterId).toBe("ugc-female-host");
+		expect(form.bgmMode).toBe("smart_match");
+	});
+
 	test("submits voice preferences only when the user changes voice selection", () => {
 		const draft = requirementDraftFixture();
 		const form = {
 			...formStateFromRequirementDraft(draft),
-			voiceEnabled: true,
 			voicePackId: "podcast-female" as const,
 		};
 
@@ -97,36 +110,11 @@ describe("requirement confirmation patch builder", () => {
 		const draft = requirementDraftFixture();
 		const form = {
 			...formStateFromRequirementDraft(draft),
-			voiceEnabled: true,
 			voicePackId: "podcast-female" as const,
 		};
 
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
 			voicePreferences: { enabled: true, voicePackId: "podcast-female" },
-		});
-	});
-
-	test("submits custom voice file metadata", () => {
-		const draft = requirementDraftFixture();
-		const form = {
-			...formStateFromRequirementDraft(draft),
-			voiceEnabled: true,
-			voicePackId: "custom" as const,
-			customVoiceFileName: "voice.wav",
-			customVoiceFileUrl: "blob:voice",
-			customVoiceFilePath: "voice.wav",
-		};
-
-		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
-			voicePreferences: {
-				enabled: true,
-				voicePackId: "custom",
-				customVoiceFile: {
-					name: "voice.wav",
-					url: "blob:voice",
-					path: "voice.wav",
-				},
-			},
 		});
 	});
 
@@ -211,6 +199,20 @@ describe("requirement confirmation patch builder", () => {
 
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
 			templatePreference: { mode: "auto" },
+		});
+	});
+
+	test("submits character and BGM preference changes", () => {
+		const draft = requirementDraftFixture();
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			characterId: "ugc-female-host",
+			bgmMode: "smart_match" as const,
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			characterPreferences: { characterId: "ugc-female-host" },
+			bgmPreferences: { mode: "smart_match" },
 		});
 	});
 });

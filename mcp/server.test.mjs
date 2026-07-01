@@ -1295,6 +1295,8 @@ describe("Codecut MCP server contract", () => {
 							timelinePreferences: draft.timelinePreferences,
 							captionPreferences: draft.captionPreferences,
 							voicePreferences: draft.voicePreferences,
+							characterPreferences: draft.characterPreferences,
+							bgmPreferences: draft.bgmPreferences,
 							templatePreference: draft.templatePreference,
 							exportPreferences: draft.exportPreferences,
 							changes: [],
@@ -2230,6 +2232,34 @@ describe("Codecut MCP server contract", () => {
 		});
 	});
 
+	test("opens the workspace with character and BGM defaults", () => {
+		const defaults = serverModule.openCodecutWorkspace({
+			projectName: "Role And Sound Controls",
+		});
+		expect(defaults.structuredContent.intentDefaults).toMatchObject({
+			characterPreferences: { characterId: "none" },
+			bgmPreferences: { mode: "none" },
+		});
+		expect(defaults._meta.widgetData.intentDefaults).toMatchObject({
+			characterPreferences: { characterId: "none" },
+			bgmPreferences: { mode: "none" },
+		});
+
+		const selected = serverModule.openCodecutWorkspace({
+			projectName: "Role And Sound Controls",
+			characterPreferences: { characterId: "ugc-female-host" },
+			bgmPreferences: { mode: "smart_match" },
+		});
+		expect(selected.structuredContent.intentDefaults).toMatchObject({
+			characterPreferences: { characterId: "ugc-female-host" },
+			bgmPreferences: { mode: "smart_match" },
+		});
+		expect(selected._meta.widgetData.intentDefaults).toMatchObject({
+			characterPreferences: { characterId: "ugc-female-host" },
+			bgmPreferences: { mode: "smart_match" },
+		});
+	});
+
 	test("opens the workspace with title and caption enablement defaults", () => {
 		const defaults = serverModule.openCodecutWorkspace({
 			projectName: "Grouped Controls",
@@ -2942,6 +2972,8 @@ describe("Codecut MCP server contract", () => {
 						enabled: true,
 						voicePackId: "podcast-male",
 					},
+					characterPreferences: { characterId: "none" },
+					bgmPreferences: { mode: "none" },
 					templatePreference: { mode: "auto" },
 					exportPreferences: {
 						format: "mp4",

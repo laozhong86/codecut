@@ -47,6 +47,8 @@ function validDraftInput(): RequirementDraftInput {
 			stylePreset: "short-form-bold",
 		},
 		voicePreferences: { enabled: false, voicePackId: "none" },
+		characterPreferences: { characterId: "none" },
+		bgmPreferences: { mode: "none" },
 		templatePreference: {
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
@@ -148,6 +150,8 @@ describe("requirement confirmation store", () => {
 					stylePreset: "hook_title",
 				},
 				voicePreferences: { enabled: true, voicePackId: "podcast-female" },
+				characterPreferences: { characterId: "ugc-female-host" },
+				bgmPreferences: { mode: "smart_match" },
 			},
 		});
 
@@ -161,6 +165,12 @@ describe("requirement confirmation store", () => {
 		expect(confirmed.confirmedSetup.voicePreferences?.voicePackId).toBe(
 			"podcast-female",
 		);
+		expect(confirmed.confirmedSetup.characterPreferences).toEqual({
+			characterId: "ugc-female-host",
+		});
+		expect(confirmed.confirmedSetup.bgmPreferences).toEqual({
+			mode: "smart_match",
+		});
 		expect(confirmed.confirmedSetup.templatePreference).toEqual({
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",

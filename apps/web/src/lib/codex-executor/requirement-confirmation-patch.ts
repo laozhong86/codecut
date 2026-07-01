@@ -19,12 +19,10 @@ export type RequirementConfirmationFormState = {
 	captionLanguage: string;
 	captionSize: "small" | "medium" | "large";
 	captionStylePreset: RequirementDraft["captionPreferences"]["stylePreset"];
-	voiceEnabled: boolean;
 	voicePackId: "none" | "podcast-female" | "podcast-male" | "custom";
-	customVoiceFileName: string;
-	customVoiceFileUrl: string;
-	customVoiceFilePath: string;
 	outputQuality: "low" | "medium" | "high" | "very_high";
+	characterId: RequirementDraft["characterPreferences"]["characterId"];
+	bgmMode: RequirementDraft["bgmPreferences"]["mode"];
 	requirements: string;
 };
 
@@ -52,12 +50,10 @@ export function formStateFromRequirementDraft(
 		captionLanguage: draft.captionPreferences.language,
 		captionSize: draft.captionPreferences.size,
 		captionStylePreset: draft.captionPreferences.stylePreset,
-		voiceEnabled: draft.voicePreferences.enabled,
 		voicePackId: draft.voicePreferences?.voicePackId ?? "none",
-		customVoiceFileName: draft.voicePreferences.customVoiceFile?.name ?? "",
-		customVoiceFileUrl: draft.voicePreferences.customVoiceFile?.url ?? "",
-		customVoiceFilePath: draft.voicePreferences.customVoiceFile?.path ?? "",
 		outputQuality: draft.exportPreferences.quality,
+		characterId: draft.characterPreferences.characterId,
+		bgmMode: draft.bgmPreferences.mode,
 		requirements: draft.timelinePreferences.requirements,
 	};
 }
@@ -156,36 +152,14 @@ export function buildRequirementConfirmationPatch({
 		};
 	}
 
-	const nextVoicePreferences =
-		form.voiceEnabled && form.voicePackId === "custom"
-			? {
-					enabled: true,
-					voicePackId: "custom" as const,
-					customVoiceFile: {
-						name: form.customVoiceFileName,
-						url: form.customVoiceFileUrl,
-						...(form.customVoiceFilePath
-							? { path: form.customVoiceFilePath }
-							: {}),
-					},
-				}
-			: ({
-					enabled: form.voiceEnabled,
-					voicePackId: form.voiceEnabled ? form.voicePackId : "none",
-				} as const);
-	const nextCustomVoiceFile =
-		nextVoicePreferences.voicePackId === "custom"
-			? nextVoicePreferences.customVoiceFile
-			: undefined;
+	const nextVoiceEnabled = form.voicePackId !== "none";
+	const nextVoicePreferences = {
+		enabled: nextVoiceEnabled,
+		voicePackId: nextVoiceEnabled ? form.voicePackId : "none",
+	} as const;
 	if (
 		draft.voicePreferences.enabled !== nextVoicePreferences.enabled ||
-		draft.voicePreferences.voicePackId !== nextVoicePreferences.voicePackId ||
-		draft.voicePreferences.customVoiceFile?.name !==
-			nextCustomVoiceFile?.name ||
-		draft.voicePreferences.customVoiceFile?.url !==
-			nextCustomVoiceFile?.url ||
-		draft.voicePreferences.customVoiceFile?.path !==
-			nextCustomVoiceFile?.path
+		draft.voicePreferences.voicePackId !== nextVoicePreferences.voicePackId
 	) {
 		patch.voicePreferences = nextVoicePreferences;
 	}
@@ -195,6 +169,14 @@ export function buildRequirementConfirmationPatch({
 			...draft.exportPreferences,
 			quality: form.outputQuality,
 		};
+	}
+
+	if (draft.characterPreferences.characterId !== form.characterId) {
+		patch.characterPreferences = { characterId: form.characterId };
+	}
+
+	if (draft.bgmPreferences.mode !== form.bgmMode) {
+		patch.bgmPreferences = { mode: form.bgmMode };
 	}
 
 	return patch;

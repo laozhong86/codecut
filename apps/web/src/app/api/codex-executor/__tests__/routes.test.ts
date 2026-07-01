@@ -76,6 +76,8 @@ function confirmedSetupBody(
 			enabled: false,
 			voicePackId: "none",
 		},
+		characterPreferences: { characterId: "none" },
+		bgmPreferences: { mode: "none" },
 		templatePreference: { mode: "auto" },
 		exportPreferences: {
 			format: "mp4",

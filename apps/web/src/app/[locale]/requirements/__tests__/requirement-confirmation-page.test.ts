@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 
 describe("requirement confirmation page UI", () => {
-	test("page exposes project, source, voice, and confirmation controls", async () => {
+	test("page exposes project, source, character, sound, and confirmation controls", async () => {
 		const page = await readFile(
 			"apps/web/src/app/[locale]/requirements/[draft_id]/page.tsx",
 			"utf8",
@@ -16,11 +16,16 @@ describe("requirement confirmation page UI", () => {
 		expect(source).toContain("RequirementConfirmationClient");
 		expect(source).toContain("projectName");
 		expect(source).toContain("mediaSources");
-		expect(source).toContain("voiceEnabled");
+		expect(source).toContain("characterId");
 		expect(source).toContain("voicePackId");
+		expect(source).toContain("bgmMode");
+		expect(source).toContain("角色与声音");
+		expect(source).toContain("角色");
+		expect(source).toContain("关闭");
 		expect(source).toContain("女声");
 		expect(source).toContain("男声");
-		expect(source).toContain("自定义");
+		expect(source).toContain("BGM");
+		expect(source).toContain("智能匹配");
 		expect(source).toContain("确认需求");
 		expect(source).toContain("/api/codex-requirements/");
 	});
@@ -39,7 +44,7 @@ describe("requirement confirmation page UI", () => {
 		expect(client).toContain("pb-28");
 	});
 
-	test("groups final specs, template, title, captions, and voice controls", async () => {
+	test("groups final specs, template, title, captions, character, and sound controls", async () => {
 		const client = await readFile(
 			"apps/web/src/app/[locale]/requirements/[draft_id]/requirement-confirmation-client.tsx",
 			"utf8",
@@ -51,10 +56,13 @@ describe("requirement confirmation page UI", () => {
 		expect(client).toContain("标题");
 		expect(client).toContain("字幕");
 		expect(client).toContain("配音");
+		expect(client).toContain("角色与声音");
+		expect(client).toContain("角色");
+		expect(client).toContain("BGM");
 		expect(client).toContain("generateIntroCover");
 		expect(client).toContain("titleEnabled");
 		expect(client).toContain("captionEnabled");
-		expect(client).toContain("voiceEnabled");
+		expect(client).toContain("characterId");
 		expect(client).toContain("templatePreferenceMode");
 		expect(client).toContain("Agent 自动匹配");
 		expect(client).toContain("指定模板");
@@ -64,14 +72,15 @@ describe("requirement confirmation page UI", () => {
 		expect(client).toContain("自动生成");
 		expect(client).toContain("标题文本");
 		expect(client).toContain("字体样式");
-		expect(client).toContain("选择文件");
-		expect(client).toContain("文件URL");
-		expect(client).toContain("文件路径");
+		expect(client).toContain("关闭");
+		expect(client).toContain("智能匹配");
 		expect(client).toContain("form.captionEnabled &&");
-		expect(client).toContain("form.voiceEnabled &&");
 		expect(client).toContain('form.templatePreferenceMode === "specified"');
 		expect(client).not.toContain("固定标题");
 		expect(client).not.toContain("等待确认");
+		expect(client).not.toContain("选择文件");
+		expect(client).not.toContain("文件URL");
+		expect(client).not.toContain("文件路径");
 	});
 
 	test("keeps video cover control the same height as other spec controls", async () => {

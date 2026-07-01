@@ -33,6 +33,8 @@ function confirmedSetup(overrides: Record<string, unknown> = {}) {
 			enabled: false,
 			voicePackId: "none",
 		},
+		characterPreferences: { characterId: "none" },
+		bgmPreferences: { mode: "none" },
 		exportPreferences: {
 			format: "mp4",
 			quality: "high",
@@ -100,6 +102,65 @@ describe("ConfirmedSetup durationContract", () => {
 		expect(applied.confirmedSetup.templatePreference).toEqual({
 			mode: "specified",
 			requestedTemplate: "talking-head-short",
+		});
+	});
+
+	test("accepts character and BGM preferences", () => {
+		const parsed = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				characterPreferences: { characterId: "ugc-female-host" },
+				bgmPreferences: { mode: "smart_match" },
+			}),
+		);
+
+		expect(parsed.characterPreferences).toEqual({
+			characterId: "ugc-female-host",
+		});
+		expect(parsed.bgmPreferences).toEqual({ mode: "smart_match" });
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					characterPreferences: { characterId: "unknown-character" },
+					bgmPreferences: { mode: "smart_match" },
+				}),
+			),
+		).toThrow("characterPreferences.characterId must be none or a built-in role");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					characterPreferences: { characterId: "none" },
+					bgmPreferences: { mode: "custom_upload" },
+				}),
+			),
+		).toThrow();
+	});
+
+	test("character and BGM preference changes require replan", () => {
+		const applied = applyConfirmedSetupPatch({
+			confirmedSetup: ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					characterPreferences: { characterId: "none" },
+					bgmPreferences: { mode: "none" },
+				}),
+			),
+			patch: {
+				characterPreferences: { characterId: "ugc-female-host" },
+				bgmPreferences: { mode: "smart_match" },
+			},
+			reason: "user_selected_role_and_bgm",
+			changedAt: "2026-07-01T00:00:00.000Z",
+		});
+
+		expect(applied.requiresReplan).toBe(true);
+		expect(applied.changedFields).toEqual([
+			"characterPreferences.characterId",
+			"bgmPreferences.mode",
+		]);
+		expect(applied.confirmedSetup.characterPreferences).toEqual({
+			characterId: "ugc-female-host",
+		});
+		expect(applied.confirmedSetup.bgmPreferences).toEqual({
+			mode: "smart_match",
 		});
 	});
 
