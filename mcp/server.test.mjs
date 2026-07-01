@@ -1282,7 +1282,7 @@ describe("Codecut MCP server contract", () => {
 			const podcastFemaleAudioPath = podcastFemale.audioPath;
 			expect(podcastFemale).toMatchObject({
 				id: "podcast-female",
-				name: "播客女",
+				name: "女声",
 				provider: "runninghub-voice-clone",
 				executableTool: "generate_runninghub_voice_clone",
 			});
@@ -1291,7 +1291,7 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(isAbsolute(podcastFemaleAudioPath)).toBe(true);
 			expect(existsSync(podcastFemaleAudioPath)).toBe(true);
-			expect(result.content[0].text).toContain("播客女");
+			expect(result.content[0].text).toContain("女声");
 			expect(result.content[0].text).toContain(
 				"generate_runninghub_voice_clone",
 			);
@@ -2422,7 +2422,7 @@ describe("Codecut MCP server contract", () => {
 						mediaSources: [{ kind: "filePath", filePath }],
 						output: {
 							...setupIntent().output,
-							voicePackId: "播客女",
+							voicePackId: "女声",
 						},
 					}),
 				],
@@ -2876,7 +2876,7 @@ describe("Codecut MCP server contract", () => {
 			expect(result.structuredContent.continuePrompt).toContain(
 				"Built-in voice library",
 			);
-			expect(result.structuredContent.continuePrompt).toContain("播客女");
+			expect(result.structuredContent.continuePrompt).toContain("女声");
 			expect(slashPath(result.structuredContent.continuePrompt)).toContain(
 				"apps/web/public/voices/podcast-female.mp3",
 			);
@@ -2884,7 +2884,7 @@ describe("Codecut MCP server contract", () => {
 				"generate_runninghub_voice_clone",
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
-				"Selected built-in voice: 播客男 (podcast-male)",
+				"Selected built-in voice: 男声 (podcast-male)",
 			);
 			expect(slashPath(result.structuredContent.continuePrompt)).toContain(
 				"apps/web/public/voices/podcast-male.mp3",
@@ -4213,7 +4213,7 @@ describe("Codecut MCP server contract", () => {
 				projectId: "project-1",
 				confirmationToken,
 				text: "欢迎来到今天的测试",
-				emotionPrompt: "温柔、稳定的中文播客女声",
+				emotionPrompt: "温柔、稳定的中文女声",
 				protectedTerms: ["今天的测试", "Codex"],
 			}),
 		).toEqual([
@@ -4224,7 +4224,7 @@ describe("Codecut MCP server contract", () => {
 			"--text",
 			"欢迎来到今天的测试",
 			"--emotion-prompt",
-			"温柔、稳定的中文播客女声",
+			"温柔、稳定的中文女声",
 			"--protected-term",
 			"今天的测试",
 			"--protected-term",

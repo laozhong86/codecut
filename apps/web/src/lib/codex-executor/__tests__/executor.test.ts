@@ -1617,7 +1617,7 @@ describe("codex executor", () => {
 				tool: "generate_runninghub_voice_design",
 				args: {
 					text: "欢迎来到今天的测试",
-					emotionPrompt: "温柔、稳定的中文播客女声",
+					emotionPrompt: "温柔、稳定的中文女声",
 					protectedTerms: ["今天的测试"],
 				},
 			}),
@@ -1626,7 +1626,7 @@ describe("codex executor", () => {
 				expect(apiKey).toBe("rh-key");
 				expect(request).toEqual({
 					text: "欢迎来到今天的测试",
-					emotionPrompt: "温柔、稳定的中文播客女声",
+					emotionPrompt: "温柔、稳定的中文女声",
 				});
 				return {
 					taskId: "voice-task-1",
@@ -1712,7 +1712,7 @@ describe("codex executor", () => {
 				tool: "generate_runninghub_voice_design",
 				args: {
 					text: "欢迎来到今天的测试",
-					emotionPrompt: "温柔、稳定的中文播客女声",
+					emotionPrompt: "温柔、稳定的中文女声",
 				},
 			}),
 			env: { RUNNINGHUB_API_KEY: "rh-key" },
@@ -1759,7 +1759,7 @@ describe("codex executor", () => {
 				tool: "generate_runninghub_voice_design",
 				args: {
 					text: "欢迎来到今天的测试",
-					emotionPrompt: "温柔、稳定的中文播客女声",
+					emotionPrompt: "温柔、稳定的中文女声",
 				},
 			}),
 			env: { RUNNINGHUB_API_KEY: "rh-key" },

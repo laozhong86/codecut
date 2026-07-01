@@ -1196,7 +1196,7 @@ train a new voice:
 
 Use `list_codecut_builtin_voice_packs` before asking the user for another
 voice when a bundled CodeCut voice-library entry would satisfy the request. For
-example, `播客女` is returned with an absolute local `audioPath` that can be
+example, `女声` is returned with an absolute local `audioPath` that can be
 passed to `generate_runninghub_voice_clone`.
 
 ```bash

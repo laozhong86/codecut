@@ -52,7 +52,7 @@ const defaultBuiltinVoicePackId = "podcast-female";
 const builtinVoicePacks = [
 	{
 		id: "podcast-female",
-		name: "播客女",
+		name: "女声",
 		provider: "runninghub-voice-clone",
 		referenceAudioRelativePath: "apps/web/public/voices/podcast-female.mp3",
 		referenceAudioMimeType: "audio/mpeg",
@@ -60,7 +60,7 @@ const builtinVoicePacks = [
 	},
 	{
 		id: "podcast-male",
-		name: "播客男",
+		name: "男声",
 		provider: "runninghub-voice-clone",
 		referenceAudioRelativePath: "apps/web/public/voices/podcast-male.mp3",
 		referenceAudioMimeType: "audio/mpeg",

@@ -173,7 +173,7 @@ describe("generated voices store", () => {
 			referenceAudioFile: new File(["audio"], "reference.wav", {
 				type: "audio/wav",
 			}),
-			name: "播客女",
+			name: "女声",
 		});
 
 		expect(fetchMock).toHaveBeenCalledWith(
@@ -191,7 +191,7 @@ describe("generated voices store", () => {
 		);
 		expect(saveGeneratedVoice).toHaveBeenCalledWith({
 			voice: expect.objectContaining({
-				name: "播客女",
+				name: "女声",
 				text: "把肩膀沉下来，深呼吸。",
 				provider: "runninghub-voice-clone",
 				taskId: "voice-clone-task-1",
@@ -200,12 +200,12 @@ describe("generated voices store", () => {
 			audioBlob: expect.any(Blob),
 		});
 		expect(useGeneratedVoicesStore.getState().voices[0]).toMatchObject({
-			name: "播客女",
+			name: "女声",
 			taskId: "voice-clone-task-1",
 			text: "把肩膀沉下来，深呼吸。",
 		});
 		expect(result.voice).toMatchObject({
-			name: "播客女",
+			name: "女声",
 			taskId: "voice-clone-task-1",
 			text: "把肩膀沉下来，深呼吸。",
 		});
@@ -232,7 +232,7 @@ describe("generated voices store", () => {
 			referenceAudioFile: new File(["audio"], "reference.wav", {
 				type: "audio/wav",
 			}),
-			name: "播客女",
+			name: "女声",
 			apiKeySource: "runtime",
 		});
 
@@ -246,7 +246,7 @@ describe("generated voices store", () => {
 		expect(hasAuthorizationHeader(taskCall?.[1]?.headers)).toBe(false);
 		expect(saveGeneratedVoice).toHaveBeenCalledWith({
 			voice: expect.objectContaining({
-				name: "播客女",
+				name: "女声",
 				provider: "runninghub-voice-clone",
 				taskId: "voice-clone-task-1",
 			}),
@@ -271,7 +271,7 @@ describe("generated voices store", () => {
 			referenceAudioFile: new File(["audio"], "reference.wav", {
 				type: "audio/wav",
 			}),
-			name: "播客女",
+			name: "女声",
 			apiKeySource: "runtime",
 		});
 
@@ -348,7 +348,7 @@ describe("generated voices store", () => {
 				referenceAudioFile: new File(["audio"], "reference.wav", {
 					type: "audio/wav",
 				}),
-				name: "播客女",
+				name: "女声",
 				apiKeySource: "runtime",
 			}),
 		).rejects.toThrow(RUNNINGHUB_API_KEY_MISSING_MESSAGE);

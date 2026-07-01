@@ -61,7 +61,7 @@ describe("ConfirmedSetup durationContract", () => {
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
 					voicePreferences: {
-						voicePackId: "播客女",
+						voicePackId: "女声",
 					},
 				}),
 			),

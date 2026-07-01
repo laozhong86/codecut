@@ -885,7 +885,7 @@ try {
 			buildRunningHubVoiceDesignEnvelope({
 				projectId: "project-1",
 				text: "欢迎来到今天的测试",
-				emotionPrompt: "温柔、稳定的中文播客女声",
+				emotionPrompt: "温柔、稳定的中文女声",
 				protectedTerms: ["今天的测试"],
 			}),
 		).toEqual({
@@ -898,7 +898,7 @@ try {
 					tool: "generate_runninghub_voice_design",
 					args: {
 						text: "欢迎来到今天的测试",
-						emotionPrompt: "温柔、稳定的中文播客女声",
+						emotionPrompt: "温柔、稳定的中文女声",
 						protectedTerms: ["今天的测试"],
 					},
 				},

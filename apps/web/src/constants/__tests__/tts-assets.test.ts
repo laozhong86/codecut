@@ -7,10 +7,10 @@ const rootDir = resolve(import.meta.dir, "../../../../..");
 const proxyPath = resolve(rootDir, "apps/web/src/proxy.ts");
 
 describe("TTS assets", () => {
-	test("ships the built-in podcast RunningHub reference voices", () => {
+	test("ships the built-in RunningHub reference voices", () => {
 		const expectedVoices = [
-			{ id: "podcast-female", name: "播客女", fileName: "podcast-female.mp3" },
-			{ id: "podcast-male", name: "播客男", fileName: "podcast-male.mp3" },
+			{ id: "podcast-female", name: "女声", fileName: "podcast-female.mp3" },
+			{ id: "podcast-male", name: "男声", fileName: "podcast-male.mp3" },
 		];
 
 		for (const expectedVoice of expectedVoices) {
