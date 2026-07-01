@@ -8804,6 +8804,151 @@ describe("codex executor", () => {
 		expect(await getExecutorProjectState({ projectId })).toEqual(beforeInvalid);
 	});
 
+	test("set_clip_properties updates text rich spans", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "text",
+					name: "Text Track",
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "text-1",
+							type: "text",
+							name: "Stats title",
+							content: "Tiktok 爆款视频拆解\n2290万播放\n47万点赞",
+							richSpans: [],
+							startTime: 0,
+							duration: 10,
+							trimStart: 0,
+							trimEnd: 0,
+							fontSize: 5.5,
+							fontFamily: CODECUT_YAN_BO_SONG_FONT_FAMILY,
+							color: "#ff8a1c",
+							backgroundColor: "#07131f",
+							textAlign: "center",
+							fontWeight: "bold",
+							fontStyle: "normal",
+							textDecoration: "none",
+							transform: {
+								scale: 1,
+								position: { x: 0, y: -760 },
+								rotate: 0,
+							},
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_clip_properties",
+				args: {
+					elementId: "text-1",
+					properties: {
+						richSpans: [
+							{
+								start: 0,
+								end: 13,
+								color: "#ffffff",
+								fontScale: 0.84,
+								fontWeight: "bold",
+							},
+						],
+					},
+				},
+			}),
+		});
+		const state = await getExecutorProjectState({ projectId });
+
+		expect(result.results[0]).toMatchObject({
+			success: true,
+			data: {
+				changedElementIds: ["text-1"],
+				revision: 2,
+			},
+		});
+		expect(state.tracks[0].elements[0]).toMatchObject({
+			id: "text-1",
+			richSpans: [
+				{
+					start: 0,
+					end: 13,
+					color: "#ffffff",
+					fontScale: 0.84,
+					fontWeight: "bold",
+				},
+			],
+		});
+	});
+
+	test("set_clip_properties rejects overlapping text rich spans without mutation", async () => {
+		await seedDraftState({
+			tracks: [
+				{
+					id: "track-1",
+					type: "text",
+					name: "Text Track",
+					muted: false,
+					hidden: false,
+					elements: [
+						{
+							id: "text-1",
+							type: "text",
+							name: "Stats title",
+							content: "Rich overlay",
+							richSpans: [],
+							startTime: 0,
+							duration: 5,
+							trimStart: 0,
+							trimEnd: 0,
+							fontSize: 8,
+							fontFamily: "Inter",
+							color: "#ffffff",
+							backgroundColor: "transparent",
+							textAlign: "center",
+							fontWeight: "bold",
+							fontStyle: "normal",
+							textDecoration: "none",
+							transform: {
+								scale: 1,
+								position: { x: 0, y: 0 },
+								rotate: 0,
+							},
+							opacity: 1,
+						},
+					],
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "set_clip_properties",
+				args: {
+					elementId: "text-1",
+					properties: {
+						richSpans: [
+							{ start: 0, end: 5, color: "#ffffff" },
+							{ start: 4, end: 8, color: "#ff8a1c" },
+						],
+					},
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({ success: false });
+		expect(
+			String((result.results[0] as { message?: unknown }).message),
+		).toContain("sorted and non-overlapping");
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+	});
+
 	test("ripple_delete_ranges rejects ranges without an explicit scope", async () => {
 		await seedDraftState({
 			tracks: [
@@ -9185,6 +9330,15 @@ describe("codex executor", () => {
 							color: "#ffe45c",
 							textAlign: "center",
 							fontWeight: "bold",
+							richSpans: [
+								{
+									start: 0,
+									end: 4,
+									color: "#ffffff",
+									fontScale: 0.85,
+									fontWeight: "bold",
+								},
+							],
 							transform: {
 								scale: 1,
 								position: { x: 12, y: -320 },
@@ -9229,6 +9383,15 @@ describe("codex executor", () => {
 					fontFamily: "Inter",
 					color: "#ffe45c",
 					fontWeight: "bold",
+					richSpans: [
+						{
+							start: 0,
+							end: 4,
+							color: "#ffffff",
+							fontScale: 0.85,
+							fontWeight: "bold",
+						},
+					],
 					transform: {
 						scale: 1,
 						position: { x: 12, y: -320 },
@@ -9240,6 +9403,33 @@ describe("codex executor", () => {
 			],
 		});
 		expect(state.revision).toBe(2);
+	});
+
+	test("add_texts rejects out-of-bounds text rich spans without mutation", async () => {
+		await seedDraftState({ tracks: [] });
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "add_texts",
+				args: {
+					entries: [
+						{
+							startTime: 0,
+							duration: 2,
+							content: "Hook",
+							richSpans: [{ start: 0, end: 5, color: "#ffffff" }],
+						},
+					],
+				},
+			}),
+		});
+
+		expect(result.results[0]).toMatchObject({ success: false });
+		expect(
+			String((result.results[0] as { message?: unknown }).message),
+		).toContain("out of bounds");
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
 	});
 
 	test("add_texts rejects unsupported editor font families", async () => {

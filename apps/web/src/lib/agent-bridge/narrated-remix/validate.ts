@@ -8,6 +8,7 @@ import {
 	type NarratedRemixPlan,
 	NarratedRemixPlanSchema,
 } from "./schema";
+import { validateTextRichSpans } from "@/services/renderer/nodes/text-layout";
 
 type NarratedRemixVisualBeat = NarratedRemixPlan["visualBeats"][number];
 type NarratedRemixImageBeat = Extract<
@@ -312,6 +313,30 @@ function validateCaptionSource({
 	return { success: true };
 }
 
+function validateTextOverlays({
+	plan,
+}: {
+	plan: NarratedRemixPlan;
+}): { success: true } | { success: false; message: string; path: string } {
+	for (const [index, overlay] of (plan.textOverlays ?? []).entries()) {
+		if (!overlay.richSpans) continue;
+		try {
+			validateTextRichSpans({
+				content: overlay.text,
+				richSpans: overlay.richSpans,
+			});
+		} catch {
+			return {
+				success: false,
+				message:
+					"NarratedRemixPlan textOverlay richSpans must be sorted and non-overlapping.",
+				path: `textOverlays[${index}].richSpans`,
+			};
+		}
+	}
+	return { success: true };
+}
+
 function normalizeCaptionsForQuality({
 	plan,
 }: {
@@ -533,6 +558,11 @@ export function validateNarratedRemixPlan({
 			message: "NarratedRemixPlan projectId does not match the active project.",
 			path: "projectId",
 		};
+	}
+
+	const textOverlayValidation = validateTextOverlays({ plan: normalizedPlan });
+	if (!textOverlayValidation.success) {
+		return textOverlayValidation;
 	}
 
 	const contractValidation = validateDurationContract({

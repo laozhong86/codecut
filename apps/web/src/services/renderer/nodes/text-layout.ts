@@ -23,6 +23,23 @@ export interface TextLayout {
 	lines: TextLayoutLine[];
 }
 
+export function getTextLayoutLineHeightScale(line: TextLayoutLine): number {
+	return Math.max(1, ...line.runs.map((run) => run.style.fontScale ?? 1));
+}
+
+export function getTextLayoutHeight({
+	lines,
+	lineHeight,
+}: {
+	lines: TextLayoutLine[];
+	lineHeight: number;
+}): number {
+	return lines.reduce(
+		(total, line) => total + lineHeight * getTextLayoutLineHeightScale(line),
+		0,
+	);
+}
+
 function sameStyle(a: TextRunStyle, b: TextRunStyle): boolean {
 	return (
 		a.color === b.color &&

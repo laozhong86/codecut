@@ -4,7 +4,7 @@ Use this recipe when the user wants B-roll mixed with narration, a voiceover exp
 
 ## Current Capability Boundary
 
-This recipe is executable only through the implemented `NarratedRemixPlan v1` path. P0 supports existing narration audio, imported video or image B-roll, optional independent text overlays, and captions. It does not support TTS, BGM, SFX, effects, or append mode.
+This recipe is executable only through the implemented `NarratedRemixPlan v1` path. P0 supports existing narration audio, imported video or image B-roll, optional editable text overlays with `richSpans`, and captions. It does not support TTS, BGM, SFX, effects, or append mode.
 
 ## Success Criteria
 
@@ -31,7 +31,10 @@ This recipe is executable only through the implemented `NarratedRemixPlan v1` pa
 2. Confirm one existing audio asset will be used as narration.
 3. Draft a continuous muted visual beat list with no gaps or overlaps.
 4. Keep visual beat total duration equal to `target.durationSec`.
-5. Write captions and choose an explicit implemented `captionStyle` preset.
+5. For grouped multiline title/stat copy, use one `textOverlay` with newline
+   content and `richSpans`; split text overlays only for independent timing,
+   position, background, or motion.
+6. Write captions and choose an explicit implemented `captionStyle` preset.
 
 ## Executor Handoff When Supported
 

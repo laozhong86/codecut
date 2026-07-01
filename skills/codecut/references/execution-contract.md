@@ -163,6 +163,11 @@ if ((await tab.url()) !== confirmationUrl) {
   sentence through `richSpans`, using light yellow text such as `#fde68a` when
   emphasis is needed. Treat commercial fonts seen in references as style
   inspiration unless the user supplies redistribution rights.
+- For title blocks that combine a small label with larger metrics, such as
+  playback, likes, price, or selling points, prefer one multiline `TextElement`
+  with `richSpans`. Use `add_texts` or `set_clip_properties` to create or repair
+  that single element; do not stack multiple text layers when they share the
+  same time, position, background, and motion.
 - Caption timing must declare a post-cut caption source. Prefer edited audio
   transcription through `build-post-cut-captions`; use source transcript remap
   only when every source segment maps cleanly into selected clips.

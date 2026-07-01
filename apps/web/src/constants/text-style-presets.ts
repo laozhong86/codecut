@@ -1,20 +1,59 @@
 import type { TextElement, TextStroke, TextShadow } from "@/types/timeline";
 
+type TextStylePresetUpdates = Partial<
+	Pick<
+		TextElement,
+		| "color"
+		| "backgroundColor"
+		| "backgroundOpacity"
+		| "backgroundPaddingX"
+		| "backgroundPaddingY"
+		| "backgroundBorderRadius"
+		| "stroke"
+		| "shadow"
+		| "fontWeight"
+		| "richSpans"
+	>
+>;
+
 export interface TextStylePreset {
 	id: string;
 	name: string;
-	styles: Partial<
-		Pick<
-			TextElement,
-			"color" | "backgroundColor" | "stroke" | "shadow" | "fontWeight"
-		>
-	>;
+	styles?: TextStylePresetUpdates;
+	buildStyles?: (element: TextElement) => TextStylePresetUpdates;
 	preview: {
 		color: string;
 		backgroundColor?: string;
 		stroke?: TextStroke;
 		shadow?: TextShadow;
 		fontWeight?: "normal" | "bold";
+	};
+}
+
+function buildSocialStatsTitleStyles(element: TextElement): TextStylePresetUpdates {
+	const firstLineEnd = Array.from(element.content.split("\n")[0] ?? "").length;
+	return {
+		color: "#ff8a1c",
+		backgroundColor: "#07131f",
+		backgroundOpacity: 0.78,
+		backgroundPaddingX: 16,
+		backgroundPaddingY: 10,
+		backgroundBorderRadius: 8,
+		stroke: undefined,
+		shadow: undefined,
+		fontWeight: "bold",
+		richSpans:
+			firstLineEnd > 0
+				? [
+						{
+							start: 0,
+							end: firstLineEnd,
+							color: "#ffffff",
+							fontScale: 0.84,
+							fontWeight: "bold",
+						},
+					]
+				: [],
 	};
 }
 
@@ -96,6 +135,16 @@ export const TEXT_STYLE_PRESETS: TextStylePreset[] = [
 		preview: {
 			color: "#ffffff",
 			backgroundColor: "#000000",
+		},
+	},
+	{
+		id: "social-stats-title",
+		name: "Social Stats",
+		buildStyles: buildSocialStatsTitleStyles,
+		preview: {
+			color: "#ff8a1c",
+			backgroundColor: "#07131f",
+			fontWeight: "bold",
 		},
 	},
 	{

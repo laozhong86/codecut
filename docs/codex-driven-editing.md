@@ -714,6 +714,13 @@ the user asks for no extra on-screen text, omit `textOverlays`. One-time
 rendered videos are allowed only as explicitly documented runtime-gap fallbacks,
 and the limitation must be recorded in the project verification artifact.
 
+For grouped title/stat copy that shares the same time, position, background,
+and motion, use one multiline `textOverlay` with `\n` and `richSpans`. Split
+text into multiple overlays only when timing, position, background, or animation
+must be independent. Typical social proof titles should use a base data-line
+style and a smaller first-line span, for example white title text plus orange
+data lines inside one editable `TextElement`.
+
 ```ts
 {
   version: 1,
@@ -762,7 +769,16 @@ and the limitation must be recorded in the project verification artifact.
     boxWidth: number,
     position: { x: number, y: number },
     textAlign: "left" | "center" | "right",
-    fontWeight: "normal" | "bold"
+    fontWeight: "normal" | "bold",
+    richSpans?: Array<{
+      start: number,
+      end: number,
+      color?: string,
+      fontScale?: number,
+      fontWeight?: "normal" | "bold",
+      fontStyle?: "normal" | "italic",
+      stroke?: { color: string, width: number }
+    }>
   }>,
   captions: Array<{
     text: string,
@@ -800,6 +816,9 @@ Validation is all-or-nothing:
 - top-level `textOverlays`, when present, must fit inside
   `target.durationSec` and use controlled local `TextElement` style fields;
   arbitrary CSS is not accepted.
+- `textOverlays[].richSpans`, when present, must use integer `[start, end)`
+  code point indexes from `Array.from(text)`, must be sorted and
+  non-overlapping, and must stay inside the overlay text.
 - visual beats must be continuous from `0` with no gaps or overlaps.
 - total visual beat duration must equal `target.durationSec`.
 - captions must fit inside `target.durationSec`.

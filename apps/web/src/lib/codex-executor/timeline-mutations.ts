@@ -3,11 +3,13 @@ import { buildTextElement } from "@/lib/timeline/element-utils";
 import { buildEmptyTrack } from "@/lib/timeline/track-utils";
 import { canElementGoOnTrack } from "@/lib/timeline/track-utils";
 import { KEYFRAME_INTERPOLATIONS } from "@/lib/timeline/keyframe-values";
+import { validateTextRichSpans } from "@/services/renderer/nodes/text-layout";
 import type {
 	CreateTimelineElement,
 	PositionKeyframe,
 	ScalarKeyframe,
 	TextShadow,
+	TextRichSpan,
 	TextStroke,
 	TimelineElement,
 	TimelineElementKeyframes,
@@ -77,6 +79,7 @@ type SetClipPropertiesArgs = {
 		fontWeight: "normal" | "bold";
 		fontStyle: "normal" | "italic";
 		textDecoration: "none" | "underline" | "line-through";
+		richSpans: TextRichSpan[];
 	}>;
 };
 
@@ -95,6 +98,7 @@ type AddTextEntry = {
 	fontWeight?: "normal" | "bold";
 	fontStyle?: "normal" | "italic";
 	textDecoration?: "none" | "underline" | "line-through";
+	richSpans?: TextRichSpan[];
 	boxWidth?: number;
 	stroke?: TextStroke;
 	shadow?: TextShadow;
@@ -300,6 +304,17 @@ function withElementId(element: CreateTimelineElement): TimelineElement {
 	return { ...element, id: generateUUID() } as TimelineElement;
 }
 
+function validateRichSpansForText({
+	content,
+	richSpans,
+}: {
+	content: string;
+	richSpans: TextRichSpan[] | undefined;
+}) {
+	if (!richSpans) return;
+	validateTextRichSpans({ content, richSpans });
+}
+
 export function addTextElements({
 	state,
 	args,
@@ -314,6 +329,10 @@ export function addTextElements({
 	const createdTrackId = args.trackId ? undefined : targetTrack.id;
 	const elements: TimelineElement[] = [];
 	for (const entry of args.entries) {
+		validateRichSpansForText({
+			content: entry.content,
+			richSpans: entry.richSpans,
+		});
 		const element = withElementId(
 			buildTextElement({
 				raw: {
@@ -330,6 +349,7 @@ export function addTextElements({
 					fontWeight: entry.fontWeight,
 					fontStyle: entry.fontStyle,
 					textDecoration: entry.textDecoration,
+					richSpans: entry.richSpans,
 					boxWidth: entry.boxWidth,
 					stroke: entry.stroke,
 					shadow: entry.shadow,
@@ -704,6 +724,13 @@ function applyProperty({
 		element.content = value as string;
 		return;
 	}
+	if (key === "richSpans") {
+		if (element.type !== "text") {
+			throw new Error("richSpans can only be set on text elements.");
+		}
+		element.richSpans = value as TextRichSpan[];
+		return;
+	}
 	if (
 		[
 			"fontSize",
@@ -759,6 +786,18 @@ export function setClipProperties({
 	const changedElementIds: string[] = [];
 	for (const elementId of args.elementIds) {
 		const { element } = findElementLocation({ tracks, elementId });
+		if (
+			"richSpans" in args.properties ||
+			("content" in args.properties && element.type === "text")
+		) {
+			if (element.type !== "text") {
+				throw new Error("richSpans can only be set on text elements.");
+			}
+			validateRichSpansForText({
+				content: args.properties.content ?? element.content,
+				richSpans: args.properties.richSpans ?? element.richSpans,
+			});
+		}
 		for (const [key, value] of Object.entries(args.properties)) {
 			applyProperty({ element, key, value });
 		}

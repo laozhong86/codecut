@@ -571,6 +571,52 @@ describe("validateNarratedRemixPlan", () => {
 		]);
 	});
 
+	test("accepts rich spans on a single multi-line text overlay", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				textOverlays: [
+					{
+						...validTextOverlay({
+							name: "TikTok stats title",
+							text: "Tiktok 爆款视频拆解\n2290万播放\n47万点赞",
+							color: "#ff8a1c",
+							richSpans: [
+								{
+									start: 0,
+									end: 13,
+									color: "#ffffff",
+									fontScale: 0.84,
+									fontWeight: "bold",
+								},
+							],
+						}),
+					},
+				],
+			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) throw new Error(result.message);
+		expect(result.normalizedPlan.textOverlays).toMatchObject([
+			{
+				name: "TikTok stats title",
+				text: "Tiktok 爆款视频拆解\n2290万播放\n47万点赞",
+				richSpans: [
+					{
+						start: 0,
+						end: 13,
+						color: "#ffffff",
+						fontScale: 0.84,
+						fontWeight: "bold",
+					},
+				],
+			},
+		]);
+	});
+
 	test("accepts independent text overlays during a video beat", () => {
 		const result = validateNarratedRemixPlan({
 			plan: {
@@ -775,6 +821,32 @@ describe("validateNarratedRemixPlan", () => {
 			success: false,
 			message: "NarratedRemixPlan schema is invalid.",
 			path: "textOverlays[0].color",
+		});
+	});
+
+	test("rejects invalid text overlay rich span ranges", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				textOverlays: [
+					validTextOverlay({
+						text: "Rich overlay",
+						richSpans: [
+							{ start: 0, end: 5, color: "#ffffff" },
+							{ start: 4, end: 8, color: "#ff8a1c" },
+						],
+					}),
+				],
+			},
+			projectId: "project-1",
+			mediaAssets: validAssets,
+		});
+
+		expect(result).toEqual({
+			success: false,
+			message:
+				"NarratedRemixPlan textOverlay richSpans must be sorted and non-overlapping.",
+			path: "textOverlays[0].richSpans",
 		});
 	});
 
