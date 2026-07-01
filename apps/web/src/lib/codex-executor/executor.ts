@@ -193,6 +193,8 @@ type ExecutorToolName =
 	| "generate_volcengine_cloned_voice"
 	| "transcribe_volcengine_url"
 	| "build_volcengine_url_captions"
+	| "transcribe_volcengine_media"
+	| "build_volcengine_media_captions"
 	| "export_project"
 	| "verify_timeline"
 	| "get_timeline_state";
@@ -209,6 +211,9 @@ interface ExecutorMediaAsset {
 	size: number;
 	lastModified: number;
 	path: string;
+	sourceUrl?: string;
+	publicUrl?: string;
+	url?: string;
 	spokenScript?: ExecutorSpokenScript;
 }
 
@@ -320,6 +325,8 @@ const commandSchema = z
 			"generate_volcengine_cloned_voice",
 			"transcribe_volcengine_url",
 			"build_volcengine_url_captions",
+			"transcribe_volcengine_media",
+			"build_volcengine_media_captions",
 			"export_project",
 			"verify_timeline",
 			"get_timeline_state",
@@ -919,6 +926,13 @@ const volcengineUrlArgsSchema = z
 			.refine((value) => new URL(value).protocol === "https:", {
 				message: "mediaUrl must use https",
 			}),
+		requestId: z.string().trim().min(1).optional(),
+	})
+	.strict();
+
+const volcengineMediaArgsSchema = z
+	.object({
+		mediaId: z.string().min(1),
 		requestId: z.string().trim().min(1).optional(),
 	})
 	.strict();
@@ -3102,6 +3116,50 @@ function requireExecutorMediaAsset({
 	return mediaAsset;
 }
 
+function requireAudioOrVideoMediaAsset({
+	state,
+	mediaId,
+	toolName,
+}: {
+	state: ExecutorProjectState;
+	mediaId: string;
+	toolName: string;
+}): ExecutorMediaAsset {
+	const mediaAsset = state.mediaAssets.find((asset) => asset.id === mediaId);
+	if (!mediaAsset) {
+		throw new Error(`Media asset '${mediaId}' not found`);
+	}
+	if (mediaAsset.type !== "video" && mediaAsset.type !== "audio") {
+		throw new Error(
+			`${toolName} expected video or audio media, but '${mediaAsset.name}' is type '${mediaAsset.type}'.`,
+		);
+	}
+	return mediaAsset;
+}
+
+function requirePublicHttpsMediaUrl({
+	mediaAsset,
+	toolName,
+}: {
+	mediaAsset: ExecutorMediaAsset;
+	toolName: string;
+}): string {
+	const candidateUrls = [
+		mediaAsset.sourceUrl,
+		mediaAsset.publicUrl,
+		mediaAsset.url,
+	].filter((value): value is string => typeof value === "string");
+	const publicUrl = candidateUrls.find((value) => {
+		return URL.canParse(value) && new URL(value).protocol === "https:";
+	});
+	if (!publicUrl) {
+		throw new Error(
+			`${toolName} requires a public HTTPS media URL on media asset '${mediaAsset.id}'. This media asset only has a local executor path. Do not fall back to transcribe_media or build_video_context without explicit user approval.`,
+		);
+	}
+	return publicUrl;
+}
+
 function digitalHumanFileName({ taskId }: { taskId: string }): string {
 	const safeTaskId = taskId.replace(/[^a-zA-Z0-9_-]/g, "-");
 	return `digital-human-${safeTaskId}.mp4`;
@@ -3284,7 +3342,11 @@ function encodePcmS16Wav({
 	return buffer;
 }
 
-function normalizeTimelineReadyWavAudio({ audioBytes }: { audioBytes: Buffer }) {
+function normalizeTimelineReadyWavAudio({
+	audioBytes,
+}: {
+	audioBytes: Buffer;
+}) {
 	const parsedWav = parseTimelineReadyWavAudio({ audioBytes });
 	if (parsedWav.audioFormat === 1 && parsedWav.bitsPerSample === 16) {
 		return {
@@ -3829,6 +3891,89 @@ async function runBuildVolcengineUrlCaptions({
 		message: "Built Volcengine URL captions",
 		data: {
 			source: "volcengine_url_subtitle",
+			...result,
+		},
+	};
+}
+
+async function runTranscribeVolcengineMedia({
+	state,
+	args,
+	env,
+	transcribeVolcengineUrl,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	transcribeVolcengineUrl: ExecutorTranscribeVolcengineUrl;
+}) {
+	const parsed = volcengineMediaArgsSchema.parse(args);
+	const apiKey = env.VOLCENGINE_OPEN_SPEECH_API_KEY?.trim();
+	if (!apiKey) {
+		throw new Error("VOLCENGINE_OPEN_SPEECH_API_KEY is required");
+	}
+	const mediaAsset = requireAudioOrVideoMediaAsset({
+		state,
+		mediaId: parsed.mediaId,
+		toolName: "transcribe_volcengine_media",
+	});
+	const mediaUrl = requirePublicHttpsMediaUrl({
+		mediaAsset,
+		toolName: "transcribe_volcengine_media",
+	});
+	const result = await transcribeVolcengineUrl({
+		apiKey,
+		mediaUrl,
+		requestId: parsed.requestId,
+	});
+	return {
+		success: true,
+		message: `Transcribed Volcengine media '${mediaAsset.name}'`,
+		data: {
+			source: "volcengine_media_asr",
+			mediaId: mediaAsset.id,
+			...result,
+		},
+	};
+}
+
+async function runBuildVolcengineMediaCaptions({
+	state,
+	args,
+	env,
+	buildVolcengineUrlCaptions,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+	env: Record<string, string | undefined>;
+	buildVolcengineUrlCaptions: ExecutorBuildVolcengineUrlCaptions;
+}) {
+	const parsed = volcengineMediaArgsSchema
+		.omit({ requestId: true })
+		.parse(args);
+	const apiKey = env.VOLCENGINE_OPEN_SPEECH_API_KEY?.trim();
+	if (!apiKey) {
+		throw new Error("VOLCENGINE_OPEN_SPEECH_API_KEY is required");
+	}
+	const mediaAsset = requireAudioOrVideoMediaAsset({
+		state,
+		mediaId: parsed.mediaId,
+		toolName: "build_volcengine_media_captions",
+	});
+	const mediaUrl = requirePublicHttpsMediaUrl({
+		mediaAsset,
+		toolName: "build_volcengine_media_captions",
+	});
+	const result = await buildVolcengineUrlCaptions({
+		apiKey,
+		mediaUrl,
+	});
+	return {
+		success: true,
+		message: `Built Volcengine media captions for '${mediaAsset.name}'`,
+		data: {
+			source: "volcengine_media_subtitle",
+			mediaId: mediaAsset.id,
 			...result,
 		},
 	};
@@ -5874,6 +6019,22 @@ async function executeCommand({
 	}
 	if (command.tool === "build_volcengine_url_captions") {
 		return runBuildVolcengineUrlCaptions({
+			args: command.args,
+			env,
+			buildVolcengineUrlCaptions,
+		});
+	}
+	if (command.tool === "transcribe_volcengine_media") {
+		return runTranscribeVolcengineMedia({
+			state,
+			args: command.args,
+			env,
+			transcribeVolcengineUrl,
+		});
+	}
+	if (command.tool === "build_volcengine_media_captions") {
+		return runBuildVolcengineMediaCaptions({
+			state,
 			args: command.args,
 			env,
 			buildVolcengineUrlCaptions,

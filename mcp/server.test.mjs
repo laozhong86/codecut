@@ -175,6 +175,8 @@ describe("Codecut MCP server contract", () => {
 			"generate_volcengine_cloned_voice",
 			"transcribe_volcengine_url",
 			"build_volcengine_url_captions",
+			"transcribe_volcengine_media",
+			"build_volcengine_media_captions",
 			"verify_timeline",
 			"export_project",
 			"export_timeline_frame",
@@ -438,6 +440,8 @@ describe("Codecut MCP server contract", () => {
 			"generate_volcengine_cloned_voice",
 			"transcribe_volcengine_url",
 			"build_volcengine_url_captions",
+			"transcribe_volcengine_media",
+			"build_volcengine_media_captions",
 			"export_project",
 			"export_timeline_frame",
 		]) {
@@ -496,15 +500,15 @@ describe("Codecut MCP server contract", () => {
 		expect(
 			serverModule.CODECUT_WORKSPACE_TOOLS.map((tool) => tool.name),
 		).toEqual([
-				"open_codecut_workspace",
-				"open_codecut_requirement_confirmation",
-				"get_codecut_requirement_confirmation",
-				"create_codecut_project_from_requirement",
-				"inspect_codecut_setup",
-				"recover_codecut_setup",
-				"list_codecut_builtin_voice_packs",
-				"submit_codecut_setup",
-			]);
+			"open_codecut_workspace",
+			"open_codecut_requirement_confirmation",
+			"get_codecut_requirement_confirmation",
+			"create_codecut_project_from_requirement",
+			"inspect_codecut_setup",
+			"recover_codecut_setup",
+			"list_codecut_builtin_voice_packs",
+			"submit_codecut_setup",
+		]);
 
 		const openTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
 			(tool) => tool.name === "open_codecut_workspace",
@@ -521,27 +525,27 @@ describe("Codecut MCP server contract", () => {
 		const requirementCreateTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
 			(tool) => tool.name === "create_codecut_project_from_requirement",
 		);
-			const recoverTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
-				(tool) => tool.name === "recover_codecut_setup",
-			);
-			const voiceTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
-				(tool) => tool.name === "list_codecut_builtin_voice_packs",
-				);
-				expect(openTool.readOnly).toBe(true);
-				expect(openTool.modelVisible).toBe(true);
-				expect(requirementOpenTool.readOnly).toBe(false);
-				expect(requirementOpenTool.modelVisible).toBe(true);
-				expect(requirementGetTool.readOnly).toBe(true);
-				expect(requirementGetTool.modelVisible).toBe(true);
-				expect(requirementCreateTool.readOnly).toBe(false);
-				expect(requirementCreateTool.modelVisible).toBe(true);
-				expect(recoverTool.readOnly).toBe(true);
-			expect(recoverTool.modelVisible).toBe(true);
-			expect(recoverTool.meta).toBeUndefined();
-			expect(submitTool.readOnly).toBe(false);
-			expect(submitTool.modelVisible).toBe(true);
-			expect(voiceTool.readOnly).toBe(true);
-			expect(voiceTool.modelVisible).toBe(true);
+		const recoverTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
+			(tool) => tool.name === "recover_codecut_setup",
+		);
+		const voiceTool = serverModule.CODECUT_WORKSPACE_TOOLS.find(
+			(tool) => tool.name === "list_codecut_builtin_voice_packs",
+		);
+		expect(openTool.readOnly).toBe(true);
+		expect(openTool.modelVisible).toBe(true);
+		expect(requirementOpenTool.readOnly).toBe(false);
+		expect(requirementOpenTool.modelVisible).toBe(true);
+		expect(requirementGetTool.readOnly).toBe(true);
+		expect(requirementGetTool.modelVisible).toBe(true);
+		expect(requirementCreateTool.readOnly).toBe(false);
+		expect(requirementCreateTool.modelVisible).toBe(true);
+		expect(recoverTool.readOnly).toBe(true);
+		expect(recoverTool.modelVisible).toBe(true);
+		expect(recoverTool.meta).toBeUndefined();
+		expect(submitTool.readOnly).toBe(false);
+		expect(submitTool.modelVisible).toBe(true);
+		expect(voiceTool.readOnly).toBe(true);
+		expect(voiceTool.modelVisible).toBe(true);
 		expect(submitTool.description).toContain(
 			"confirmedByUser true after the user explicitly confirms",
 		);
@@ -879,8 +883,8 @@ describe("Codecut MCP server contract", () => {
 			'<button id="submit-button" class="create-project-cta" type="submit" data-i18n="createProject">Create project</button>',
 		);
 		expect(html).toContain(".create-project-cta");
-				expect(html).toContain("--cc-create-cta-background");
-			});
+		expect(html).toContain("--cc-create-cta-background");
+	});
 
 	test("opens requirement confirmation without creating a project", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-req-mcp-"));
@@ -930,7 +934,9 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(result.content[0].text).toContain("scripts/browser-client.mjs");
 			expect(result.content[0].text).toContain('agent.browsers.get("iab")');
-			expect(result.content[0].text).toContain("Do not click confirm or cancel");
+			expect(result.content[0].text).toContain(
+				"Do not click confirm or cancel",
+			);
 			expect(result._meta).toBeUndefined();
 
 			const draft = JSON.parse(
@@ -957,7 +963,13 @@ describe("Codecut MCP server contract", () => {
 		try {
 			const home = join(directory, "home");
 			const sourceRoot = join(directory, "source");
-			const cacheRoot = join(directory, "cache", "local-opc", "codecut", "0.1.1");
+			const cacheRoot = join(
+				directory,
+				"cache",
+				"local-opc",
+				"codecut",
+				"0.1.1",
+			);
 			await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
 			await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
 			await writeFile(
@@ -1275,38 +1287,36 @@ describe("Codecut MCP server contract", () => {
 		}
 	});
 
-			test("lists built-in voice packs with executable RunningHub clone paths", async () => {
-				const result = await serverModule.callCodecutWorkspaceTool(
-					"list_codecut_builtin_voice_packs",
-				{},
-			);
+	test("lists built-in voice packs with executable RunningHub clone paths", async () => {
+		const result = await serverModule.callCodecutWorkspaceTool(
+			"list_codecut_builtin_voice_packs",
+			{},
+		);
 
-			expect(result.structuredContent).toMatchObject({
-				status: "ready",
-				defaultVoicePackId: "podcast-female",
-			});
-			const podcastFemale = result.structuredContent.voicePacks.find(
-				(voice) => voice.id === "podcast-female",
-			);
-			const podcastFemaleAudioPath = podcastFemale.audioPath;
-			expect(podcastFemale).toMatchObject({
-				id: "podcast-female",
-				name: "女声",
-				provider: "runninghub-voice-clone",
-				executableTool: "generate_runninghub_voice_clone",
-			});
-			expect(slashPath(podcastFemaleAudioPath)).toContain(
-				"apps/web/public/voices/podcast-female.mp3",
-			);
-			expect(isAbsolute(podcastFemaleAudioPath)).toBe(true);
-			expect(existsSync(podcastFemaleAudioPath)).toBe(true);
-			expect(result.content[0].text).toContain("女声");
-			expect(result.content[0].text).toContain(
-				"generate_runninghub_voice_clone",
-			);
+		expect(result.structuredContent).toMatchObject({
+			status: "ready",
+			defaultVoicePackId: "podcast-female",
 		});
+		const podcastFemale = result.structuredContent.voicePacks.find(
+			(voice) => voice.id === "podcast-female",
+		);
+		const podcastFemaleAudioPath = podcastFemale.audioPath;
+		expect(podcastFemale).toMatchObject({
+			id: "podcast-female",
+			name: "女声",
+			provider: "runninghub-voice-clone",
+			executableTool: "generate_runninghub_voice_clone",
+		});
+		expect(slashPath(podcastFemaleAudioPath)).toContain(
+			"apps/web/public/voices/podcast-female.mp3",
+		);
+		expect(isAbsolute(podcastFemaleAudioPath)).toBe(true);
+		expect(existsSync(podcastFemaleAudioPath)).toBe(true);
+		expect(result.content[0].text).toContain("女声");
+		expect(result.content[0].text).toContain("generate_runninghub_voice_clone");
+	});
 
-		test("serves the workspace widget at the legacy resource URI", async () => {
+	test("serves the workspace widget at the legacy resource URI", async () => {
 		const transport = new StdioClientTransport({
 			command: "node",
 			args: ["mcp/server.mjs"],
@@ -1566,12 +1576,18 @@ describe("Codecut MCP server contract", () => {
 			"utf8",
 		);
 
-		expect(source).not.toContain("CODECUT_REQUIREMENT_CONFIRMATION_RESOURCE_URI");
-		expect(source).not.toContain("readCodecutRequirementConfirmationHtml");
-		expect(source).not.toContain("registerCodecutRequirementConfirmationResource");
-		expect(existsSync(new URL("./codecut-requirement-confirmation.html", import.meta.url))).toBe(
-			false,
+		expect(source).not.toContain(
+			"CODECUT_REQUIREMENT_CONFIRMATION_RESOURCE_URI",
 		);
+		expect(source).not.toContain("readCodecutRequirementConfirmationHtml");
+		expect(source).not.toContain(
+			"registerCodecutRequirementConfirmationResource",
+		);
+		expect(
+			existsSync(
+				new URL("./codecut-requirement-confirmation.html", import.meta.url),
+			),
+		).toBe(false);
 	});
 
 	test("workspace host bridge preserves native follow-up confirmation when available", async () => {
@@ -1897,9 +1913,7 @@ describe("Codecut MCP server contract", () => {
 		expect(result.content[0].text).toContain(
 			"Do not call submit_codecut_setup until the user explicitly confirms",
 		);
-		expect(result.content[0].text).toContain(
-			"confirmedByUser true",
-		);
+		expect(result.content[0].text).toContain("confirmedByUser true");
 		expect(result._meta).toMatchObject({
 			ui: { resourceUri: serverModule.CODECUT_WORKSPACE_RESOURCE_URI },
 			"openai/outputTemplate": serverModule.CODECUT_WORKSPACE_RESOURCE_URI,
@@ -2965,7 +2979,8 @@ describe("Codecut MCP server contract", () => {
 			setupIntent({ mediaSources: [{ kind: "filePath", filePath }] }),
 			{ confirmationRoot: directory },
 		);
-		const pendingConfirmationId = opened.structuredContent.pendingConfirmationId;
+		const pendingConfirmationId =
+			opened.structuredContent.pendingConfirmationId;
 		const calls = [];
 		const bridgeToolImpl = async (toolName, args) => {
 			calls.push({ toolName, args });
@@ -3283,8 +3298,7 @@ describe("Codecut MCP server contract", () => {
 									projectId: "launch-cut-001",
 									name: "Launch Cut",
 									revision: 1,
-									editorUrl:
-										"http://127.0.0.1:4100/en/editor/launch-cut-001",
+									editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-001",
 								},
 							};
 						}
@@ -3361,8 +3375,7 @@ describe("Codecut MCP server contract", () => {
 									projectId: "launch-cut-001",
 									name: "Launch Cut",
 									revision: 1,
-									editorUrl:
-										"http://127.0.0.1:4100/en/editor/launch-cut-001",
+									editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-001",
 								},
 							};
 						}
@@ -4834,6 +4847,40 @@ describe("Codecut MCP server contract", () => {
 			"build_volcengine_url_captions",
 			"--args-json",
 			JSON.stringify({ mediaUrl: "https://example.com/video.mp4" }),
+		]);
+		expect(
+			buildBridgeCliArgs("transcribe_volcengine_media", {
+				projectId: "project-1",
+				mediaId: "media-1",
+				requestId: "asr-request-1",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"send",
+			"--project-id",
+			"project-1",
+			"--tool",
+			"transcribe_volcengine_media",
+			"--args-json",
+			JSON.stringify({
+				mediaId: "media-1",
+				requestId: "asr-request-1",
+			}),
+		]);
+		expect(
+			buildBridgeCliArgs("build_volcengine_media_captions", {
+				projectId: "project-1",
+				mediaId: "media-1",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"send",
+			"--project-id",
+			"project-1",
+			"--tool",
+			"build_volcengine_media_captions",
+			"--args-json",
+			JSON.stringify({ mediaId: "media-1" }),
 		]);
 	});
 

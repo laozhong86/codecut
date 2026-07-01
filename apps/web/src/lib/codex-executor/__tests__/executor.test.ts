@@ -98,6 +98,8 @@ function envelope({
 		| "generate_volcengine_cloned_voice"
 		| "transcribe_volcengine_url"
 		| "build_volcengine_url_captions"
+		| "transcribe_volcengine_media"
+		| "build_volcengine_media_captions"
 		| "export_project"
 		| "verify_timeline"
 		| "get_timeline_state";
@@ -146,15 +148,15 @@ function confirmedSetupFixture({
 	captionFont = "auto",
 	captionSize = "medium",
 	captionStylePreset = "creator-clean",
-		exportFormat = "mp4",
-		exportQuality = "high",
-		includeAudio = true,
-		generateIntroCover = true,
-		durationContract = {
-			totalDurationMode: "auto",
-			sourceCoverageMode: "selected_segments",
-			toleranceSeconds: 0.2,
-		},
+	exportFormat = "mp4",
+	exportQuality = "high",
+	includeAudio = true,
+	generateIntroCover = true,
+	durationContract = {
+		totalDurationMode: "auto",
+		sourceCoverageMode: "selected_segments",
+		toleranceSeconds: 0.2,
+	},
 }: {
 	taskType?:
 		| "template_draft"
@@ -177,12 +179,12 @@ function confirmedSetupFixture({
 		| "social-highlight"
 		| "comment-bubble"
 		| "minimal-reel";
-		exportFormat?: "mp4" | "webm";
-		exportQuality?: "low" | "medium" | "high" | "very_high";
-		includeAudio?: boolean;
-		generateIntroCover?: boolean;
-		durationContract?: DurationContract;
-	} = {}): ConfirmedSetup {
+	exportFormat?: "mp4" | "webm";
+	exportQuality?: "low" | "medium" | "high" | "very_high";
+	includeAudio?: boolean;
+	generateIntroCover?: boolean;
+	durationContract?: DurationContract;
+} = {}): ConfirmedSetup {
 	return {
 		version: 1,
 		taskType,
@@ -190,12 +192,12 @@ function confirmedSetupFixture({
 		source: "codecut_setup_confirmation",
 		timelinePreferences: {
 			aspectRatio: "9:16",
-				durationGoal: { mode: "auto" },
-				durationContract,
-				transitionPreference: "auto",
-				generateIntroCover,
-				requirements: "Create a clear short video.",
-			},
+			durationGoal: { mode: "auto" },
+			durationContract,
+			transitionPreference: "auto",
+			generateIntroCover,
+			requirements: "Create a clear short video.",
+		},
 		captionPreferences: {
 			language: captionLanguage,
 			font: captionFont,
@@ -2118,6 +2120,170 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("transcribe_volcengine_media sends a public media asset URL through Volcengine without mutating project state", async () => {
+		await seedDraftState({
+			tracks: [],
+			mediaAssets: [
+				{
+					id: "remote-video",
+					name: "remote-video.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 3,
+					size: 1024,
+					lastModified: 1,
+					path: "/tmp/remote-video.mp4",
+					sourceUrl: "https://example.com/remote-video.mp4",
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "transcribe_volcengine_media",
+				args: {
+					mediaId: "remote-video",
+					requestId: "asr-request-1",
+				},
+			}),
+			env: { VOLCENGINE_OPEN_SPEECH_API_KEY: "volc-key" },
+			transcribeVolcengineUrl: async ({ apiKey, mediaUrl, requestId }) => {
+				expect(apiKey).toBe("volc-key");
+				expect(mediaUrl).toBe("https://example.com/remote-video.mp4");
+				expect(requestId).toBe("asr-request-1");
+				return {
+					taskId: "asr-request-1",
+					status: "succeeded",
+					text: "火山转写结果",
+					language: "zh-CN",
+					modelId: "volcengine-bigmodel",
+					segments: [{ text: "火山转写结果", start: 0, end: 1.23 }],
+					...asrContractFields(),
+				};
+			},
+		});
+
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		expect(result.results[0]).toMatchObject({
+			tool: "transcribe_volcengine_media",
+			success: true,
+			data: {
+				source: "volcengine_media_asr",
+				mediaId: "remote-video",
+				taskId: "asr-request-1",
+				text: "火山转写结果",
+				segments: [{ text: "火山转写结果", start: 0, end: 1.23 }],
+			},
+		});
+	});
+
+	test("transcribe_volcengine_media fails clearly for local-only media and does not call local transcription", async () => {
+		await seedDraftState({
+			tracks: [],
+			mediaAssets: [
+				{
+					id: "local-video",
+					name: "local-video.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 3,
+					size: 1024,
+					lastModified: 1,
+					path: "/tmp/local-video.mp4",
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "transcribe_volcengine_media",
+				args: {
+					mediaId: "local-video",
+				},
+			}),
+			env: { VOLCENGINE_OPEN_SPEECH_API_KEY: "volc-key" },
+			transcribeMedia: async () => {
+				throw new Error("local Whisper should not run");
+			},
+			transcribeVolcengineUrl: async () => {
+				throw new Error("Volcengine URL transcription should not run");
+			},
+		});
+
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		expect(result.results[0]).toMatchObject({
+			tool: "transcribe_volcengine_media",
+			success: false,
+		});
+		const failedResult = result.results[0];
+		if (!("message" in failedResult)) {
+			throw new Error("Expected failed command result with a message.");
+		}
+		expect(failedResult.message).toContain("requires a public HTTPS media URL");
+		expect(failedResult.message).toContain(
+			"Do not fall back to transcribe_media",
+		);
+	});
+
+	test("build_volcengine_media_captions sends a public media asset URL through Volcengine without mutating project state", async () => {
+		await seedDraftState({
+			tracks: [],
+			mediaAssets: [
+				{
+					id: "remote-video",
+					name: "remote-video.mp4",
+					type: "video",
+					mimeType: "video/mp4",
+					duration: 3,
+					size: 1024,
+					lastModified: 1,
+					path: "/tmp/remote-video.mp4",
+					publicUrl: "https://example.com/remote-video.mp4",
+				},
+			],
+		});
+		const before = await getExecutorProjectState({ projectId });
+
+		const result = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "build_volcengine_media_captions",
+				args: {
+					mediaId: "remote-video",
+				},
+			}),
+			env: { VOLCENGINE_OPEN_SPEECH_API_KEY: "volc-key" },
+			buildVolcengineUrlCaptions: async ({ apiKey, mediaUrl }) => {
+				expect(apiKey).toBe("volc-key");
+				expect(mediaUrl).toBe("https://example.com/remote-video.mp4");
+				return {
+					taskId: "subtitle-task-1",
+					status: "succeeded",
+					captions: [
+						{ text: "第一句", startTime: 0, duration: 0.9 },
+						{ text: "第二句", startTime: 0.9, duration: 0.9 },
+					],
+				};
+			},
+		});
+
+		expect(await getExecutorProjectState({ projectId })).toEqual(before);
+		expect(result.results[0]).toMatchObject({
+			tool: "build_volcengine_media_captions",
+			success: true,
+			data: {
+				source: "volcengine_media_subtitle",
+				mediaId: "remote-video",
+				taskId: "subtitle-task-1",
+				captions: [
+					{ text: "第一句", startTime: 0, duration: 0.9 },
+					{ text: "第二句", startTime: 0.9, duration: 0.9 },
+				],
+			},
+		});
+	});
+
 	test("applies an EditPlan and exposes timeline state plus run status", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
 		const importResult = await executeCodexExecutorEnvelope({
@@ -3528,12 +3694,12 @@ describe("codex executor", () => {
 	test("export fails before rendering when timeline violates duration contract", async () => {
 		await createExecutorProject({
 			projectId,
-				name: "Contracted export",
-				confirmedSetup: confirmedSetupFixture({
-					generateIntroCover: false,
-					durationContract: {
-						totalDurationMode: "preserve_source",
-						sourceCoverageMode: "full_source",
+			name: "Contracted export",
+			confirmedSetup: confirmedSetupFixture({
+				generateIntroCover: false,
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
 					sourceDurationSeconds: 28.866667,
 					toleranceSeconds: 0.2,
 				},
@@ -3881,10 +4047,10 @@ describe("codex executor", () => {
 							},
 						],
 					},
-						{
-							type: "text",
-							name: "Captions",
-							elements: [
+					{
+						type: "text",
+						name: "Captions",
+						elements: [
 							{
 								type: "text",
 								content: "资源不等于能力",
@@ -3976,16 +4142,16 @@ describe("codex executor", () => {
 			},
 		});
 		expect(verifyResult.results[0]).toMatchObject({
-				success: true,
-				data: {
-					actual: {
-						titleCount: 1,
-						captionCount: 1,
-						titleCaptionTrackSeparated: true,
-					},
+			success: true,
+			data: {
+				actual: {
+					titleCount: 1,
+					captionCount: 1,
+					titleCaptionTrackSeparated: true,
 				},
-			});
+			},
 		});
+	});
 
 	test("transcribes imported media through the local executor runtime", async () => {
 		await createExecutorProject({ projectId, name: "Codex cut" });
@@ -5817,12 +5983,12 @@ describe("codex executor", () => {
 	test("rejects narrated remix plans that violate confirmed duration contract", async () => {
 		await createExecutorProject({
 			projectId,
-				name: "Preserve source remix",
-				confirmedSetup: confirmedSetupFixture({
-					generateIntroCover: false,
-					durationContract: {
-						totalDurationMode: "preserve_source",
-						sourceCoverageMode: "full_source",
+			name: "Preserve source remix",
+			confirmedSetup: confirmedSetupFixture({
+				generateIntroCover: false,
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
 					sourceDurationSeconds: 28.866667,
 					toleranceSeconds: 0.2,
 				},
@@ -5910,12 +6076,12 @@ describe("codex executor", () => {
 	test("reports satisfied duration contract in timeline state", async () => {
 		await createExecutorProject({
 			projectId,
-				name: "Full source remix",
-				confirmedSetup: confirmedSetupFixture({
-					generateIntroCover: false,
-					durationContract: {
-						totalDurationMode: "preserve_source",
-						sourceCoverageMode: "full_source",
+			name: "Full source remix",
+			confirmedSetup: confirmedSetupFixture({
+				generateIntroCover: false,
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
 					sourceDurationSeconds: 28.866667,
 					toleranceSeconds: 0.2,
 				},
@@ -6018,12 +6184,12 @@ describe("codex executor", () => {
 	test("applies preserve-source narrated remix when narration is slightly shorter", async () => {
 		await createExecutorProject({
 			projectId,
-				name: "Short narration full source remix",
-				confirmedSetup: confirmedSetupFixture({
-					generateIntroCover: false,
-					durationContract: {
-						totalDurationMode: "preserve_source",
-						sourceCoverageMode: "full_source",
+			name: "Short narration full source remix",
+			confirmedSetup: confirmedSetupFixture({
+				generateIntroCover: false,
+				durationContract: {
+					totalDurationMode: "preserve_source",
+					sourceCoverageMode: "full_source",
 					sourceDurationSeconds: 28.866667,
 					toleranceSeconds: 0.25,
 				},

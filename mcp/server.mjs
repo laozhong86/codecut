@@ -784,6 +784,14 @@ const codecutToolGovernanceCategoryByName = new Map([
 		"build_volcengine_url_captions",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
 	],
+	[
+		"transcribe_volcengine_media",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
+	],
+	[
+		"build_volcengine_media_captions",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT,
+	],
 ]);
 
 export const DESTRUCTIVE_MCP_TOOL_NAMES = new Set([
@@ -801,6 +809,8 @@ export const DESTRUCTIVE_MCP_TOOL_NAMES = new Set([
 	"generate_volcengine_cloned_voice",
 	"transcribe_volcengine_url",
 	"build_volcengine_url_captions",
+	"transcribe_volcengine_media",
+	"build_volcengine_media_captions",
 	"export_project",
 	"export_timeline_frame",
 ]);
@@ -1455,6 +1465,29 @@ export const CODECUT_MCP_TOOLS = [
 		readOnly: false,
 	},
 	{
+		name: "transcribe_volcengine_media",
+		title: "Transcribe Volcengine Media",
+		description:
+			"Submit the public HTTPS source URL attached to one imported audio or video media asset through Volcengine OpenSpeech ASR. This fails clearly when the media asset has only a local executor path; it does not upload local files and must not fall back to local transcription without explicit user approval.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			mediaId: z.string().trim().min(1),
+			requestId: z.string().trim().min(1).optional(),
+		},
+		readOnly: false,
+	},
+	{
+		name: "build_volcengine_media_captions",
+		title: "Build Volcengine Media Captions",
+		description:
+			"Submit the public HTTPS source URL attached to one imported audio or video media asset through Volcengine subtitle generation. This returns editable caption data only and fails clearly for local-only media assets.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			mediaId: z.string().trim().min(1),
+		},
+		readOnly: false,
+	},
+	{
 		name: "verify_timeline",
 		title: "Verify Codecut Timeline",
 		description:
@@ -1625,27 +1658,27 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		modelVisible: false,
 		meta: codecutWorkspaceAppOnlyMeta,
 	},
-		{
-			name: "recover_codecut_setup",
-			title: "Recover CodeCut Workspace Setup",
-			description:
-				"Recover a confirmed CodeCut setup result when the workspace app created the project but could not send the follow-up message back to Codex. Requires the projectId and pendingConfirmationId shown by open_codecut_workspace, then returns the confirmed setup token and continue prompt produced by submit_codecut_setup.",
+	{
+		name: "recover_codecut_setup",
+		title: "Recover CodeCut Workspace Setup",
+		description:
+			"Recover a confirmed CodeCut setup result when the workspace app created the project but could not send the follow-up message back to Codex. Requires the projectId and pendingConfirmationId shown by open_codecut_workspace, then returns the confirmed setup token and continue prompt produced by submit_codecut_setup.",
 		inputSchema: workspaceRecoverInputSchema,
-			readOnly: true,
-			modelVisible: true,
-		},
-		{
-			name: "list_codecut_builtin_voice_packs",
-			title: "List CodeCut Built-In Voice Packs",
-			description:
-				"List CodeCut's bundled voice-library entries with executable local reference audio paths for RunningHub voice cloning. This is read-only and does not call a provider.",
-			inputSchema: {},
-			readOnly: true,
-			modelVisible: true,
-		},
-		{
-			name: "submit_codecut_setup",
-			title: "Submit CodeCut Workspace Setup",
+		readOnly: true,
+		modelVisible: true,
+	},
+	{
+		name: "list_codecut_builtin_voice_packs",
+		title: "List CodeCut Built-In Voice Packs",
+		description:
+			"List CodeCut's bundled voice-library entries with executable local reference audio paths for RunningHub voice cloning. This is read-only and does not call a provider.",
+		inputSchema: {},
+		readOnly: true,
+		modelVisible: true,
+	},
+	{
+		name: "submit_codecut_setup",
+		title: "Submit CodeCut Workspace Setup",
 		description:
 			"Confirm a pending CodeCut workspace setup, create the executor project, import confirmed local media, persist the confirmed taskType setup contract, and return editor context. Requires the pendingConfirmationId returned by open_codecut_workspace and confirmedByUser true after the user explicitly confirms creating this project in chat or submits the CodeCut setup widget.",
 		inputSchema: workspaceIntentInputSchema,
@@ -1737,7 +1770,9 @@ function buildSelectedBuiltinVoicePrompt(intent) {
 		(voicePack) => voicePack.id === selectedVoicePackId,
 	);
 	if (!selectedVoicePack) {
-		throw new Error(`Selected built-in voice pack is missing: ${selectedVoicePackId}`);
+		throw new Error(
+			`Selected built-in voice pack is missing: ${selectedVoicePackId}`,
+		);
 	}
 	return `Selected built-in voice: ${selectedVoicePack.name} (${selectedVoicePack.id}). Use ${selectedVoicePack.executableTool} with audioPath "${selectedVoicePack.audioPath}" when generating the requested narration.`;
 }
@@ -2049,7 +2084,10 @@ function sharedRequirementStoreRoot(env) {
 	return resolve(home, ".codex", "codecut");
 }
 
-function resolveRequirementStoreRoot({ cwd = pluginRoot, env = process.env } = {}) {
+function resolveRequirementStoreRoot({
+	cwd = pluginRoot,
+	env = process.env,
+} = {}) {
 	const explicitRoot = env.CODECUT_REQUIREMENT_ROOT?.trim();
 	if (explicitRoot) return resolve(explicitRoot);
 	const root = findPluginRoot(cwd);
@@ -2147,7 +2185,10 @@ const SUPPORTED_WEB_LOCALES = new Set([
 ]);
 
 function normalizeWebLocale(locale) {
-	const raw = String(locale || "en").trim().replace(/_/g, "-").toLowerCase();
+	const raw = String(locale || "en")
+		.trim()
+		.replace(/_/g, "-")
+		.toLowerCase();
 	if (!raw) return "en";
 	const language = raw.split("-")[0];
 	if (SUPPORTED_WEB_LOCALES.has(language)) return language;
@@ -2309,11 +2350,9 @@ function buildWorkspaceIntentFromConfirmedRequirement({
 			captionSize: confirmedSetup.captionPreferences.size,
 			captionStylePreset: confirmedSetup.captionPreferences.stylePreset,
 			voicePackId:
-				confirmedSetup.voicePreferences?.voicePackId ||
-				noBuiltinVoicePackId,
+				confirmedSetup.voicePreferences?.voicePackId || noBuiltinVoicePackId,
 		},
-		generateIntroCover:
-			confirmedSetup.timelinePreferences.generateIntroCover,
+		generateIntroCover: confirmedSetup.timelinePreferences.generateIntroCover,
 		requirements: confirmedSetup.timelinePreferences.requirements,
 	};
 }
@@ -2374,7 +2413,10 @@ export async function createCodecutProjectFromRequirement(
 		confirmationRoot,
 		workspaceSourceRoot,
 	});
-	if (result?.structuredContent && typeof result.structuredContent === "object") {
+	if (
+		result?.structuredContent &&
+		typeof result.structuredContent === "object"
+	) {
 		result.structuredContent.requirementDraftId = state.draftId;
 	}
 	return result;
@@ -4652,6 +4694,31 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				toolName,
 				args: {
 					mediaUrl: requireStringArg(args, "mediaUrl"),
+				},
+			});
+		case "transcribe_volcengine_media":
+			assertOnlyToolArgs(
+				args,
+				new Set(["projectId", "mediaId", "requestId"]),
+				toolName,
+			);
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					mediaId: requireStringArg(args, "mediaId"),
+					...(args.requestId === undefined
+						? {}
+						: { requestId: requireStringArg(args, "requestId") }),
+				},
+			});
+		case "build_volcengine_media_captions":
+			assertOnlyToolArgs(args, new Set(["projectId", "mediaId"]), toolName);
+			return buildSendArgs({
+				projectId,
+				toolName,
+				args: {
+					mediaId: requireStringArg(args, "mediaId"),
 				},
 			});
 		case "verify_timeline":
