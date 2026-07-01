@@ -38,13 +38,15 @@ function validDraftInput(): RequirementDraftInput {
 			generateIntroCover: false,
 			requirements: "保留源视频完整长度，不删减原片，新增中文配音和同步字幕。",
 		},
+		titlePreferences: { enabled: false },
 		captionPreferences: {
+			enabled: true,
 			language: "zh-CN",
 			font: "auto",
 			size: "medium",
 			stylePreset: "short-form-bold",
 		},
-		voicePreferences: { voicePackId: "none" },
+		voicePreferences: { enabled: false, voicePackId: "none" },
 		templatePreference: {
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
@@ -139,11 +141,23 @@ describe("requirement confirmation store", () => {
 			root,
 			draftId: draft.draftId,
 			patch: {
-				voicePreferences: { voicePackId: "podcast-female" },
+				titlePreferences: {
+					enabled: true,
+					mode: "custom",
+					text: "别乱花钱",
+					stylePreset: "hook_title",
+				},
+				voicePreferences: { enabled: true, voicePackId: "podcast-female" },
 			},
 		});
 
 		expect(confirmed.status).toBe("confirmed");
+		expect(confirmed.confirmedSetup.titlePreferences).toEqual({
+			enabled: true,
+			mode: "custom",
+			text: "别乱花钱",
+			stylePreset: "hook_title",
+		});
 		expect(confirmed.confirmedSetup.voicePreferences?.voicePackId).toBe(
 			"podcast-female",
 		);
@@ -215,7 +229,7 @@ describe("requirement confirmation store", () => {
 			status: "awaiting_user_confirmation",
 			createdAt: new Date().toISOString(),
 			source: "codecut_requirement_confirmation",
-			voicePreferences: { voicePackId: "random-voice" },
+			voicePreferences: { enabled: true, voicePackId: "random-voice" },
 		});
 
 		expect(result.success).toBe(false);

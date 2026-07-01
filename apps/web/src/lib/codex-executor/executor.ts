@@ -29,6 +29,7 @@ import {
 import { buildPostCutCaptionEntries } from "@/lib/agent-bridge/edit-plan/caption-chunking";
 import { resolveCaptionStylePreset } from "@/lib/agent-bridge/edit-plan/text-presets";
 import { applyNarratedRemixPlanToEditor } from "@/lib/agent-bridge/narrated-remix/apply";
+import { NarratedRemixPlanSchema } from "@/lib/agent-bridge/narrated-remix/schema";
 import {
 	type ProbeAudio,
 	buildVideoContextWithTranscriber,
@@ -65,6 +66,7 @@ import {
 import {
 	ConfirmedSetupSchema,
 	UpdateProjectPreferencesArgsSchema,
+	assertEditPlanTextPreferences,
 	applyCaptionPreferencesToTextRaw,
 	applyConfirmedSetupPatch,
 	resolveCaptionLanguageForContract,
@@ -2413,7 +2415,8 @@ async function runUpdateProjectPreferences({
 	}
 
 	state.confirmedSetup = applied.confirmedSetup;
-	const updatedCaptionElementIds = parsed.patch.captionPreferences
+	const updatedCaptionElementIds =
+		parsed.patch.captionPreferences && state.confirmedSetup.captionPreferences.enabled
 		? applyCaptionSetupToExistingCaptions({
 				state,
 				confirmedSetup: state.confirmedSetup,
@@ -2430,6 +2433,63 @@ async function runUpdateProjectPreferences({
 			confirmedSetup: state.confirmedSetup,
 			updatedCaptionElementIds,
 			requiresReplan: applied.requiresReplan,
+		},
+	};
+}
+
+function validateEditPlanTextPreferences({
+	state,
+	plan,
+}: {
+	state: ExecutorProjectState;
+	plan: {
+		title?: { text: string; stylePreset?: string };
+		captions?: unknown[];
+		captionStyle?: unknown;
+	};
+}) {
+	try {
+		assertEditPlanTextPreferences({
+			confirmedSetup: state.confirmedSetup,
+			title: plan.title,
+			captionCount: plan.captions?.length ?? 0,
+			hasCaptionStyle: plan.captionStyle !== undefined,
+		});
+		return null;
+	} catch (error) {
+		return {
+			success: false,
+			message:
+				error instanceof Error
+					? error.message
+					: "EditPlan conflicts with confirmedSetup.",
+			data: {
+				valid: false,
+				revision: state.revision,
+			},
+		};
+	}
+}
+
+function validateCaptionPreferences({
+	state,
+	captionCount,
+	hasCaptionStyle,
+}: {
+	state: ExecutorProjectState;
+	captionCount: number;
+	hasCaptionStyle: boolean;
+}) {
+	if (!state.confirmedSetup || state.confirmedSetup.captionPreferences.enabled) {
+		return null;
+	}
+	if (captionCount === 0 && !hasCaptionStyle) return null;
+	return {
+		success: false,
+		message: "Captions are disabled in confirmedSetup.",
+		data: {
+			valid: false,
+			revision: state.revision,
 		},
 	};
 }
@@ -2459,6 +2519,11 @@ async function runValidateEditPlan({
 			},
 		};
 	}
+	const textPreferencesError = validateEditPlanTextPreferences({
+		state,
+		plan: validation.normalizedPlan,
+	});
+	if (textPreferencesError) return textPreferencesError;
 
 	return {
 		success: true,
@@ -2495,6 +2560,11 @@ async function runPreviewEditPlan({
 			},
 		};
 	}
+	const textPreferencesError = validateEditPlanTextPreferences({
+		state,
+		plan: validation.normalizedPlan,
+	});
+	if (textPreferencesError) return textPreferencesError;
 
 	const plan = validation.normalizedPlan;
 	const audioCount = (plan.audio?.bgm ? 1 : 0) + (plan.audio?.sfx?.length ?? 0);
@@ -2904,8 +2974,19 @@ async function runApplyEditPlan({
 }) {
 	const parsed = applyPlanArgsSchema.parse(args);
 	const mediaAssets = await toMediaAssets(state.mediaAssets);
-	const result = applyEditPlanToEditor({
+	const validation = validateEditPlan({
 		plan: parsed.plan,
+		projectId: state.project.id,
+		mediaAssets,
+	});
+	if (!validation.success) return validation;
+	const textPreferencesError = validateEditPlanTextPreferences({
+		state,
+		plan: validation.normalizedPlan,
+	});
+	if (textPreferencesError) return textPreferencesError;
+	const result = applyEditPlanToEditor({
+		plan: validation.normalizedPlan,
 		projectId: state.project.id,
 		replaceExisting: parsed.replaceExisting,
 		editor: {
@@ -2956,9 +3037,16 @@ async function runApplyNarratedRemixPlan({
 	args: Record<string, unknown>;
 }) {
 	const parsed = applyNarratedRemixPlanArgsSchema.parse(args);
+	const parsedPlan = NarratedRemixPlanSchema.parse(parsed.plan);
 	const mediaAssets = await toMediaAssets(state.mediaAssets);
+	const captionPreferencesError = validateCaptionPreferences({
+		state,
+		captionCount: parsedPlan.captions.length,
+		hasCaptionStyle: parsedPlan.captionStyle !== undefined,
+	});
+	if (captionPreferencesError) return captionPreferencesError;
 	const result = applyNarratedRemixPlanToEditor({
-		plan: parsed.plan,
+		plan: parsedPlan,
 		projectId: state.project.id,
 		replaceExisting: parsed.replaceExisting,
 		durationContract:

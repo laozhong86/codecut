@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { z } from "zod";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -33,10 +34,14 @@ function setupIntent(overrides = {}) {
 			format: "mp4",
 			quality: "high",
 			includeAudio: true,
+			captionEnabled: true,
 			captionFont: "auto",
 			captionSize: "medium",
 			captionStylePreset: "creator-clean",
+			voiceEnabled: false,
+			voicePackId: "none",
 		},
+		titlePreferences: { enabled: false },
 		generateIntroCover: true,
 		requirements:
 			"Cut a high-retention short for a product launch.\nShow a hook, proof, and CTA with readable captions.",
@@ -610,6 +615,9 @@ describe("Codecut MCP server contract", () => {
 			]).success,
 		).toBe(false);
 		expect(
+			z.object(submitTool.inputSchema).strict().safeParse(setupIntent()).success,
+		).toBe(true);
+		expect(
 			openTool.inputSchema.transitionPreference.safeParse("auto").success,
 		).toBe(true);
 		expect(
@@ -820,6 +828,7 @@ describe("Codecut MCP server contract", () => {
 			"captionFont",
 			"captionSize",
 			"captionStylePreset",
+			"voiceEnabled",
 			"voicePack",
 			"voicePackNone",
 			"voicePackPodcastFemale",
@@ -847,6 +856,9 @@ describe("Codecut MCP server contract", () => {
 		expect(html).not.toContain('id="success-criteria-options"');
 		expect(html).not.toContain('id="brief"');
 		expect(html).not.toContain('id="success-criteria"');
+		expect(html).toContain('voiceEnabled: fields.voicePack.value !== "none"');
+		expect(html).toContain("captionEnabled: true");
+		expect(html).toContain("titlePreferences: currentTitlePreferences");
 		expect(html).toContain("durationGoalMode");
 		expect(html).toContain("durationGoalRangeSeconds");
 		expect(html).toContain('introCoverRecommended: "用AI 生成新的封面"');
@@ -932,6 +944,7 @@ describe("Codecut MCP server contract", () => {
 					projectId: "22-abc123",
 					output: {
 						...setupIntent().output,
+						voiceEnabled: true,
 						voicePackId: "podcast-female",
 					},
 				}),
@@ -987,7 +1000,12 @@ describe("Codecut MCP server contract", () => {
 				),
 			);
 			expect(draft.requestedProjectName).toBe("22号解说口播保留原片时长");
-			expect(draft.voicePreferences.voicePackId).toBe("podcast-female");
+			expect(draft.titlePreferences).toEqual({ enabled: false });
+			expect(draft.captionPreferences.enabled).toBe(true);
+			expect(draft.voicePreferences).toEqual({
+				enabled: true,
+				voicePackId: "podcast-female",
+			});
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
@@ -1239,6 +1257,7 @@ describe("Codecut MCP server contract", () => {
 					mediaSources: [{ kind: "filePath", filePath }],
 					output: {
 						...setupIntent().output,
+						voiceEnabled: true,
 						voicePackId: "podcast-male",
 					},
 				}),
@@ -1308,6 +1327,7 @@ describe("Codecut MCP server contract", () => {
 				"get_project_info",
 			]);
 			expect(calls[0].args.confirmedSetup.voicePreferences).toEqual({
+				enabled: true,
 				voicePackId: "podcast-male",
 			});
 			expect(result.structuredContent).toMatchObject({
@@ -2180,8 +2200,14 @@ describe("Codecut MCP server contract", () => {
 		const defaults = serverModule.openCodecutWorkspace({
 			projectName: "Voice Controls",
 		});
+		expect(defaults.structuredContent.intentDefaults.output.voiceEnabled).toBe(
+			false,
+		);
 		expect(defaults.structuredContent.intentDefaults.output.voicePackId).toBe(
 			"none",
+		);
+		expect(defaults._meta.widgetData.intentDefaults.output.voiceEnabled).toBe(
+			false,
 		);
 		expect(defaults._meta.widgetData.intentDefaults.output.voicePackId).toBe(
 			"none",
@@ -2190,14 +2216,53 @@ describe("Codecut MCP server contract", () => {
 		const selected = serverModule.openCodecutWorkspace({
 			projectName: "Voice Controls",
 			output: {
+				voiceEnabled: true,
 				voicePackId: "podcast-male",
 			},
 		});
 		expect(selected.structuredContent.intentDefaults.output).toMatchObject({
+			voiceEnabled: true,
 			voicePackId: "podcast-male",
 		});
 		expect(selected._meta.widgetData.intentDefaults.output).toMatchObject({
+			voiceEnabled: true,
 			voicePackId: "podcast-male",
+		});
+	});
+
+	test("opens the workspace with title and caption enablement defaults", () => {
+		const defaults = serverModule.openCodecutWorkspace({
+			projectName: "Grouped Controls",
+		});
+		expect(defaults.structuredContent.intentDefaults).toMatchObject({
+			titlePreferences: { enabled: false },
+			output: { captionEnabled: true },
+		});
+		expect(defaults._meta.widgetData.intentDefaults).toMatchObject({
+			titlePreferences: { enabled: false },
+			output: { captionEnabled: true },
+		});
+
+		const selected = serverModule.openCodecutWorkspace({
+			projectName: "Grouped Controls",
+			titlePreferences: {
+				enabled: true,
+				mode: "custom",
+				text: "固定标题",
+				stylePreset: "hook_title",
+			},
+			output: {
+				captionEnabled: false,
+			},
+		});
+		expect(selected.structuredContent.intentDefaults).toMatchObject({
+			titlePreferences: {
+				enabled: true,
+				mode: "custom",
+				text: "固定标题",
+				stylePreset: "hook_title",
+			},
+			output: { captionEnabled: false },
 		});
 	});
 
@@ -2461,11 +2526,16 @@ describe("Codecut MCP server contract", () => {
 
 			const builtInVoice = await serverModule.inspectCodecutSetup(
 				setupIntent({
-					output: { ...setupIntent().output, voicePackId: "podcast-female" },
+					output: {
+						...setupIntent().output,
+						voiceEnabled: true,
+						voicePackId: "podcast-female",
+					},
 				}),
 				{ bridgeToolImpl },
 			);
 			expect(builtInVoice.status).toBe("ready");
+			expect(builtInVoice.intent.output.voiceEnabled).toBe(true);
 			expect(builtInVoice.intent.output.voicePackId).toBe("podcast-female");
 
 			for (const [label, intent] of [
@@ -2797,6 +2867,7 @@ describe("Codecut MCP server contract", () => {
 					transitionPreference: "dissolve",
 					output: {
 						...setupIntent().output,
+						voiceEnabled: true,
 						voicePackId: "podcast-male",
 						captionSize: "large",
 						captionStylePreset: "product-punch",
@@ -2859,13 +2930,16 @@ describe("Codecut MCP server contract", () => {
 						requirements:
 							"Cut a high-retention short for a product launch.\nShow a hook, proof, and CTA with readable captions.",
 					},
+					titlePreferences: { enabled: false },
 					captionPreferences: {
+						enabled: true,
 						language: "auto",
 						font: "auto",
 						size: "large",
 						stylePreset: "product-punch",
 					},
 					voicePreferences: {
+						enabled: true,
 						voicePackId: "podcast-male",
 					},
 					templatePreference: { mode: "auto" },
@@ -2897,6 +2971,7 @@ describe("Codecut MCP server contract", () => {
 						captionFont: "auto",
 						captionSize: "large",
 						captionStylePreset: "product-punch",
+						voiceEnabled: true,
 						voicePackId: "podcast-male",
 					},
 				},

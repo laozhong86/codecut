@@ -38,13 +38,13 @@ function validDraftInput(): RequirementDraftInput {
 		originalUserMessage: "22号解说口播保留原片时长",
 		requestedProjectName: "22号解说口播保留原片时长",
 		requestedProjectId: "22-abc123",
-			mediaSources: [
-				{
-					kind: "filePath",
-					filePath: "/Users/x/Downloads/22.mp4",
-					mimeType: "video/mp4",
-				},
-			],
+		mediaSources: [
+			{
+				kind: "filePath",
+				filePath: "/Users/x/Downloads/22.mp4",
+				mimeType: "video/mp4",
+			},
+		],
 		taskType: "edit_execution",
 		timelinePreferences: {
 			aspectRatio: "9:16",
@@ -59,13 +59,15 @@ function validDraftInput(): RequirementDraftInput {
 			generateIntroCover: false,
 			requirements: "保留源视频完整长度，不删减原片，新增中文配音和同步字幕。",
 		},
+		titlePreferences: { enabled: false },
 		captionPreferences: {
+			enabled: true,
 			language: "zh-CN",
 			font: "auto",
 			size: "medium",
 			stylePreset: "short-form-bold",
 		},
-		voicePreferences: { voicePackId: "none" },
+		voicePreferences: { enabled: false, voicePackId: "none" },
 		templatePreference: {
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
@@ -137,7 +139,16 @@ describe("codex requirement confirmation API routes", () => {
 				method: "POST",
 				body: {
 					patch: {
-						voicePreferences: { voicePackId: "podcast-female" },
+						titlePreferences: {
+							enabled: true,
+							mode: "custom",
+							text: "别乱花钱",
+							stylePreset: "hook_title",
+						},
+						voicePreferences: {
+							enabled: true,
+							voicePackId: "podcast-female",
+						},
 						templatePreference: { mode: "auto" },
 					},
 				},
@@ -150,7 +161,16 @@ describe("codex requirement confirmation API routes", () => {
 			status: "confirmed",
 			confirmed: {
 				confirmedSetup: {
-					voicePreferences: { voicePackId: "podcast-female" },
+					titlePreferences: {
+						enabled: true,
+						mode: "custom",
+						text: "别乱花钱",
+						stylePreset: "hook_title",
+					},
+					voicePreferences: {
+						enabled: true,
+						voicePackId: "podcast-female",
+					},
 					templatePreference: { mode: "auto" },
 				},
 			},

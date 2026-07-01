@@ -64,11 +64,17 @@ function confirmedSetupBody(
 			generateIntroCover: true,
 			requirements: "Create a clear short video.",
 		},
+		titlePreferences: { enabled: false },
 		captionPreferences: {
+			enabled: true,
 			language: "auto",
 			font: "auto",
 			size: captionSize,
 			stylePreset: "product-punch",
+		},
+		voicePreferences: {
+			enabled: false,
+			voicePackId: "none",
 		},
 		templatePreference: { mode: "auto" },
 		exportPreferences: {
