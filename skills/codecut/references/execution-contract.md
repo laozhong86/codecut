@@ -226,7 +226,7 @@ no MP4 was produced.
 
 1. State assumptions. If the request has multiple valid interpretations, list them and ask only when the wrong choice would change the product outcome.
 2. Read the smallest relevant surface from `SKILL.md` routing.
-3. For Codex-generated edits, use the current callable MCP path: `get_project_info`, `list_media_assets`, optional `import_media`, `transcribe_media`, `build_video_context` when transcript-first planning needs source-timestamped context, Codex-generated implemented `EditPlan`, `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `verify_timeline`, then `get_timeline_state`.
+3. For Codex-generated edits, use the current callable MCP path: `get_project_info`, `list_media_assets`, optional `import_media`, then the transcript path confirmed by the requirement. Use `transcribe_media` and `build_video_context` for local transcription. Use `transcribe_volcengine_media`, `build_volcengine_media_captions`, `transcribe_volcengine_url`, or `build_volcengine_url_captions` for provider-backed Volcengine transcription. If the Volcengine media tools report that an imported asset has no public HTTPS source URL, stop and report that provider gate; do not silently switch to local Whisper. Continue with Codex-generated implemented `EditPlan`, `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `verify_timeline`, then `get_timeline_state`.
 4. If the user outcome requires canvas, FPS, or background mutation and no current callable project-settings tool is visible, stop and report that runtime gap instead of naming an unavailable tool.
 5. Write or run a failing validation first for implementation code.
 6. Use existing CodeCut paths:
@@ -247,8 +247,8 @@ Before this loop starts, the local service and current executor path must be rea
 1. `get_project_info`
 2. `list_media_assets`
 3. `import_media` only when no suitable media exists and the user provided an explicit source
-4. `transcribe_media`
-5. `build_video_context` when long-video or transcript-first planning needs merged source-timestamped context
+4. transcript evidence through the confirmed path: `transcribe_media`/`build_video_context` for local transcription, or Volcengine URL/media tools for provider-backed transcription
+5. `build_video_context` only when local transcript-first planning needs merged source-timestamped context
 6. `validate_edit_plan`
 7. `preview_edit_plan`
 8. `apply_edit_plan`

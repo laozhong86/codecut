@@ -51,6 +51,20 @@ facts, `codecut-reference-template` for reference-derived style constraints,
 - Optional script, outline, caption beats, storyboard beats, or user-specified
   material-matching needs.
 
+## Transcript Provider Boundary
+
+When the confirmed requirement asks for provider-backed source-audio
+transcription, audio transcription API evidence, or Volcengine transcription,
+use the Volcengine URL/media tools as the transcript evidence path. Use
+`transcribe_volcengine_media` or `build_volcengine_media_captions` for imported
+media assets that already carry a public HTTPS source URL; use the URL tools for
+explicit public HTTPS sources.
+
+If an imported local media asset has no public HTTPS source URL, stop with that
+provider gate. Do not silently use `transcribe_media`, `build_video_context`, or
+a low-quality local Whisper result as the source script basis unless the user
+explicitly approves switching to local transcription.
+
 ## Outputs
 
 - Material role labels: `talking_head_subject`, `b_roll`, `product_demo`,
@@ -80,6 +94,8 @@ artifact path.
   facts are missing or stale.
 - Transcript, VideoContext, visual context, contact sheet, range inspection, or
   frame evidence is missing for a claim that depends on it.
+- Provider-backed transcription is required, but the selected media asset has
+  no public HTTPS source URL or the provider tool fails.
 - The user is asking for final edit decisions, a strict EditPlan, template
   import, executor mutation, timeline readback, or export rather than material
   understanding.

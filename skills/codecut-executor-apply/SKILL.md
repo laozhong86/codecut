@@ -138,6 +138,10 @@ minimum execution order is:
 5. `doctor`
 6. `get_project_info`
 7. `list_media_assets`
+8. transcript evidence through the confirmed path. Use local
+   `transcribe_media`/`build_video_context` only for local transcription.
+   Use Volcengine URL/media tools when the requirement expects provider-backed
+   transcription.
 
 After `create-project` returns an `editorUrl`, open that exact URL in the Codex
 in-app browser before the next executor step. If the selected tab is already on
@@ -212,7 +216,12 @@ Use `fresh-session-smoke` from the docs.
 
 ## Failure Rule
 
-Do not continue after `doctor-install`, `doctor`, `fresh-session-smoke`, `import-media`, `import-system-template-script`, `transcribe`, `build-post-cut-captions`, `import-subtitles`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
+Do not continue after `doctor-install`, `doctor`, `fresh-session-smoke`, `import-media`, `import-system-template-script`, `transcribe`, `transcribe_volcengine_media`, `build_volcengine_media_captions`, `build-post-cut-captions`, `import-subtitles`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
+
+When the confirmed requirement expects Volcengine or provider-backed source
+audio transcription, a missing public HTTPS source URL is a provider gate. Stop
+and report it instead of switching to local Whisper, `transcribe_media`, or
+`build_video_context` without explicit user approval.
 
 Advanced MCP repair tools such as `insert_clips`, `add_texts`,
 `add_captions`, `import_subtitles`, `move_clips`, `remove_clips`, `split_clip`,

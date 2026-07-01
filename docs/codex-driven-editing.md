@@ -197,7 +197,9 @@ export VOLCENGINE_OPEN_SPEECH_API_KEY="<volcengine open speech api key>"
 
 Do not pass the key as a CLI flag, MCP argument, request body field, or checked-in
 document. Volcengine ASR and subtitle tools accept only public `https://` audio
-or video URLs; local files are not uploaded implicitly.
+or video URLs. The `*_volcengine_media` tools can use an imported media asset
+only when that asset already carries a public HTTPS source URL; local files are
+not uploaded implicitly.
 
 ## Local Web Service Gate
 
@@ -1122,6 +1124,31 @@ node scripts/codex-bridge.mjs transcribe \
 
 `transcribe_media` runs in the local executor. It extracts 16 kHz mono audio with `ffmpeg` and runs the selected Transformers.js Whisper model in Node. It does not require a visible browser tab or a page-mounted command consumer.
 
+Transcribe an imported media asset through Volcengine OpenSpeech only when the
+media asset already has a public HTTPS source URL:
+
+```bash
+node scripts/codex-bridge.mjs send \
+  --project-id <id> \
+  --tool transcribe_volcengine_media \
+  --args-json '{"mediaId":"<id>"}'
+```
+
+Build editable captions for that same public-source media asset through
+Volcengine subtitle generation:
+
+```bash
+node scripts/codex-bridge.mjs send \
+  --project-id <id> \
+  --tool build_volcengine_media_captions \
+  --args-json '{"mediaId":"<id>"}'
+```
+
+If a user explicitly expects Volcengine or another provider-backed audio
+transcription path and the media asset has only a local executor path, stop and
+report the missing public HTTPS source URL. Do not silently fall back to
+`transcribe_media` or `build_video_context`.
+
 Build merged transcript context for long-video or transcript-first planning:
 
 ```bash
@@ -1220,8 +1247,9 @@ provider and task id. `list_media_assets`, referenced media readback, and
 quality reports expose counts and provider identifiers, not the raw script or
 protected term text.
 
-Volcengine public URL transcript and subtitle generation are exposed as MCP
-tools `transcribe_volcengine_url` and `build_volcengine_url_captions`. They
+Volcengine transcript and subtitle generation are exposed as MCP tools
+`transcribe_volcengine_url`, `build_volcengine_url_captions`,
+`transcribe_volcengine_media`, and `build_volcengine_media_captions`. They
 return transcript/caption data only and do not mutate the timeline; use
 `add_texts`, `add_captions`, or an EditPlan path to place returned captions.
 
@@ -1437,6 +1465,10 @@ Do not start the render if either freshness gate fails.
 
 - If `import_media` fails, Codex must verify the source path, file type, URL or payload shape, and explicit executor project before retrying.
 - If `transcribe_media` cannot find the media asset, Codex must call `list_media_assets` again and select a valid asset.
+- If `transcribe_volcengine_media` or
+  `build_volcengine_media_captions` fails because the media asset has no public
+  HTTPS source URL, Codex must stop and report that provider gate. Do not
+  silently use local Whisper output as the source script or caption truth.
 - If `apply_edit_plan` fails validation, Codex must correct the EditPlan. Codecut must not auto-fix it.
 - If `validate_edit_plan` or `preview_edit_plan` fails, Codex must correct the plan before applying. Do not skip directly to `apply_edit_plan`.
 - If `apply_narrated_remix_plan` fails validation, Codex must correct the NarratedRemixPlan. Codecut must not auto-fix it.

@@ -25,6 +25,8 @@ export const BridgeToolNameSchema = z.enum([
 	"generate_volcengine_cloned_voice",
 	"transcribe_volcengine_url",
 	"build_volcengine_url_captions",
+	"transcribe_volcengine_media",
+	"build_volcengine_media_captions",
 	"list_system_template_scripts",
 	"get_system_template_script",
 	"resolve_system_template_script",

@@ -75,6 +75,12 @@ describe("agent bridge schema", () => {
 		expect(
 			BridgeToolNameSchema.safeParse("build_volcengine_url_captions").success,
 		).toBe(true);
+		expect(
+			BridgeToolNameSchema.safeParse("transcribe_volcengine_media").success,
+		).toBe(true);
+		expect(
+			BridgeToolNameSchema.safeParse("build_volcengine_media_captions").success,
+		).toBe(true);
 	});
 
 	test("accepts the system template import tool", () => {
@@ -99,12 +105,12 @@ describe("agent bridge schema", () => {
 	});
 
 	test("accepts the system template query tools", () => {
-		expect(BridgeToolNameSchema.safeParse("list_system_template_scripts").success).toBe(
-			true,
-		);
-		expect(BridgeToolNameSchema.safeParse("get_system_template_script").success).toBe(
-			true,
-		);
+		expect(
+			BridgeToolNameSchema.safeParse("list_system_template_scripts").success,
+		).toBe(true);
+		expect(
+			BridgeToolNameSchema.safeParse("get_system_template_script").success,
+		).toBe(true);
 		expect(
 			BridgeToolNameSchema.safeParse("resolve_system_template_script").success,
 		).toBe(true);
