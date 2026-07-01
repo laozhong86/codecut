@@ -8,7 +8,7 @@ import {
 	buildAddTransitionsEnvelope,
 	buildApplyPlanEnvelope,
 	buildCommandEnvelope,
-	buildDeleteSystemTemplateScriptEnvelope,
+	buildDeleteTemplateEnvelope,
 	buildDigitalHumanEnvelope,
 	buildRunningHubVoiceCloneEnvelope,
 	buildRunningHubVoiceDesignEnvelope,
@@ -18,7 +18,7 @@ import {
 	buildGetTimelineStateEnvelope,
 	buildGetTranscriptEnvelope,
 	buildImportSubtitlesEnvelope,
-	buildImportSystemTemplateScriptEnvelope,
+	buildImportTemplateEnvelope,
 	buildImportMediaEnvelope,
 	buildInsertClipsEnvelope,
 	buildInspectTimelineEnvelope,
@@ -36,7 +36,7 @@ import {
 	buildSplitClipEnvelope,
 	buildTranscribeEnvelope,
 	buildUpdateTransitionEnvelope,
-	buildUpdateSystemTemplateScriptEnvelope,
+	buildUpdateTemplateEnvelope,
 	buildValidateEditPlanEnvelope,
 	buildVideoContextEnvelope,
 	buildVideoQualityReportEnvelope,
@@ -1598,19 +1598,19 @@ try {
 		}
 	});
 
-	test("builds a confirmed system template import envelope from a JSON draft", async () => {
+	test("builds a confirmed template import envelope from a JSON draft", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
-		const templatePath = join(directory, "local-template-script.json");
+		const templatePath = join(directory, "template.json");
 		const template = {
 			id: "proof-demo-cut",
 			name: "Proof demo cut",
-			description: "A proof-led system template script.",
+			description: "A proof-led template.",
 			trigger: {
 				types: ["product-proof-ad"],
 				defaultForTypes: [],
 				aliases: ["proof demo"],
 			},
-			script: {
+			plan: {
 				objective: "Create a proof-led product demo short.",
 				steps: [
 					{
@@ -1628,7 +1628,7 @@ try {
 
 		try {
 			await expect(
-				buildImportSystemTemplateScriptEnvelope({
+				buildImportTemplateEnvelope({
 					projectId: "project-123",
 					templateJsonFile: templatePath,
 					confirmedByUser: false,
@@ -1638,7 +1638,7 @@ try {
 			);
 
 			expect(
-				await buildImportSystemTemplateScriptEnvelope({
+				await buildImportTemplateEnvelope({
 					projectId: "project-123",
 					templateJsonFile: templatePath,
 					confirmedByUser: true,
@@ -1646,7 +1646,7 @@ try {
 			).toEqual(
 				buildCommandEnvelope({
 					projectId: "project-123",
-					tool: "import_system_template_script",
+					tool: "import_template",
 					args: {
 						confirmedByUser: true,
 						template,
@@ -1658,19 +1658,19 @@ try {
 		}
 	});
 
-	test("builds a confirmed system template update envelope from a JSON draft", async () => {
+	test("builds a confirmed template update envelope from a JSON draft", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
-		const templatePath = join(directory, "local-template-script.json");
+		const templatePath = join(directory, "template.json");
 		const template = {
 			id: "proof-demo-cut",
 			name: "Proof demo cut v2",
-			description: "An updated proof-led system template script.",
+			description: "An updated proof-led template.",
 			trigger: {
 				types: ["product-proof-ad"],
 				defaultForTypes: [],
 				aliases: ["proof update"],
 			},
-			script: {
+			plan: {
 				objective: "Create an updated proof-led product demo short.",
 				steps: [
 					{
@@ -1696,7 +1696,7 @@ try {
 
 		try {
 			await expect(
-				buildUpdateSystemTemplateScriptEnvelope({
+				buildUpdateTemplateEnvelope({
 					projectId: "project-123",
 					templateJsonFile: templatePath,
 					confirmedByUser: false,
@@ -1706,7 +1706,7 @@ try {
 			);
 
 			expect(
-				await buildUpdateSystemTemplateScriptEnvelope({
+				await buildUpdateTemplateEnvelope({
 					projectId: "project-123",
 					templateJsonFile: templatePath,
 					confirmedByUser: true,
@@ -1714,7 +1714,7 @@ try {
 			).toEqual(
 				buildCommandEnvelope({
 					projectId: "project-123",
-					tool: "update_system_template_script",
+					tool: "update_template",
 					args: {
 						confirmedByUser: true,
 						template,
@@ -1726,9 +1726,9 @@ try {
 		}
 	});
 
-	test("builds a confirmed system template delete envelope for cleanup", () => {
+	test("builds a confirmed template delete envelope for cleanup", () => {
 		expect(() =>
-			buildDeleteSystemTemplateScriptEnvelope({
+			buildDeleteTemplateEnvelope({
 				projectId: "project-123",
 				templateId: "proof-demo-cut",
 				confirmedByUser: false,
@@ -1738,7 +1738,7 @@ try {
 		);
 
 		expect(
-			buildDeleteSystemTemplateScriptEnvelope({
+			buildDeleteTemplateEnvelope({
 				projectId: "project-123",
 				templateId: "proof-demo-cut",
 				confirmedByUser: true,
@@ -1746,7 +1746,7 @@ try {
 		).toEqual(
 			buildCommandEnvelope({
 				projectId: "project-123",
-				tool: "delete_system_template_script",
+				tool: "delete_template",
 				args: {
 					confirmedByUser: true,
 					templateId: "proof-demo-cut",
@@ -1870,9 +1870,9 @@ try {
 		expect(JSON.parse(output[0]).status).toBe("completed");
 	});
 
-	test("imports system templates through the browser agent bridge", async () => {
+	test("imports templates through the browser agent bridge", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
-		const templatePath = join(directory, "local-template-script.json");
+		const templatePath = join(directory, "template.json");
 		await writeFile(
 			templatePath,
 			JSON.stringify({
@@ -1883,7 +1883,7 @@ try {
 					defaultForTypes: [],
 					aliases: [],
 				},
-				script: {
+				plan: {
 					objective: "Verify import.",
 					steps: [
 						{
@@ -1926,7 +1926,7 @@ try {
 						results: [
 							{
 								commandId: "cmd-1",
-								tool: "import_system_template_script",
+								tool: "import_template",
 								success: true,
 								message: "Imported",
 							},
@@ -1941,7 +1941,7 @@ try {
 		try {
 			const exitCode = await runCli({
 				argv: [
-					"import-system-template-script",
+					"import-template",
 					"--project-id",
 					"project-123",
 					"--template-json-file",
@@ -1968,7 +1968,7 @@ try {
 			expect(requests[1].init.headers.Authorization).toBe("Bearer local-token");
 			expect(JSON.parse(requests[1].init.body).envelope.commands[0]).toEqual({
 				id: "cmd-1",
-				tool: "import_system_template_script",
+				tool: "import_template",
 				args: {
 					confirmedByUser: true,
 					template: {
@@ -1979,7 +1979,7 @@ try {
 							defaultForTypes: [],
 							aliases: [],
 						},
-						script: {
+						plan: {
 							objective: "Verify import.",
 							steps: [
 								{
@@ -2001,9 +2001,9 @@ try {
 		}
 	});
 
-	test("updates system templates through the browser agent bridge", async () => {
+	test("updates templates through the browser agent bridge", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
-		const templatePath = join(directory, "local-template-script.json");
+		const templatePath = join(directory, "template.json");
 		await writeFile(
 			templatePath,
 			JSON.stringify({
@@ -2014,7 +2014,7 @@ try {
 					defaultForTypes: [],
 					aliases: ["proof update"],
 				},
-				script: {
+				plan: {
 					objective: "Verify update.",
 					steps: [
 						{
@@ -2057,7 +2057,7 @@ try {
 						results: [
 							{
 								commandId: "cmd-1",
-								tool: "update_system_template_script",
+								tool: "update_template",
 								success: true,
 								message: "Updated",
 							},
@@ -2072,7 +2072,7 @@ try {
 		try {
 			const exitCode = await runCli({
 				argv: [
-					"update-system-template-script",
+					"update-template",
 					"--project-id",
 					"project-123",
 					"--template-json-file",
@@ -2098,7 +2098,7 @@ try {
 			]);
 			expect(JSON.parse(requests[1].init.body).envelope.commands[0]).toEqual({
 				id: "cmd-1",
-				tool: "update_system_template_script",
+				tool: "update_template",
 				args: {
 					confirmedByUser: true,
 					template: {
@@ -2109,7 +2109,7 @@ try {
 							defaultForTypes: [],
 							aliases: ["proof update"],
 						},
-						script: {
+						plan: {
 							objective: "Verify update.",
 							steps: [
 								{
@@ -2131,7 +2131,7 @@ try {
 		}
 	});
 
-	test("deletes system templates through the browser agent bridge", async () => {
+	test("deletes templates through the browser agent bridge", async () => {
 		const requests = [];
 		const fetchImpl = async (url, init = {}) => {
 			requests.push({ url, init });
@@ -2158,7 +2158,7 @@ try {
 						results: [
 							{
 								commandId: "cmd-1",
-								tool: "delete_system_template_script",
+								tool: "delete_template",
 								success: true,
 								message: "Deleted",
 							},
@@ -2172,7 +2172,7 @@ try {
 
 		const exitCode = await runCli({
 			argv: [
-				"delete-system-template-script",
+				"delete-template",
 				"--project-id",
 				"project-123",
 				"--template-id",
@@ -2198,7 +2198,7 @@ try {
 		]);
 		expect(JSON.parse(requests[1].init.body).envelope.commands[0]).toEqual({
 			id: "cmd-1",
-			tool: "delete_system_template_script",
+			tool: "delete_template",
 			args: {
 				confirmedByUser: true,
 				templateId: "proof-demo-cut",
@@ -3590,7 +3590,7 @@ try {
 		const sourceRoot = join(marketplaceRoot, "plugins/cutia");
 		const worktreeRoot = join(
 			sourceRoot,
-			".worktrees/system-template-read-tools",
+			".worktrees/template-read-tools",
 		);
 		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
 		const cacheRoot = join(
@@ -3678,9 +3678,9 @@ try {
 				data: {
 					sourcePath: "./plugins/cutia",
 					expectedSourcePath:
-						"./plugins/cutia/.worktrees/system-template-read-tools",
+						"./plugins/cutia/.worktrees/template-read-tools",
 					expectedSourcePaths: [
-						"./plugins/cutia/.worktrees/system-template-read-tools",
+						"./plugins/cutia/.worktrees/template-read-tools",
 						"./plugins/cutia",
 					],
 				},

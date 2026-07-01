@@ -9,14 +9,14 @@ intent:
   success_looks_like:
     - Reference drafts include speech, visible-copy, visual, and timing evidence when those factors drive the style.
     - Visual-only drafts are labeled not import-ready when transcript or copy evidence is missing.
-    - System-template import requires explicit user confirmation and confirmedByUser true.
+    - Template import requires explicit user confirmation and confirmedByUser true.
     - Applying a saved template still runs normal intake, material, plan, executor, and readback stages.
 
 known_failure_modes:
   - mode: Draft JSON validation is mistaken for strategy completeness.
     severity: high
-    example: A local-template-script.json parses but lacks per-reference speech or copy breakdown.
-  - mode: Draft files are treated as system-template truth.
+    example: A template.json parses but lacks per-reference speech or copy breakdown.
+  - mode: Draft files are treated as imported template truth.
     severity: high
     example: The agent applies a job-folder draft without user-confirmed import.
   - mode: Unsupported reference effects are silently downgraded.

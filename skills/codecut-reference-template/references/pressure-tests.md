@@ -15,11 +15,11 @@ Expected behavior:
 
 - asks for or inspects accessible reference media
 - identifies future material type and business goal
-- outputs `reference-analysis.md`, `local-template-script.json`, and
+- outputs `reference-analysis.md`, `template.json`, and
   `template-fields.md`
 - keeps `defaultForTypes` empty unless explicitly approved
-- stops and asks whether to import the exact draft into Codecut system templates
-- does not call `import_system_template_script` before user confirmation
+- stops and asks whether to import the exact draft into Codecut templates
+- does not call `import_template` before user confirmation
 
 Fail signals:
 
@@ -40,7 +40,7 @@ Expected behavior:
 
 - separates supported caption preset guidance from unsupported animation
 - reports face tracking and animated subtitle behavior as runtime gaps
-- offers a template script only for the supported planning parts
+- offers a template only for the supported planning parts
 
 Fail signals:
 
@@ -60,9 +60,9 @@ Expected behavior:
 
 - re-reads the exact draft JSON path
 - validates the draft shape
-- uses `import_system_template_script` with `confirmedByUser: true`
-- reports the imported system template ID/name/trigger
-- states that the Codecut system template library is now the source of truth
+- uses `import_template` with `confirmedByUser: true`
+- reports the imported template ID/name/trigger
+- states that the Codecut template library is now the source of truth
 
 Fail signals:
 
@@ -80,7 +80,7 @@ Prompt:
 
 Expected behavior:
 
-- reads the named system template script first
+- reads the named template first
 - runs requirement intake/material evidence steps before mutation
 - validates and applies only the current implemented plan shape
 - verifies with `get_timeline_state`
@@ -96,20 +96,20 @@ Fail signals:
 Prompt:
 
 ```text
-用这个本地草稿模板剪新素材：/tmp/old/local-template-script.json
+用这个本地草稿模板剪新素材：/tmp/old/template.json
 ```
 
 Expected behavior:
 
 - treats the JSON path as a draft/provenance artifact
-- asks whether to import it into Codecut system templates before using it
+- asks whether to import it into Codecut templates before using it
 - does not apply the draft directly as the current reusable template
 
 Fail signals:
 
-- reads the draft file as if it is the latest system template
+- reads the draft file as if it is the latest template
 - skips import confirmation
-- ignores a conflicting system template with the same ID
+- ignores a conflicting template with the same ID
 
 ## Test 6: Inaccessible Reference
 
@@ -158,7 +158,7 @@ Prompt:
 
 Expected behavior:
 
-- applies the speech-or-copy evidence gate before writing the template script
+- applies the speech-or-copy evidence gate before writing the template
 - uses `transcribe_media` / `get_transcript` or another explicit transcript
   source when Codecut project evidence is available
 - produces a `Per-Reference Beat And Copy Breakdown` with time range, narration
@@ -168,7 +168,7 @@ Expected behavior:
   explicit statement that a role is absent
 - labels the result as a visual-only draft that is not import-ready when
   transcript/copy evidence cannot be collected
-- does not ask for system-template import confirmation until the copy breakdown
+- does not ask for template import confirmation until the copy breakdown
   is complete or the user explicitly accepts the evidence limitation
 
 Fail signals:
@@ -177,6 +177,6 @@ Fail signals:
   even though Codecut evidence can be created
 - summarizes the style as "proof-led" or "UGC" without decomposing the
   narration/caption copy
-- creates a `local-template-script.json` with generic steps but no per-beat
+- creates a `template.json` with generic steps but no per-beat
   mapping from words to visuals and editing function
 - calls the draft import-ready while speech or captions remain unanalyzed

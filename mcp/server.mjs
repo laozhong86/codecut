@@ -114,14 +114,14 @@ const templateJsonFileSchema = z
 	.trim()
 	.min(1)
 	.describe(
-		"Absolute path to a confirmed LocalTemplateScript JSON draft file.",
+		"Absolute path to a confirmed Template JSON draft file.",
 	);
 const templateIdSchema = z
 	.string()
 	.trim()
 	.min(1)
-	.describe("Exact Codecut system template script ID.");
-const systemTemplateTriggerTypeSchema = z
+	.describe("Exact Codecut template ID.");
+const templateTriggerTypeSchema = z
 	.enum([
 		"talking-head-short",
 		"tutorial-demo",
@@ -131,7 +131,7 @@ const systemTemplateTriggerTypeSchema = z
 		"timeline-inspection",
 		"custom",
 	])
-	.describe("Codecut system template script trigger type.");
+	.describe("Codecut template trigger type.");
 
 const verificationJsonFileSchema = z
 	.string()
@@ -295,6 +295,15 @@ const captionMotionPresetSchema = z.enum(captionMotionPresetValues);
 const transitionPreferenceSchema = z.enum(transitionPreferenceValues);
 const workspaceTaskTypeSchema = z.enum(workspaceTaskTypeValues);
 const durationGoalModeSchema = z.enum(["auto", "custom"]);
+const templatePreferenceSchema = z.discriminatedUnion("mode", [
+	z.object({ mode: z.literal("auto") }).strict(),
+	z
+		.object({
+			mode: z.literal("specified"),
+			requestedTemplate: z.string().trim().min(1),
+		})
+		.strict(),
+]);
 const durationGoalRangeSecondsSchema = z
 	.object({
 		minSeconds: z.number().positive(),
@@ -404,6 +413,7 @@ const confirmedSetupPatchSchema = z
 			})
 			.strict()
 			.optional(),
+		templatePreference: templatePreferenceSchema.optional(),
 	})
 	.strict();
 
@@ -426,6 +436,7 @@ const workspaceIntentInputSchema = {
 	durationContract: durationContractSchema.optional(),
 	captionLanguage: z.string().trim(),
 	transitionPreference: transitionPreferenceSchema,
+	templatePreference: templatePreferenceSchema.optional(),
 	output: workspaceOutputSchema,
 	generateIntroCover: z.boolean(),
 	requirements: z.string(),
@@ -470,6 +481,7 @@ const workspaceOpenInputSchema = {
 	durationContract: workspaceOpenDurationContractSchema.optional(),
 	captionLanguage: z.string().trim().optional(),
 	transitionPreference: transitionPreferenceSchema.optional(),
+	templatePreference: templatePreferenceSchema.optional(),
 	locale: z.string().trim().optional(),
 	uiLanguage: z.string().trim().optional(),
 	output: workspaceOutputSchema.partial().optional(),
@@ -716,15 +728,15 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	[
-		"list_system_template_scripts",
+		"list_templates",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
 	],
 	[
-		"get_system_template_script",
+		"get_template",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
 	],
 	[
-		"resolve_system_template_script",
+		"resolve_template",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
 	],
 	["get_timeline_state", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
@@ -765,15 +777,15 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["set_project_cover", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	["clear_project_cover", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	[
-		"import_system_template_script",
+		"import_template",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT,
 	],
 	[
-		"update_system_template_script",
+		"update_template",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT,
 	],
 	[
-		"delete_system_template_script",
+		"delete_template",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT,
 	],
 	["export_project", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
@@ -818,9 +830,9 @@ const codecutToolGovernanceCategoryByName = new Map([
 export const DESTRUCTIVE_MCP_TOOL_NAMES = new Set([
 	"apply_edit_plan",
 	"apply_narrated_remix_plan",
-	"import_system_template_script",
-	"update_system_template_script",
-	"delete_system_template_script",
+	"import_template",
+	"update_template",
+	"delete_template",
 	"create_text_background_effect",
 	"create_human_pip_effect",
 	"update_project_preferences",
@@ -1016,18 +1028,18 @@ export const CODECUT_MCP_TOOLS = [
 		readOnly: true,
 	},
 	{
-		name: "list_system_template_scripts",
-		title: "List Codecut System Template Scripts",
+		name: "list_templates",
+		title: "List Codecut Templates",
 		description:
-			"List Codecut system template scripts from the browser local Templates UI library for one explicit project bridge session.",
+			"List Codecut templates from the browser local Templates UI library for one explicit project bridge session.",
 		inputSchema: projectOnlyInputSchema,
 		readOnly: true,
 	},
 	{
-		name: "get_system_template_script",
-		title: "Get Codecut System Template Script",
+		name: "get_template",
+		title: "Get Codecut Template",
 		description:
-			"Read one complete Codecut system template script by exact template ID from the browser local Templates UI library.",
+			"Read one complete Codecut template by exact template ID from the browser local Templates UI library.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			templateId: templateIdSchema,
@@ -1035,10 +1047,10 @@ export const CODECUT_MCP_TOOLS = [
 		readOnly: true,
 	},
 	{
-		name: "resolve_system_template_script",
-		title: "Resolve Codecut System Template Script",
+		name: "resolve_template",
+		title: "Resolve Codecut Template",
 		description:
-			"Resolve one Codecut system template script by ID, name, alias, or default trigger type from the browser local Templates UI library.",
+			"Resolve one Codecut template by ID, name, alias, or default trigger type from the browser local Templates UI library.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			requestedTemplate: z
@@ -1047,15 +1059,15 @@ export const CODECUT_MCP_TOOLS = [
 				.min(1)
 				.describe("Template ID, exact name, or alias mentioned by the user.")
 				.optional(),
-			triggerType: systemTemplateTriggerTypeSchema.optional(),
+			triggerType: templateTriggerTypeSchema.optional(),
 		},
 		readOnly: true,
 	},
 	{
-		name: "import_system_template_script",
-		title: "Import Codecut System Template Script",
+		name: "import_template",
+		title: "Import Codecut Template",
 		description:
-			"Import one user-confirmed reference-derived template draft into the Codecut system template library used by Templates UI and future Codex planning context.",
+			"Import one user-confirmed reference-derived template draft into the Codecut template library used by Templates UI and future Codex planning context.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			templateJsonFile: templateJsonFileSchema,
@@ -1068,33 +1080,33 @@ export const CODECUT_MCP_TOOLS = [
 		readOnly: false,
 	},
 	{
-		name: "update_system_template_script",
-		title: "Update Codecut System Template Script",
+		name: "update_template",
+		title: "Update Codecut Template",
 		description:
-			"Update one user-confirmed Codecut system template script in place from a strict LocalTemplateScript JSON file with the same template ID.",
+			"Update one user-confirmed Codecut template in place from a strict Template JSON file with the same template ID.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			templateJsonFile: templateJsonFileSchema,
 			confirmedByUser: z
 				.literal(true)
 				.describe(
-					"Must be true only after the user explicitly confirmed updating this exact system template.",
+					"Must be true only after the user explicitly confirmed updating this exact template.",
 				),
 		},
 		readOnly: false,
 	},
 	{
-		name: "delete_system_template_script",
-		title: "Delete Codecut System Template Script",
+		name: "delete_template",
+		title: "Delete Codecut Template",
 		description:
-			"Delete one user-confirmed Codecut system template script from the Templates UI library for explicit cleanup or removal.",
+			"Delete one user-confirmed Codecut template from the Templates UI library for explicit cleanup or removal.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			templateId: templateIdSchema,
 			confirmedByUser: z
 				.literal(true)
 				.describe(
-					"Must be true only after the user explicitly confirmed deleting this exact system template.",
+					"Must be true only after the user explicitly confirmed deleting this exact template.",
 				),
 		},
 		readOnly: false,
@@ -2168,6 +2180,7 @@ function buildRequirementDraftFromInput(input = {}) {
 		timelinePreferences: confirmedSetup.timelinePreferences,
 		captionPreferences: confirmedSetup.captionPreferences,
 		voicePreferences: confirmedSetup.voicePreferences,
+		templatePreference: confirmedSetup.templatePreference,
 		exportPreferences: confirmedSetup.exportPreferences,
 		checks: [
 			{
@@ -2364,6 +2377,7 @@ function buildWorkspaceIntentFromConfirmedRequirement({
 		captionLanguage: confirmedSetup.captionPreferences.language,
 		transitionPreference:
 			confirmedSetup.timelinePreferences.transitionPreference,
+		templatePreference: confirmedSetup.templatePreference,
 		output: {
 			format: confirmedSetup.exportPreferences.format,
 			quality: confirmedSetup.exportPreferences.quality,
@@ -2637,6 +2651,16 @@ async function validateCodecutSetupIntent(intent) {
 		"Transition animation",
 		transitionPreferenceValues.includes(normalized.transitionPreference),
 		"Transition animation must be auto, none, or a supported CodeCut transition type.",
+	);
+	const templatePreferenceCheck = validateTemplatePreference(
+		normalized.templatePreference,
+	);
+	pushCheck(
+		checks,
+		"template-preference",
+		"Template preference",
+		templatePreferenceCheck.ok,
+		templatePreferenceCheck.message,
 	);
 	pushCheck(
 		checks,
@@ -2980,6 +3004,7 @@ function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 		voicePreferences: {
 			voicePackId: normalized.output.voicePackId,
 		},
+		templatePreference: normalized.templatePreference,
 		exportPreferences: {
 			format: normalized.output.format,
 			quality: normalized.output.quality,
@@ -3097,6 +3122,7 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		transitionPreference: normalizeWorkspaceTransitionPreference(
 			input.transitionPreference,
 		),
+		templatePreference: normalizeTemplatePreference(input.templatePreference),
 		requirements,
 		requirementOptions,
 		durationContract,
@@ -3302,6 +3328,40 @@ function normalizeWorkspaceTransitionPreference(value) {
 	);
 }
 
+function normalizeTemplatePreference(value) {
+	if (value === undefined) return { mode: "auto" };
+	if (!value || typeof value !== "object") {
+		return { mode: String(value || "").trim() };
+	}
+	const mode = String(value.mode || "").trim();
+	if (mode === "auto") return { mode: "auto" };
+	if (mode === "specified") {
+		return {
+			mode: "specified",
+			requestedTemplate: String(value.requestedTemplate || "").trim(),
+		};
+	}
+	return { mode };
+}
+
+function validateTemplatePreference(value) {
+	if (value?.mode === "auto") {
+		return { ok: true, message: "Template preference is automatic." };
+	}
+	if (
+		value?.mode === "specified" &&
+		typeof value.requestedTemplate === "string" &&
+		value.requestedTemplate.trim().length > 0
+	) {
+		return { ok: true, message: "Template preference names a template." };
+	}
+	return {
+		ok: false,
+		message:
+			"Template preference must be auto or specified with requestedTemplate.",
+	};
+}
+
 function normalizeWorkspaceVoicePackId(value) {
 	const normalized = String(value ?? "").trim();
 	return normalized || noBuiltinVoicePackId;
@@ -3359,6 +3419,7 @@ function normalizeWorkspaceIntent(intent) {
 			intent.transitionPreference === undefined
 				? ""
 				: String(intent.transitionPreference).trim(),
+		templatePreference: normalizeTemplatePreference(intent.templatePreference),
 		output: {
 			format: String(intent.output?.format || ""),
 			quality: String(intent.output?.quality || ""),
@@ -3795,8 +3856,8 @@ function buildContinuePrompt({
 			`This confirmed taskType is template_draft. Do not generate voice or media. Do not apply timeline plans. Do not mutate the timeline. Do not export.`,
 			`The CodeCut workspace index is already initialized at ${workspace?.projectDirectory}. Do not rerun codecut-workspace init for this project.`,
 			`Read project and media evidence only as needed for template derivation. Call get_project_info with projectId "${projectId}" and list_media_assets with projectId "${projectId}" before drafting.`,
-			`Create these draft artifacts: reference-analysis.md, local-template-script.json, and template-fields.md.`,
-			`Stop after presenting those draft artifacts and wait for the user to confirm whether to import the template into the system template library.`,
+			`Create these draft artifacts: reference-analysis.md, template.json, and template-fields.md.`,
+			`Stop after presenting those draft artifacts and wait for the user to confirm whether to import the template into the template library.`,
 			`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
 			`Deferred media sources: ${JSON.stringify(deferredMediaSources)}.`,
 			`Confirmed intent: ${JSON.stringify(intent)}.`,
@@ -3806,11 +3867,11 @@ function buildContinuePrompt({
 	if (intent.taskType === "template_import") {
 		return [
 			`Use $codecut-reference-template to import the confirmed template draft for project "${projectName}" (${projectId}).`,
-			`This confirmed taskType is template_import. Only import the user-confirmed local-template-script.json into the system template library.`,
+			`This confirmed taskType is template_import. Only import the user-confirmed template.json into the template library.`,
 			`Use --confirmation-token ${confirmationToken} only for the template library mutation command.`,
 			`The CodeCut workspace index is already initialized at ${workspace?.projectDirectory}. Do not rerun codecut-workspace init for this project.`,
 			`Do not generate voice or media. Do not apply timeline plans. Do not mutate the timeline. Do not export.`,
-			`If the user-confirmed local-template-script.json path is missing, stop and ask for that exact file path.`,
+			`If the user-confirmed template.json path is missing, stop and ask for that exact file path.`,
 			`Use the confirmed setup intent as context. Project revision: ${revision}. Editor URL: ${editorUrl}.`,
 			`Confirmed intent: ${JSON.stringify(intent)}.`,
 		].join("\n");
@@ -3834,6 +3895,8 @@ function buildContinuePrompt({
 		`The CodeCut workspace index is already initialized at ${workspace?.projectDirectory}. Do not rerun codecut-workspace init for this project; use add-assets, probe-assets, and write-doc for later workspace updates.`,
 		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. Click this host-rendered link if manual preview is needed: [Open CodeCut editor](${editorUrl}). If the selected tab is already on that URL, do not reload it.`,
 		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state with projectId "${projectId}".`,
+		`Before any EditingDecisionLedger, EditPlan, or NarratedRemixPlan, call resolve_template using this templatePreference: ${JSON.stringify(intent.templatePreference)}. If mode is specified, pass requestedTemplate. If mode is auto, pass userIntent, platform/material facts, and available evidence. Do not invent a workflow if template resolution fails.`,
+		`Write template resolution evidence before planning: 04-planning/template-resolution.json and a short markdown note with match mode, candidate templates, selected template, missing evidence, and stop reason.`,
 		...guardrails,
 		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
 		`Deferred media sources: ${JSON.stringify(deferredMediaSources)}.`,
@@ -4218,13 +4281,13 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 						: { limit: optionalNumberArg(args, "limit") }),
 				},
 			});
-		case "list_system_template_scripts":
+		case "list_templates":
 			return buildSendArgs({
 				projectId,
 				toolName,
 				args: {},
 			});
-		case "get_system_template_script":
+		case "get_template":
 			return buildSendArgs({
 				projectId,
 				toolName,
@@ -4232,7 +4295,7 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 					templateId: requireStringArg(args, "templateId"),
 				},
 			});
-		case "resolve_system_template_script":
+		case "resolve_template":
 			return buildSendArgs({
 				projectId,
 				toolName,
@@ -4247,11 +4310,11 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 						: { triggerType: requireStringArg(args, "triggerType") }),
 				},
 			});
-		case "import_system_template_script":
+		case "import_template":
 			requireConfirmedByUser(args);
 			return [
 				"scripts/codex-bridge.mjs",
-				"import-system-template-script",
+				"import-template",
 				"--project-id",
 				projectId,
 				"--template-json-file",
@@ -4259,11 +4322,11 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--confirmed-by-user",
 				"true",
 			];
-		case "update_system_template_script":
+		case "update_template":
 			requireConfirmedByUser(args);
 			return [
 				"scripts/codex-bridge.mjs",
-				"update-system-template-script",
+				"update-template",
 				"--project-id",
 				projectId,
 				"--template-json-file",
@@ -4271,11 +4334,11 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				"--confirmed-by-user",
 				"true",
 			];
-		case "delete_system_template_script":
+		case "delete_template":
 			requireConfirmedByUser(args);
 			return [
 				"scripts/codex-bridge.mjs",
-				"delete-system-template-script",
+				"delete-template",
 				"--project-id",
 				projectId,
 				"--template-id",

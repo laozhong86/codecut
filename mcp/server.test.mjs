@@ -28,6 +28,7 @@ function setupIntent(overrides = {}) {
 		durationGoalMode: "auto",
 		captionLanguage: "auto",
 		transitionPreference: "auto",
+		templatePreference: { mode: "auto" },
 		output: {
 			format: "mp4",
 			quality: "high",
@@ -143,12 +144,12 @@ describe("Codecut MCP server contract", () => {
 			"build_post_cut_captions",
 			"list_models",
 			"search_media",
-			"list_system_template_scripts",
-			"get_system_template_script",
-			"resolve_system_template_script",
-			"import_system_template_script",
-			"update_system_template_script",
-			"delete_system_template_script",
+			"list_templates",
+			"get_template",
+			"resolve_template",
+			"import_template",
+			"update_template",
+			"delete_template",
 			"validate_edit_plan",
 			"preview_edit_plan",
 			"apply_edit_plan",
@@ -347,12 +348,12 @@ describe("Codecut MCP server contract", () => {
 		expect(readOnlyByTool.get("list_models")).toBe(true);
 		expect(readOnlyByTool.get("search_media")).toBe(true);
 		expect(readOnlyByTool.get("build_caption_diagnostics")).toBe(true);
-		expect(readOnlyByTool.get("list_system_template_scripts")).toBe(true);
-		expect(readOnlyByTool.get("get_system_template_script")).toBe(true);
-		expect(readOnlyByTool.get("resolve_system_template_script")).toBe(true);
-		expect(readOnlyByTool.get("import_system_template_script")).toBe(false);
-		expect(readOnlyByTool.get("update_system_template_script")).toBe(false);
-		expect(readOnlyByTool.get("delete_system_template_script")).toBe(false);
+		expect(readOnlyByTool.get("list_templates")).toBe(true);
+		expect(readOnlyByTool.get("get_template")).toBe(true);
+		expect(readOnlyByTool.get("resolve_template")).toBe(true);
+		expect(readOnlyByTool.get("import_template")).toBe(false);
+		expect(readOnlyByTool.get("update_template")).toBe(false);
+		expect(readOnlyByTool.get("delete_template")).toBe(false);
 		expect(readOnlyByTool.get("set_project_cover")).toBe(false);
 		expect(readOnlyByTool.get("clear_project_cover")).toBe(false);
 		expect(readOnlyByTool.get("add_texts")).toBe(false);
@@ -452,9 +453,9 @@ describe("Codecut MCP server contract", () => {
 			"import_media",
 			"set_project_cover",
 			"clear_project_cover",
-			"import_system_template_script",
-			"update_system_template_script",
-			"delete_system_template_script",
+			"import_template",
+			"update_template",
+			"delete_template",
 		]) {
 			expect(categoryByTool.get(toolName)).toBe(
 				CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT,
@@ -502,13 +503,13 @@ describe("Codecut MCP server contract", () => {
 
 	test("marks template mutation tools as destructive in MCP annotations", () => {
 		expect(
-			DESTRUCTIVE_MCP_TOOL_NAMES.has("import_system_template_script"),
+			DESTRUCTIVE_MCP_TOOL_NAMES.has("import_template"),
 		).toBe(true);
 		expect(
-			DESTRUCTIVE_MCP_TOOL_NAMES.has("update_system_template_script"),
+			DESTRUCTIVE_MCP_TOOL_NAMES.has("update_template"),
 		).toBe(true);
 		expect(
-			DESTRUCTIVE_MCP_TOOL_NAMES.has("delete_system_template_script"),
+			DESTRUCTIVE_MCP_TOOL_NAMES.has("delete_template"),
 		).toBe(true);
 	});
 
@@ -794,6 +795,8 @@ describe("Codecut MCP server contract", () => {
 			'<select id="caption-style-preset"',
 			'<select id="voice-pack"',
 			'<select id="transition-preference"',
+			'<select id="template-preference-mode"',
+			'<input id="requested-template"',
 			'value="zh-CN"',
 			'value="en"',
 			'value="auto"',
@@ -826,6 +829,10 @@ describe("Codecut MCP server contract", () => {
 			"transitionPreferenceDissolve",
 			"transitionPreferenceSlideLeft",
 			"transitionPreferenceZoomIn",
+			"templatePreference",
+			"templatePreferenceAuto",
+			"templatePreferenceSpecified",
+			"requestedTemplate",
 			"captionFontAuto",
 			"captionSizeMedium",
 			"captionStyleCreatorClean",
@@ -1269,6 +1276,7 @@ describe("Codecut MCP server contract", () => {
 							timelinePreferences: draft.timelinePreferences,
 							captionPreferences: draft.captionPreferences,
 							voicePreferences: draft.voicePreferences,
+							templatePreference: draft.templatePreference,
 							exportPreferences: draft.exportPreferences,
 							changes: [],
 						},
@@ -1372,15 +1380,15 @@ describe("Codecut MCP server contract", () => {
 		}
 	});
 
-	test("exposes read-only system template query schemas", () => {
+	test("exposes read-only template query schemas", () => {
 		const listTool = CODECUT_MCP_TOOLS.find(
-			(candidate) => candidate.name === "list_system_template_scripts",
+			(candidate) => candidate.name === "list_templates",
 		);
 		const getTool = CODECUT_MCP_TOOLS.find(
-			(candidate) => candidate.name === "get_system_template_script",
+			(candidate) => candidate.name === "get_template",
 		);
 		const resolveTool = CODECUT_MCP_TOOLS.find(
-			(candidate) => candidate.name === "resolve_system_template_script",
+			(candidate) => candidate.name === "resolve_template",
 		);
 
 		expect(listTool?.description).toContain("List");
@@ -1926,6 +1934,7 @@ describe("Codecut MCP server contract", () => {
 			durationGoalMode: "auto",
 			captionLanguage: "auto",
 			transitionPreference: "auto",
+			templatePreference: { mode: "auto" },
 			output: { format: "mp4", quality: "high", includeAudio: true },
 		});
 		expect(result.structuredContent).toMatchObject({
@@ -1969,6 +1978,55 @@ describe("Codecut MCP server contract", () => {
 			ok: false,
 			detail:
 				"Transition animation must be auto, none, or a supported CodeCut transition type.",
+			});
+	});
+
+	test("carries template preference through workspace setup", async () => {
+		const opened = serverModule.openCodecutWorkspace({
+			projectName: "Creator Launch",
+			templatePreference: {
+				mode: "specified",
+				requestedTemplate: "ugc proof",
+			},
+		});
+		expect(opened.structuredContent.intentDefaults.templatePreference).toEqual({
+			mode: "specified",
+			requestedTemplate: "ugc proof",
+		});
+		expect(opened._meta.widgetData.intentDefaults.templatePreference).toEqual({
+			mode: "specified",
+			requestedTemplate: "ugc proof",
+		});
+
+		const ready = await serverModule.inspectCodecutSetup(
+			setupIntent({
+				templatePreference: {
+					mode: "specified",
+					requestedTemplate: "ugc proof",
+				},
+			}),
+		);
+		expect(ready.status).toBe("ready");
+		expect(ready.intent.templatePreference).toEqual({
+			mode: "specified",
+			requestedTemplate: "ugc proof",
+		});
+
+		const blocked = await serverModule.inspectCodecutSetup(
+			setupIntent({
+				templatePreference: {
+					mode: "specified",
+					requestedTemplate: "",
+				},
+			}),
+		);
+		expect(blocked.status).toBe("blocked");
+		expect(blocked.checks).toContainEqual({
+			id: "template-preference",
+			label: "Template preference",
+			ok: false,
+			detail:
+				"Template preference must be auto or specified with requestedTemplate.",
 		});
 	});
 
@@ -2810,6 +2868,7 @@ describe("Codecut MCP server contract", () => {
 					voicePreferences: {
 						voicePackId: "podcast-male",
 					},
+					templatePreference: { mode: "auto" },
 					exportPreferences: {
 						format: "mp4",
 						quality: "high",
@@ -2905,6 +2964,15 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				"get_timeline_state",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"call resolve_template",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				'templatePreference: {"mode":"auto"}',
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"04-planning/template-resolution.json",
 			);
 			expect(result.structuredContent.continuePrompt).not.toContain(
 				"get_timeline_state_v2",
@@ -3143,7 +3211,7 @@ describe("Codecut MCP server contract", () => {
 				"Use $codecut-reference-template to derive a reusable template draft",
 			);
 			expect(prompt).toContain("reference-analysis.md");
-			expect(prompt).toContain("local-template-script.json");
+			expect(prompt).toContain("template.json");
 			expect(prompt).toContain("template-fields.md");
 			expect(prompt).toContain("Stop after presenting those draft artifacts");
 			expect(prompt).not.toContain("real CodeCut editing chain");
@@ -4059,24 +4127,24 @@ describe("Codecut MCP server contract", () => {
 		]);
 
 		expect(
-			buildBridgeCliArgs("import_system_template_script", {
+			buildBridgeCliArgs("import_template", {
 				projectId: "project-1",
-				templateJsonFile: "/tmp/local-template-script.json",
+				templateJsonFile: "/tmp/template.json",
 				confirmedByUser: true,
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
-			"import-system-template-script",
+			"import-template",
 			"--project-id",
 			"project-1",
 			"--template-json-file",
-			"/tmp/local-template-script.json",
+			"/tmp/template.json",
 			"--confirmed-by-user",
 			"true",
 		]);
 
 		expect(
-			buildBridgeCliArgs("list_system_template_scripts", {
+			buildBridgeCliArgs("list_templates", {
 				projectId: "project-1",
 			}),
 		).toEqual([
@@ -4085,13 +4153,13 @@ describe("Codecut MCP server contract", () => {
 			"--project-id",
 			"project-1",
 			"--tool",
-			"list_system_template_scripts",
+			"list_templates",
 			"--args-json",
 			"{}",
 		]);
 
 		expect(
-			buildBridgeCliArgs("get_system_template_script", {
+			buildBridgeCliArgs("get_template", {
 				projectId: "project-1",
 				templateId: "proof-demo-cut",
 			}),
@@ -4101,13 +4169,13 @@ describe("Codecut MCP server contract", () => {
 			"--project-id",
 			"project-1",
 			"--tool",
-			"get_system_template_script",
+			"get_template",
 			"--args-json",
 			'{"templateId":"proof-demo-cut"}',
 		]);
 
 		expect(
-			buildBridgeCliArgs("resolve_system_template_script", {
+			buildBridgeCliArgs("resolve_template", {
 				projectId: "project-1",
 				requestedTemplate: "proof demo",
 				triggerType: "product-proof-ad",
@@ -4118,37 +4186,37 @@ describe("Codecut MCP server contract", () => {
 			"--project-id",
 			"project-1",
 			"--tool",
-			"resolve_system_template_script",
+			"resolve_template",
 			"--args-json",
 			'{"requestedTemplate":"proof demo","triggerType":"product-proof-ad"}',
 		]);
 
 		expect(
-			buildBridgeCliArgs("update_system_template_script", {
+			buildBridgeCliArgs("update_template", {
 				projectId: "project-1",
-				templateJsonFile: "/tmp/local-template-script.json",
+				templateJsonFile: "/tmp/template.json",
 				confirmedByUser: true,
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
-			"update-system-template-script",
+			"update-template",
 			"--project-id",
 			"project-1",
 			"--template-json-file",
-			"/tmp/local-template-script.json",
+			"/tmp/template.json",
 			"--confirmed-by-user",
 			"true",
 		]);
 
 		expect(
-			buildBridgeCliArgs("delete_system_template_script", {
+			buildBridgeCliArgs("delete_template", {
 				projectId: "project-1",
 				templateId: "proof-demo-cut",
 				confirmedByUser: true,
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
-			"delete-system-template-script",
+			"delete-template",
 			"--project-id",
 			"project-1",
 			"--template-id",

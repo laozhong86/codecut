@@ -158,7 +158,7 @@ after import and stop if those required fields are missing.
 
 For reference-derived template draft imports, rely on
 `codecut-reference-template` for the confirmation gate and run
-`import-system-template-script` from the docs only with `confirmedByUser: true`.
+`import-template` from the docs only with `confirmedByUser: true`.
 
 Apply a strict implemented EditPlan:
 
@@ -216,7 +216,7 @@ Use `fresh-session-smoke` from the docs.
 
 ## Failure Rule
 
-Do not continue after `doctor-install`, `doctor`, `fresh-session-smoke`, `import-media`, `import-system-template-script`, `transcribe`, `transcribe_volcengine_media`, `build_volcengine_media_captions`, `build-post-cut-captions`, `import-subtitles`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
+Do not continue after `doctor-install`, `doctor`, `fresh-session-smoke`, `import-media`, `import-template`, `transcribe`, `transcribe_volcengine_media`, `build_volcengine_media_captions`, `build-post-cut-captions`, `import-subtitles`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
 
 When the confirmed requirement expects Volcengine or provider-backed source
 audio transcription, a missing public HTTPS source URL is a provider gate. Stop

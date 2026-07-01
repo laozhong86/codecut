@@ -54,7 +54,7 @@ import { RenameProjectDialog } from "@/components/editor/dialogs/rename-project-
 import { cn } from "@/utils/ui";
 import { StorageIndicator } from "./storage-indicator";
 import { createProjectFromName } from "./create-project";
-import { TemplateScriptsDialog } from "@/components/editor/template-scripts/template-scripts-dialog";
+import { TemplatesDialog } from "@/components/editor/templates/templates-dialog";
 
 type TranslateFn = (key: string) => string;
 
@@ -203,7 +203,7 @@ function ProjectsHeader() {
 							<span className="hidden sm:inline">{t("Characters")}</span>
 						</Button>
 					</Link>
-					<TemplateScriptsDialog />
+					<TemplatesDialog />
 					<NewProjectButton />
 				</div>
 			</div>

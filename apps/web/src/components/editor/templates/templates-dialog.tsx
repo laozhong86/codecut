@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
-import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
 	Delete02Icon,
 	Edit03Icon,
 	PlusSignIcon,
 } from "@hugeicons/core-free-icons";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -32,13 +32,17 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-	createLocalTemplateScript,
-	localTemplateScriptService,
-	type LocalTemplateScriptRecord,
-	type LocalTemplateTriggerType,
-} from "@/lib/template-scripts";
+	BUILT_IN_TEMPLATE_IDS,
+	createTemplate,
+	getBuiltInTemplate,
+	templateService,
+	type BuiltInTemplateId,
+	type Template,
+	type TemplateExecution,
+	type TemplateTriggerType,
+} from "@/lib/templates";
 
-const TRIGGER_OPTIONS: LocalTemplateTriggerType[] = [
+const TRIGGER_OPTIONS: TemplateTriggerType[] = [
 	"product-proof-ad",
 	"talking-head-short",
 	"tutorial-demo",
@@ -48,11 +52,45 @@ const TRIGGER_OPTIONS: LocalTemplateTriggerType[] = [
 	"custom",
 ];
 
+const EXECUTION_PROFILE_NONE = "__none";
+const EXECUTION_PROFILE_CURRENT = "__current";
+
+type ExecutionProfileId =
+	| BuiltInTemplateId
+	| typeof EXECUTION_PROFILE_NONE
+	| typeof EXECUTION_PROFILE_CURRENT;
+
+interface TemplateFormState {
+	id: string;
+	name: string;
+	description: string;
+	triggerType: TemplateTriggerType;
+	isDefaultForTrigger: boolean;
+	aliases: string;
+	objective: string;
+	steps: string;
+	verification: string;
+	executionProfileId: ExecutionProfileId;
+}
+
+const EMPTY_FORM: TemplateFormState = {
+	id: "",
+	name: "",
+	description: "",
+	triggerType: "custom",
+	isDefaultForTrigger: false,
+	aliases: "",
+	objective: "",
+	steps: "",
+	verification: "",
+	executionProfileId: EXECUTION_PROFILE_NONE,
+};
+
 function getTriggerOptionLabel({
 	type,
 	t,
 }: {
-	type: LocalTemplateTriggerType;
+	type: TemplateTriggerType;
 	t: (key: string) => string;
 }) {
 	switch (type) {
@@ -72,30 +110,6 @@ function getTriggerOptionLabel({
 			return t("Custom");
 	}
 }
-
-interface TemplateFormState {
-	id: string;
-	name: string;
-	description: string;
-	triggerType: LocalTemplateTriggerType;
-	isDefaultForTrigger: boolean;
-	aliases: string;
-	objective: string;
-	steps: string;
-	verification: string;
-}
-
-const EMPTY_FORM: TemplateFormState = {
-	id: "",
-	name: "",
-	description: "",
-	triggerType: "custom",
-	isDefaultForTrigger: false,
-	aliases: "",
-	objective: "",
-	steps: "",
-	verification: "",
-};
 
 function slugify(value: string): string {
 	return value
@@ -117,18 +131,41 @@ function buildSteps(value: string) {
 		const [rawLabel, ...rest] = line.split(":");
 		const label = rest.length > 0 ? rawLabel.trim() : `Step ${index + 1}`;
 		const instruction = rest.length > 0 ? rest.join(":").trim() : line;
-		const stepId = slugify(label) || `step-${index + 1}`;
 		return {
-			id: stepId,
+			id: slugify(label) || `step-${index + 1}`,
 			label,
 			instruction,
 		};
 	});
 }
 
-function formFromTemplate(
-	template: LocalTemplateScriptRecord,
-): TemplateFormState {
+function executionSignature(execution: TemplateExecution): string {
+	return JSON.stringify({
+		path: execution.path,
+		requiredEvidence: execution.requiredEvidence,
+		defaultStructure: execution.defaultStructure,
+		captionPreset: execution.captionPreset,
+		stopConditions: execution.stopConditions,
+	});
+}
+
+function profileIdFromExecution(template: Template): BuiltInTemplateId | null {
+	if ((BUILT_IN_TEMPLATE_IDS as readonly string[]).includes(template.id)) {
+		return template.id as BuiltInTemplateId;
+	}
+
+	const signature = executionSignature(template.execution);
+	return (
+		BUILT_IN_TEMPLATE_IDS.find((id) => {
+			const builtIn = getBuiltInTemplate(id);
+			return builtIn
+				? executionSignature(builtIn.execution) === signature
+				: false;
+		}) ?? null
+	);
+}
+
+function formFromTemplate(template: Template): TemplateFormState {
 	const triggerType = template.trigger.types[0] ?? "custom";
 	return {
 		id: template.id,
@@ -137,29 +174,65 @@ function formFromTemplate(
 		triggerType,
 		isDefaultForTrigger: template.trigger.defaultForTypes.includes(triggerType),
 		aliases: template.trigger.aliases.join(", "),
-		objective: template.script.objective,
-		steps: template.script.steps
+		objective: template.plan.objective,
+		steps: template.plan.steps
 			.map((step) => `${step.label}: ${step.instruction}`)
 			.join("\n"),
-		verification: template.script.verification.join("\n"),
+		verification: template.plan.verification.join("\n"),
+		executionProfileId:
+			profileIdFromExecution(template) ?? EXECUTION_PROFILE_CURRENT,
 	};
+}
+
+function executionFromProfile({
+	profileId,
+	selectedTemplate,
+}: {
+	profileId: ExecutionProfileId;
+	selectedTemplate: Template | null;
+}): TemplateExecution {
+	if (profileId === EXECUTION_PROFILE_CURRENT) {
+		if (!selectedTemplate) {
+			throw new Error("Select an execution profile before saving.");
+		}
+		return selectedTemplate.execution;
+	}
+
+	if (profileId === EXECUTION_PROFILE_NONE) {
+		throw new Error("Select an execution profile before saving.");
+	}
+
+	const profile = getBuiltInTemplate(profileId);
+	if (!profile) {
+		throw new Error(`Unknown execution profile: ${profileId}`);
+	}
+	return profile.execution;
 }
 
 function templateFromForm({
 	form,
+	selectedTemplate,
 	now,
 }: {
 	form: TemplateFormState;
+	selectedTemplate: Template | null;
 	now: Date;
-}): LocalTemplateScriptRecord {
+}): Template {
+	if (selectedTemplate?.readOnly) {
+		throw new Error("Built-in templates are read-only.");
+	}
+
 	const id = form.id.trim() || slugify(form.name);
 	if (!id) {
 		throw new Error("Template ID is required.");
 	}
-	return createLocalTemplateScript({
+
+	return createTemplate({
 		id,
 		name: form.name.trim(),
 		description: form.description.trim() || undefined,
+		source: "user",
+		readOnly: false,
 		trigger: {
 			types: [form.triggerType],
 			defaultForTypes: form.isDefaultForTrigger ? [form.triggerType] : [],
@@ -168,18 +241,34 @@ function templateFromForm({
 				.map((alias) => alias.trim())
 				.filter(Boolean),
 		},
-		script: {
+		plan: {
 			objective: form.objective.trim(),
 			steps: buildSteps(form.steps),
 			verification: lines(form.verification),
 		},
+		execution: executionFromProfile({
+			profileId: form.executionProfileId,
+			selectedTemplate,
+		}),
 		now,
 	});
 }
 
-function TemplateScriptsDialogContent() {
+function TemplateBadge({
+	label,
+}: {
+	label: string;
+}) {
+	return (
+		<span className="text-muted-foreground rounded border px-1.5 py-0.5 text-[10px] uppercase">
+			{label}
+		</span>
+	);
+}
+
+function TemplatesDialogContent() {
 	const { t } = useTranslation();
-	const [templates, setTemplates] = useState<LocalTemplateScriptRecord[]>([]);
+	const [templates, setTemplates] = useState<Template[]>([]);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [form, setForm] = useState<TemplateFormState>(EMPTY_FORM);
 	const [isLoading, setIsLoading] = useState(false);
@@ -188,11 +277,16 @@ function TemplateScriptsDialogContent() {
 		() => templates.find((template) => template.id === selectedId) ?? null,
 		[templates, selectedId],
 	);
+	const isReadOnly = selectedTemplate?.readOnly === true;
+	const showCurrentExecutionOption =
+		selectedTemplate &&
+		selectedTemplate.source === "user" &&
+		profileIdFromExecution(selectedTemplate) === null;
 
 	const loadTemplates = useCallback(async () => {
 		setIsLoading(true);
 		try {
-			const records = await localTemplateScriptService.listTemplates();
+			const records = await templateService.listTemplates();
 			setTemplates(records);
 			if (
 				selectedId &&
@@ -202,7 +296,7 @@ function TemplateScriptsDialogContent() {
 				setForm(EMPTY_FORM);
 			}
 		} catch (error) {
-			toast.error(t("Failed to load template scripts"), {
+			toast.error(t("Failed to load templates"), {
 				description:
 					error instanceof Error ? error.message : t("Please try again"),
 			});
@@ -227,34 +321,39 @@ function TemplateScriptsDialogContent() {
 		setForm(EMPTY_FORM);
 	};
 
-	const selectTemplate = (template: LocalTemplateScriptRecord) => {
+	const selectTemplate = (template: Template) => {
 		setSelectedId(template.id);
 		setForm(formFromTemplate(template));
 	};
 
 	const saveTemplate = async () => {
 		try {
-			const nextTemplate = templateFromForm({ form, now: new Date() });
+			const nextTemplate = templateFromForm({
+				form,
+				selectedTemplate,
+				now: new Date(),
+			});
 			if (selectedTemplate) {
-				await localTemplateScriptService.updateTemplate({
+				await templateService.updateTemplate({
 					id: selectedTemplate.id,
 					updates: {
 						name: nextTemplate.name,
 						description: nextTemplate.description,
 						trigger: nextTemplate.trigger,
-						script: nextTemplate.script,
+						plan: nextTemplate.plan,
+						execution: nextTemplate.execution,
 					},
 				});
 			} else {
-				await localTemplateScriptService.registerTemplate({
+				await templateService.registerTemplate({
 					template: nextTemplate,
 				});
 				setSelectedId(nextTemplate.id);
 			}
 			await loadTemplates();
-			toast.success(t("Template script saved"));
+			toast.success(t("Template saved"));
 		} catch (error) {
-			toast.error(t("Failed to save template script"), {
+			toast.error(t("Failed to save template"), {
 				description:
 					error instanceof Error ? error.message : t("Please try again"),
 			});
@@ -262,16 +361,16 @@ function TemplateScriptsDialogContent() {
 	};
 
 	const deleteTemplate = async () => {
-		if (!selectedTemplate) return;
+		if (!selectedTemplate || selectedTemplate.source !== "user") return;
 		try {
-			await localTemplateScriptService.deleteTemplate({
+			await templateService.deleteTemplate({
 				id: selectedTemplate.id,
 			});
 			resetForm();
 			await loadTemplates();
-			toast.success(t("Template script deleted"));
+			toast.success(t("Template deleted"));
 		} catch (error) {
-			toast.error(t("Failed to delete template script"), {
+			toast.error(t("Failed to delete template"), {
 				description:
 					error instanceof Error ? error.message : t("Please try again"),
 			});
@@ -281,21 +380,21 @@ function TemplateScriptsDialogContent() {
 	return (
 		<DialogContent className="max-w-5xl">
 			<DialogHeader>
-				<DialogTitle>{t("Template scripts")}</DialogTitle>
+				<DialogTitle>{t("Templates")}</DialogTitle>
 				<DialogDescription>
-					{t("Local editing scripts for named or trigger-based cuts.")}
+					{t("Unified planning templates for Codecut edits.")}
 				</DialogDescription>
 			</DialogHeader>
-			<DialogBody className="grid max-h-[70vh] grid-cols-1 gap-5 overflow-y-auto md:grid-cols-[260px_1fr]">
+			<DialogBody className="grid max-h-[70vh] grid-cols-1 gap-5 overflow-y-auto md:grid-cols-[280px_1fr]">
 				<div className="flex flex-col gap-3">
 					<Button type="button" variant="outline" onClick={resetForm}>
 						<HugeiconsIcon icon={PlusSignIcon} className="size-4" />
-						{t("New script")}
+						{t("New template")}
 					</Button>
 					<div className="flex flex-col gap-2">
 						{templates.length === 0 ? (
 							<div className="text-muted-foreground rounded-md border p-3 text-sm">
-								{t("No template scripts")}
+								{t("No templates")}
 							</div>
 						) : (
 							templates.map((template) => (
@@ -306,10 +405,19 @@ function TemplateScriptsDialogContent() {
 									className="h-auto justify-start px-3 py-2 text-left"
 									onClick={() => selectTemplate(template)}
 								>
-									<div className="flex min-w-0 flex-col items-start">
-										<span className="truncate font-medium">
-											{template.name}
-										</span>
+									<div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+											<div className="flex w-full items-center gap-2">
+												<span className="truncate font-medium">
+													{template.name}
+												</span>
+												<TemplateBadge
+													label={
+														template.source === "built-in"
+															? t("Built-in")
+															: t("User")
+													}
+												/>
+											</div>
 										<span className="text-muted-foreground truncate text-xs">
 											{template.id}
 										</span>
@@ -322,29 +430,29 @@ function TemplateScriptsDialogContent() {
 
 				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-script-id">{t("ID")}</Label>
+						<Label htmlFor="template-id">{t("ID")}</Label>
 						<Input
-							id="template-script-id"
+							id="template-id"
 							value={form.id}
 							disabled={Boolean(selectedTemplate)}
 							onChange={(event) => updateForm("id", event.target.value)}
 						/>
 					</div>
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-script-name">{t("Name")}</Label>
+						<Label htmlFor="template-name">{t("Name")}</Label>
 						<Input
-							id="template-script-name"
+							id="template-name"
 							value={form.name}
+							disabled={isReadOnly}
 							onChange={(event) => updateForm("name", event.target.value)}
 						/>
 					</div>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-script-description">
-							{t("Description")}
-						</Label>
+						<Label htmlFor="template-description">{t("Description")}</Label>
 						<Input
-							id="template-script-description"
+							id="template-description"
 							value={form.description}
+							disabled={isReadOnly}
 							onChange={(event) =>
 								updateForm("description", event.target.value)
 							}
@@ -354,8 +462,9 @@ function TemplateScriptsDialogContent() {
 						<Label>{t("Trigger type")}</Label>
 						<Select
 							value={form.triggerType}
+							disabled={isReadOnly}
 							onValueChange={(value) =>
-								updateForm("triggerType", value as LocalTemplateTriggerType)
+								updateForm("triggerType", value as TemplateTriggerType)
 							}
 						>
 							<SelectTrigger>
@@ -370,9 +479,42 @@ function TemplateScriptsDialogContent() {
 							</SelectContent>
 						</Select>
 					</div>
+					<div className="flex flex-col gap-2">
+						<Label>{t("Execution profile")}</Label>
+						<Select
+							value={form.executionProfileId}
+							disabled={isReadOnly}
+							onValueChange={(value) =>
+								updateForm("executionProfileId", value as ExecutionProfileId)
+							}
+						>
+							<SelectTrigger>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value={EXECUTION_PROFILE_NONE}>
+									{t("Select profile")}
+								</SelectItem>
+								{showCurrentExecutionOption ? (
+									<SelectItem value={EXECUTION_PROFILE_CURRENT}>
+										{t("Current execution")}
+									</SelectItem>
+								) : null}
+								{BUILT_IN_TEMPLATE_IDS.map((id) => {
+									const profile = getBuiltInTemplate(id);
+									return profile ? (
+										<SelectItem key={id} value={id}>
+											{profile.name}
+										</SelectItem>
+									) : null;
+								})}
+							</SelectContent>
+						</Select>
+					</div>
 					<Label className="flex items-center gap-3 self-end pb-2">
 						<Checkbox
 							checked={form.isDefaultForTrigger}
+							disabled={isReadOnly}
 							onCheckedChange={(checked) =>
 								updateForm("isDefaultForTrigger", checked === true)
 							}
@@ -380,39 +522,41 @@ function TemplateScriptsDialogContent() {
 						{t("Default for trigger")}
 					</Label>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-script-aliases">{t("Aliases")}</Label>
+						<Label htmlFor="template-aliases">{t("Aliases")}</Label>
 						<Input
-							id="template-script-aliases"
+							id="template-aliases"
 							value={form.aliases}
+							disabled={isReadOnly}
 							onChange={(event) => updateForm("aliases", event.target.value)}
 						/>
 					</div>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-script-objective">
-							{t("Objective")}
-						</Label>
+						<Label htmlFor="template-objective">{t("Objective")}</Label>
 						<Textarea
-							id="template-script-objective"
+							id="template-objective"
 							value={form.objective}
+							disabled={isReadOnly}
 							onChange={(event) => updateForm("objective", event.target.value)}
 						/>
 					</div>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-script-steps">{t("Steps")}</Label>
+						<Label htmlFor="template-steps">{t("Steps")}</Label>
 						<Textarea
-							id="template-script-steps"
+							id="template-steps"
 							className="min-h-32"
 							value={form.steps}
+							disabled={isReadOnly}
 							onChange={(event) => updateForm("steps", event.target.value)}
 						/>
 					</div>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-script-verification">
+						<Label htmlFor="template-verification">
 							{t("Verification")}
 						</Label>
 						<Textarea
-							id="template-script-verification"
+							id="template-verification"
 							value={form.verification}
+							disabled={isReadOnly}
 							onChange={(event) =>
 								updateForm("verification", event.target.value)
 							}
@@ -421,22 +565,26 @@ function TemplateScriptsDialogContent() {
 				</div>
 			</DialogBody>
 			<DialogFooter>
-				{selectedTemplate ? (
+				{selectedTemplate?.source === "user" ? (
 					<Button type="button" variant="destructive" onClick={deleteTemplate}>
 						<HugeiconsIcon icon={Delete02Icon} className="size-4" />
 						{t("Delete")}
 					</Button>
 				) : null}
-				<Button type="button" onClick={saveTemplate} disabled={isLoading}>
+				<Button
+					type="button"
+					onClick={saveTemplate}
+					disabled={isLoading || isReadOnly}
+				>
 					<HugeiconsIcon icon={Edit03Icon} className="size-4" />
-					{t("Save script")}
+					{t("Save template")}
 				</Button>
 			</DialogFooter>
 		</DialogContent>
 	);
 }
 
-export function TemplateScriptsDialog() {
+export function TemplatesDialog() {
 	const { t } = useTranslation();
 
 	return (
@@ -447,7 +595,7 @@ export function TemplateScriptsDialog() {
 					<span className="hidden sm:inline">{t("Templates")}</span>
 				</Button>
 			</DialogTrigger>
-			<TemplateScriptsDialogContent />
+			<TemplatesDialogContent />
 		</Dialog>
 	);
 }

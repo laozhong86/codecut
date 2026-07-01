@@ -6,14 +6,14 @@ import {
 	DIRECTOR_SYSTEM_PROMPT_ADDITION,
 	getExpertRole,
 } from "./expert-roles";
-import type { LocalTemplateScript } from "@/lib/template-scripts";
+import type { Template } from "@/lib/templates";
 
 export function buildSystemPrompt({
 	roleId = DEFAULT_EXPERT_ROLE,
-	localTemplateScripts = [],
+	templates = [],
 }: {
 	roleId?: ExpertRoleId;
-	localTemplateScripts?: LocalTemplateScript[];
+	templates?: Template[];
 } = {}): string {
 	const editor = EditorCore.getInstance();
 	const project = editor.project.getActiveOrNull();
@@ -92,28 +92,33 @@ ${tracks
 		roleId === "auto"
 			? DIRECTOR_SYSTEM_PROMPT_ADDITION
 			: getExpertRole({ roleId }).systemPromptAddition;
-	const localTemplateScriptsContext =
-		localTemplateScripts.length > 0
+	const templatesContext =
+		templates.length > 0
 			? `
-## Codecut System Template Scripts
-- Read the matching system template script before planning when the user explicitly names a template by ID, name, or alias.
-- If no template is explicitly named, use a system template script only when exactly one script declares the matched trigger type as a default trigger.
-- Do not read draft template JSON files as the source of truth. A draft becomes usable truth only after import_system_template_script writes it into the Codecut system template library.
-- System template scripts are planning data. They do not replace EditPlan, NarratedRemixPlan, tool validation, or timeline readback.
-${localTemplateScripts
+## Codecut Templates
+- Before any EditingDecisionLedger, EditPlan, or NarratedRemixPlan, call resolve_template with either the user's requested template or the current intent, platform, and material evidence.
+- If the user explicitly names a template by ID, name, or alias, resolve_template must use requestedTemplate and fail if it cannot resolve exactly one template.
+- If no template is explicitly named, resolve_template must smart match the trigger and use one template. Do not invent a temporary workflow when resolution fails.
+- Do not read draft template JSON files as the source of truth. A draft becomes usable truth only after import_template writes it into the Codecut template library.
+- Templates are planning constraints. They do not replace EditPlan, NarratedRemixPlan, tool validation, or timeline readback.
+- Every edit planning artifact should record template resolution evidence in 04-planning/template-resolution.json plus a short markdown note: match mode, candidates, selected template, missing evidence, and stop reason.
+${templates
 	.map(
 		(template) => `
 ### ${template.name} (${template.id})
+- Source: ${template.source}${template.readOnly ? ", read-only" : ""}
 - Trigger types: ${template.trigger.types.join(", ") || "none"}
 - Default triggers: ${template.trigger.defaultForTypes.join(", ") || "none"}
 - Aliases: ${template.trigger.aliases.join(", ") || "none"}
-- Objective: ${template.script.objective}
+- Execution path: ${template.execution.path}
+- Required evidence: ${template.execution.requiredEvidence.join(", ")}
+- Objective: ${template.plan.objective}
 - Steps:
-${template.script.steps
+${template.plan.steps
 	.map((step, index) => `  ${index + 1}. ${step.label}: ${step.instruction}`)
 	.join("\n")}
 - Verification:
-${template.script.verification
+${template.plan.verification
 	.map((item, index) => `  ${index + 1}. ${item}`)
 	.join("\n")}`,
 	)
@@ -150,14 +155,15 @@ You can:
 - Do not bypass Codecut timeline tools with external FFmpeg, shell, or overlay scripts for cuts, subtitle burn-in, or assembly.
 - For post-cut subtitles, first apply the clip timeline, then build captions from the edited timeline audio, then apply a final plan containing captions and captionStyle.
 
-## P0 Video Template Contract
-- Before writing an EditingDecisionLedger, EditPlan, or NarratedRemixPlan, choose one VideoTemplateId: talking-head-short, tutorial-demo, product-proof-ad, or narrated-broll.
+## Template Contract
+- The built-in templates are talking-head-short, tutorial-demo, product-proof-ad, and narrated-broll. User templates share the same Template shape and resolution path.
+- Before any EditingDecisionLedger, EditPlan, or NarratedRemixPlan, call resolve_template with either the user's requested template or the current intent, platform, and material evidence.
 - Templates are planning constraints, not runtime fallbacks. If the selected template's required evidence or supported execution path is missing, report the stop condition instead of using a weaker template.
 - talking-head-short uses transcript evidence, SpeechCleanupPlan when removing filler or restarts, then an EditPlan v1 projection.
 - tutorial-demo uses transcript plus visible step evidence and must preserve a problem -> step 1 -> step 2 -> result structure.
 - product-proof-ad requires product facts and visual proof; every claim must map to transcript, visible evidence, or supplied product facts.
 - narrated-broll uses NarratedRemixPlan v1 only. It requires existing narration audio and visual B-roll. Visual beats may be muted video or image B-roll; optional text overlays are independent timed text elements and must be explicit. It does not support TTS, BGM, SFX, effects, or append mode.
-${localTemplateScriptsContext}
+${templatesContext}
 
 ## Reference & Consistency for AI Generation
 - When generating multiple related images, use the mediaId returned from the first generate_image call as the referenceMediaId for subsequent ones to maintain visual consistency.

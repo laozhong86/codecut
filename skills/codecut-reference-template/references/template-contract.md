@@ -1,23 +1,23 @@
-# Template Script Contract
+# Template Contract
 
 Use this contract when deriving a reusable Codecut template from finished
 reference videos.
 
 ## Product Principle
 
-A Local Template Script JSON file is a draft Codex planning script until the
-user confirms import. It is not timeline state, an EditPlan extension, a hidden
-fallback, or a runtime template effect.
+A Template JSON file is a draft Codex planning template until the user confirms
+import. It is not timeline state, an EditPlan extension, a hidden fallback, or a
+runtime template effect.
 
 A draft derived from speech, subtitles, or visible marketing copy is not
 import-ready until the copy has been decomposed into reusable editing logic. Do
 not turn a reference video into a generic visual style template while skipping
 the words that carry the hook, proof, explanation, reveal, or call to action.
 
-The runtime schema is implemented in `apps/web/src/lib/template-scripts/schema.ts`.
-The Codecut system template library uses the same schema and is the source of
-truth after import. The current UI shows system templates through the Projects
-page `Templates` dialog, and the agent system prompt reads from that library.
+The runtime schema is implemented in `apps/web/src/lib/templates/schema.ts`.
+The Codecut template library uses the same schema and is the source of truth
+after import. The current UI shows templates through the Projects page
+`Templates` dialog, and the agent system prompt reads from that library.
 Do not use stale draft files as the latest template truth.
 
 ## Supported Trigger Types
@@ -30,7 +30,7 @@ Do not use stale draft files as the latest template truth.
 - `timeline-inspection`
 - `custom`
 
-Use `custom` when the reference style does not cleanly match a P0 template or
+Use `custom` when the reference style does not cleanly match a built-in template or
 when evidence is too narrow to make it a default for a business intent.
 
 ## Required Template Package
@@ -39,12 +39,12 @@ Write these artifacts in the job workspace or the user-specified output folder:
 
 ```text
 reference-analysis.md
-local-template-script.json
+template.json
 template-fields.md
 ```
 
-These files are review artifacts. They are not reusable system templates until
-the user confirms import through `import_system_template_script`.
+These files are review artifacts. They are not reusable templates until
+the user confirms import through `import_template`.
 
 ### `reference-analysis.md`
 
@@ -62,7 +62,7 @@ Include:
 
 #### Per-Reference Beat And Copy Breakdown
 
-Apply this speech-or-copy evidence gate before writing `local-template-script.json`:
+Apply this speech-or-copy evidence gate before writing `template.json`:
 
 - If the reference contains voiceover, dialogue, subtitles, or visible claim
   copy, collect transcript/copy evidence with current tools such as
@@ -84,7 +84,7 @@ For each reference, include a table or structured list with:
 | reusable template rule | The repeatable editing decision that can guide future material. |
 | evidence source and confidence | Transcript, OCR, visual context, contact sheet, user facts, plus high/medium/low confidence. |
 
-### `local-template-script.json`
+### `template.json`
 
 Use this strict shape:
 
@@ -92,13 +92,15 @@ Use this strict shape:
 {
   "id": "reference-proof-cut",
   "name": "Reference proof cut",
-  "description": "A proof-led short-form editing script derived from supplied reference videos.",
+  "description": "A proof-led short-form template derived from supplied reference videos.",
+  "source": "user",
+  "readOnly": false,
   "trigger": {
     "types": ["product-proof-ad"],
     "defaultForTypes": [],
     "aliases": ["reference proof cut"]
   },
-  "script": {
+  "plan": {
     "objective": "Create a proof-led product short that opens with visible evidence before claims.",
     "steps": [
       {
@@ -110,6 +112,16 @@ Use this strict shape:
     "verification": [
       "Every product claim maps to transcript, visual proof, or supplied product facts.",
       "get_timeline_state verifies clip order, caption count, trim ranges, and final duration."
+    ]
+  },
+  "execution": {
+    "path": "edit-plan-v1",
+    "requiredEvidence": ["transcript", "visual-proof", "product-facts"],
+    "defaultStructure": ["hook", "proof", "demo", "CTA"],
+    "captionPreset": "product-punch",
+    "stopConditions": [
+      "Product facts or visual proof are missing.",
+      "The requested claim cannot be tied to spoken or visible evidence."
     ]
   },
   "createdAt": "2026-06-23T00:00:00.000Z",
@@ -125,6 +137,10 @@ Rules:
   `trigger.types`.
 - Keep `defaultForTypes` empty unless the user explicitly wants this as the
   default and no default already exists.
+- `source` must be `user`; `readOnly` must be `false`.
+- `execution.path` must be one of `edit-plan-v1`,
+  `speech-cleanup-to-edit-plan-v1`, or `narrated-remix-v1`.
+- `execution.requiredEvidence` must name the evidence required before planning.
 - `steps[].instruction` must be executable guidance, not a vague style label.
 - `verification[]` must include evidence/readback checks, not taste judgments.
 - Include ISO timestamps when producing JSON for programmatic registration.
@@ -136,10 +152,11 @@ Provide fields for the Codecut `Templates` dialog:
 ```markdown
 ID: reference-proof-cut
 Name: Reference proof cut
-Description: A proof-led short-form editing script derived from supplied reference videos.
+Description: A proof-led short-form template derived from supplied reference videos.
 Trigger type: product-proof-ad
 Default for trigger: No
 Aliases: reference proof cut
+Execution profile: product-proof-ad
 
 Objective:
 Create a proof-led product short that opens with visible evidence before claims.
@@ -156,13 +173,13 @@ get_timeline_state verifies clip order, caption count, trim ranges, and final du
 
 | Reference evidence | Template field |
 | --- | --- |
-| Repeated story sequence | `script.steps` in the same order |
-| Business outcome | `script.objective` and trigger type |
+| Repeated story sequence | `plan.steps` in the same order |
+| Business outcome | `plan.objective` and trigger type |
 | Common pacing | Step instructions with approximate ranges |
 | Caption look supported by EditPlan v1 | Step instruction plus verification |
 | Unsupported animation/effect | `reference-analysis.md` runtime gap only |
 | Product/claim proof | Verification and proof-selection steps |
-| One-off visual content | Exclude from reusable script |
+| One-off visual content | Exclude from reusable template |
 
 ## Unsupported Runtime Gaps
 
@@ -178,7 +195,7 @@ or plan schema supports them:
 
 ## Import Gate
 
-Do not import automatically after writing `local-template-script.json`.
+Do not import automatically after writing `template.json`.
 
 Before import, show the user:
 
@@ -189,8 +206,8 @@ Before import, show the user:
 - path to the draft JSON
 
 Import only after explicit confirmation. Use the
-`import-system-template-script` command contract in
+`import-template` command contract in
 `../../../docs/codex-driven-editing.md` and keep `confirmedByUser: true`.
 
-After import, apply future user requests from the Codecut system template
+After import, apply future user requests from the Codecut template
 library, not from the draft file path.

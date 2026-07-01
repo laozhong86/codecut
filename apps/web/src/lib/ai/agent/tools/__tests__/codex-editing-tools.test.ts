@@ -126,7 +126,7 @@ describe("Codex deterministic editing tools", () => {
 		).toBe(true);
 	});
 
-	test("tool descriptions expose the P0 video template contract", () => {
+	test("tool descriptions expose the template contract", () => {
 		const descriptions = [
 			getToolByName({ name: "apply_edit_plan" })?.description ?? "",
 			getToolByName({ name: "apply_narrated_remix_plan" })?.description ?? "",
@@ -136,6 +136,7 @@ describe("Codex deterministic editing tools", () => {
 		expect(descriptions).toContain("tutorial-demo");
 		expect(descriptions).toContain("product-proof-ad");
 		expect(descriptions).toContain("narrated-broll");
+		expect(descriptions).not.toContain(["P0", "video", "template"].join(" "));
 		expect(descriptions).toContain("does not support TTS");
 		expect(descriptions).toContain("BGM");
 		expect(descriptions).toContain("SFX");

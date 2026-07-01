@@ -27,12 +27,12 @@ export const REQUIRED_MCP_TOOLS = [
 	"update_transition",
 	"remove_transition",
 	"import_media",
-	"list_system_template_scripts",
-	"get_system_template_script",
-	"resolve_system_template_script",
-	"import_system_template_script",
-	"update_system_template_script",
-	"delete_system_template_script",
+	"list_templates",
+	"get_template",
+	"resolve_template",
+	"import_template",
+	"update_template",
+	"delete_template",
 	"apply_edit_plan",
 	"get_timeline_state",
 ];
@@ -115,7 +115,7 @@ export function assertFreshMcpToolSurface({ tools }) {
 	}
 
 	const templateImportProperties = schemaProperties(
-		requireTool({ toolsByName, name: "import_system_template_script" }),
+		requireTool({ toolsByName, name: "import_template" }),
 	);
 	if (
 		!templateImportProperties ||
@@ -124,12 +124,12 @@ export function assertFreshMcpToolSurface({ tools }) {
 		!Object.hasOwn(templateImportProperties, "confirmedByUser")
 	) {
 		throw new Error(
-			"import_system_template_script input schema must expose templateJsonFile and confirmedByUser.",
+			"import_template input schema must expose templateJsonFile and confirmedByUser.",
 		);
 	}
 
 	const templateListProperties = schemaProperties(
-		requireTool({ toolsByName, name: "list_system_template_scripts" }),
+		requireTool({ toolsByName, name: "list_templates" }),
 	);
 	if (
 		!templateListProperties ||
@@ -139,12 +139,12 @@ export function assertFreshMcpToolSurface({ tools }) {
 		Object.hasOwn(templateListProperties, "triggerType")
 	) {
 		throw new Error(
-			"list_system_template_scripts input schema must expose no template lookup inputs.",
+			"list_templates input schema must expose no template lookup inputs.",
 		);
 	}
 
 	const templateGetProperties = schemaProperties(
-		requireTool({ toolsByName, name: "get_system_template_script" }),
+		requireTool({ toolsByName, name: "get_template" }),
 	);
 	if (
 		!templateGetProperties ||
@@ -152,12 +152,12 @@ export function assertFreshMcpToolSurface({ tools }) {
 		!Object.hasOwn(templateGetProperties, "templateId")
 	) {
 		throw new Error(
-			"get_system_template_script input schema must expose templateId.",
+			"get_template input schema must expose templateId.",
 		);
 	}
 
 	const templateResolveProperties = schemaProperties(
-		requireTool({ toolsByName, name: "resolve_system_template_script" }),
+		requireTool({ toolsByName, name: "resolve_template" }),
 	);
 	if (
 		!templateResolveProperties ||
@@ -166,12 +166,12 @@ export function assertFreshMcpToolSurface({ tools }) {
 		!Object.hasOwn(templateResolveProperties, "triggerType")
 	) {
 		throw new Error(
-			"resolve_system_template_script input schema must expose requestedTemplate and triggerType.",
+			"resolve_template input schema must expose requestedTemplate and triggerType.",
 		);
 	}
 
 	const templateUpdateProperties = schemaProperties(
-		requireTool({ toolsByName, name: "update_system_template_script" }),
+		requireTool({ toolsByName, name: "update_template" }),
 	);
 	if (
 		!templateUpdateProperties ||
@@ -180,12 +180,12 @@ export function assertFreshMcpToolSurface({ tools }) {
 		!Object.hasOwn(templateUpdateProperties, "confirmedByUser")
 	) {
 		throw new Error(
-			"update_system_template_script input schema must expose templateJsonFile and confirmedByUser.",
+			"update_template input schema must expose templateJsonFile and confirmedByUser.",
 		);
 	}
 
 	const templateDeleteProperties = schemaProperties(
-		requireTool({ toolsByName, name: "delete_system_template_script" }),
+		requireTool({ toolsByName, name: "delete_template" }),
 	);
 	if (
 		!templateDeleteProperties ||
@@ -194,7 +194,7 @@ export function assertFreshMcpToolSurface({ tools }) {
 		!Object.hasOwn(templateDeleteProperties, "confirmedByUser")
 	) {
 		throw new Error(
-			"delete_system_template_script input schema must expose templateId and confirmedByUser.",
+			"delete_template input schema must expose templateId and confirmedByUser.",
 		);
 	}
 

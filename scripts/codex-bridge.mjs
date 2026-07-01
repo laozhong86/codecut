@@ -126,9 +126,9 @@ function usage() {
 		"  node scripts/codex-bridge.mjs ripple-delete-ranges --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs list-models --project-id <id> [--type <transcription|digital_human>]",
 		"  node scripts/codex-bridge.mjs search-media --project-id <id> --args-json '<json>'",
-		"  node scripts/codex-bridge.mjs import-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
-		"  node scripts/codex-bridge.mjs update-system-template-script --project-id <id> --template-json-file /absolute/path/local-template-script.json --confirmed-by-user true",
-		"  node scripts/codex-bridge.mjs delete-system-template-script --project-id <id> --template-id <id> --confirmed-by-user true",
+		"  node scripts/codex-bridge.mjs import-template --project-id <id> --template-json-file /absolute/path/template.json --confirmed-by-user true",
+		"  node scripts/codex-bridge.mjs update-template --project-id <id> --template-json-file /absolute/path/template.json --confirmed-by-user true",
+		"  node scripts/codex-bridge.mjs delete-template --project-id <id> --template-id <id> --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs build-caption-diagnostics --project-id <id> --language <auto|code> --model-id <model> --caption-style-preset <preset> --caption-position <lower-safe|center> [--caption-motion-preset <preset>]",
 		"  node scripts/codex-bridge.mjs build-post-cut-captions --project-id <id> --language <auto|code> --model-id <model>",
 		'  node scripts/codex-bridge.mjs generate-digital-human --project-id <id> --image-media-id <id> --audio-media-id <id> --script-text "..." --motion-prompt "..." --width 1280 --height 720 --fps 25 --confirmation-token <token>',
@@ -2153,7 +2153,7 @@ function requireConfirmedTemplateImport(confirmedByUser) {
 	}
 }
 
-export async function buildImportSystemTemplateScriptEnvelope({
+export async function buildImportTemplateEnvelope({
 	projectId,
 	templateJsonFile,
 	confirmedByUser,
@@ -2166,7 +2166,7 @@ export async function buildImportSystemTemplateScriptEnvelope({
 
 	return buildCommandEnvelope({
 		projectId,
-		tool: "import_system_template_script",
+		tool: "import_template",
 		args: {
 			confirmedByUser: true,
 			template,
@@ -2174,7 +2174,7 @@ export async function buildImportSystemTemplateScriptEnvelope({
 	});
 }
 
-export async function buildUpdateSystemTemplateScriptEnvelope({
+export async function buildUpdateTemplateEnvelope({
 	projectId,
 	templateJsonFile,
 	confirmedByUser,
@@ -2187,7 +2187,7 @@ export async function buildUpdateSystemTemplateScriptEnvelope({
 
 	return buildCommandEnvelope({
 		projectId,
-		tool: "update_system_template_script",
+		tool: "update_template",
 		args: {
 			confirmedByUser: true,
 			template,
@@ -2195,7 +2195,7 @@ export async function buildUpdateSystemTemplateScriptEnvelope({
 	});
 }
 
-export function buildDeleteSystemTemplateScriptEnvelope({
+export function buildDeleteTemplateEnvelope({
 	projectId,
 	templateId,
 	confirmedByUser,
@@ -2207,7 +2207,7 @@ export function buildDeleteSystemTemplateScriptEnvelope({
 
 	return buildCommandEnvelope({
 		projectId,
-		tool: "delete_system_template_script",
+		tool: "delete_template",
 		args: {
 			confirmedByUser: true,
 			templateId: templateId.trim(),
@@ -2997,7 +2997,7 @@ async function waitForAgentBridge({ config, projectId, fetchImpl }) {
 	});
 	if (status.mounted !== true) {
 		throw new Error(
-			`Agent bridge is not mounted for project ${projectId}. Open the editor URL before importing system templates.`,
+			`Agent bridge is not mounted for project ${projectId}. Open the editor URL before importing templates.`,
 		);
 	}
 	return status;
@@ -3557,20 +3557,20 @@ export async function runCli({
 			projectId: flags.projectId,
 			...payload,
 		});
-	} else if (command === "import-system-template-script") {
-		envelope = await buildImportSystemTemplateScriptEnvelope({
+	} else if (command === "import-template") {
+		envelope = await buildImportTemplateEnvelope({
 			projectId: flags.projectId,
 			templateJsonFile: flags.templateJsonFile,
 			confirmedByUser: parseBoolean(flags.confirmedByUser, "confirmedByUser"),
 		});
-	} else if (command === "update-system-template-script") {
-		envelope = await buildUpdateSystemTemplateScriptEnvelope({
+	} else if (command === "update-template") {
+		envelope = await buildUpdateTemplateEnvelope({
 			projectId: flags.projectId,
 			templateJsonFile: flags.templateJsonFile,
 			confirmedByUser: parseBoolean(flags.confirmedByUser, "confirmedByUser"),
 		});
-	} else if (command === "delete-system-template-script") {
-		envelope = buildDeleteSystemTemplateScriptEnvelope({
+	} else if (command === "delete-template") {
+		envelope = buildDeleteTemplateEnvelope({
 			projectId: flags.projectId,
 			templateId: flags.templateId,
 			confirmedByUser: parseBoolean(flags.confirmedByUser, "confirmedByUser"),
@@ -3718,9 +3718,9 @@ export async function runCli({
 	}
 
 	const result =
-		command === "import-system-template-script" ||
-		command === "update-system-template-script" ||
-		command === "delete-system-template-script"
+		command === "import-template" ||
+		command === "update-template" ||
+		command === "delete-template"
 			? await postAgentBridgeEnvelopeAndWait({ config, envelope, fetchImpl })
 			: await (async () => {
 					await waitForExecutor({
