@@ -134,6 +134,16 @@ gate and this duration preflight, call `open_codecut_requirement_confirmation`
 directly from the MCP tool surface before loading stage skills, reading other
 local files, running unrelated shell commands, or sending text-only questions.
 Use `tool_search` only if the requirement confirmation tool is not visible.
+A fresh creative job means any user request that asks CodeCut to produce a new
+edited output from source media, even when the same file or wording appeared in
+an earlier thread. Every fresh creative job must create a new requirement draft.
+Do not scan or reuse `.codecut-workspace/requirements`, prior thread summaries,
+memory, previous `ccreq_*` values, or old confirmed readbacks to satisfy a new
+request. Do not call `get_codecut_requirement_confirmation` until
+`open_codecut_requirement_confirmation` has returned a `draftId` for this same
+intake. Reuse an existing draft or project only when the user explicitly
+provides that exact `draftId` or `projectId` and asks to continue, recover, or
+resume it.
 This creates only a local `draft.json` and a human confirmation page. It must
 not create an executor project, import media, or initialize a project
 workspace. After the tool returns, open its `confirmationUrl` in the Codex
@@ -142,8 +152,10 @@ control is not available, show the URL as the fallback. Do not rely on an
 inline MCP app, output template, or chat card to open the confirmation page.
 Wait until the user confirms or cancels in the web page, then call
 `get_codecut_requirement_confirmation`. Continue only when it returns
-`status: "confirmed"`. If it returns `pending` or `cancelled`, stop before
-project creation. After confirmed readback, call
+`status: "confirmed"` for the same `draftId` returned by
+`open_codecut_requirement_confirmation`. If it returns a different `draftId`,
+`pending`, or `cancelled`, stop before project creation. After confirmed
+readback, call
 `create_codecut_project_from_requirement` with that `draftId`; use the returned
 confirmation token for all side-effect commands and route the confirmed setup
 through `codecut-requirement-intake` before ingest, doctor checks, import,
@@ -154,9 +166,9 @@ normal new-job intake path.
 | Request shape | Required stage |
 | --- | --- |
 | Source-only acquisition: "download", "save locally", "提取到本地", "下载到本地", or similar with no editing, timeline, template, or export request | Use `codecut-tiktok-downloader` for TikTok sources, otherwise use `codecut-material-ingest`. Do not open the creative editing confirmation page or run executor mutation commands. |
-| New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", or any request that will create, edit, verify, or export a timeline | Verify `http://127.0.0.1:4100/en/projects` first; if it fails, start `bun run dev:web` in a persistent foreground/PTY session and wait for readiness. If preserving full source from a local file, measure `sourceDurationSeconds` with `ffprobe` before requirement confirmation. Then call `open_codecut_requirement_confirmation` before loading child skills or unrelated shell, and open the returned `confirmationUrl` in the Codex in-app browser when available. Stop until `get_codecut_requirement_confirmation` returns `status: "confirmed"`; only then call `create_codecut_project_from_requirement`. After setup creation, use `codecut-requirement-intake` to pass or block the execution gate. |
+| New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", or any request that will create, edit, verify, or export a timeline | Verify `http://127.0.0.1:4100/en/projects` first; if it fails, start `bun run dev:web` in a persistent foreground/PTY session and wait for readiness. If preserving full source from a local file, measure `sourceDurationSeconds` with `ffprobe` before requirement confirmation. Then call `open_codecut_requirement_confirmation` before loading child skills or unrelated shell, and open the returned `confirmationUrl` in the Codex in-app browser when available. Stop until `get_codecut_requirement_confirmation` returns `status: "confirmed"` for the same `draftId`; only then call `create_codecut_project_from_requirement`. Do not reuse old `ccreq_*` values unless the user explicitly asks to recover that exact draft. After setup creation, use `codecut-requirement-intake` to pass or block the execution gate. |
 | Cover title, video title, hook, voiceover script, spoken-word draft, or de-AI rewrite with no timeline mutation request | Use `codecut-scriptwriting`. Do not open the creative editing confirmation page, create an executor project, import media, or mutate the timeline. If the user also asks to apply the copy into an edit, produce the copy brief first, then route through normal requirement intake and planning. |
-| New creative job with explicit setup fields already provided | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` before executor mutation. |
+| Already-confirmed creative job with an explicit current `draftId`, `projectId`, or setup follow-up from this same job | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` before executor mutation. If the user did not provide the exact current confirmation or recovery identifier, return to the new creative job path and create a fresh requirement draft. |
 | TikTok video, photo post, share link, author page, or @handle that must be downloaded or saved locally for an editing job | **REQUIRED SUB-SKILL:** Use `codecut-tiktok-downloader` for TikTok source acquisition only after confirmed project creation and requirement intake pass. |
 | Source needs download, file copy, workspace asset filing, or ffprobe audit for a creative editing job | **REQUIRED SUB-SKILL:** Use `codecut-material-ingest` only after confirmed project creation and requirement intake pass. |
 | Material understanding, material role labeling, "这些素材适合怎么用", "帮我理解素材", "给脚本匹配素材", replacement suitability, picture-in-picture suitability, split-screen suitability, or circular talking-head suitability before final editing decisions | **REQUIRED SUB-SKILL:** Use `codecut-material-understanding` after material ingest and before `codecut-edit-planning`. Do not mutate the timeline or choose the final edit recipe in this stage. |
@@ -181,6 +193,10 @@ normal new-job intake path.
   `create_codecut_project_from_requirement` before material ingest, workspace
   add-assets/probe, doctor checks, generated media, timeline mutation, or
   export.
+- The confirmed requirement readback must use the same `draftId` returned by
+  the current `open_codecut_requirement_confirmation` call. A previous
+  confirmed `ccreq_*` is not valid for a new creative job unless the user
+  explicitly asks to recover that exact draft.
 - `create_codecut_project_from_requirement` creates the executor project and
   initializes `.codecut-workspace/projects/<projectId>/workspace.json`. Do not
   rerun `codecut-workspace init` for that project.

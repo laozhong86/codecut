@@ -160,6 +160,33 @@ function nestedStatus(value) {
 	);
 }
 
+function objectValue(value) {
+	if (!value) return undefined;
+	if (typeof value === "object") return value;
+	if (typeof value !== "string") return undefined;
+	const trimmed = value.trim();
+	if (!trimmed.startsWith("{")) return undefined;
+	try {
+		const parsed = JSON.parse(trimmed);
+		return parsed && typeof parsed === "object" ? parsed : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function nestedDraftId(value) {
+	const object = objectValue(value);
+	if (!object) return undefined;
+	if (typeof object.draftId === "string") return object.draftId;
+	return (
+		nestedDraftId(object.structuredContent) ||
+		nestedDraftId(object.result) ||
+		nestedDraftId(object.output) ||
+		nestedDraftId(object.payload) ||
+		nestedDraftId(object.arguments)
+	);
+}
+
 function isRequirementConfirmedReadback(item) {
 	const isGetCall =
 		(item.type === "mcpToolCall" &&
@@ -255,10 +282,13 @@ export function assertWidgetIntakeThread({
 }) {
 	const items = records.flatMap((record) => collectItems(record, []));
 	const widgetCallCount = items.filter(isWidgetCall).length;
-	const requirementOpenCallCount = items.filter(isRequirementOpenCall).length;
-	const requirementConfirmedReadbackCount = items.filter(
+	const requirementOpenItems = items.filter(isRequirementOpenCall);
+	const requirementConfirmedReadbackItems = items.filter(
 		isRequirementConfirmedReadback,
-	).length;
+	);
+	const requirementOpenCallCount = requirementOpenItems.length;
+	const requirementConfirmedReadbackCount =
+		requirementConfirmedReadbackItems.length;
 	const requirementInlineOpenerCount = items.filter(
 		hasRequirementInlineOpener,
 	).length;
@@ -302,6 +332,25 @@ export function assertWidgetIntakeThread({
 				"Codecut requirement confirmation was not proven: missing confirmed get_codecut_requirement_confirmation readback.",
 			);
 		}
+		const openedRequirementDraftId = nestedDraftId(requirementOpenItems[0]);
+		const confirmedRequirementDraftId = nestedDraftId(
+			requirementConfirmedReadbackItems[0],
+		);
+		if (!openedRequirementDraftId) {
+			throw new Error(
+				"Codecut requirement confirmation was not proven: missing opened requirement draftId.",
+			);
+		}
+		if (!confirmedRequirementDraftId) {
+			throw new Error(
+				"Codecut requirement confirmation was not proven: missing confirmed requirement draftId.",
+			);
+		}
+		if (openedRequirementDraftId !== confirmedRequirementDraftId) {
+			throw new Error(
+				`Codecut requirement confirmation regressed: confirmed readback draftId ${confirmedRequirementDraftId} does not match opened draftId ${openedRequirementDraftId}.`,
+			);
+		}
 		if (textFallbackCount > 0) {
 			throw new Error(
 				"Codecut requirement confirmation regressed: found text fallback prompt after requirement validation.",
@@ -313,6 +362,8 @@ export function assertWidgetIntakeThread({
 			widgetCallCount,
 			requirementOpenCallCount,
 			requirementConfirmedReadbackCount,
+			openedRequirementDraftId,
+			confirmedRequirementDraftId,
 			requirementInlineOpenerCount,
 			projectSideEffectCallCount,
 			disallowedShellCallCount,

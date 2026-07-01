@@ -96,9 +96,14 @@ Required pre-edit order for user-provided materials:
    and the known requirement fields. This writes only local requirement
    confirmation files and opens a web confirmation page; it must not create a
    project, import media, or initialize a project workspace.
+   Every new creative request must create a new requirement draft. Do not reuse
+   prior `ccreq_*` drafts, workspace requirement files, memory summaries, or
+   previous confirmed readbacks unless the user explicitly provides that exact
+   draft or project identifier and asks to continue, recover, or resume it.
 3. Wait for the user to confirm or cancel in the web page, then call
    `get_codecut_requirement_confirmation`. Continue only when it returns
-   `status: "confirmed"`.
+   `status: "confirmed"` for the same `draftId` returned by
+   `open_codecut_requirement_confirmation`.
 4. Call `create_codecut_project_from_requirement` with the confirmed `draftId`.
 5. Use the workspace index initialized by
    `create_codecut_project_from_requirement`; do not rerun
@@ -230,6 +235,13 @@ After `open_codecut_requirement_confirmation` succeeds, use the returned
 or `openai/outputTemplate` to that tool. Open the URL in the Codex in-app
 browser when browser control is available; if the host cannot be controlled,
 show the URL as a fallback.
+
+The `draftId` from `open_codecut_requirement_confirmation` is the only valid
+draft for the current fresh creative job. Do not call
+`get_codecut_requirement_confirmation` for an older `ccreq_*` before opening a
+new requirement confirmation page in the current intake. A confirmed readback
+whose `draftId` differs from the opened draft is a routing failure, not a usable
+confirmation.
 
 If a host mounts the requirement confirmation page for a failed or malformed
 `open_codecut_requirement_confirmation` result, the page must fail closed: no
