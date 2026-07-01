@@ -391,7 +391,7 @@ test("workspace widget does not claim follow-up delivery without showing recover
 	expect(rendered).not.toContain("已发送后续任务给 Codex");
 });
 
-test("workspace widget sends follow-up prompts as plain text", async () => {
+test("workspace widget sends follow-up prompts as structured user messages", async () => {
 	const html = await readFile("mcp/codecut-workspace.html", "utf8");
 	const messages = [];
 	const harness = buildFollowUpHarness(html, {
@@ -406,7 +406,12 @@ test("workspace widget sends follow-up prompts as plain text", async () => {
 		intent: { pendingConfirmationId: "ccpending_123" },
 	});
 
-	expect(messages).toEqual(["Continue editing prompt"]);
+	expect(messages).toEqual([
+		{
+			role: "user",
+			content: [{ type: "text", text: "Continue editing prompt" }],
+		},
+	]);
 });
 
 test("workspace widget formats follow-up object errors and preserves recovery identifiers", async () => {
@@ -457,7 +462,12 @@ test("workspace widget keeps create-project submission locked after success", as
 		text: "Project created",
 	});
 	expect(harness.callCount()).toBe(1);
-	expect(harness.sentFollowUps()).toEqual(["Continue CodeCut editing."]);
+	expect(harness.sentFollowUps()).toEqual([
+		{
+			role: "user",
+			content: [{ type: "text", text: "Continue CodeCut editing." }],
+		},
+	]);
 
 	harness.resetWidgetReadyState();
 	expect(harness.buttonState()).toEqual({

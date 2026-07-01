@@ -1710,7 +1710,7 @@
             if (typeof api.sendFollowUpMessage !== "function") {
               throw new Error(t("followUpUnavailable"));
             }
-            await api.sendFollowUpMessage(followUpPrompt);
+            await api.sendFollowUpMessage(followUpMessageFromPrompt(followUpPrompt));
             renderFollowUpRequested(payload);
           } catch (error) {
             fields.followUp.innerHTML = "";
@@ -1731,6 +1731,13 @@
               fields.followUp.append(title, pre, retry);
             }
           }
+        }
+
+        function followUpMessageFromPrompt(prompt) {
+          return {
+            role: "user",
+            content: [{ type: "text", text: prompt }],
+          };
         }
 
         function followUpRecoveryHtml(payload = {}) {
