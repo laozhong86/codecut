@@ -59,6 +59,12 @@ describe("verify Codecut widget intake thread", () => {
 							type: "mcpToolCall",
 							server: "codecut_mcp",
 							tool: "open_codecut_requirement_confirmation",
+							result: {
+								structuredContent: {
+									status: "awaiting_user_confirmation",
+									draftId: "ccreq_demo",
+								},
+							},
 						},
 					],
 				},
@@ -86,6 +92,8 @@ describe("verify Codecut widget intake thread", () => {
 			widgetCallCount: 0,
 			requirementOpenCallCount: 1,
 			requirementConfirmedReadbackCount: 1,
+			openedRequirementDraftId: "ccreq_demo",
+			confirmedRequirementDraftId: "ccreq_demo",
 			requirementInlineOpenerCount: 0,
 			projectSideEffectCallCount: 0,
 			followUpMessageCount: 0,
@@ -151,6 +159,43 @@ describe("verify Codecut widget intake thread", () => {
 			}),
 		).toThrow(
 			"Codecut requirement confirmation was not proven: missing confirmed get_codecut_requirement_confirmation readback.",
+		);
+	});
+
+	test("fails requirement confirmation mode when confirmed readback uses a different draft", () => {
+		expect(() =>
+			assertWidgetIntakeThread({
+				threadId: "thread-requirement-reused-old-draft",
+				requireConfirmedRequirement: true,
+				records: [
+					{
+						type: "turn",
+						items: [
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "open_codecut_requirement_confirmation",
+								structuredContent: {
+									status: "awaiting_user_confirmation",
+									draftId: "ccreq_new",
+								},
+							},
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "get_codecut_requirement_confirmation",
+								arguments: { draftId: "ccreq_old" },
+								structuredContent: {
+									status: "confirmed",
+									draftId: "ccreq_old",
+								},
+							},
+						],
+					},
+				],
+			}),
+		).toThrow(
+			"Codecut requirement confirmation regressed: confirmed readback draftId ccreq_old does not match opened draftId ccreq_new.",
 		);
 	});
 

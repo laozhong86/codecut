@@ -35,6 +35,11 @@ fallback when the host cannot be controlled.
 
 After the user confirms in the web page, the thread must call
 `get_codecut_requirement_confirmation` and read back `status: "confirmed"`.
+The confirmed readback `draftId` must match the `draftId` returned by the
+current `open_codecut_requirement_confirmation` call. Reusing an older
+confirmed `ccreq_*` from another thread, workspace file, or memory summary is a
+fresh-intake failure unless the validation prompt explicitly asks to recover
+that exact draft.
 Fresh-thread intake proof no longer requires a visible host follow-up message.
 Project creation is a later step through `create_codecut_project_from_requirement`
 and must not run during intake verification.
@@ -117,7 +122,23 @@ the same check succeeds:
 bun run dev:web
 ```
 
-6. Create a fresh `@codecut` validation thread with a minimal prompt:
+6. Create a fresh `@codecut` validation thread with normal user wording first.
+   Do not add special "do not create project" or "wait for click" guardrails to
+   this prompt; the point is to prove the default CodeCut routing works for a
+   real user request:
+
+```text
+@codecut 把 /Users/x/Downloads/22.mp4 做成中文解说口播短视频。必须保留原片完整时长，不能删减、不能裁掉时间线片段；新增同步中文解说字幕；顶部固定标题常驻；配音选择无配音，不生成 TTS 或旁白音轨；保留原视频音频；不使用转场；导出高质量 MP4。
+```
+
+The expected first CodeCut MCP side effect is
+`open_codecut_requirement_confirmation`. A fresh thread that first searches for
+old `ccreq_*` records, calls `get_codecut_requirement_confirmation` for an old
+draft, or creates a project before a same-thread confirmation page has been
+opened is a failure.
+
+For a narrower no-side-effect smoke after the natural prompt proof passes, use
+this guarded prompt:
 
 ```text
 [@codecut](plugin://codecut@local-opc) Validate intake behavior: I have a local
@@ -136,8 +157,10 @@ project creation.
 
 ```text
 exactly one mcpToolCall server=codecut_mcp tool=open_codecut_requirement_confirmation
+opened draftId is present
 no inline MCP App opener or outputTemplate for the requirement confirmation tool
 at least one mcpToolCall server=codecut_mcp tool=get_codecut_requirement_confirmation returning status=confirmed
+confirmed readback draftId equals the opened draftId
 ```
 
 It must not contain `exec_command`, `fileChange`, or text fallback prompts such
@@ -172,6 +195,11 @@ job intake.
   pending requirement drafts.
 - Missing confirmed `get_codecut_requirement_confirmation`: the thread did not
   prove the user's web confirmation was readable by Codex.
+- Confirmed readback draftId mismatch: the thread reused an old requirement
+  confirmation instead of the current fresh creative job.
+- `get_codecut_requirement_confirmation` before the current
+  `open_codecut_requirement_confirmation`: the thread tried to recover or reuse
+  previous requirement state without an explicit user-provided recovery ID.
 - `create_codecut_project_from_requirement`: the thread created a project during
   intake verification; project creation must wait until confirmed requirement
   readback has been accepted as the next step.
