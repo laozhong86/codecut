@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import {
@@ -125,7 +126,7 @@ function workspaceRoot(root: string) {
 function findPluginRoot(cwd: string) {
 	let current = resolve(cwd);
 	while (true) {
-		if (existsSync(join(current, ".codex-plugin", "plugin.json"))) {
+		if (hasPluginManifest(current)) {
 			return current;
 		}
 		const parent = dirname(current);
@@ -134,6 +135,15 @@ function findPluginRoot(cwd: string) {
 		}
 		current = parent;
 	}
+}
+
+function hasPluginManifest(root: string) {
+	return existsSync(join(root, ".codex-plugin", "plugin.json"));
+}
+
+function sharedRequirementRoot(env: NodeJS.ProcessEnv) {
+	const home = env.HOME?.trim() || homedir();
+	return resolve(home, ".codex", "codecut");
 }
 
 export function resolveRequirementConfirmationRoot({
@@ -145,7 +155,9 @@ export function resolveRequirementConfirmationRoot({
 } = {}) {
 	const explicitRoot = env.CODECUT_REQUIREMENT_ROOT?.trim();
 	if (explicitRoot) return resolve(explicitRoot);
-	return findPluginRoot(cwd);
+	const pluginRoot = findPluginRoot(cwd);
+	if (hasPluginManifest(pluginRoot)) return sharedRequirementRoot(env);
+	return pluginRoot;
 }
 
 export function requirementRoot(root: string, draftId: string) {

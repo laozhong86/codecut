@@ -17,13 +17,13 @@ function validDraftInput(): RequirementDraftInput {
 		originalUserMessage: "22号解说口播保留原片时长",
 		requestedProjectName: "22号解说口播保留原片时长",
 		requestedProjectId: "22-abc123",
-			mediaSources: [
-				{
-					kind: "filePath",
-					filePath: "/Users/x/Downloads/22.mp4",
-					mimeType: "video/mp4",
-				},
-			],
+		mediaSources: [
+			{
+				kind: "filePath",
+				filePath: "/Users/x/Downloads/22.mp4",
+				mimeType: "video/mp4",
+			},
+		],
 		taskType: "edit_execution",
 		timelinePreferences: {
 			aspectRatio: "9:16",
@@ -61,18 +61,45 @@ function validDraftInput(): RequirementDraftInput {
 }
 
 describe("requirement confirmation store", () => {
-	test("resolves a nested web cwd to the plugin root", async () => {
-		const root = await mkdtemp(join(tmpdir(), "codecut-req-root-"));
-		await mkdir(join(root, ".codex-plugin"), { recursive: true });
-		await writeFile(join(root, ".codex-plugin", "plugin.json"), "{}\n", "utf8");
-		await mkdir(join(root, "apps", "web"), { recursive: true });
+	test("uses explicit requirement root before shared plugin storage", () => {
+		const explicitRoot = join(tmpdir(), "codecut-explicit-req-root");
 
 		expect(
 			resolveRequirementConfirmationRoot({
-				cwd: join(root, "apps", "web"),
-				env: { NODE_ENV: "test" },
+				cwd: "/different/cwd",
+				env: { CODECUT_REQUIREMENT_ROOT: explicitRoot, NODE_ENV: "test" },
 			}),
-		).toBe(root);
+		).toBe(explicitRoot);
+	});
+
+	test("resolves source and cache plugin cwd to the same shared root", async () => {
+		const root = await mkdtemp(join(tmpdir(), "codecut-req-root-"));
+		const sourceRoot = join(root, "source");
+		const cacheRoot = join(root, "cache");
+		const homeRoot = join(root, "home");
+		for (const pluginRoot of [sourceRoot, cacheRoot]) {
+			await mkdir(join(pluginRoot, ".codex-plugin"), { recursive: true });
+			await writeFile(
+				join(pluginRoot, ".codex-plugin", "plugin.json"),
+				"{}\n",
+				"utf8",
+			);
+			await mkdir(join(pluginRoot, "apps", "web"), { recursive: true });
+		}
+
+		const expectedRoot = join(homeRoot, ".codex", "codecut");
+		expect(
+			resolveRequirementConfirmationRoot({
+				cwd: join(sourceRoot, "apps", "web"),
+				env: { HOME: homeRoot, NODE_ENV: "test" },
+			}),
+		).toBe(expectedRoot);
+		expect(
+			resolveRequirementConfirmationRoot({
+				cwd: join(cacheRoot, "apps", "web"),
+				env: { HOME: homeRoot, NODE_ENV: "test" },
+			}),
+		).toBe(expectedRoot);
 	});
 
 	test("creates and reads a pending requirement draft", async () => {
