@@ -29,9 +29,10 @@ initialize `.codecut-workspace/projects/<projectId>/`.
 
 The requirement confirmation tool must not render an inline MCP App opener or
 return an `openai/outputTemplate`. The actual form is the local web page at the
-returned confirmation URL. The expected preview path is to open that URL in the
-Codex in-app browser when browser control is available; a plain link is only a
-fallback when the host cannot be controlled.
+returned confirmation URL. The expected preview path is a `node_repl.js`
+browser-control call that runs `setupBrowserRuntime`, targets `iab`, makes the
+browser visible, and navigates to that URL only when needed. A plain link is
+only a fallback when that browser-control call fails.
 
 Codex must not click the requirement page's confirm or cancel controls, script
 the form, or submit the confirmation API. Requirement confirmation is a human
@@ -168,6 +169,7 @@ project creation.
 exactly one mcpToolCall server=codecut_mcp tool=open_codecut_requirement_confirmation
 opened draftId is present
 no inline MCP App opener or outputTemplate for the requirement confirmation tool
+node_repl.js browser-control action opens the returned confirmation URL in target iab
 no browser automation that clicks the confirmation page confirm/cancel controls
 at least one mcpToolCall server=codecut_mcp tool=get_codecut_requirement_confirmation returning status=confirmed
 confirmed readback draftId equals the opened draftId
@@ -200,6 +202,9 @@ job intake.
   to pass, and rerun the fresh-thread proof.
 - Missing `open_codecut_requirement_confirmation`: the agent did not enter
   requirement confirmation intake.
+- Missing `node_repl.js` browser open after requirement draft creation: the
+  thread only emitted a link or chat card. This fails unless the thread records
+  a real `agent.browsers` or browser-control unavailable error.
 - Multiple `open_codecut_requirement_confirmation` calls: the agent retried
   confirmation page creation in one intake thread, which can leave duplicate
   pending requirement drafts.

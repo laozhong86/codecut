@@ -74,6 +74,32 @@ returned `editorUrl` carries the browser bridge token required for editor
 state. Do not call `tab.goto(previewUrl)` if the selected tab is already on the
 preview URL.
 
+## Requirement Confirmation Browser Contract
+
+After `open_codecut_requirement_confirmation` returns, use `node_repl.js` to
+open `structuredContent.browserOpen.url` in target `iab`. Show a text link only
+when the browser-control call fails. Do not click the confirm or cancel buttons.
+
+```ts
+const confirmationUrl = structuredContent.browserOpen.url;
+if (globalThis.agent?.browsers == null) {
+  const { setupBrowserRuntime } = await import(
+    "/Users/x/.codex/plugins/cache/openai-bundled/browser/26.623.81905/scripts/browser-client.mjs"
+  );
+  await setupBrowserRuntime({ globals: globalThis });
+}
+const browser = await agent.browsers.get("iab");
+await (await browser.capabilities.get("visibility")).set(true);
+const tab = (await browser.tabs.selected()) ?? await browser.tabs.new();
+if ((await tab.url()) !== confirmationUrl) {
+  await tab.goto(confirmationUrl);
+  await tab.playwright.waitForLoadState({
+    state: "domcontentloaded",
+    timeoutMs: 10000,
+  });
+}
+```
+
 ## Evidence And Caption Gates
 
 - For tutorial, product-proof, screen-recording, or horizontal-to-vertical jobs,

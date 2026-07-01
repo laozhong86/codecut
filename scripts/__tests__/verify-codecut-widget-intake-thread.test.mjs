@@ -13,6 +13,27 @@ function jsonlLine(payload) {
 	return JSON.stringify({ timestamp: "2026-06-24T00:00:00.000Z", payload });
 }
 
+function requirementBrowserOpenItem(url = "http://127.0.0.1:4100/en/requirements/ccreq_demo") {
+	return {
+		type: "mcpToolCall",
+		server: "node_repl",
+		tool: "js",
+		arguments: {
+			code: [
+				'const confirmationUrl = "' + url + '";',
+				"const { setupBrowserRuntime } = await import('/Users/x/.codex/plugins/cache/openai-bundled/browser/26.623.81905/scripts/browser-client.mjs');",
+				"await setupBrowserRuntime({ globals: globalThis });",
+				'const browser = await agent.browsers.get("iab");',
+				'await (await browser.capabilities.get("visibility")).set(true);',
+				"const tab = (await browser.tabs.selected()) ?? await browser.tabs.new();",
+				"if ((await tab.url()) !== confirmationUrl) {",
+				"  await tab.goto(confirmationUrl);",
+				"}",
+			].join("\n"),
+		},
+	};
+}
+
 describe("verify Codecut widget intake thread", () => {
 	test("passes when a fresh thread called the Codecut workspace widget without shell or file writes", () => {
 		const report = assertWidgetIntakeThread({
@@ -38,6 +59,8 @@ describe("verify Codecut widget intake thread", () => {
 			widgetCallCount: 1,
 			requirementOpenCallCount: 0,
 			requirementConfirmedReadbackCount: 0,
+			requirementBrowserOpenCallCount: 0,
+			browserControlUnavailableEvidenceCount: 0,
 			requirementInlineOpenerCount: 0,
 			projectSideEffectCallCount: 0,
 			disallowedShellCallCount: 0,
@@ -66,6 +89,7 @@ describe("verify Codecut widget intake thread", () => {
 								},
 							},
 						},
+						requirementBrowserOpenItem(),
 					],
 				},
 				{
@@ -92,12 +116,108 @@ describe("verify Codecut widget intake thread", () => {
 			widgetCallCount: 0,
 			requirementOpenCallCount: 1,
 			requirementConfirmedReadbackCount: 1,
+			requirementBrowserOpenCallCount: 1,
 			openedRequirementDraftId: "ccreq_demo",
 			confirmedRequirementDraftId: "ccreq_demo",
 			requirementInlineOpenerCount: 0,
 			projectSideEffectCallCount: 0,
 			followUpMessageCount: 0,
 		});
+	});
+
+	test("passes requirement confirmation mode with explicit browser-control failure evidence", () => {
+		const report = assertWidgetIntakeThread({
+			threadId: "thread-requirement-browser-unavailable",
+			requireConfirmedRequirement: true,
+			records: [
+				{
+					type: "turn",
+					items: [
+						{
+							type: "mcpToolCall",
+							server: "codecut_mcp",
+							tool: "open_codecut_requirement_confirmation",
+							result: {
+								structuredContent: {
+									status: "awaiting_user_confirmation",
+									draftId: "ccreq_demo",
+								},
+							},
+						},
+						{
+							type: "agentMessage",
+							text: "node_repl browser control failed: agent.browsers is unavailable.",
+						},
+					],
+				},
+				{
+					type: "turn",
+					items: [
+						{
+							type: "mcpToolCall",
+							server: "codecut_mcp",
+							tool: "get_codecut_requirement_confirmation",
+							result: {
+								structuredContent: {
+									status: "confirmed",
+									draftId: "ccreq_demo",
+								},
+							},
+						},
+					],
+				},
+			],
+		});
+
+		expect(report).toMatchObject({
+			status: "passed",
+			requirementBrowserOpenCallCount: 0,
+			browserControlUnavailableEvidenceCount: 1,
+		});
+	});
+
+	test("fails requirement confirmation mode when the page was only linked", () => {
+		expect(() =>
+			assertWidgetIntakeThread({
+				threadId: "thread-requirement-link-only",
+				requireConfirmedRequirement: true,
+				records: [
+					{
+						type: "turn",
+						items: [
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "open_codecut_requirement_confirmation",
+								result: {
+									structuredContent: {
+										status: "awaiting_user_confirmation",
+										draftId: "ccreq_demo",
+									},
+								},
+							},
+							{
+								type: "agentMessage",
+								text: "确认页已经生成：[打开确认页](http://127.0.0.1:4100/en/requirements/ccreq_demo)",
+							},
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "get_codecut_requirement_confirmation",
+								result: {
+									structuredContent: {
+										status: "confirmed",
+										draftId: "ccreq_demo",
+									},
+								},
+							},
+						],
+					},
+				],
+			}),
+		).toThrow(
+			"Codecut requirement confirmation regressed: missing node_repl.js browser open after requirement draft creation.",
+		);
 	});
 
 	test("fails requirement confirmation mode if inline opener metadata returns", () => {
@@ -153,6 +273,7 @@ describe("verify Codecut widget intake thread", () => {
 								server: "codecut_mcp",
 								tool: "open_codecut_requirement_confirmation",
 							},
+							requirementBrowserOpenItem(),
 						],
 					},
 				],
@@ -180,6 +301,9 @@ describe("verify Codecut widget intake thread", () => {
 									draftId: "ccreq_new",
 								},
 							},
+							requirementBrowserOpenItem(
+								"http://127.0.0.1:4100/en/requirements/ccreq_new",
+							),
 							{
 								type: "mcpToolCall",
 								server: "codecut_mcp",

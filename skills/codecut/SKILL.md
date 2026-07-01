@@ -150,12 +150,12 @@ resume it.
 This creates only a local `draft.json` and a human confirmation page. It must
 not create an executor project, import media, or initialize a project
 workspace. After the tool returns, open its `confirmationUrl` in the Codex
-in-app browser for human preview when browser control is available; if browser
-control is not available, show the URL as the fallback. Do not rely on an
-inline MCP app, output template, or chat card to open the confirmation page.
-Opening the page is the end of the agent-controlled intake step. Do not click
-the page's confirm or cancel buttons, do not script the form, and do not submit
-the confirmation API from browser automation. If the user says "continue",
+in-app browser for human preview by using `node_repl.js` with
+`setupBrowserRuntime` and target `iab`. Only show the URL as the fallback after
+a real browser-control failure. Do not rely on an inline MCP app, output
+template, chat card, or text link to open the confirmation page. Opening the
+page is the end of the agent-controlled intake step. Do not click the confirm or cancel buttons, do not script the form, and do not submit the confirmation
+API from browser automation. If the user says "continue",
 "打开确认页", or similar before they have explicitly confirmed in the web page,
 only reopen or show the confirmation page and stop again. After the user
 explicitly says they confirmed or cancelled in the page, call
@@ -174,7 +174,7 @@ normal new-job intake path.
 | Request shape | Required stage |
 | --- | --- |
 | Source-only acquisition: "download", "save locally", "提取到本地", "下载到本地", or similar with no editing, timeline, template, or export request | Use `codecut-tiktok-downloader` for TikTok sources, otherwise use `codecut-material-ingest`. Do not open the creative editing confirmation page or run executor mutation commands. |
-| New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", or any request that will create, edit, verify, or export a timeline | Verify `http://127.0.0.1:4100/en/projects` first; if it fails, start `bun run dev:web` in a persistent foreground/PTY session and wait for readiness. If preserving full source from a local file, measure `sourceDurationSeconds` with `ffprobe` before requirement confirmation. Then call `open_codecut_requirement_confirmation` before loading child skills or unrelated shell, and open the returned `confirmationUrl` in the Codex in-app browser when available. Stop until `get_codecut_requirement_confirmation` returns `status: "confirmed"` for the same `draftId`; only then call `create_codecut_project_from_requirement`. Do not reuse old `ccreq_*` values unless the user explicitly asks to recover that exact draft. After setup creation, use `codecut-requirement-intake` to pass or block the execution gate. |
+| New creative job with missing setup fields, new source material, remote URL, local media path, "make a short", "剪辑", or any request that will create, edit, verify, or export a timeline | Verify `http://127.0.0.1:4100/en/projects` first; if it fails, start `bun run dev:web` in a persistent foreground/PTY session and wait for readiness. If preserving full source from a local file, measure `sourceDurationSeconds` with `ffprobe` before requirement confirmation. Then call `open_codecut_requirement_confirmation` before loading child skills or unrelated shell, and open the returned `confirmationUrl` with `node_repl.js` plus `setupBrowserRuntime` in target `iab`. Stop until `get_codecut_requirement_confirmation` returns `status: "confirmed"` for the same `draftId`; only then call `create_codecut_project_from_requirement`. Do not reuse old `ccreq_*` values unless the user explicitly asks to recover that exact draft. After setup creation, use `codecut-requirement-intake` to pass or block the execution gate. |
 | Title-only or title-generation request with no timeline mutation request: 标题根据素材生成, 顶部固定标题, 封面标题, 视频标题, 标题优化, 爆款标题, fixed top title, cover title, platform title, publish title, or title optimization | Use `codecut-title-generation`. Do not open the creative editing confirmation page, create an executor project, import media, or mutate the timeline. If the user also asks to apply the selected title into an edit, produce the TitleGenerationBrief first, then route through normal requirement intake and planning. |
 | Hook, voiceover script, spoken-word draft, or de-AI rewrite with no timeline mutation request | Use `codecut-scriptwriting`. Do not open the creative editing confirmation page, create an executor project, import media, or mutate the timeline. If the user also asks to apply the copy into an edit, produce the copy brief first, then route through normal requirement intake and planning. |
 | Already-confirmed creative job with an explicit current `draftId`, `projectId`, or setup follow-up from this same job | **REQUIRED SUB-SKILL:** Use `codecut-requirement-intake` before executor mutation. If the user did not provide the exact current confirmation or recovery identifier, return to the new creative job path and create a fresh requirement draft. |

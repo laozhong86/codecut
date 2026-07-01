@@ -3092,7 +3092,9 @@ try {
 					message:
 						"Installed Codecut plugin cache is out of sync with the source tree.",
 					data: expect.objectContaining({
-						changedPaths: ["scripts/codex-bridge.mjs"],
+						scope: "runtime",
+						blockingChangedPaths: ["scripts/codex-bridge.mjs"],
+						advisoryChangedPaths: [],
 					}),
 				}),
 			);
@@ -3115,10 +3117,18 @@ try {
 		await mkdir(join(sourceRoot, "skills/codecut"), {
 			recursive: true,
 		});
+		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
 		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
 		await mkdir(join(cacheRoot, "skills/codecut"), {
 			recursive: true,
 		});
+		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
+		const bridgeEnv = [
+			"CODECUT_AGENT_BRIDGE_URL=http://localhost:4100",
+			"CODECUT_AGENT_BRIDGE_TOKEN=local-token",
+			"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=1000",
+			"CODECUT_AGENT_BRIDGE_INTERVAL_MS=1",
+		].join("\n");
 		await writeFile(
 			join(sourceRoot, ".codex-plugin/plugin.json"),
 			JSON.stringify({ name: "codecut", version: "0.1.1" }),
@@ -3129,6 +3139,7 @@ try {
 			"---\nname: codecut\n---\n",
 			"utf8",
 		);
+		await writeFile(join(sourceRoot, "apps/web/.env.local"), bridgeEnv, "utf8");
 		await writeFile(
 			join(cacheRoot, ".codex-plugin/plugin.json"),
 			JSON.stringify({ name: "codecut", version: "0.1.1" }),
@@ -3139,6 +3150,7 @@ try {
 			"---\nname: codecut\n---\n",
 			"utf8",
 		);
+		await writeFile(join(cacheRoot, "apps/web/.env.local"), bridgeEnv, "utf8");
 
 		try {
 			const result = await runInstallDoctor({
@@ -3179,6 +3191,112 @@ try {
 				expect.objectContaining({
 					ok: true,
 					message: "Installed Codecut plugin cache matches the source tree.",
+				}),
+			);
+		} finally {
+			await Promise.all([
+				rm(sourceRoot, { recursive: true, force: true }),
+				rm(homeRoot, { recursive: true, force: true }),
+			]);
+		}
+	});
+
+	test("install doctor reports non-runtime cache drift without blocking execution", async () => {
+		const sourceRoot = await mkdtemp(join(tmpdir(), "codecut-source-"));
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(sourceRoot, "skills/codecut"), {
+			recursive: true,
+		});
+		await mkdir(join(sourceRoot, "apps/web"), { recursive: true });
+		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(cacheRoot, "skills/codecut"), {
+			recursive: true,
+		});
+		await mkdir(join(cacheRoot, "apps/web"), { recursive: true });
+		const bridgeEnv = [
+			"CODECUT_AGENT_BRIDGE_URL=http://localhost:4100",
+			"CODECUT_AGENT_BRIDGE_TOKEN=local-token",
+			"CODECUT_AGENT_BRIDGE_TIMEOUT_MS=1000",
+			"CODECUT_AGENT_BRIDGE_INTERVAL_MS=1",
+		].join("\n");
+		await writeFile(
+			join(sourceRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(sourceRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
+			"utf8",
+		);
+		await writeFile(join(sourceRoot, "apps/web/.env.local"), bridgeEnv, "utf8");
+		await writeFile(
+			join(cacheRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
+			"utf8",
+		);
+		await writeFile(join(cacheRoot, "apps/web/.env.local"), bridgeEnv, "utf8");
+
+		try {
+			const result = await runInstallDoctor({
+				projectId: "project-123",
+				cwd: sourceRoot,
+				homeDir: homeRoot,
+				env: {
+					CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+					CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+					CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+					CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+				},
+				execFileImpl: async () => ({
+					stdout:
+						">fcs....... docs/codecut-widget-intake-fresh-thread.md\n>fcs....... apps/web/public/logos/codecut/png/logo-512.png\n",
+					stderr: "",
+				}),
+				nodeRendererProbe: async () => ({
+					id: "node_renderer",
+					ok: true,
+					message: "Node Canvas/WebCodecs renderer is available.",
+				}),
+				sharpRuntimeProbe: passingSharpRuntimeProbe,
+				fetchImpl: async (url) => {
+					if (String(url).endsWith("/en/projects")) {
+						return new Response("ok");
+					}
+					return new Response(
+						JSON.stringify({
+							projectId: "project-123",
+							status: "idle",
+							message: "Executor project is ready.",
+						}),
+					);
+				},
+			});
+
+			expect(result.ok).toBe(true);
+			expect(result.checks.find((check) => check.id === "plugin_sync")).toEqual(
+				expect.objectContaining({
+					ok: true,
+					message:
+						"Runtime-critical Codecut plugin cache matches the source tree; non-runtime cache drift was reported but does not block execution.",
+					data: expect.objectContaining({
+						scope: "runtime",
+						blockingChangedPaths: [],
+						advisoryChangedPaths: [
+							"docs/codecut-widget-intake-fresh-thread.md",
+							"apps/web/public/logos/codecut/png/logo-512.png",
+						],
+					}),
 				}),
 			);
 		} finally {
@@ -3354,6 +3472,108 @@ try {
 			});
 			expect(JSON.stringify(result)).not.toContain(
 				"CODECUT_AGENT_BRIDGE_TOKEN",
+			);
+		} finally {
+			await Promise.all([
+				rm(marketplaceRoot, { recursive: true, force: true }),
+				rm(homeRoot, { recursive: true, force: true }),
+			]);
+		}
+	});
+
+	test("plugin freshness stays strict for non-runtime cache drift", async () => {
+		const marketplaceRoot = await mkdtemp(
+			join(tmpdir(), "codecut-marketplace-"),
+		);
+		const sourceRoot = join(marketplaceRoot, "plugins/cutia");
+		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
+		const cacheRoot = join(
+			homeRoot,
+			".codex/plugins/cache/local-opc/codecut/0.1.1",
+		);
+		await mkdir(join(marketplaceRoot, ".agents/plugins"), { recursive: true });
+		await mkdir(join(sourceRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(sourceRoot, "skills/codecut"), {
+			recursive: true,
+		});
+		await mkdir(join(cacheRoot, ".codex-plugin"), { recursive: true });
+		await mkdir(join(cacheRoot, "skills/codecut"), {
+			recursive: true,
+		});
+		await mkdir(join(homeRoot, ".codex"), { recursive: true });
+		await writeFile(
+			join(marketplaceRoot, ".agents/plugins/marketplace.json"),
+			JSON.stringify({
+				name: "local-opc",
+				plugins: [
+					{
+						name: "codecut",
+						source: { source: "local", path: "./plugins/cutia" },
+						policy: {
+							installation: "AVAILABLE",
+							authentication: "ON_INSTALL",
+						},
+						category: "Developer Tools",
+					},
+				],
+			}),
+			"utf8",
+		);
+		await writeFile(
+			join(homeRoot, ".codex/config.toml"),
+			[
+				'[plugins."codecut@local-opc"]',
+				"enabled = true",
+				"",
+				"[marketplaces.local-opc]",
+				'source_type = "local"',
+				`source = ${JSON.stringify(marketplaceRoot)}`,
+			].join("\n"),
+			"utf8",
+		);
+		await writeFile(
+			join(sourceRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(sourceRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, ".codex-plugin/plugin.json"),
+			JSON.stringify({ name: "codecut", version: "0.1.1" }),
+			"utf8",
+		);
+		await writeFile(
+			join(cacheRoot, "skills/codecut/SKILL.md"),
+			"---\nname: codecut\n---\n",
+			"utf8",
+		);
+
+		try {
+			const result = await runPluginFreshness({
+				cwd: sourceRoot,
+				homeDir: homeRoot,
+				execFileImpl: async () => ({
+					stdout: ">fcs....... docs/codecut-widget-intake-fresh-thread.md\n",
+					stderr: "",
+				}),
+			});
+
+			expect(result.ok).toBe(false);
+			expect(result.checks.find((check) => check.id === "plugin_sync")).toEqual(
+				expect.objectContaining({
+					ok: false,
+					data: expect.objectContaining({
+						scope: "strict",
+						blockingChangedPaths: [
+							"docs/codecut-widget-intake-fresh-thread.md",
+						],
+						advisoryChangedPaths: [],
+					}),
+				}),
 			);
 		} finally {
 			await Promise.all([

@@ -465,6 +465,50 @@ function parseRsyncChangedPaths(output) {
 		});
 }
 
+const runtimeSyncPathPrefixes = [
+	".codex-plugin/",
+	"mcp/",
+	"scripts/",
+	"skills/",
+	"apps/web/src/",
+];
+
+const runtimeSyncExactPaths = new Set([
+	".app.json",
+	".mcp.json",
+	"package.json",
+	"bun.lock",
+	"bun.lockb",
+	"package-lock.json",
+	"pnpm-lock.yaml",
+	"yarn.lock",
+	"tsconfig.json",
+	"apps/web/package.json",
+	"apps/web/bun.lock",
+	"apps/web/bun.lockb",
+	"apps/web/package-lock.json",
+	"apps/web/pnpm-lock.yaml",
+	"apps/web/yarn.lock",
+	"apps/web/next.config.js",
+	"apps/web/next.config.mjs",
+	"apps/web/next.config.ts",
+	"apps/web/tsconfig.json",
+]);
+
+function normalizeRsyncChangedPath(path) {
+	return String(path).replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+function isRuntimePluginSyncPath(path) {
+	const normalizedPath = normalizeRsyncChangedPath(path);
+	if (runtimeSyncExactPaths.has(normalizedPath)) return true;
+	return runtimeSyncPathPrefixes.some(
+		(prefix) =>
+			normalizedPath === prefix.slice(0, -1) ||
+			normalizedPath.startsWith(prefix),
+	);
+}
+
 function unquoteEnvValue(value) {
 	const trimmed = value.trim();
 	if (
@@ -606,6 +650,7 @@ async function checkPluginSync({
 	sourceOk,
 	cacheOk,
 	execFileImpl,
+	scope = "strict",
 }) {
 	if (!sourceOk || !cacheOk || !cacheRoot) {
 		return doctorCheck({
@@ -613,7 +658,7 @@ async function checkPluginSync({
 			ok: false,
 			message:
 				"Source and installed cache must be valid before checking plugin sync.",
-			data: { sourceOk, cacheOk, cacheRoot },
+			data: { sourceOk, cacheOk, cacheRoot, scope },
 		});
 	}
 
@@ -624,28 +669,55 @@ async function checkPluginSync({
 	];
 	try {
 		const { stdout } = await execFileImpl("rsync", args);
-		const changedPaths = parseRsyncChangedPaths(String(stdout ?? ""));
-		if (changedPaths.length > 0) {
+		const changedPaths = parseRsyncChangedPaths(String(stdout ?? "")).map(
+			normalizeRsyncChangedPath,
+		);
+		const blockingChangedPaths =
+			scope === "runtime"
+				? changedPaths.filter(isRuntimePluginSyncPath)
+				: changedPaths;
+		const advisoryChangedPaths =
+			scope === "runtime"
+				? changedPaths.filter((path) => !isRuntimePluginSyncPath(path))
+				: [];
+		const data = {
+			sourceRoot: cwd,
+			cacheRoot,
+			scope,
+			changedPaths,
+			blockingChangedPaths,
+			advisoryChangedPaths,
+		};
+		if (blockingChangedPaths.length > 0) {
 			return doctorCheck({
 				id: "plugin_sync",
 				ok: false,
 				message:
 					"Installed Codecut plugin cache is out of sync with the source tree.",
-				data: { sourceRoot: cwd, cacheRoot, changedPaths },
+				data,
+			});
+		}
+		if (advisoryChangedPaths.length > 0) {
+			return doctorCheck({
+				id: "plugin_sync",
+				ok: true,
+				message:
+					"Runtime-critical Codecut plugin cache matches the source tree; non-runtime cache drift was reported but does not block execution.",
+				data,
 			});
 		}
 		return doctorCheck({
 			id: "plugin_sync",
 			ok: true,
 			message: "Installed Codecut plugin cache matches the source tree.",
-			data: { sourceRoot: cwd, cacheRoot },
+			data,
 		});
 	} catch (error) {
 		return doctorCheck({
 			id: "plugin_sync",
 			ok: false,
 			message: `Plugin sync check failed: ${error instanceof Error ? error.message : String(error)}`,
-			data: { sourceRoot: cwd, cacheRoot },
+			data: { sourceRoot: cwd, cacheRoot, scope },
 		});
 	}
 }
@@ -919,6 +991,7 @@ export async function runPluginFreshness({
 			sourceOk: source.check.ok,
 			cacheOk: cache.check.ok,
 			execFileImpl,
+			scope: "strict",
 		}),
 	];
 	const sessionCheck = doctorCheck({
@@ -1232,6 +1305,7 @@ export async function runInstallDoctor({
 			sourceOk: source.check.ok,
 			cacheOk: cache.check.ok,
 			execFileImpl,
+			scope: "runtime",
 		}),
 		await checkCacheBridgeEnv({
 			cwd,

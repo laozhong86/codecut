@@ -2154,6 +2154,15 @@ function normalizeWebLocale(locale) {
 	return "en";
 }
 
+function browserOpenForRequirementConfirmation(confirmationUrl) {
+	return {
+		url: confirmationUrl,
+		target: "iab",
+		method: "node_repl",
+		humanActionRequired: true,
+	};
+}
+
 export function openCodecutRequirementConfirmation(
 	input = {},
 	{ root = pluginRoot, cwd = pluginRoot, env = process.env } = {},
@@ -2174,7 +2183,7 @@ export function openCodecutRequirementConfirmation(
 		content: [
 			{
 				type: "text",
-				text: `CodeCut requirement confirmation draft is ready. Open the confirmation URL in the Codex in-app browser for user confirmation: ${confirmationUrl}`,
+				text: `CodeCut requirement confirmation draft is ready. Use node_repl.js with setupBrowserRuntime from /Users/x/.codex/plugins/cache/openai-bundled/browser/26.623.81905/scripts/browser-client.mjs, then call agent.browsers.get("iab") and open this URL: ${confirmationUrl}. Do not click confirm or cancel. Show a link only if browser control is truly unavailable.`,
 			},
 		],
 		structuredContent: {
@@ -2182,6 +2191,7 @@ export function openCodecutRequirementConfirmation(
 			nextAction: "open_requirement_confirmation_page",
 			draftId: draft.draftId,
 			confirmationUrl,
+			browserOpen: browserOpenForRequirementConfirmation(confirmationUrl),
 			draft,
 		},
 	};

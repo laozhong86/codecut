@@ -16,7 +16,7 @@ function usage() {
 		"  node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <id> --require-follow-up true",
 		"  node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <id> --require-confirmed-requirement true",
 		"",
-		"Pass only after a fresh @codecut validation thread has rendered the Codecut workspace widget.",
+		"Pass only after a fresh @codecut validation thread has rendered the required intake surface.",
 	].join("\n");
 }
 
@@ -200,6 +200,48 @@ function isRequirementConfirmedReadback(item) {
 	return nestedStatus(item) === "confirmed";
 }
 
+function isNodeReplJsCall(item) {
+	if (
+		item.type === "mcpToolCall" &&
+		item.server === "node_repl" &&
+		item.tool === "js"
+	) {
+		return true;
+	}
+	if (item.type === "function_call") {
+		return item.name === "js" || item.name === "mcp__node_repl.js";
+	}
+	return false;
+}
+
+function isRequirementBrowserOpenCall(item) {
+	if (!isNodeReplJsCall(item)) return false;
+	const code = toolCodeText(item);
+	if (!code) return false;
+	return (
+		/setupBrowserRuntime/.test(code) &&
+		/agent\.browsers\.get\(["']iab["']\)/.test(code) &&
+		/\.goto\s*\(/.test(code) &&
+		/requirements\//.test(code)
+	);
+}
+
+function isBrowserControlUnavailableEvidence(item) {
+	const text = [
+		textFromMessage(item),
+		typeof item.error === "string" ? item.error : "",
+		typeof item.message === "string" ? item.message : "",
+		typeof item.result === "string" ? item.result : "",
+	]
+		.filter(Boolean)
+		.join("\n");
+	return (
+		/(agent\.browsers|setupBrowserRuntime|browser control|browser-control|in-app browser)/i.test(
+			text,
+		) && /(unavailable|not available|failed|cannot|undefined|error)/i.test(text)
+	);
+}
+
 function containsOpenAiOutputTemplate(value) {
 	if (!value || typeof value !== "object") return false;
 	if (Object.prototype.hasOwnProperty.call(value, "openai/outputTemplate")) {
@@ -310,9 +352,14 @@ export function assertWidgetIntakeThread({
 	const requirementConfirmedReadbackItems = items.filter(
 		isRequirementConfirmedReadback,
 	);
+	const requirementBrowserOpenItems = items.filter(isRequirementBrowserOpenCall);
+	const browserControlUnavailableEvidenceCount = items.filter(
+		isBrowserControlUnavailableEvidence,
+	).length;
 	const requirementOpenCallCount = requirementOpenItems.length;
 	const requirementConfirmedReadbackCount =
 		requirementConfirmedReadbackItems.length;
+	const requirementBrowserOpenCallCount = requirementBrowserOpenItems.length;
 	const requirementInlineOpenerCount = items.filter(
 		hasRequirementInlineOpener,
 	).length;
@@ -359,6 +406,23 @@ export function assertWidgetIntakeThread({
 				"Codecut requirement confirmation regressed: agent clicked the human confirmation control.",
 			);
 		}
+		if (
+			requirementBrowserOpenCallCount === 0 &&
+			browserControlUnavailableEvidenceCount === 0
+		) {
+			throw new Error(
+				"Codecut requirement confirmation regressed: missing node_repl.js browser open after requirement draft creation.",
+			);
+		}
+		if (requirementBrowserOpenCallCount > 0) {
+			const requirementOpenIndex = items.findIndex(isRequirementOpenCall);
+			const browserOpenIndex = items.findIndex(isRequirementBrowserOpenCall);
+			if (browserOpenIndex <= requirementOpenIndex) {
+				throw new Error(
+					"Codecut requirement confirmation regressed: browser open ran before requirement draft creation.",
+				);
+			}
+		}
 		if (requirementConfirmedReadbackCount === 0) {
 			throw new Error(
 				"Codecut requirement confirmation was not proven: missing confirmed get_codecut_requirement_confirmation readback.",
@@ -394,6 +458,8 @@ export function assertWidgetIntakeThread({
 			widgetCallCount,
 			requirementOpenCallCount,
 			requirementConfirmedReadbackCount,
+			requirementBrowserOpenCallCount,
+			browserControlUnavailableEvidenceCount,
 			openedRequirementDraftId,
 			confirmedRequirementDraftId,
 			requirementInlineOpenerCount,
@@ -433,6 +499,8 @@ export function assertWidgetIntakeThread({
 		widgetCallCount,
 		requirementOpenCallCount,
 		requirementConfirmedReadbackCount,
+		requirementBrowserOpenCallCount,
+		browserControlUnavailableEvidenceCount,
 		requirementInlineOpenerCount,
 		projectSideEffectCallCount,
 		disallowedShellCallCount,
