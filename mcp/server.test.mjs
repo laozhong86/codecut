@@ -919,9 +919,18 @@ describe("Codecut MCP server contract", () => {
 			expect(result.structuredContent.confirmationUrl).toContain(
 				"/en/requirements/",
 			);
+			expect(result.structuredContent.browserOpen).toEqual({
+				url: result.structuredContent.confirmationUrl,
+				target: "iab",
+				method: "node_repl",
+				humanActionRequired: true,
+			});
 			expect(result.content[0].text).toContain(
-				"Open the confirmation URL in the Codex in-app browser",
+				"Use node_repl.js with setupBrowserRuntime",
 			);
+			expect(result.content[0].text).toContain("scripts/browser-client.mjs");
+			expect(result.content[0].text).toContain('agent.browsers.get("iab")');
+			expect(result.content[0].text).toContain("Do not click confirm or cancel");
 			expect(result._meta).toBeUndefined();
 
 			const draft = JSON.parse(

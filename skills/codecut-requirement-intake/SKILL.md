@@ -107,9 +107,9 @@ Allowed before this gate passes:
 - read the user request
 - inspect an existing project when the user asks for read-only inspection
 - call `open_codecut_requirement_confirmation`, open its returned
-  `confirmationUrl` in the Codex in-app browser when available, then wait for
-  confirmed `get_codecut_requirement_confirmation` readback before calling
-  `create_codecut_project_from_requirement`
+  `confirmationUrl` with `node_repl.js` plus `setupBrowserRuntime` in target
+  `iab`, then wait for confirmed `get_codecut_requirement_confirmation`
+  readback before calling `create_codecut_project_from_requirement`
 - ask text-only setup questions only when the requirement confirmation tool is
   unavailable after tool discovery
 
@@ -131,10 +131,12 @@ then call the returned `mcp__codecut_mcp.open_codecut_requirement_confirmation`
 tool.
 
 The web requirement confirmation page is the primary review surface. It must be
-opened with the returned `confirmationUrl` in the Codex in-app browser when
-browser control is available. Do not rely on an inline MCP App, output
-template, or chat card to open the confirmation page. Complete setup fields are
-not create-project confirmation. Codex should call
+opened with the returned `confirmationUrl` by using `node_repl.js` with
+`setupBrowserRuntime` and target `iab`. Only show the URL as fallback after a
+real browser-control failure. Do not click the confirm or cancel buttons. Do
+not rely on an inline MCP App, output template, chat card, or text link to open
+the confirmation page. Complete setup fields are not create-project
+confirmation. Codex should call
 `create_codecut_project_from_requirement` only after the user confirms in the
 web page and `get_codecut_requirement_confirmation` reads back
 `status: "confirmed"`. The project creation tool returns the confirmed setup

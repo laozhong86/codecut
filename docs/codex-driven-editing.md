@@ -232,13 +232,13 @@ browser URL, bridge URL, and editor origin must stay aligned on
 
 After `open_codecut_requirement_confirmation` succeeds, use the returned
 `confirmationUrl` as the real form URL. Do not attach an inline MCP App opener
-or `openai/outputTemplate` to that tool. Open the URL in the Codex in-app
-browser when browser control is available; if the host cannot be controlled,
-show the URL as a fallback. Codex must not click the form's confirm or cancel
-buttons, script the form controls, or submit the confirmation API. Requirement
-confirmation is a human action. If the user asks Codex to continue before they
-say they confirmed the web page, Codex may only reopen the confirmation page and
-stop again.
+or `openai/outputTemplate` to that tool. Use `node_repl.js` with
+`setupBrowserRuntime` to open the URL in Codex in-app browser target `iab`;
+show the URL as fallback only after a real browser-control failure. Codex must
+not click the form's confirm or cancel buttons, script the form controls, or
+submit the confirmation API. Requirement confirmation is a human action. If the
+user asks Codex to continue before they say they confirmed the web page, Codex
+may only reopen the confirmation page and stop again.
 
 The `draftId` from `open_codecut_requirement_confirmation` is the only valid
 draft for the current fresh creative job. Do not call
@@ -318,7 +318,7 @@ Before the first business bridge command, run:
 node scripts/codex-bridge.mjs doctor-install --project-id <id>
 ```
 
-`doctor-install` checks the source plugin, installed Codex plugin cache, source-to-cache sync state, `CODECUT_AGENT_BRIDGE_*` environment, Node renderer support, Sharp/libvips native image support, the 4100 web service, and the executor project. It verifies that the token exists but never prints the token value. If `plugin_sync` fails, run `node scripts/sync-codex-local-plugin.mjs` from the plugin root, then rerun `doctor-install`. If `sharp_libvips` fails, fix the local dependency install before visual inspection, export-frame extraction, or quality-report work.
+`doctor-install` checks the source plugin, installed Codex plugin cache, runtime source-to-cache sync state, `CODECUT_AGENT_BRIDGE_*` environment, Node renderer support, Sharp/libvips native image support, the 4100 web service, and the executor project. It verifies that the token exists but never prints the token value. If `plugin_sync.data.blockingChangedPaths` is non-empty, run `node scripts/sync-codex-local-plugin.mjs` from the plugin root, then rerun `doctor-install`. If `plugin_sync.data.advisoryChangedPaths` contains only docs, README, logo, or brand asset drift, ordinary editing may continue; use strict `bun run plugin:freshness` for plugin release, schema, widget, skill, or prompt changes. If `sharp_libvips` fails, fix the local dependency install before visual inspection, export-frame extraction, or quality-report work.
 
 Then run the executor readiness check:
 

@@ -127,8 +127,9 @@ isolated runtime needs an explicit root.
 
 `open_codecut_requirement_confirmation` writes only `draft.json` and returns a
 confirmation page URL. It does not render an inline MCP App opener; open the
-returned URL in the Codex in-app browser when browser control is available. It
-must not create an executor project, import media, or initialize
+returned URL with `node_repl.js` plus `setupBrowserRuntime` in Codex in-app
+browser target `iab`. Only show a URL fallback after a real browser-control
+failure. It must not create an executor project, import media, or initialize
 `.codecut-workspace/projects/<projectId>/`. Only a confirmed
 `get_codecut_requirement_confirmation` readback may be passed to
 `create_codecut_project_from_requirement`.
@@ -137,8 +138,9 @@ must not create an executor project, import media, or initialize
 
 1. Understand the user message and write intent analysis.
 2. Call `open_codecut_requirement_confirmation`, open its returned
-   confirmation URL in the Codex in-app browser when available, then wait for
-   the user to confirm or cancel in the web confirmation page.
+   confirmation URL with `node_repl.js` plus `setupBrowserRuntime` in target
+   `iab`, then wait for the user to confirm or cancel in the web confirmation
+   page.
 3. Call `get_codecut_requirement_confirmation` and continue only when it
    returns `status: "confirmed"`.
 4. Call `create_codecut_project_from_requirement` with the confirmed `draftId`.

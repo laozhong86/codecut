@@ -320,6 +320,15 @@ describe("CodeCut plugin startup guidance", () => {
 		);
 		expect(intakeSkill).toContain("text-only questions");
 		expect(intakeSkill).toContain("create_codecut_project_from_requirement");
+		for (const content of [routerAgentCard, intakeAgentCard]) {
+			expect(content).toContain("node_repl");
+			expect(content).toContain("setupBrowserRuntime");
+			expect(content).toContain("scripts/browser-client.mjs");
+			expect(content).toContain('agent.browsers.get("iab")');
+		}
+		for (const content of [routerSkill, intakeSkill]) {
+			expect(content).toContain("Do not click the confirm or cancel buttons");
+		}
 		expect(normalizedRouterSkill).toContain("run `ffprobe` on that local file");
 		expect(compactRouterSkill).toContain(
 			"before loading stage skills, reading other local files",
