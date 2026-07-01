@@ -1762,8 +1762,10 @@ try {
 			totalDuration: 10,
 			trackCount: 2,
 			clipCount: 1,
+			titleCount: 1,
 			captionCount: 0,
 			audioCount: 0,
+			titleCaptionTrackSeparated: true,
 			mediaIds: ["media-123"],
 		};
 		await writeFile(verificationPath, JSON.stringify(verification), "utf8");
