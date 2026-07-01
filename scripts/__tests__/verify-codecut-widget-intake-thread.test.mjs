@@ -199,6 +199,51 @@ describe("verify Codecut widget intake thread", () => {
 		);
 	});
 
+	test("fails requirement confirmation mode if the agent clicks the human confirmation control", () => {
+		expect(() =>
+			assertWidgetIntakeThread({
+				threadId: "thread-requirement-agent-clicked-confirm",
+				requireConfirmedRequirement: true,
+				records: [
+					{
+						type: "turn",
+						items: [
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "open_codecut_requirement_confirmation",
+								structuredContent: {
+									status: "awaiting_user_confirmation",
+									draftId: "ccreq_demo",
+								},
+							},
+							{
+								type: "mcpToolCall",
+								server: "node_repl",
+								tool: "js",
+								arguments: {
+									code: 'var confirmButton = tab.playwright.getByRole("button", { name: "确认需求", exact: true });\nawait confirmButton.click({});',
+								},
+							},
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "get_codecut_requirement_confirmation",
+								arguments: { draftId: "ccreq_demo" },
+								structuredContent: {
+									status: "confirmed",
+									draftId: "ccreq_demo",
+								},
+							},
+						],
+					},
+				],
+			}),
+		).toThrow(
+			"Codecut requirement confirmation regressed: agent clicked the human confirmation control.",
+		);
+	});
+
 	test("fails requirement confirmation mode if project creation ran during intake", () => {
 		expect(() =>
 			assertWidgetIntakeThread({

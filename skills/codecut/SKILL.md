@@ -150,7 +150,12 @@ workspace. After the tool returns, open its `confirmationUrl` in the Codex
 in-app browser for human preview when browser control is available; if browser
 control is not available, show the URL as the fallback. Do not rely on an
 inline MCP app, output template, or chat card to open the confirmation page.
-Wait until the user confirms or cancels in the web page, then call
+Opening the page is the end of the agent-controlled intake step. Do not click
+the page's confirm or cancel buttons, do not script the form, and do not submit
+the confirmation API from browser automation. If the user says "continue",
+"打开确认页", or similar before they have explicitly confirmed in the web page,
+only reopen or show the confirmation page and stop again. After the user
+explicitly says they confirmed or cancelled in the page, call
 `get_codecut_requirement_confirmation`. Continue only when it returns
 `status: "confirmed"` for the same `draftId` returned by
 `open_codecut_requirement_confirmation`. If it returns a different `draftId`,
@@ -197,6 +202,10 @@ normal new-job intake path.
   the current `open_codecut_requirement_confirmation` call. A previous
   confirmed `ccreq_*` is not valid for a new creative job unless the user
   explicitly asks to recover that exact draft.
+- Codex must never click the requirement confirmation page's confirm/cancel
+  controls or call the page confirmation API. Requirement confirmation is a
+  human action. Codex may only open or reopen the page, then wait for an
+  explicit user message saying the page was confirmed before reading it back.
 - `create_codecut_project_from_requirement` creates the executor project and
   initializes `.codecut-workspace/projects/<projectId>/workspace.json`. Do not
   rerun `codecut-workspace init` for that project.

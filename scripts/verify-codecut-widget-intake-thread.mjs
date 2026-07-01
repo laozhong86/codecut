@@ -248,6 +248,30 @@ function isProjectSideEffectCall(item) {
 	return false;
 }
 
+function toolCodeText(item) {
+	const argumentsObject = objectValue(item.arguments);
+	if (typeof argumentsObject?.code === "string") {
+		return argumentsObject.code;
+	}
+	if (typeof item.code === "string") return item.code;
+	return "";
+}
+
+function isHumanConfirmationAutomationCall(item) {
+	const code = toolCodeText(item);
+	if (!code) return false;
+	const mutatesConfirmation =
+		/\.click\s*\(/.test(code) ||
+		/dispatchEvent\s*\(/.test(code) ||
+		/\bfetch\s*\(/.test(code);
+	const targetsRequirementConfirm =
+		/确认需求/.test(code) ||
+		/confirm requirement/i.test(code) ||
+		/requirements\/[^"'`\s]+\/confirm/i.test(code) ||
+		/\/api\/codecut\/requirements/i.test(code);
+	return mutatesConfirmation && targetsRequirementConfirm;
+}
+
 function isShellCall(item) {
 	return item.type === "function_call" && item.name === "exec_command";
 }
@@ -295,6 +319,9 @@ export function assertWidgetIntakeThread({
 	const projectSideEffectCallCount = items.filter(
 		isProjectSideEffectCall,
 	).length;
+	const humanConfirmationAutomationCallCount = items.filter(
+		isHumanConfirmationAutomationCall,
+	).length;
 	const disallowedShellCallCount = items.filter(isShellCall).length;
 	const disallowedFileChangeCount = items.filter(isFileChange).length;
 	const textFallbackCount = items.filter(isTextFallback).length;
@@ -325,6 +352,11 @@ export function assertWidgetIntakeThread({
 		if (projectSideEffectCallCount > 0) {
 			throw new Error(
 				"Codecut requirement confirmation regressed: project creation ran during intake validation.",
+			);
+		}
+		if (humanConfirmationAutomationCallCount > 0) {
+			throw new Error(
+				"Codecut requirement confirmation regressed: agent clicked the human confirmation control.",
 			);
 		}
 		if (requirementConfirmedReadbackCount === 0) {
