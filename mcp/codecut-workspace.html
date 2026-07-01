@@ -517,6 +517,14 @@
                 <option value="false" data-i18n="no">false</option>
               </select>
             </label>
+            <label>
+              <span data-i18n="voicePack">Voiceover voice</span>
+              <select id="voice-pack" name="voicePack">
+                <option value="none" data-i18n="voicePackNone">No voiceover</option>
+                <option value="podcast-female" data-i18n="voicePackPodcastFemale">Podcast female</option>
+                <option value="podcast-male" data-i18n="voicePackPodcastMale">Podcast male</option>
+              </select>
+            </label>
           </div>
           <label class="switch-row" for="generate-intro-cover">
             <input id="generate-intro-cover" name="generateIntroCover" type="checkbox">
@@ -628,6 +636,10 @@
             qualityHigh: "high",
             qualityVeryHigh: "very_high",
             includeAudio: "Include audio",
+            voicePack: "Voiceover voice",
+            voicePackNone: "No voiceover",
+            voicePackPodcastFemale: "Podcast female",
+            voicePackPodcastMale: "Podcast male",
             introCoverRecommended: "Generate a new cover with AI",
             yes: "true",
             no: "false",
@@ -739,6 +751,10 @@
             qualityHigh: "高",
             qualityVeryHigh: "很高",
             includeAudio: "包含音频",
+            voicePack: "配音音色",
+            voicePackNone: "无配音",
+            voicePackPodcastFemale: "播客女",
+            voicePackPodcastMale: "播客男",
             introCoverRecommended: "用AI 生成新的封面",
             yes: "是",
             no: "否",
@@ -793,6 +809,7 @@
           outputFormat: document.getElementById("output-format"),
           outputQuality: document.getElementById("output-quality"),
           includeAudio: document.getElementById("include-audio"),
+          voicePack: document.getElementById("voice-pack"),
           generateIntroCover: document.getElementById("generate-intro-cover"),
           requirements: document.getElementById("requirements"),
           requirementOptions: document.getElementById("requirement-options"),
@@ -898,6 +915,7 @@
           setSelectValue(fields.outputFormat, defaults.output?.format || "mp4");
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
+          setSelectValue(fields.voicePack, defaults.output?.voicePackId || "none");
           fields.generateIntroCover.checked = defaults.generateIntroCover !== false;
           renderChoiceOptions(fields.requirementOptions, defaults.requirementOptions || [defaults.requirements || t("requirementsPlaceholder")], defaults.recommendedRequirementOptions || [], fields.requirements);
           fields.requirements.value = "";
@@ -1467,6 +1485,7 @@
               captionFont: fields.captionFont.value,
               captionSize: fields.captionSize.value,
               captionStylePreset: fields.captionStylePreset.value,
+              voicePackId: fields.voicePack.value,
             },
             generateIntroCover: collectIntroCoverChoice(),
             requirements: collectChoiceText(fields.requirementOptions, fields.requirements),

@@ -741,10 +741,14 @@ describe("Codecut MCP server contract", () => {
 			'<select id="caption-font"',
 			'<select id="caption-size"',
 			'<select id="caption-style-preset"',
+			'<select id="voice-pack"',
 			'<select id="transition-preference"',
 			'value="zh-CN"',
 			'value="en"',
 			'value="auto"',
+			'value="none"',
+			'value="podcast-female"',
+			'value="podcast-male"',
 			'value="CodecutYanBoSong"',
 			'value="CodecutWenKai"',
 			'value="CodecutSmileySans"',
@@ -762,6 +766,10 @@ describe("Codecut MCP server contract", () => {
 			"captionFont",
 			"captionSize",
 			"captionStylePreset",
+			"voicePack",
+			"voicePackNone",
+			"voicePackPodcastFemale",
+			"voicePackPodcastMale",
 			"transitionPreference",
 			"transitionPreferenceAuto",
 			"transitionPreferenceDissolve",
@@ -1641,6 +1649,31 @@ describe("Codecut MCP server contract", () => {
 		});
 	});
 
+	test("opens the workspace with built-in voice selection defaulting to no voice", () => {
+		const defaults = serverModule.openCodecutWorkspace({
+			projectName: "Voice Controls",
+		});
+		expect(defaults.structuredContent.intentDefaults.output.voicePackId).toBe(
+			"none",
+		);
+		expect(defaults._meta.widgetData.intentDefaults.output.voicePackId).toBe(
+			"none",
+		);
+
+		const selected = serverModule.openCodecutWorkspace({
+			projectName: "Voice Controls",
+			output: {
+				voicePackId: "podcast-male",
+			},
+		});
+		expect(selected.structuredContent.intentDefaults.output).toMatchObject({
+			voicePackId: "podcast-male",
+		});
+		expect(selected._meta.widgetData.intentDefaults.output).toMatchObject({
+			voicePackId: "podcast-male",
+		});
+	});
+
 	test("opens the workspace with intro cover disabled when explicitly requested", () => {
 		const result = serverModule.openCodecutWorkspace({
 			projectName: "No Cover Cut",
@@ -1899,6 +1932,15 @@ describe("Codecut MCP server contract", () => {
 			expect(manualTransition.status).toBe("ready");
 			expect(manualTransition.intent.transitionPreference).toBe("slide-left");
 
+			const builtInVoice = await serverModule.inspectCodecutSetup(
+				setupIntent({
+					output: { ...setupIntent().output, voicePackId: "podcast-female" },
+				}),
+				{ bridgeToolImpl },
+			);
+			expect(builtInVoice.status).toBe("ready");
+			expect(builtInVoice.intent.output.voicePackId).toBe("podcast-female");
+
 			for (const [label, intent] of [
 				["invalid project id", setupIntent({ projectId: "../bad" })],
 				["missing project name", setupIntent({ projectName: " " })],
@@ -1954,6 +1996,16 @@ describe("Codecut MCP server contract", () => {
 					setupIntent({
 						mediaSources: [{ kind: "filePath", filePath }],
 						output: { ...setupIntent().output, captionFont: "serif" },
+					}),
+				],
+				[
+					"bad built-in voice pack",
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath }],
+						output: {
+							...setupIntent().output,
+							voicePackId: "播客女",
+						},
 					}),
 				],
 				[
@@ -2218,6 +2270,7 @@ describe("Codecut MCP server contract", () => {
 					transitionPreference: "dissolve",
 					output: {
 						...setupIntent().output,
+						voicePackId: "podcast-male",
 						captionSize: "large",
 						captionStylePreset: "product-punch",
 					},
@@ -2285,6 +2338,9 @@ describe("Codecut MCP server contract", () => {
 						size: "large",
 						stylePreset: "product-punch",
 					},
+					voicePreferences: {
+						voicePackId: "podcast-male",
+					},
 					exportPreferences: {
 						format: "mp4",
 						quality: "high",
@@ -2313,6 +2369,7 @@ describe("Codecut MCP server contract", () => {
 						captionFont: "auto",
 						captionSize: "large",
 						captionStylePreset: "product-punch",
+						voicePackId: "podcast-male",
 					},
 				},
 				importedMedia: [
@@ -2407,6 +2464,12 @@ describe("Codecut MCP server contract", () => {
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				"generate_runninghub_voice_clone",
+			);
+			expect(result.structuredContent.continuePrompt).toContain(
+				"Selected built-in voice: 播客男 (podcast-male)",
+			);
+			expect(slashPath(result.structuredContent.continuePrompt)).toContain(
+				"apps/web/public/voices/podcast-male.mp3",
 			);
 			expect(result.structuredContent.continuePrompt).toContain(
 				"Stop before timeline mutation if the requested voice cannot be resolved",
