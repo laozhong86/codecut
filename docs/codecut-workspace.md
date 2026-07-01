@@ -110,7 +110,12 @@ Project folder:
 
 ## Requirement Confirmation Root
 
-New creative jobs first write requirement confirmation files under:
+New creative jobs first write requirement confirmation files under the shared
+CodeCut requirement root. By default this root is
+`~/.codex/codecut/.codecut-workspace/requirements/`, so a Codex MCP server loaded
+from the installed plugin cache and a web editor served from the source checkout
+read the same draft files. Set `CODECUT_REQUIREMENT_ROOT` only when a test or
+isolated runtime needs an explicit root.
 
 ```text
 .codecut-workspace/requirements/<draftId>/
