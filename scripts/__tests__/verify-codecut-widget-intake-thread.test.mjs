@@ -36,11 +36,156 @@ describe("verify Codecut widget intake thread", () => {
 			status: "passed",
 			threadId: "thread-ok",
 			widgetCallCount: 1,
+			requirementOpenCallCount: 0,
+			requirementConfirmedReadbackCount: 0,
+			requirementInlineOpenerCount: 0,
+			projectSideEffectCallCount: 0,
 			disallowedShellCallCount: 0,
 			disallowedFileChangeCount: 0,
 			textFallbackCount: 0,
 			followUpMessageCount: 0,
 		});
+	});
+
+	test("passes requirement confirmation mode without visible follow-up", () => {
+		const report = assertWidgetIntakeThread({
+			threadId: "thread-requirement-confirmed",
+			requireConfirmedRequirement: true,
+			records: [
+				{
+					type: "turn",
+					items: [
+						{
+							type: "mcpToolCall",
+							server: "codecut_mcp",
+							tool: "open_codecut_requirement_confirmation",
+						},
+					],
+				},
+				{
+					type: "turn",
+					items: [
+						{
+							type: "mcpToolCall",
+							server: "codecut_mcp",
+							tool: "get_codecut_requirement_confirmation",
+							result: {
+								structuredContent: {
+									status: "confirmed",
+									draftId: "ccreq_demo",
+								},
+							},
+						},
+					],
+				},
+			],
+		});
+
+		expect(report).toMatchObject({
+			status: "passed",
+			widgetCallCount: 0,
+			requirementOpenCallCount: 1,
+			requirementConfirmedReadbackCount: 1,
+			requirementInlineOpenerCount: 0,
+			projectSideEffectCallCount: 0,
+			followUpMessageCount: 0,
+		});
+	});
+
+	test("fails requirement confirmation mode if inline opener metadata returns", () => {
+		expect(() =>
+			assertWidgetIntakeThread({
+				threadId: "thread-requirement-inline-opener",
+				requireConfirmedRequirement: true,
+				records: [
+					{
+						type: "turn",
+						items: [
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "open_codecut_requirement_confirmation",
+								result: {
+									_meta: {
+										"openai/outputTemplate":
+											"ui://codecut/0.1.1/requirement-confirmation-deadbeefcafe.html",
+									},
+								},
+							},
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "get_codecut_requirement_confirmation",
+								result: {
+									structuredContent: {
+										status: "confirmed",
+									},
+								},
+							},
+						],
+					},
+				],
+			}),
+		).toThrow(
+			"Codecut requirement confirmation regressed: found inline MCP App opener metadata.",
+		);
+	});
+
+	test("fails requirement confirmation mode without confirmed readback", () => {
+		expect(() =>
+			assertWidgetIntakeThread({
+				threadId: "thread-requirement-pending",
+				requireConfirmedRequirement: true,
+				records: [
+					{
+						type: "turn",
+						items: [
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "open_codecut_requirement_confirmation",
+							},
+						],
+					},
+				],
+			}),
+		).toThrow(
+			"Codecut requirement confirmation was not proven: missing confirmed get_codecut_requirement_confirmation readback.",
+		);
+	});
+
+	test("fails requirement confirmation mode if project creation ran during intake", () => {
+		expect(() =>
+			assertWidgetIntakeThread({
+				threadId: "thread-requirement-side-effect",
+				requireConfirmedRequirement: true,
+				records: [
+					{
+						type: "turn",
+						items: [
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "open_codecut_requirement_confirmation",
+							},
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "submit_codecut_setup",
+							},
+							{
+								type: "mcpToolCall",
+								server: "codecut_mcp",
+								tool: "get_codecut_requirement_confirmation",
+								structuredContent: { status: "confirmed" },
+							},
+						],
+					},
+				],
+			}),
+		).toThrow(
+			"Codecut requirement confirmation regressed: project creation ran during intake validation.",
+		);
 	});
 
 	test("fails when the thread asked text fallback questions instead of opening the widget", () => {
@@ -253,11 +398,14 @@ describe("verify Codecut widget intake thread", () => {
 				"/tmp/thread.jsonl",
 				"--require-follow-up",
 				"true",
+				"--require-confirmed-requirement",
+				"true",
 			]),
 		).toEqual({
 			threadId: "thread-abc",
 			sessionFile: "/tmp/thread.jsonl",
 			requireFollowUp: "true",
+			requireConfirmedRequirement: "true",
 		});
 	});
 });

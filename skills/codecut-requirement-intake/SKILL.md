@@ -27,8 +27,8 @@ to execute.
 
 | Situation | Read first | Stop before continuing | Required readback |
 | --- | --- | --- | --- |
-| New creative job or missing setup fields | `../codecut/references/workflow-stage-contract.md` supporting file map | Two or more blocking fields are missing, or setup submission cannot pass | Confirmed setup token plus `00-brief/requirement-intake.md` when a project exists |
-| Widget or setup-token behavior is involved | `../../docs/codecut-workspace.md` and `../../docs/codex-driven-editing.md` | `open_codecut_workspace` or `submit_codecut_setup` is unavailable | Carry the returned confirmation token to later side-effect stages |
+| New creative job or missing setup fields | `../codecut/references/workflow-stage-contract.md` supporting file map | Two or more blocking fields are missing, or requirement confirmation cannot pass | Confirmed setup token plus `00-brief/requirement-intake.md` when a project exists |
+| Requirement confirmation or setup-token behavior is involved | `../../docs/codecut-workspace.md` and `../../docs/codex-driven-editing.md` | `open_codecut_requirement_confirmation`, `get_codecut_requirement_confirmation`, or `create_codecut_project_from_requirement` is unavailable | Carry the returned confirmation token to later side-effect stages |
 | Requirement pass will lead to executor mutation | `../codecut/references/execution-contract.md` success contract table | Side-effect token, project ID, or required user decision is missing | Executor readback is owned by `codecut-executor-apply` after mutation |
 
 ## Stage Ownership
@@ -47,8 +47,10 @@ verify finished edits. Use `codecut-material-ingest` for material facts and
 - User brief and any widget-submitted setup fields.
 - Known source path, remote URL, existing project ID, output form, platform,
   aspect ratio, caption policy, business goal, and source ownership details.
-- Pending or confirmed setup token from `open_codecut_workspace` /
-  `submit_codecut_setup` when available.
+- Pending or confirmed requirement draft from
+  `open_codecut_requirement_confirmation` / `get_codecut_requirement_confirmation`,
+  plus the confirmed setup token from `create_codecut_project_from_requirement`
+  when available.
 
 ## Outputs
 
@@ -72,8 +74,8 @@ artifact path.
 ## Stop Conditions
 
 - Two or more key blocking fields are missing.
-- The workspace widget path is unavailable and no explicit text answers can
-  safely pass the gate.
+- The requirement confirmation page path is unavailable and no explicit text
+  answers can safely pass the gate.
 - A side-effect token is required but missing.
 
 ## Handoff
@@ -104,35 +106,40 @@ Allowed before this gate passes:
 
 - read the user request
 - inspect an existing project when the user asks for read-only inspection
-- call `open_codecut_workspace`, then wait for the user to explicitly confirm
-  project creation in chat or submit the widget before calling
-  `submit_codecut_setup` with `confirmedByUser: true`
-- ask text-only setup questions only when the workspace widget tool is
+- call `open_codecut_requirement_confirmation`, open its returned
+  `confirmationUrl` in the Codex in-app browser when available, then wait for
+  confirmed `get_codecut_requirement_confirmation` readback before calling
+  `create_codecut_project_from_requirement`
+- ask text-only setup questions only when the requirement confirmation tool is
   unavailable after tool discovery
 
-## Workspace Widget First
+## Requirement Confirmation First
 
 For new creative jobs with missing setup fields, the plugin startup prompt and
-framework router should call the `open_codecut_workspace` MCP tool before this
-stage skill is loaded through shell. If this skill is already loaded, call the
-same tool before sending text-only questions. Pass any known setup fields from
+framework router should call the `open_codecut_requirement_confirmation` MCP
+tool before this stage skill is loaded through shell. If this skill is already
+loaded, call the same tool before sending text-only questions. Pass any known
+setup fields from
 the user request, such as project name, source path or URL, brief, output form,
 platform, aspect ratio, caption language, UI language, and browser preview
 intent.
 
-If `open_codecut_workspace` is not visible in the current callable tool
-surface, use `tool_search` with the query `open_codecut_workspace Codecut
-workspace setup widget`, then call the returned
-`mcp__codecut_mcp.open_codecut_workspace` tool.
+If `open_codecut_requirement_confirmation` is not visible in the current
+callable tool surface, use `tool_search` with the query
+`open_codecut_requirement_confirmation CodeCut requirement confirmation page`,
+then call the returned `mcp__codecut_mcp.open_codecut_requirement_confirmation`
+tool.
 
-The workspace widget is the primary review surface. `submit_codecut_setup` is
-the single setup submission path. Complete setup fields are not create-project
-confirmation. Codex should call it only after the user explicitly confirms
-creating the project in chat, or after the user reviews, edits, and submits the
-widget. The tool returns the confirmed setup token, sends the follow-up prompt
-that opens the Codex in-app browser, and unlocks material ingest, doctor
-checks, project creation, import, generated media, timeline mutation, and
-export.
+The web requirement confirmation page is the primary review surface. It must be
+opened with the returned `confirmationUrl` in the Codex in-app browser when
+browser control is available. Do not rely on an inline MCP App, output
+template, or chat card to open the confirmation page. Complete setup fields are
+not create-project confirmation. Codex should call
+`create_codecut_project_from_requirement` only after the user confirms in the
+web page and `get_codecut_requirement_confirmation` reads back
+`status: "confirmed"`. The project creation tool returns the confirmed setup
+token and unlocks material ingest, doctor checks, import, generated media,
+timeline mutation, and export.
 
 If the user reports that clicking the widget create button did not continue the
 Codex thread, first check whether the project was created and the pending
@@ -142,13 +149,15 @@ not reach the thread, call `recover_codecut_setup` with the `projectId` and
 not open a second setup widget until recovery proves there is no confirmed
 setup result.
 
-If the workspace widget tool is unavailable after tool discovery, report that
-widget intake is unavailable, then ask the required text-only questions with
-choices. Do not run shell commands, write planning/audit files, initialize a
-workspace, create, import, transcribe, generate media, mutate the timeline, or
-export before setup submission. If the widget is unavailable, explicit text
-answers can pass requirement intake, but they do not mint a side-effect token;
-report that CodeCut execution is blocked until the widget path is available.
+If the requirement confirmation tool is unavailable after tool discovery,
+report that requirement confirmation is unavailable, then ask the required
+text-only questions with choices. Do not run shell commands, write
+planning/audit files, initialize a workspace, create, import, transcribe,
+generate media, mutate the timeline, or export before confirmed project
+creation. If the confirmation page is unavailable, explicit text answers can
+pass requirement intake, but they do not mint a side-effect token; report that
+CodeCut execution is blocked until the requirement confirmation path is
+available.
 
 ## Key Fields
 

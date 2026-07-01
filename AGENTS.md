@@ -110,9 +110,9 @@ Generation, localization, enhancement, and inspiration references:
 - If `.codex-plugin/plugin.json` changes `name` or `version`, confirm the matching cache path exists before syncing. The sync script intentionally fails when the installed cache for that plugin identity is missing.
 - After cache sync, prefer a fresh Codex session for plugin manifest, skill, MCP schema, widget, or default prompt validation. Restart the Codex app only when a fresh session still shows stale plugin state.
 - Confirm the Codex host tool surface can discover the target MCP tool with `tool_search`; source and cache truth are not enough when host tool schemas may be stale.
-- For widget-intake behavior, create a fresh `@codecut` validation thread with a prompt that forbids downloads, shell commands, file writes, and editing execution. The proof must show a real `codecut_mcp.open_codecut_workspace` MCP call, not text fallback questions.
-- Validate that fresh-thread proof with `node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId>` or `--session-file <path>` when using an exported `read_thread` JSON/session JSONL file. Shell calls, file changes, or text fallback prompts fail this verification.
-- Keep the detailed checklist in `docs/codecut-widget-intake-fresh-thread.md` current whenever the widget intake contract changes.
+- For requirement-confirmation intake behavior, create a fresh `@codecut` validation thread with a prompt that forbids downloads, shell commands, file writes, and editing execution. The proof must show a real `codecut_mcp.open_codecut_requirement_confirmation` MCP call and confirmed `codecut_mcp.get_codecut_requirement_confirmation` readback, not text fallback questions or the legacy setup widget.
+- Validate that fresh-thread proof with `node scripts/verify-codecut-widget-intake-thread.mjs --thread-id <threadId> --require-confirmed-requirement true` or `--session-file <path>` when using an exported `read_thread` JSON/session JSONL file. Shell calls, file changes, text fallback prompts, inline MCP opener metadata, or project creation during intake verification fail this verification.
+- Keep the detailed checklist in `docs/codecut-widget-intake-fresh-thread.md` current whenever the requirement intake contract changes.
 
 ## Lib vs Utils
 

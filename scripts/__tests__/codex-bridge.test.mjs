@@ -3346,7 +3346,8 @@ try {
 			).toMatchObject({
 				data: {
 					requiresFreshSession: true,
-					toolSearchQuery: "open_codecut_workspace Codecut MCP",
+					toolSearchQuery:
+						"open_codecut_requirement_confirmation CodeCut requirement confirmation page",
 				},
 			});
 			expect(JSON.stringify(result)).not.toContain(
