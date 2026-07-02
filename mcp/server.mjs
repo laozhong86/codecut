@@ -52,6 +52,7 @@ const builtinCharacterOptions = require("../apps/web/src/lib/codex-executor/buil
 const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
 const defaultBgmDownloadTimeoutMs = 30_000;
+const bgmDownloadRedirectLimit = 1;
 const internetArchiveBgmHost = "archive.org";
 const internetArchiveBgmSourcePrefix = "internet-archive:";
 const bgmAudioFileExtensions = new Set([
@@ -420,6 +421,60 @@ function readInternetArchiveBgmCandidateParts(value) {
 		throw new Error("BGM downloadUrl must point to a supported audio file.");
 	}
 	return { identifier, fileName, downloadUrl };
+}
+
+function isInternetArchiveBgmDownloadHost(hostname) {
+	return (
+		hostname === internetArchiveBgmHost ||
+		hostname.endsWith(`.${internetArchiveBgmHost}`)
+	);
+}
+
+function readInternetArchiveDownloadUrlParts(url) {
+	if (
+		url.protocol !== "https:" ||
+		!isInternetArchiveBgmDownloadHost(url.hostname)
+	) {
+		throw new Error("BGM download redirect must stay on Internet Archive.");
+	}
+	const segments = decodeUrlPathSegments(url.pathname);
+	if (segments[0] === "download" && segments[1] && segments.length >= 3) {
+		return {
+			identifier: segments[1],
+			fileName: segments.slice(2).join("/"),
+		};
+	}
+	const itemsIndex = segments.indexOf("items");
+	if (
+		itemsIndex >= 0 &&
+		segments[itemsIndex + 1] &&
+		segments.length > itemsIndex + 2
+	) {
+		return {
+			identifier: segments[itemsIndex + 1],
+			fileName: segments.slice(itemsIndex + 2).join("/"),
+		};
+	}
+	throw new Error(
+		"BGM download redirect must stay on the selected Internet Archive file.",
+	);
+}
+
+function readAllowedBgmRedirectUrl({ location, currentUrl, candidateParts }) {
+	if (!location) {
+		throw new Error("BGM download redirect is missing a location.");
+	}
+	const redirectUrl = new URL(location, currentUrl);
+	const redirectParts = readInternetArchiveDownloadUrlParts(redirectUrl);
+	if (
+		redirectParts.identifier !== candidateParts.identifier ||
+		redirectParts.fileName !== candidateParts.fileName
+	) {
+		throw new Error(
+			"BGM download redirect must stay on the selected Internet Archive file.",
+		);
+	}
+	return redirectUrl;
 }
 
 function validateInternetArchiveBgmCandidate(value, ctx) {
@@ -4835,7 +4890,7 @@ async function downloadBgmCandidate({
 	if (!workspace?.projectDirectory) {
 		throw new Error("Workspace directory is required before importing BGM.");
 	}
-	readInternetArchiveBgmCandidateParts(candidate);
+	const candidateParts = readInternetArchiveBgmCandidateParts(candidate);
 	if (candidate.fileSizeBytes > MAX_BGM_DOWNLOAD_BYTES) {
 		throw new Error("BGM fileSizeBytes exceeds the download limit.");
 	}
@@ -4843,7 +4898,9 @@ async function downloadBgmCandidate({
 	const timeout = setTimeout(() => controller.abort(), bgmDownloadTimeoutMs);
 	let response;
 	try {
-		response = await fetchImpl(candidate.downloadUrl, {
+		response = await fetchBgmDownloadResponse({
+			candidateParts,
+			fetchImpl,
 			signal: controller.signal,
 		});
 		if (!response?.ok) {
@@ -4866,6 +4923,32 @@ async function downloadBgmCandidate({
 	} finally {
 		clearTimeout(timeout);
 	}
+}
+
+async function fetchBgmDownloadResponse({ candidateParts, fetchImpl, signal }) {
+	let currentUrl = candidateParts.downloadUrl;
+	for (
+		let redirectCount = 0;
+		redirectCount <= bgmDownloadRedirectLimit;
+		redirectCount += 1
+	) {
+		const response = await fetchImpl(currentUrl, {
+			redirect: "manual",
+			signal,
+		});
+		if (response?.status < 300 || response?.status >= 400) {
+			return response;
+		}
+		if (redirectCount === bgmDownloadRedirectLimit) {
+			throw new Error("BGM download redirects are not allowed.");
+		}
+		currentUrl = readAllowedBgmRedirectUrl({
+			location: getResponseHeader(response, "location"),
+			currentUrl,
+			candidateParts,
+		});
+	}
+	throw new Error("BGM download failed.");
 }
 
 function getResponseHeader(response, name) {
