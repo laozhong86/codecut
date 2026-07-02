@@ -11,6 +11,7 @@ import {
 	resolveRequirementConfirmationRoot,
 	type RequirementDraftInput,
 } from "../requirement-confirmation";
+import type { BgmCandidate, BgmPreferences } from "../setup-contract";
 
 function validDraftInput(): RequirementDraftInput {
 	return {
@@ -75,7 +76,7 @@ function validDraftInput(): RequirementDraftInput {
 	};
 }
 
-function bgmCandidate(overrides: Record<string, unknown> = {}) {
+function bgmCandidate(overrides: Partial<BgmCandidate> = {}): BgmCandidate {
 	return {
 		id: "internet-archive:safe-lofi:safe-lofi.mp3",
 		sourceId: "internet-archive:safe-lofi:safe-lofi.mp3",
@@ -94,7 +95,9 @@ function bgmCandidate(overrides: Record<string, unknown> = {}) {
 	};
 }
 
-function smartBgmPreferences(overrides: Record<string, unknown> = {}) {
+function smartBgmPreferences(
+	overrides: Partial<BgmPreferences> = {},
+): BgmPreferences {
 	const selectedCandidate = bgmCandidate();
 	return {
 		mode: "smart_match",
