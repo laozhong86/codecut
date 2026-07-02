@@ -229,6 +229,24 @@ describe("requirement confirmation store", () => {
 		});
 	});
 
+	test("defaults missing character and BGM preferences on existing drafts", () => {
+		const legacyDraft = {
+			...validDraftInput(),
+			version: 1,
+			draftId: "ccreq_legacy",
+			status: "awaiting_user_confirmation",
+			createdAt: new Date().toISOString(),
+			source: "codecut_requirement_confirmation",
+		};
+		delete (legacyDraft as Record<string, unknown>).characterPreferences;
+		delete (legacyDraft as Record<string, unknown>).bgmPreferences;
+
+		const parsed = RequirementDraftSchema.parse(legacyDraft);
+
+		expect(parsed.characterPreferences).toEqual({ characterId: "none" });
+		expect(parsed.bgmPreferences).toEqual({ mode: "none" });
+	});
+
 	test("writes cancelled status", async () => {
 		const root = await mkdtemp(join(tmpdir(), "codecut-req-"));
 		const draft = await createRequirementDraft({

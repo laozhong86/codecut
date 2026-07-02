@@ -171,6 +171,40 @@ describe("ConfirmedSetup durationContract", () => {
 		).toThrow();
 	});
 
+	test("defaults missing character and BGM preferences for existing confirmed setups", () => {
+		const legacy = confirmedSetup();
+		delete (legacy as Record<string, unknown>).characterPreferences;
+		delete (legacy as Record<string, unknown>).bgmPreferences;
+
+		const parsed = ConfirmedSetupSchema.parse(legacy);
+
+		expect(parsed.characterPreferences).toEqual({ characterId: "none" });
+		expect(parsed.bgmPreferences).toEqual({ mode: "none" });
+
+		const applied = applyConfirmedSetupPatch({
+			confirmedSetup: legacy as unknown as Parameters<
+				typeof applyConfirmedSetupPatch
+			>[0]["confirmedSetup"],
+			patch: {
+				characterPreferences: { characterId: "ugc-female-host" },
+				bgmPreferences: { mode: "smart_match" },
+			},
+			reason: "user_selected_role_and_bgm",
+			changedAt: "2026-07-01T00:00:00.000Z",
+		});
+
+		expect(applied.changedFields).toEqual([
+			"characterPreferences.characterId",
+			"bgmPreferences.mode",
+		]);
+		expect(applied.confirmedSetup.characterPreferences).toEqual({
+			characterId: "ugc-female-host",
+		});
+		expect(applied.confirmedSetup.bgmPreferences).toEqual({
+			mode: "smart_match",
+		});
+	});
+
 	test("character and BGM preference changes require replan", () => {
 		const applied = applyConfirmedSetupPatch({
 			confirmedSetup: ConfirmedSetupSchema.parse(

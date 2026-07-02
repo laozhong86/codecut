@@ -324,8 +324,10 @@ export const ConfirmedSetupSchema = z
 		titlePreferences: TitlePreferencesSchema,
 		captionPreferences: CaptionPreferencesSchema,
 		voicePreferences: VoicePreferencesSchema,
-		characterPreferences: CharacterPreferencesSchema,
-		bgmPreferences: BgmPreferencesSchema,
+		characterPreferences: CharacterPreferencesSchema.default({
+			characterId: "none",
+		}),
+		bgmPreferences: BgmPreferencesSchema.default({ mode: "none" }),
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
 		networkMaterialMatching: NetworkMaterialMatchingSchema,
 		exportPreferences: ExportPreferencesSchema,
@@ -629,12 +631,13 @@ export function applyConfirmedSetupPatch({
 	changedFields: string[];
 	requiresReplan: boolean;
 } {
+	const current = ConfirmedSetupSchema.parse(confirmedSetup);
 	const parsedPatchInput = ConfirmedSetupPatchSchema.parse(patch);
 	const voicePreferences =
 		parsedPatchInput.voicePreferences === undefined
-			? confirmedSetup.voicePreferences
+			? current.voicePreferences
 			: normalizePatchedVoicePreferences({
-					...confirmedSetup.voicePreferences,
+					...current.voicePreferences,
 					...parsedPatchInput.voicePreferences,
 				});
 	const parsedPatch = {
@@ -644,42 +647,42 @@ export function applyConfirmedSetupPatch({
 			: { voicePreferences }),
 	};
 	const next = ConfirmedSetupSchema.parse({
-		...confirmedSetup,
+		...current,
 		timelinePreferences: {
-			...confirmedSetup.timelinePreferences,
+			...current.timelinePreferences,
 			...(parsedPatch.timelinePreferences ?? {}),
 		},
 		titlePreferences: {
-			...confirmedSetup.titlePreferences,
+			...current.titlePreferences,
 			...(parsedPatch.titlePreferences ?? {}),
 		},
 		captionPreferences: {
-			...confirmedSetup.captionPreferences,
+			...current.captionPreferences,
 			...(parsedPatch.captionPreferences ?? {}),
 		},
 		voicePreferences,
 		characterPreferences: {
-			...confirmedSetup.characterPreferences,
+			...current.characterPreferences,
 			...(parsedPatch.characterPreferences ?? {}),
 		},
 		bgmPreferences: {
-			...confirmedSetup.bgmPreferences,
+			...current.bgmPreferences,
 			...(parsedPatch.bgmPreferences ?? {}),
 		},
 		templatePreference:
-			parsedPatch.templatePreference ?? confirmedSetup.templatePreference,
+			parsedPatch.templatePreference ?? current.templatePreference,
 		networkMaterialMatching: {
-			...confirmedSetup.networkMaterialMatching,
+			...current.networkMaterialMatching,
 			...(parsedPatch.networkMaterialMatching ?? {}),
 		},
 		exportPreferences: {
-			...confirmedSetup.exportPreferences,
+			...current.exportPreferences,
 			...(parsedPatch.exportPreferences ?? {}),
 		},
-		changes: [...confirmedSetup.changes],
+		changes: [...current.changes],
 	});
 	const changes = collectPatchChanges({
-		before: confirmedSetup,
+		before: current,
 		after: next,
 		patch: parsedPatch,
 		reason,
