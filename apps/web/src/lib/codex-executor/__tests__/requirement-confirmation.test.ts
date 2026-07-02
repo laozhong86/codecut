@@ -11,6 +11,7 @@ import {
 	resolveRequirementConfirmationRoot,
 	type RequirementDraftInput,
 } from "../requirement-confirmation";
+import type { BgmCandidate, BgmPreferences } from "../setup-contract";
 
 function validDraftInput(): RequirementDraftInput {
 	return {
@@ -72,6 +73,39 @@ function validDraftInput(): RequirementDraftInput {
 				message: "Source duration is available.",
 			},
 		],
+	};
+}
+
+function bgmCandidate(overrides: Partial<BgmCandidate> = {}): BgmCandidate {
+	return {
+		id: "internet-archive:safe-lofi:safe-lofi.mp3",
+		sourceId: "internet-archive:safe-lofi:safe-lofi.mp3",
+		title: "Safe Lofi Beat",
+		creator: "Open Artist",
+		source: "internet_archive",
+		sourceUrl: "https://archive.org/details/safe-lofi",
+		licenseLabel: "CC BY 4.0",
+		licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+		commercialUseAllowed: true,
+		attributionRequired: true,
+		previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		downloadUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		durationSeconds: 91.2,
+		fileSizeBytes: 1234,
+		...overrides,
+	};
+}
+
+function smartBgmPreferences(
+	overrides: Partial<BgmPreferences> = {},
+): BgmPreferences {
+	const selectedCandidate = bgmCandidate();
+	return {
+		mode: "smart_match",
+		searchQuery: "bright lofi product demo",
+		candidates: [selectedCandidate],
+		selectedCandidate,
+		...overrides,
 	};
 }
 
@@ -150,7 +184,10 @@ describe("requirement confirmation store", () => {
 		const root = await mkdtemp(join(tmpdir(), "codecut-req-"));
 		const draft = await createRequirementDraft({
 			root,
-			input: validDraftInput(),
+			input: {
+				...validDraftInput(),
+				bgmPreferences: smartBgmPreferences(),
+			},
 		});
 
 		const confirmed = await confirmRequirementDraft({
@@ -165,7 +202,10 @@ describe("requirement confirmation store", () => {
 				},
 				voicePreferences: { enabled: true, voicePackId: "podcast-female" },
 				characterPreferences: { characterId: "ugc-female-host" },
-				bgmPreferences: { mode: "smart_match" },
+				bgmPreferences: {
+					mode: "smart_match",
+					selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+				},
 			},
 		});
 
@@ -182,9 +222,9 @@ describe("requirement confirmation store", () => {
 		expect(confirmed.confirmedSetup.characterPreferences).toEqual({
 			characterId: "ugc-female-host",
 		});
-		expect(confirmed.confirmedSetup.bgmPreferences).toEqual({
-			mode: "smart_match",
-		});
+		expect(confirmed.confirmedSetup.bgmPreferences).toEqual(
+			smartBgmPreferences(),
+		);
 		expect(confirmed.confirmedSetup.templatePreference).toEqual({
 			mode: "specified",
 			requestedTemplate: "talking-head-broll-split",
@@ -207,6 +247,49 @@ describe("requirement confirmation store", () => {
 			mode: "specified",
 			requestedTemplate: "talking-head-broll-split",
 		});
+		expect(file.confirmedSetup.bgmPreferences).toEqual(smartBgmPreferences());
+	});
+
+	test("rejects confirmation patches that submit forged BGM candidate metadata", async () => {
+		const root = await mkdtemp(join(tmpdir(), "codecut-req-"));
+		const draft = await createRequirementDraft({
+			root,
+			input: {
+				...validDraftInput(),
+				bgmPreferences: smartBgmPreferences(),
+			},
+		});
+
+		await expect(
+			confirmRequirementDraft({
+				root,
+				draftId: draft.draftId,
+				patch: {
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								title: "Tampered Commercial",
+								licenseLabel: "CC0",
+								licenseUrl:
+									"https://creativecommons.org/publicdomain/zero/1.0/",
+								attributionRequired: false,
+								fileSizeBytes: 1,
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							title: "Tampered Commercial",
+							licenseLabel: "CC0",
+							licenseUrl:
+								"https://creativecommons.org/publicdomain/zero/1.0/",
+							attributionRequired: false,
+							fileSizeBytes: 1,
+						}),
+					}) as unknown as NonNullable<
+						Parameters<typeof confirmRequirementDraft>[0]["patch"]
+					>["bgmPreferences"],
+				},
+			}),
+		).rejects.toThrow();
 	});
 
 	test("confirmation patch can update template preference", async () => {
@@ -226,6 +309,38 @@ describe("requirement confirmation store", () => {
 
 		expect(confirmed.confirmedSetup.templatePreference).toEqual({
 			mode: "auto",
+		});
+	});
+
+	test("confirmation patch can select a voice clone source audio file", async () => {
+		const root = await mkdtemp(join(tmpdir(), "codecut-req-"));
+		const draft = await createRequirementDraft({
+			root,
+			input: validDraftInput(),
+		});
+
+		const confirmed = await confirmRequirementDraft({
+			root,
+			draftId: draft.draftId,
+			patch: {
+				voicePreferences: {
+					enabled: true,
+					voicePackId: "voice_clone",
+					voiceCloneSourceFile: {
+						name: "reference.wav",
+						path: "/tmp/reference.wav",
+					},
+				},
+			},
+		});
+
+		expect(confirmed.confirmedSetup.voicePreferences).toEqual({
+			enabled: true,
+			voicePackId: "voice_clone",
+			voiceCloneSourceFile: {
+				name: "reference.wav",
+				path: "/tmp/reference.wav",
+			},
 		});
 	});
 

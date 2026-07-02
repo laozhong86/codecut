@@ -5,6 +5,7 @@ import {
 } from "../requirement-confirmation-patch";
 import type { RequirementDraft } from "../requirement-confirmation";
 import type { RequirementConfirmationFormState } from "../requirement-confirmation-patch";
+import type { BgmCandidate, BgmPreferences } from "../setup-contract";
 
 function requirementDraftFixture(): RequirementDraft {
 	return {
@@ -68,6 +69,39 @@ function requirementDraftFixture(): RequirementDraft {
 	};
 }
 
+function bgmCandidate(overrides: Partial<BgmCandidate> = {}): BgmCandidate {
+	return {
+		id: "internet-archive:safe-lofi:safe-lofi.mp3",
+		sourceId: "internet-archive:safe-lofi:safe-lofi.mp3",
+		title: "Safe Lofi Beat",
+		creator: "Open Artist",
+		source: "internet_archive",
+		sourceUrl: "https://archive.org/details/safe-lofi",
+		licenseLabel: "CC BY 4.0",
+		licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+		commercialUseAllowed: true,
+		attributionRequired: true,
+		previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		downloadUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		durationSeconds: 91.2,
+		fileSizeBytes: 1234,
+		...overrides,
+	};
+}
+
+function smartBgmPreferences(
+	overrides: Partial<BgmPreferences> = {},
+): BgmPreferences {
+	const selectedCandidate = bgmCandidate();
+	return {
+		mode: "smart_match",
+		searchQuery: "bright lofi product demo",
+		candidates: [selectedCandidate],
+		selectedCandidate,
+		...overrides,
+	};
+}
+
 describe("requirement confirmation patch builder", () => {
 	test("omits unchanged voice preferences when confirming the draft as-is", () => {
 		const draft = requirementDraftFixture();
@@ -110,12 +144,17 @@ describe("requirement confirmation patch builder", () => {
 		const draft: RequirementDraft = {
 			...requirementDraftFixture(),
 			characterPreferences: { characterId: "ugc-female-host" },
-			bgmPreferences: { mode: "smart_match" },
+			bgmPreferences: smartBgmPreferences(),
 		};
 		const form = formStateFromRequirementDraft(draft);
 
 		expect(form.characterId).toBe("ugc-female-host");
 		expect(form.bgmMode).toBe("smart_match");
+		expect(form.bgmSearchQuery).toBe("bright lofi product demo");
+		expect(form.bgmCandidates).toEqual([bgmCandidate()]);
+		expect(form.selectedBgmCandidateId).toBe(
+			"internet-archive:safe-lofi:safe-lofi.mp3",
+		);
 	});
 
 	test("reads network material matching from the requirement draft", () => {
@@ -140,6 +179,92 @@ describe("requirement confirmation patch builder", () => {
 
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
 			voicePreferences: { enabled: true, voicePackId: "podcast-female" },
+		});
+	});
+
+	test("submits custom voiceover file preferences", () => {
+		const draft = requirementDraftFixture();
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			voicePackId: "custom" as const,
+			customVoiceFileName: "voice.wav",
+			customVoiceFileUrl: "blob:voice",
+			customVoiceFilePath: "/tmp/voice.wav",
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			voicePreferences: {
+				enabled: true,
+				voicePackId: "custom",
+				customVoiceFile: {
+					name: "voice.wav",
+					url: "blob:voice",
+					path: "/tmp/voice.wav",
+				},
+			},
+		});
+	});
+
+	test("submits voice clone source audio preferences", () => {
+		const draft = requirementDraftFixture();
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			voicePackId: "voice_clone" as const,
+			voiceCloneSourceFileName: "reference.wav",
+			voiceCloneSourceFileUrl: "blob:reference",
+			voiceCloneSourceFilePath: "/tmp/reference.wav",
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			voicePreferences: {
+				enabled: true,
+				voicePackId: "voice_clone",
+				voiceCloneSourceFile: {
+					name: "reference.wav",
+					url: "blob:reference",
+					path: "/tmp/reference.wav",
+				},
+			},
+		});
+	});
+
+	test("reads custom and cloned voice file preferences from the requirement draft", () => {
+		const customDraft: RequirementDraft = {
+			...requirementDraftFixture(),
+			voicePreferences: {
+				enabled: true,
+				voicePackId: "custom",
+				customVoiceFile: {
+					name: "voice.wav",
+					url: "blob:voice",
+					path: "/tmp/voice.wav",
+				},
+			},
+		};
+		expect(formStateFromRequirementDraft(customDraft)).toMatchObject({
+			voicePackId: "custom",
+			customVoiceFileName: "voice.wav",
+			customVoiceFileUrl: "blob:voice",
+			customVoiceFilePath: "/tmp/voice.wav",
+		});
+
+		const cloneDraft: RequirementDraft = {
+			...requirementDraftFixture(),
+			voicePreferences: {
+				enabled: true,
+				voicePackId: "voice_clone",
+				voiceCloneSourceFile: {
+					name: "reference.wav",
+					url: "blob:reference",
+					path: "/tmp/reference.wav",
+				},
+			},
+		};
+		expect(formStateFromRequirementDraft(cloneDraft)).toMatchObject({
+			voicePackId: "voice_clone",
+			voiceCloneSourceFileName: "reference.wav",
+			voiceCloneSourceFileUrl: "blob:reference",
+			voiceCloneSourceFilePath: "/tmp/reference.wav",
 		});
 	});
 
@@ -245,12 +370,75 @@ describe("requirement confirmation patch builder", () => {
 			...formStateFromRequirementDraft(draft),
 			characterId: "ugc-female-host",
 			bgmMode: "smart_match" as const,
+			bgmSearchQuery: "bright lofi product demo",
+			bgmCandidates: [bgmCandidate()],
+			selectedBgmCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
 		};
 
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
 			characterPreferences: { characterId: "ugc-female-host" },
-			bgmPreferences: { mode: "smart_match" },
+			bgmPreferences: {
+				mode: "smart_match",
+				selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+			},
 		});
+	});
+
+	test("submits the switched BGM candidate selection", () => {
+		const firstCandidate = bgmCandidate();
+		const secondCandidate = bgmCandidate({
+			id: "internet-archive:uplift:uplift.mp3",
+			sourceId: "internet-archive:uplift:uplift.mp3",
+			title: "Uplift Beat",
+			creator: "Second Artist",
+			sourceUrl: "https://archive.org/details/uplift",
+			previewUrl: "https://archive.org/download/uplift/uplift.mp3",
+			downloadUrl: "https://archive.org/download/uplift/uplift.mp3",
+			durationSeconds: 73,
+			fileSizeBytes: 2345,
+		});
+		const draft: RequirementDraft = {
+			...requirementDraftFixture(),
+			bgmPreferences: {
+				mode: "smart_match",
+				searchQuery: "bright lofi product demo",
+				candidates: [firstCandidate, secondCandidate],
+				selectedCandidate: firstCandidate,
+			},
+		};
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			selectedBgmCandidateId: "internet-archive:uplift:uplift.mp3",
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			bgmPreferences: {
+				mode: "smart_match",
+				selectedCandidateId: "internet-archive:uplift:uplift.mp3",
+			},
+		});
+	});
+
+	test("submits only the selected BGM candidate id even if form candidates are changed", () => {
+		const draft: RequirementDraft = {
+			...requirementDraftFixture(),
+			bgmPreferences: smartBgmPreferences(),
+		};
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			bgmCandidates: [
+				bgmCandidate({
+					title: "Tampered Commercial",
+					licenseLabel: "CC0",
+					licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
+					attributionRequired: false,
+					fileSizeBytes: 1,
+				}),
+			],
+			selectedBgmCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({});
 	});
 
 	test("submits template preference changes when the user selects a built-in template", () => {

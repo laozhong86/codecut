@@ -10,7 +10,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { stat } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import {
 	basename,
@@ -38,6 +38,13 @@ import {
 	resolveCodecutConfirmationRoot,
 } from "../scripts/codecut-confirmation-gate.mjs";
 import { initWorkspace } from "../scripts/codecut-workspace.mjs";
+import {
+	DEFAULT_BGM_CANDIDATE_LIMIT,
+	MAX_BGM_CANDIDATE_LIMIT,
+	MAX_BGM_DOWNLOAD_BYTES,
+	isCommercialVideoSafeLicense,
+	searchInternetArchiveBgm,
+} from "../apps/web/src/lib/sounds/internet-archive-search.mjs";
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -45,6 +52,17 @@ const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const builtinCharacterOptions = require("../apps/web/src/lib/codex-executor/builtin-character-options.json");
 const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
+const defaultBgmDownloadTimeoutMs = 30_000;
+const bgmDownloadRedirectLimit = 1;
+const internetArchiveBgmHost = "archive.org";
+const internetArchiveBgmSourcePrefix = "internet-archive:";
+const bgmAudioFileExtensions = new Set([
+	".mp3",
+	".m4a",
+	".ogg",
+	".flac",
+	".wav",
+]);
 const bridgeAllowedEnvKeys = new Set([
 	"RUNNINGHUB_API_KEY",
 	"VOLCENGINE_OPEN_SPEECH_API_KEY",
@@ -74,6 +92,7 @@ const workspaceVoicePackChoiceValues = [
 	noBuiltinVoicePackId,
 	...builtinVoicePackIds,
 	"custom",
+	"voice_clone",
 ];
 const workspaceOpenVoicePackChoiceValues = [
 	noBuiltinVoicePackId,
@@ -345,11 +364,293 @@ const workspaceCharacterPreferencesSchema = z
 		characterId: workspaceCharacterIdSchema,
 	})
 	.strict();
+
+function decodeUrlPathSegments(pathname) {
+	return pathname
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => decodeURIComponent(segment));
+}
+
+function readInternetArchiveBgmCandidateParts(value) {
+	if (value.source !== "internet_archive") {
+		throw new Error("BGM source must be internet_archive.");
+	}
+	if (!String(value.sourceId || "").startsWith(internetArchiveBgmSourcePrefix)) {
+		throw new Error("BGM sourceId must use the internet-archive prefix.");
+	}
+	const sourceUrl = new URL(value.sourceUrl);
+	if (
+		sourceUrl.protocol !== "https:" ||
+		sourceUrl.hostname !== internetArchiveBgmHost
+	) {
+		throw new Error("BGM sourceUrl must be an archive.org details URL.");
+	}
+	const sourceSegments = decodeUrlPathSegments(sourceUrl.pathname);
+	if (sourceSegments[0] !== "details" || !sourceSegments[1]) {
+		throw new Error("BGM sourceUrl must be an archive.org details URL.");
+	}
+	const downloadUrl = new URL(value.downloadUrl);
+	if (
+		downloadUrl.protocol !== "https:" ||
+		downloadUrl.hostname !== internetArchiveBgmHost
+	) {
+		throw new Error("BGM downloadUrl must be an archive.org download URL.");
+	}
+	const downloadSegments = decodeUrlPathSegments(downloadUrl.pathname);
+	if (
+		downloadSegments[0] !== "download" ||
+		!downloadSegments[1] ||
+		downloadSegments.length < 3
+	) {
+		throw new Error("BGM downloadUrl must be an archive.org download URL.");
+	}
+	const identifier = sourceSegments[1];
+	const downloadIdentifier = downloadSegments[1];
+	const fileName = downloadSegments.slice(2).join("/");
+	if (identifier !== downloadIdentifier) {
+		throw new Error("BGM sourceUrl and downloadUrl must use the same item.");
+	}
+	if (
+		value.sourceId !==
+		`${internetArchiveBgmSourcePrefix}${identifier}:${fileName}`
+	) {
+		throw new Error("BGM sourceId must match the Internet Archive download file.");
+	}
+	const extension = extname(fileName).toLowerCase();
+	if (!bgmAudioFileExtensions.has(extension)) {
+		throw new Error("BGM downloadUrl must point to a supported audio file.");
+	}
+	return { identifier, fileName, downloadUrl };
+}
+
+function isInternetArchiveBgmDownloadHost(hostname) {
+	return (
+		hostname === internetArchiveBgmHost ||
+		hostname.endsWith(`.${internetArchiveBgmHost}`)
+	);
+}
+
+function readInternetArchiveDownloadUrlParts(url) {
+	if (
+		url.protocol !== "https:" ||
+		!isInternetArchiveBgmDownloadHost(url.hostname)
+	) {
+		throw new Error("BGM download redirect must stay on Internet Archive.");
+	}
+	const segments = decodeUrlPathSegments(url.pathname);
+	if (segments[0] === "download" && segments[1] && segments.length >= 3) {
+		return {
+			identifier: segments[1],
+			fileName: segments.slice(2).join("/"),
+		};
+	}
+	const itemsIndex = segments.indexOf("items");
+	if (
+		itemsIndex >= 0 &&
+		segments[itemsIndex + 1] &&
+		segments.length > itemsIndex + 2
+	) {
+		return {
+			identifier: segments[itemsIndex + 1],
+			fileName: segments.slice(itemsIndex + 2).join("/"),
+		};
+	}
+	throw new Error(
+		"BGM download redirect must stay on the selected Internet Archive file.",
+	);
+}
+
+function readAllowedBgmRedirectUrl({ location, currentUrl, candidateParts }) {
+	if (!location) {
+		throw new Error("BGM download redirect is missing a location.");
+	}
+	const redirectUrl = new URL(location, currentUrl);
+	const redirectParts = readInternetArchiveDownloadUrlParts(redirectUrl);
+	if (
+		redirectParts.identifier !== candidateParts.identifier ||
+		redirectParts.fileName !== candidateParts.fileName
+	) {
+		throw new Error(
+			"BGM download redirect must stay on the selected Internet Archive file.",
+		);
+	}
+	return redirectUrl;
+}
+
+function validateInternetArchiveBgmCandidate(value, ctx) {
+	try {
+		readInternetArchiveBgmCandidateParts(value);
+	} catch (error) {
+		ctx.addIssue({
+			code: "custom",
+			message:
+				error instanceof Error
+					? error.message
+					: "BGM candidate must point to Internet Archive audio.",
+			path: ["downloadUrl"],
+		});
+	}
+	if (!isCommercialVideoSafeLicense(value.licenseUrl)) {
+		ctx.addIssue({
+			code: "custom",
+			message: "BGM licenseUrl must allow commercial video use.",
+			path: ["licenseUrl"],
+		});
+	}
+	if (isCommercialVideoSafeLicense(value.licenseUrl) !== value.commercialUseAllowed) {
+		ctx.addIssue({
+			code: "custom",
+			message:
+				"BGM commercialUseAllowed must match the selected licenseUrl policy.",
+			path: ["commercialUseAllowed"],
+		});
+	}
+}
+
+function isSameBgmCandidateIdentity(candidate, selectedCandidate) {
+	return (
+		candidate.id === selectedCandidate.id &&
+		candidate.sourceId === selectedCandidate.sourceId &&
+		candidate.title === selectedCandidate.title &&
+		candidate.creator === selectedCandidate.creator &&
+		candidate.source === selectedCandidate.source &&
+		candidate.sourceUrl === selectedCandidate.sourceUrl &&
+		candidate.licenseLabel === selectedCandidate.licenseLabel &&
+		candidate.licenseUrl === selectedCandidate.licenseUrl &&
+		candidate.commercialUseAllowed === selectedCandidate.commercialUseAllowed &&
+		candidate.attributionRequired === selectedCandidate.attributionRequired &&
+		candidate.previewUrl === selectedCandidate.previewUrl &&
+		candidate.downloadUrl === selectedCandidate.downloadUrl &&
+		candidate.durationSeconds === selectedCandidate.durationSeconds &&
+		candidate.fileSizeBytes === selectedCandidate.fileSizeBytes
+	);
+}
+
+const bgmCandidateSchema = z
+	.object({
+		id: z.string().trim().min(1),
+		sourceId: z.string().trim().min(1),
+		title: z.string().trim().min(1),
+		creator: z.string().trim().min(1),
+		source: z.literal("internet_archive"),
+		sourceUrl: z.string().trim().url(),
+		licenseLabel: z.string().trim().min(1),
+		licenseUrl: z.string().trim().url(),
+		commercialUseAllowed: z.boolean(),
+		attributionRequired: z.boolean(),
+			previewUrl: z.string().trim().url().optional(),
+			downloadUrl: z.string().trim().url(),
+			durationSeconds: z.number().nonnegative(),
+			fileSizeBytes: z
+				.number()
+				.int()
+				.positive()
+				.max(MAX_BGM_DOWNLOAD_BYTES, "BGM fileSizeBytes exceeds the limit."),
+		})
+		.strict()
+		.superRefine(validateInternetArchiveBgmCandidate);
 const workspaceBgmPreferencesSchema = z
 	.object({
 		mode: bgmPreferenceModeSchema,
+		searchQuery: z.string().trim().min(1).optional(),
+		candidates: z.array(bgmCandidateSchema).max(10).optional(),
+		selectedCandidate: bgmCandidateSchema.optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, ctx) => {
+		if (value.mode === "none") {
+			if (
+				value.searchQuery !== undefined ||
+				value.candidates !== undefined ||
+				value.selectedCandidate !== undefined
+			) {
+				ctx.addIssue({
+					code: "custom",
+					message: "bgmPreferences.mode none cannot include matched music.",
+					path: ["mode"],
+				});
+			}
+			return;
+		}
+		if (!value.searchQuery) {
+			ctx.addIssue({
+				code: "custom",
+				message: "bgmPreferences.searchQuery is required for smart_match.",
+				path: ["searchQuery"],
+			});
+		}
+		if (!value.candidates || value.candidates.length === 0) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"bgmPreferences.candidates must include at least one candidate.",
+				path: ["candidates"],
+			});
+		}
+		if (!value.selectedCandidate) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"bgmPreferences.selectedCandidate is required for smart_match.",
+				path: ["selectedCandidate"],
+			});
+		}
+		const candidates = value.candidates ?? [];
+		if (
+			candidates.some((candidate) => !candidate.commercialUseAllowed) ||
+			value.selectedCandidate?.commercialUseAllowed === false
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message: "BGM candidates must allow commercial use.",
+				path: ["candidates"],
+			});
+		}
+			if (
+				value.selectedCandidate &&
+				candidates.length > 0 &&
+				!candidates.some((candidate) =>
+					isSameBgmCandidateIdentity(candidate, value.selectedCandidate),
+				)
+			) {
+			ctx.addIssue({
+				code: "custom",
+				message: "bgmPreferences.selectedCandidate must be one of candidates.",
+				path: ["selectedCandidate"],
+			});
+		}
+	});
+const requirementOpenBgmPreferencesSchema = z.discriminatedUnion("mode", [
+	z.object({ mode: z.literal("none") }).strict(),
+	z
+		.object({
+			mode: z.literal("smart_match"),
+			searchQuery: z.string().trim().min(1),
+			selectedCandidateId: z.string().trim().min(1),
+		})
+		.strict(),
+]);
+const searchBgmMusicInputSchema = {
+	query: z
+		.string()
+		.trim()
+		.min(1)
+		.describe("Music search keyword inferred from the confirmed edit need."),
+	limit: z
+		.number()
+		.int()
+		.min(1)
+		.max(MAX_BGM_CANDIDATE_LIMIT)
+		.default(DEFAULT_BGM_CANDIDATE_LIMIT)
+		.optional()
+		.describe("Maximum candidates to return. Defaults to 5 and caps at 10."),
+	commercialOnly: z
+		.boolean()
+		.default(true)
+		.optional()
+		.describe("When true, excludes NC/ND licenses for commercial videos."),
+};
 const networkMaterialPlacementValues = ["background", "top", "bottom"];
 const networkMaterialProviderValues = ["pexels", "pixabay", "coverr"];
 const networkMaterialDecisionSourceValues = ["template", "user"];
@@ -416,13 +717,22 @@ const workspaceMediaSourceSchema = z
 	.strict();
 const workspaceMediaSourcesSchema = z.array(workspaceMediaSourceSchema);
 
-const customVoiceFileSchema = z
+const voiceAudioFileSchema = z
 	.object({
-		name: z.string().trim().min(1),
-		url: z.string().trim().min(1),
+		name: z.string().trim().min(1).optional(),
+		url: z.string().trim().min(1).optional(),
 		path: z.string().trim().min(1).optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, ctx) => {
+		if (!value.url && !value.path) {
+			ctx.addIssue({
+				code: "custom",
+				message: "voice file requires url or path.",
+				path: ["url"],
+			});
+		}
+	});
 
 const workspaceOutputBaseSchema = z
 	.object({
@@ -435,7 +745,8 @@ const workspaceOutputBaseSchema = z
 		captionStylePreset: captionStylePresetSchema,
 		voiceEnabled: z.boolean(),
 		voicePackId: workspaceVoicePackIdSchema.optional(),
-		customVoiceFile: customVoiceFileSchema.optional(),
+		customVoiceFile: voiceAudioFileSchema.optional(),
+		voiceCloneSourceFile: voiceAudioFileSchema.optional(),
 	})
 	.strict();
 const workspaceOutputSchema = workspaceOutputBaseSchema.superRefine(
@@ -450,12 +761,30 @@ const workspaceOutputSchema = workspaceOutputBaseSchema.superRefine(
 				});
 			}
 		}
+		if (value.voiceEnabled && value.voicePackId === "voice_clone") {
+			if (!value.voiceCloneSourceFile) {
+				ctx.addIssue({
+					code: "custom",
+					message:
+						"output.voiceCloneSourceFile is required when voice clone is enabled.",
+					path: ["voiceCloneSourceFile"],
+				});
+			}
+		}
 		if (value.voicePackId !== "custom" && value.customVoiceFile) {
 			ctx.addIssue({
 				code: "custom",
 				message:
 					"output.customVoiceFile is only allowed when voicePackId is custom.",
 				path: ["customVoiceFile"],
+			});
+		}
+		if (value.voicePackId !== "voice_clone" && value.voiceCloneSourceFile) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"output.voiceCloneSourceFile is only allowed when voicePackId is voice_clone.",
+				path: ["voiceCloneSourceFile"],
 			});
 		}
 	},
@@ -473,6 +802,44 @@ const workspaceOpenOutputSchema = z
 		voicePackId: z.enum(workspaceOpenVoicePackChoiceValues).optional(),
 	})
 	.strict();
+const workspaceRequirementOpenOutputSchema = z
+	.object({
+		format: outputFormatSchema.optional(),
+		quality: outputQualitySchema.optional(),
+		includeAudio: z.boolean().optional(),
+		captionEnabled: z.boolean().optional(),
+		captionFont: captionFontSchema.optional(),
+		captionSize: captionSizeSchema.optional(),
+		captionStylePreset: captionStylePresetSchema.optional(),
+		voiceEnabled: z.boolean().optional(),
+		voicePackId: workspaceVoicePackIdSchema.optional(),
+		customVoiceFile: voiceAudioFileSchema.optional(),
+		voiceCloneSourceFile: voiceAudioFileSchema.optional(),
+	})
+	.strict()
+	.superRefine((value, ctx) => {
+		const voiceEnabled = value.voiceEnabled !== false;
+		if (voiceEnabled && value.voicePackId === "custom" && !value.customVoiceFile) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"output.customVoiceFile is required when custom voice is enabled.",
+				path: ["customVoiceFile"],
+			});
+		}
+		if (
+			voiceEnabled &&
+			value.voicePackId === "voice_clone" &&
+			!value.voiceCloneSourceFile
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"output.voiceCloneSourceFile is required when voice clone is enabled.",
+				path: ["voiceCloneSourceFile"],
+			});
+		}
+	});
 
 const titlePreferencesBaseSchema = z
 	.object({
@@ -554,18 +921,16 @@ const confirmedSetupPatchSchema = z
 			.object({
 				enabled: z.boolean().optional(),
 				voicePackId: workspaceVoicePackIdSchema.optional(),
-				customVoiceFile: customVoiceFileSchema.optional(),
+				customVoiceFile: voiceAudioFileSchema.optional(),
+				voiceCloneSourceFile: voiceAudioFileSchema.optional(),
 			})
 			.strict()
 			.optional(),
-		characterPreferences: workspaceCharacterPreferencesSchema
-			.partial()
-			.strict()
-			.optional(),
-		bgmPreferences: workspaceBgmPreferencesSchema
-			.partial()
-			.strict()
-			.optional(),
+			characterPreferences: workspaceCharacterPreferencesSchema
+				.partial()
+				.strict()
+				.optional(),
+			bgmPreferences: workspaceBgmPreferencesSchema.optional(),
 		templatePreference: templatePreferenceSchema.optional(),
 		networkMaterialMatching: networkMaterialMatchingSchema
 			.partial()
@@ -651,6 +1016,11 @@ const workspaceOpenInputSchema = {
 	output: workspaceOpenOutputSchema.optional(),
 	titlePreferences: titlePreferencesBaseSchema.partial().optional(),
 	generateIntroCover: z.boolean().optional(),
+};
+const requirementOpenInputSchema = {
+	...workspaceOpenInputSchema,
+	bgmPreferences: requirementOpenBgmPreferencesSchema.optional(),
+	output: workspaceRequirementOpenOutputSchema.optional(),
 };
 
 const projectOnlyInputSchema = {
@@ -892,6 +1262,7 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["build_post_cut_captions", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["search_bgm_music", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["list_templates", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["get_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["resolve_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
@@ -1177,6 +1548,14 @@ export const CODECUT_MCP_TOOLS = [
 			mediaId: mediaIdSchema.optional(),
 			limit: z.number().int().positive().optional(),
 		},
+		readOnly: true,
+	},
+	{
+		name: "search_bgm_music",
+		title: "Search Codecut BGM Music",
+		description:
+			"Search Internet Archive music candidates for a background music preference. Read-only: returns candidates only and never creates projects, downloads files, imports media, or mutates timelines.",
+		inputSchema: searchBgmMusicInputSchema,
 		readOnly: true,
 	},
 	{
@@ -1834,7 +2213,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		title: "Open CodeCut Requirement Confirmation",
 		description:
 			"Create a durable local CodeCut requirement confirmation draft and return the local web confirmation URL. This writes only .codecut-workspace/requirements/<draftId>/draft.json and must not create projects, import media, generate media, mutate timelines, or export files.",
-		inputSchema: workspaceOpenInputSchema,
+		inputSchema: requirementOpenInputSchema,
 		readOnly: false,
 		modelVisible: true,
 	},
@@ -2332,9 +2711,55 @@ function newRequirementDraftId(requestedProjectId) {
 	return `ccreq_${stem}_${suffix}`;
 }
 
-function buildRequirementDraftFromInput(input = {}) {
+async function resolveRequirementOpenInputBgmPreferences(
+	input,
+	{ fetchImpl = fetch } = {},
+) {
+	if (input?.bgmPreferences === undefined) {
+		return input;
+	}
+	const bgmPreferences = requirementOpenBgmPreferencesSchema.parse(
+		input.bgmPreferences,
+	);
+	if (bgmPreferences.mode !== "smart_match") {
+		return { ...input, bgmPreferences };
+	}
+	const result = await searchInternetArchiveBgm({
+		query: bgmPreferences.searchQuery,
+		limit: DEFAULT_BGM_CANDIDATE_LIMIT,
+		commercialOnly: true,
+		fetchImpl,
+	});
+	const selectedCandidate = result.candidates.find(
+		(candidate) => candidate.id === bgmPreferences.selectedCandidateId,
+	);
+	if (!selectedCandidate) {
+		throw new Error(
+			"Selected BGM candidate is not available from the current search result.",
+		);
+	}
+	return {
+		...input,
+		bgmPreferences: {
+			mode: "smart_match",
+			searchQuery: result.query,
+			candidates: result.candidates,
+			selectedCandidate,
+		},
+	};
+}
+
+async function buildRequirementDraftFromInput(
+	input = {},
+	{ allowExternalVoiceFiles = false, fetchImpl = fetch } = {},
+) {
 	assertNoLegacyWorkspaceOpenFields(input);
-	const intentDefaults = buildWorkspaceIntentDefaults(input);
+	const resolvedInput = await resolveRequirementOpenInputBgmPreferences(input, {
+		fetchImpl,
+	});
+	const intentDefaults = buildWorkspaceIntentDefaults(resolvedInput, {
+		allowExternalVoiceFiles,
+	});
 	const normalized = normalizeWorkspaceIntent({
 		...intentDefaults,
 		confirmedByUser: false,
@@ -2417,16 +2842,19 @@ function browserOpenForRequirementConfirmation(confirmationUrl) {
 	};
 }
 
-export function openCodecutRequirementConfirmation(
+export async function openCodecutRequirementConfirmation(
 	input = {},
-	{ root = pluginRoot, cwd = pluginRoot, env = process.env } = {},
+	{ root = pluginRoot, cwd = pluginRoot, env = process.env, fetchImpl = fetch } = {},
 ) {
-	const draft = buildRequirementDraftFromInput(input);
+	const draft = await buildRequirementDraftFromInput(input, {
+		allowExternalVoiceFiles: true,
+		fetchImpl,
+	});
 	const directory = requirementStoreDirectory(root, draft.draftId);
 	mkdirSync(directory, { recursive: true });
 	writeRequirementJson(join(directory, "draft.json"), draft);
 	appendRequirementEvent(root, draft.draftId, { type: "draft_created" });
-	const locale = buildWorkspaceIntentDefaults(input).uiLanguage || "en";
+	const locale = input.uiLanguage || input.locale || "en";
 	const confirmationUrl = confirmationUrlForDraft({
 		draftId: draft.draftId,
 		cwd,
@@ -2570,6 +2998,17 @@ function buildWorkspaceIntentFromConfirmedRequirement({
 			voiceEnabled: confirmedSetup.voicePreferences.enabled,
 			voicePackId:
 				confirmedSetup.voicePreferences.voicePackId || noBuiltinVoicePackId,
+			...(confirmedSetup.voicePreferences.customVoiceFile
+				? {
+						customVoiceFile: confirmedSetup.voicePreferences.customVoiceFile,
+					}
+				: {}),
+			...(confirmedSetup.voicePreferences.voiceCloneSourceFile
+				? {
+						voiceCloneSourceFile:
+							confirmedSetup.voicePreferences.voiceCloneSourceFile,
+					}
+				: {}),
 		},
 		titlePreferences: confirmedSetup.titlePreferences,
 		generateIntroCover: confirmedSetup.timelinePreferences.generateIntroCover,
@@ -2586,6 +3025,7 @@ export async function createCodecutProjectFromRequirement(
 		confirmationRoot,
 		bridgeToolImpl = callBridgeCliTool,
 		statImpl = stat,
+		fetchImpl = fetch,
 		workspaceSourceRoot = root,
 	} = {},
 ) {
@@ -2630,6 +3070,7 @@ export async function createCodecutProjectFromRequirement(
 	const result = await submitCodecutSetup(setupIntent, {
 		bridgeToolImpl,
 		statImpl,
+		fetchImpl,
 		confirmationRoot,
 		workspaceSourceRoot,
 	});
@@ -2922,6 +3363,8 @@ export async function submitCodecutSetup(
 	{
 		bridgeToolImpl = callBridgeCliTool,
 		statImpl = stat,
+		fetchImpl = fetch,
+		bgmDownloadTimeoutMs = defaultBgmDownloadTimeoutMs,
 		confirmationRoot,
 		workspaceSourceRoot = pluginRoot,
 		workspaceInitImpl = initWorkspace,
@@ -3097,6 +3540,28 @@ export async function submitCodecutSetup(
 		importedMedia.push(importedAsset);
 	}
 
+	let bgmAsset = null;
+	try {
+		bgmAsset = await importSelectedBgmAsset({
+			normalized,
+			projectId: projectContext.projectId,
+			workspace,
+			confirmationToken,
+			bridgeToolImpl,
+			fetchImpl,
+			bgmDownloadTimeoutMs,
+		});
+	} catch (error) {
+		return buildSetupErrorResult({
+			status: "bgm_import_failed",
+			...projectContext,
+			importedMedia,
+			deferredMediaSources,
+			intent: normalized,
+			error: extractErrorMessage(error),
+		});
+	}
+
 	const projectInfoResult = await bridgeToolImpl("get_project_info", {
 		projectId: projectContext.projectId,
 	});
@@ -3141,6 +3606,7 @@ export async function submitCodecutSetup(
 		editorUrl,
 		confirmationToken,
 		importedMedia,
+		bgmAsset,
 		deferredMediaSources,
 		workspace,
 		intent: resultIntent,
@@ -3152,6 +3618,7 @@ export async function submitCodecutSetup(
 			editorUrl,
 			confirmationToken,
 			importedMedia,
+			bgmAsset,
 			deferredMediaSources,
 			workspace,
 		}),
@@ -3230,6 +3697,9 @@ function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 			...(normalized.output.voicePackId === "custom"
 				? { customVoiceFile: normalized.output.customVoiceFile }
 				: {}),
+			...(normalized.output.voicePackId === "voice_clone"
+				? { voiceCloneSourceFile: normalized.output.voiceCloneSourceFile }
+				: {}),
 		},
 		characterPreferences: normalized.characterPreferences,
 		bgmPreferences: normalized.bgmPreferences,
@@ -3288,7 +3758,10 @@ export async function recoverCodecutSetup(input, { confirmationRoot } = {}) {
 	}
 }
 
-function buildWorkspaceIntentDefaults(input = {}) {
+function buildWorkspaceIntentDefaults(
+	input = {},
+	{ allowExternalVoiceFiles = false } = {},
+) {
 	const uiLanguage = normalizeWorkspaceUiLanguage(
 		input.uiLanguage || input.locale || "",
 	);
@@ -3324,9 +3797,17 @@ function buildWorkspaceIntentDefaults(input = {}) {
 			templatePreference,
 		},
 	);
-	if (input.output?.customVoiceFile !== undefined) {
+	if (!allowExternalVoiceFiles && input.output?.customVoiceFile !== undefined) {
 		throw new Error(
-			"customVoiceFile is not supported by CodeCut requirement confirmation.",
+			"customVoiceFile is not supported by CodeCut workspace setup.",
+		);
+	}
+	if (
+		!allowExternalVoiceFiles &&
+		input.output?.voiceCloneSourceFile !== undefined
+	) {
+		throw new Error(
+			"voiceCloneSourceFile is not supported by CodeCut workspace setup.",
 		);
 	}
 	const defaults = {
@@ -3368,11 +3849,19 @@ function buildWorkspaceIntentDefaults(input = {}) {
 						input.output.voicePackId !== noBuiltinVoicePackId,
 			voicePackId: resolveWorkspaceVoicePackIdDefault(
 				input.output?.voicePackId,
+				{ allowExternalVoiceFiles },
 			),
 			...(input.output?.customVoiceFile
 				? {
 						customVoiceFile: normalizeCustomVoiceFile(
 							input.output.customVoiceFile,
+						),
+					}
+				: {}),
+			...(input.output?.voiceCloneSourceFile
+				? {
+						voiceCloneSourceFile: normalizeCustomVoiceFile(
+							input.output.voiceCloneSourceFile,
 						),
 					}
 				: {}),
@@ -3671,12 +4160,14 @@ function validateWorkspaceCharacterPreferences(value) {
 }
 
 function validateWorkspaceBgmPreferences(value) {
-	if (bgmPreferenceModeValues.includes(value?.mode)) {
+	const parsed = workspaceBgmPreferencesSchema.safeParse(value);
+	if (parsed.success) {
 		return { ok: true, message: "BGM choice is valid." };
 	}
 	return {
 		ok: false,
-		message: "BGM must be none or smart_match.",
+		message:
+			parsed.error.issues[0]?.message || "BGM must be none or smart_match.",
 	};
 }
 
@@ -3814,11 +4305,12 @@ function validateWorkspaceVoiceChoice(output) {
 	if (!workspaceVoicePackChoiceValues.includes(output.voicePackId)) {
 		return {
 			ok: false,
-			message: "Voice must be none, podcast-female, podcast-male, or custom.",
+			message:
+				"Voice must be none, podcast-female, podcast-male, custom, or voice_clone.",
 		};
 	}
 	if (output.voicePackId === "custom") {
-		const parsed = customVoiceFileSchema.safeParse(output.customVoiceFile);
+		const parsed = voiceAudioFileSchema.safeParse(output.customVoiceFile);
 		if (!parsed.success) {
 			return {
 				ok: false,
@@ -3827,6 +4319,29 @@ function validateWorkspaceVoiceChoice(output) {
 					"Custom voice requires a selected audio file.",
 			};
 		}
+	}
+	if (output.voicePackId !== "custom" && output.customVoiceFile) {
+		return {
+			ok: false,
+			message: "Custom voice file is only valid when voice is custom.",
+		};
+	}
+	if (output.voicePackId === "voice_clone") {
+		const parsed = voiceAudioFileSchema.safeParse(output.voiceCloneSourceFile);
+		if (!parsed.success) {
+			return {
+				ok: false,
+				message:
+					parsed.error.issues[0]?.message ||
+					"Voice clone requires a source audio file.",
+			};
+		}
+	}
+	if (output.voicePackId !== "voice_clone" && output.voiceCloneSourceFile) {
+		return {
+			ok: false,
+			message: "Voice clone source file is only valid when voice is voice_clone.",
+		};
 	}
 	return { ok: true, message: "Voice choice is valid." };
 }
@@ -3840,7 +4355,17 @@ function normalizeWorkspaceCharacterPreferences(value) {
 
 function normalizeWorkspaceBgmPreferences(value) {
 	const mode = String(value?.mode ?? "none").trim();
-	return { mode: mode || "none" };
+	if (mode !== "smart_match") return { mode: mode || "none" };
+	return {
+		mode,
+		searchQuery: String(value.searchQuery || "").trim(),
+		candidates: Array.isArray(value.candidates)
+			? value.candidates.slice(0, MAX_BGM_CANDIDATE_LIMIT)
+			: [],
+		...(value.selectedCandidate
+			? { selectedCandidate: value.selectedCandidate }
+			: {}),
+	};
 }
 
 function normalizeWorkspaceVoicePackId(value) {
@@ -3850,21 +4375,39 @@ function normalizeWorkspaceVoicePackId(value) {
 
 function normalizeCustomVoiceFile(value) {
 	if (!value || typeof value !== "object") return undefined;
-	const name = String(value.name || "").trim();
 	const url = String(value.url || "").trim();
 	const path = String(value.path || "").trim();
+	const name =
+		String(value.name || "").trim() || inferVoiceAudioFileName(path || url);
 	return {
 		name,
-		url,
+		...(url ? { url } : {}),
 		...(path ? { path } : {}),
 	};
 }
 
-function resolveWorkspaceVoicePackIdDefault(value) {
+function inferVoiceAudioFileName(value) {
+	const normalized = String(value || "").trim();
+	if (!normalized) return "";
+	return normalized.split(/[\\/]/).filter(Boolean).at(-1) || normalized;
+}
+
+function resolveWorkspaceVoicePackIdDefault(
+	value,
+	{ allowExternalVoiceFiles = false } = {},
+) {
 	const normalized = normalizeWorkspaceVoicePackId(value);
 	if (workspaceOpenVoicePackChoiceValues.includes(normalized)) return normalized;
+	if (
+		allowExternalVoiceFiles &&
+		workspaceVoicePackChoiceValues.includes(normalized)
+	) {
+		return normalized;
+	}
 	throw new Error(
-		"voicePackId must be none, podcast-female, or podcast-male.",
+		allowExternalVoiceFiles
+			? "voicePackId must be none, podcast-female, podcast-male, custom, or voice_clone."
+			: "voicePackId must be none, podcast-female, or podcast-male.",
 	);
 }
 
@@ -3951,6 +4494,9 @@ function normalizeWorkspaceIntent(intent) {
 						noBuiltinVoicePackId),
 			voicePackId: normalizeWorkspaceVoicePackId(intent.output?.voicePackId),
 			customVoiceFile: normalizeCustomVoiceFile(intent.output?.customVoiceFile),
+			voiceCloneSourceFile: normalizeCustomVoiceFile(
+				intent.output?.voiceCloneSourceFile,
+			),
 		},
 		titlePreferences: normalizeWorkspaceTitlePreferences(
 			intent.titlePreferences,
@@ -4352,6 +4898,215 @@ function buildImportMediaArgs(intent) {
 	};
 }
 
+async function importSelectedBgmAsset({
+	normalized,
+	projectId,
+	workspace,
+	confirmationToken,
+	bridgeToolImpl,
+	fetchImpl,
+	bgmDownloadTimeoutMs,
+}) {
+	const candidate = normalized.bgmPreferences?.selectedCandidate;
+	if (normalized.bgmPreferences?.mode !== "smart_match" || !candidate) {
+		return null;
+	}
+
+	const filePath = await downloadBgmCandidate({
+		candidate,
+		workspace,
+		fetchImpl,
+		bgmDownloadTimeoutMs,
+	});
+	const importResult = await bridgeToolImpl("import_media", {
+		projectId,
+		filePath,
+		confirmationToken,
+	});
+	if (importResult?.isError) {
+		throw new Error(extractErrorMessage(importResult));
+	}
+	const importedAsset = extractImportedMedia(
+		importResult?.structuredContent || importResult,
+	);
+	if (!importedAsset?.id) {
+		throw new Error("import_media did not return an imported BGM asset.");
+	}
+
+	return {
+		assetId: importedAsset.id,
+		candidate,
+		license: {
+			label: candidate.licenseLabel,
+			url: candidate.licenseUrl,
+			commercialUseAllowed: candidate.commercialUseAllowed,
+			attributionRequired: candidate.attributionRequired,
+		},
+		filePath,
+		importedAsset,
+	};
+}
+
+async function downloadBgmCandidate({
+	candidate,
+	workspace,
+	fetchImpl,
+	bgmDownloadTimeoutMs,
+}) {
+	if (!workspace?.projectDirectory) {
+		throw new Error("Workspace directory is required before importing BGM.");
+	}
+	const candidateParts = readInternetArchiveBgmCandidateParts(candidate);
+	if (candidate.fileSizeBytes > MAX_BGM_DOWNLOAD_BYTES) {
+		throw new Error("BGM fileSizeBytes exceeds the download limit.");
+	}
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), bgmDownloadTimeoutMs);
+	let response;
+	try {
+		response = await fetchBgmDownloadResponse({
+			candidateParts,
+			fetchImpl,
+			signal: controller.signal,
+		});
+		if (!response?.ok) {
+			throw new Error(
+				`BGM download failed with status ${response?.status ?? 0}.`,
+			);
+		}
+		validateBgmDownloadResponse(response, candidate);
+		const bytes = await readBgmDownloadBytes(response, candidate);
+		const bgmDirectory = join(workspace.projectDirectory, "01-input", "bgm");
+		await mkdir(bgmDirectory, { recursive: true });
+		const filePath = join(bgmDirectory, safeBgmFileName(candidate));
+		await writeFile(filePath, bytes);
+		return filePath;
+	} catch (error) {
+		if (error?.name === "AbortError") {
+			throw new Error("BGM download timed out.");
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+async function fetchBgmDownloadResponse({ candidateParts, fetchImpl, signal }) {
+	let currentUrl = candidateParts.downloadUrl;
+	for (
+		let redirectCount = 0;
+		redirectCount <= bgmDownloadRedirectLimit;
+		redirectCount += 1
+	) {
+		const response = await fetchImpl(currentUrl, {
+			redirect: "manual",
+			signal,
+		});
+		if (response?.status < 300 || response?.status >= 400) {
+			return response;
+		}
+		if (redirectCount === bgmDownloadRedirectLimit) {
+			throw new Error("BGM download redirects are not allowed.");
+		}
+		currentUrl = readAllowedBgmRedirectUrl({
+			location: getResponseHeader(response, "location"),
+			currentUrl,
+			candidateParts,
+		});
+	}
+	throw new Error("BGM download failed.");
+}
+
+function getResponseHeader(response, name) {
+	if (typeof response.headers?.get === "function") {
+		return response.headers.get(name);
+	}
+	const headers = response.headers;
+	if (!headers || typeof headers !== "object") return null;
+	return headers[name] ?? headers[name.toLowerCase()] ?? null;
+}
+
+function parseByteSize(value) {
+	if (value === null || value === undefined || value === "") return 0;
+	const size = Number(value);
+	return Number.isFinite(size) && size > 0 ? size : 0;
+}
+
+function validateBgmDownloadResponse(response, candidate) {
+	const contentType = String(getResponseHeader(response, "content-type") || "")
+		.split(";")[0]
+		.trim()
+		.toLowerCase();
+	const extension = extname(
+		readInternetArchiveBgmCandidateParts(candidate).fileName,
+	).toLowerCase();
+	if (
+		contentType &&
+		!contentType.startsWith("audio/") &&
+		!(extension === ".ogg" && contentType === "application/ogg") &&
+		contentType !== "application/octet-stream"
+	) {
+		throw new Error("BGM download must return audio content.");
+	}
+	const contentLength = parseByteSize(
+		getResponseHeader(response, "content-length"),
+	);
+	if (contentLength > MAX_BGM_DOWNLOAD_BYTES) {
+		throw new Error("BGM download exceeds the size limit.");
+	}
+}
+
+async function readBgmDownloadBytes(response, candidate) {
+	const reader = response.body?.getReader?.();
+	if (reader) {
+		const chunks = [];
+		let totalBytes = 0;
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			const chunk = Buffer.from(value);
+			totalBytes += chunk.byteLength;
+			if (totalBytes > MAX_BGM_DOWNLOAD_BYTES) {
+				throw new Error("BGM download exceeds the size limit.");
+			}
+			chunks.push(chunk);
+		}
+		return Buffer.concat(chunks, totalBytes);
+	}
+	if (typeof response.arrayBuffer !== "function") {
+		throw new Error("BGM download did not return binary audio data.");
+	}
+	const expectedSize =
+		parseByteSize(getResponseHeader(response, "content-length")) ||
+		candidate.fileSizeBytes;
+	if (!expectedSize) {
+		throw new Error("BGM download size is required before reading audio data.");
+	}
+	if (expectedSize > MAX_BGM_DOWNLOAD_BYTES) {
+		throw new Error("BGM download exceeds the size limit.");
+	}
+	const bytes = Buffer.from(await response.arrayBuffer());
+	if (bytes.byteLength > MAX_BGM_DOWNLOAD_BYTES) {
+		throw new Error("BGM download exceeds the size limit.");
+	}
+	return bytes;
+}
+
+function safeBgmFileName(candidate) {
+	const urlName = basename(new URL(candidate.downloadUrl).pathname);
+	const fallbackName = `${candidate.title || candidate.sourceId || "bgm"}.mp3`;
+	const rawName = urlName || fallbackName;
+	const extension = extname(rawName) || ".mp3";
+	const baseName = rawName.slice(0, rawName.length - extension.length) || "bgm";
+	const safeBaseName =
+		baseName
+			.normalize("NFKD")
+			.replace(/[^\w.-]+/g, "-")
+			.replace(/^-+|-+$/g, "")
+			.slice(0, 80) || "bgm";
+	return `${safeBaseName}${extension.toLowerCase()}`;
+}
+
 function buildSetupErrorResult(content) {
 	return {
 		content: [
@@ -4398,6 +5153,7 @@ function buildContinuePrompt({
 	editorUrl,
 	confirmationToken,
 	importedMedia,
+	bgmAsset,
 	deferredMediaSources,
 	workspace,
 }) {
@@ -4450,6 +5206,11 @@ function buildContinuePrompt({
 		`Network material matching decision: ${JSON.stringify(intent.networkMaterialMatching)}. If enabled, derive ordered English search terms only from voiceover, spokenScript, or ASR text; use providers in the confirmed order; fail clearly when text, API keys, candidates, downloads, or license fields are missing; record source, license, search term, voiceover segment, dimensions, duration, imported media id, and crop risk before material understanding.`,
 		`Write template resolution evidence before planning: 04-planning/template-resolution.json and a short markdown note with match mode, candidate templates, selected template, missing evidence, and stop reason.`,
 		...guardrails,
+		...(bgmAsset
+			? [
+					`Selected BGM asset: use audio.bgm.assetId "${bgmAsset.assetId}" with mode "loop_to_timeline" and low background volume. Candidate and license: ${JSON.stringify({ candidate: bgmAsset.candidate, license: bgmAsset.license })}.`,
+				]
+			: []),
 		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
 		`Deferred media sources: ${JSON.stringify(deferredMediaSources)}.`,
 		`Confirmed intent: ${JSON.stringify(intent)}.`,
@@ -5601,6 +6362,38 @@ export async function callBridgeCliTool(
 	}
 }
 
+export async function searchBgmMusic(input, { fetchImpl = fetch } = {}) {
+	const parsed = z.object(searchBgmMusicInputSchema).strict().parse(input);
+	const result = await searchInternetArchiveBgm({
+		query: parsed.query,
+		limit: parsed.limit ?? DEFAULT_BGM_CANDIDATE_LIMIT,
+		commercialOnly: parsed.commercialOnly ?? true,
+		fetchImpl,
+	});
+
+	return {
+		query: result.query,
+		candidates: result.candidates,
+		count: result.count,
+	};
+}
+
+async function callCodecutMcpTool(toolName, input) {
+	if (toolName === "search_bgm_music") {
+		const result = await searchBgmMusic(input);
+		return {
+			content: [
+				{
+					type: "text",
+					text: `Found ${result.candidates.length} BGM candidate(s) for "${result.query}".`,
+				},
+			],
+			structuredContent: result,
+		};
+	}
+	return callBridgeCliTool(toolName, input);
+}
+
 function pluginVersion() {
 	const manifest = JSON.parse(
 		readFileSync(resolve(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
@@ -5668,7 +6461,7 @@ export function createCodecutMcpServer() {
 					"codecut/governanceCategory": tool.governanceCategory,
 				},
 			},
-			async (input) => callBridgeCliTool(tool.name, input),
+			async (input) => callCodecutMcpTool(tool.name, input),
 		);
 	}
 
@@ -5750,10 +6543,11 @@ export async function callCodecutWorkspaceTool(
 		const blocked = await assertCodecutServiceReady({ cwd, env, fetchImpl });
 		if (blocked) return blocked;
 		try {
-			return openCodecutRequirementConfirmation(input, {
+			return await openCodecutRequirementConfirmation(input, {
 				root: resolveRequirementStoreRoot({ cwd, env }),
 				cwd,
 				env,
+				fetchImpl,
 			});
 		} catch (error) {
 			return buildCodecutSetupInvalidResult(extractErrorMessage(error));

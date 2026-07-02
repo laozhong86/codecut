@@ -7,6 +7,7 @@ import type {
 	NetworkMaterialProvider,
 } from "@/lib/network-materials/schema";
 import type { BuiltInTemplateId } from "@/lib/templates/registry";
+import type { BgmCandidate } from "./setup-contract";
 
 export type RequirementConfirmationFormState = {
 	aspectRatio: "9:16" | "16:9" | "1:1";
@@ -28,10 +29,24 @@ export type RequirementConfirmationFormState = {
 	captionLanguage: string;
 	captionSize: "small" | "medium" | "large";
 	captionStylePreset: RequirementDraft["captionPreferences"]["stylePreset"];
-	voicePackId: "none" | "podcast-female" | "podcast-male" | "custom";
+	voicePackId:
+		| "none"
+		| "podcast-female"
+		| "podcast-male"
+		| "custom"
+		| "voice_clone";
+	customVoiceFileName: string;
+	customVoiceFileUrl: string;
+	customVoiceFilePath: string;
+	voiceCloneSourceFileName: string;
+	voiceCloneSourceFileUrl: string;
+	voiceCloneSourceFilePath: string;
 	outputQuality: "low" | "medium" | "high" | "very_high";
 	characterId: RequirementDraft["characterPreferences"]["characterId"];
 	bgmMode: RequirementDraft["bgmPreferences"]["mode"];
+	bgmSearchQuery: string;
+	bgmCandidates: BgmCandidate[];
+	selectedBgmCandidateId: string;
 	requirements: string;
 };
 
@@ -67,9 +82,30 @@ export function formStateFromRequirementDraft(
 		captionSize: draft.captionPreferences.size,
 		captionStylePreset: draft.captionPreferences.stylePreset,
 		voicePackId: draft.voicePreferences?.voicePackId ?? "none",
+		customVoiceFileName: draft.voicePreferences?.customVoiceFile?.name ?? "",
+		customVoiceFileUrl: draft.voicePreferences?.customVoiceFile?.url ?? "",
+		customVoiceFilePath: draft.voicePreferences?.customVoiceFile?.path ?? "",
+		voiceCloneSourceFileName:
+			draft.voicePreferences?.voiceCloneSourceFile?.name ?? "",
+		voiceCloneSourceFileUrl:
+			draft.voicePreferences?.voiceCloneSourceFile?.url ?? "",
+		voiceCloneSourceFilePath:
+			draft.voicePreferences?.voiceCloneSourceFile?.path ?? "",
 		outputQuality: draft.exportPreferences.quality,
 		characterId: draft.characterPreferences.characterId,
 		bgmMode: draft.bgmPreferences.mode,
+		bgmSearchQuery:
+			draft.bgmPreferences.mode === "smart_match"
+				? (draft.bgmPreferences.searchQuery ?? "")
+				: "",
+		bgmCandidates:
+			draft.bgmPreferences.mode === "smart_match"
+				? [...(draft.bgmPreferences.candidates ?? [])]
+				: [],
+		selectedBgmCandidateId:
+			draft.bgmPreferences.mode === "smart_match"
+				? (draft.bgmPreferences.selectedCandidate?.id ?? "")
+				: "",
 		requirements: draft.timelinePreferences.requirements,
 	};
 }
@@ -187,14 +223,10 @@ export function buildRequirementConfirmationPatch({
 		};
 	}
 
-	const nextVoiceEnabled = form.voicePackId !== "none";
-	const nextVoicePreferences = {
-		enabled: nextVoiceEnabled,
-		voicePackId: nextVoiceEnabled ? form.voicePackId : "none",
-	} as const;
+	const nextVoicePreferences = buildVoicePreferencesFromForm(form);
 	if (
-		draft.voicePreferences.enabled !== nextVoicePreferences.enabled ||
-		draft.voicePreferences.voicePackId !== nextVoicePreferences.voicePackId
+		JSON.stringify(draft.voicePreferences) !==
+		JSON.stringify(nextVoicePreferences)
 	) {
 		patch.voicePreferences = nextVoicePreferences;
 	}
@@ -210,8 +242,12 @@ export function buildRequirementConfirmationPatch({
 		patch.characterPreferences = { characterId: form.characterId };
 	}
 
-	if (draft.bgmPreferences.mode !== form.bgmMode) {
-		patch.bgmPreferences = { mode: form.bgmMode };
+	const bgmPreferencesPatch = buildBgmPreferencesPatchFromForm({
+		draft,
+		form,
+	});
+	if (bgmPreferencesPatch) {
+		patch.bgmPreferences = bgmPreferencesPatch;
 	}
 
 	return patch;
@@ -229,4 +265,81 @@ function templatePreferenceChanged(
 		return before.draftTemplateName !== after.draftTemplateName;
 	}
 	return false;
+}
+
+function buildBgmPreferencesPatchFromForm({
+	draft,
+	form,
+}: {
+	draft: RequirementDraft;
+	form: RequirementConfirmationFormState;
+}): RequirementConfirmationPatch["bgmPreferences"] | undefined {
+	if (form.bgmMode === "none") {
+		return draft.bgmPreferences.mode === "none" ? undefined : { mode: "none" };
+	}
+	if (
+		draft.bgmPreferences.mode === "smart_match" &&
+		draft.bgmPreferences.selectedCandidate?.id === form.selectedBgmCandidateId
+	) {
+		return undefined;
+	}
+	return {
+		mode: "smart_match",
+		selectedCandidateId: form.selectedBgmCandidateId,
+	};
+}
+
+function buildVoicePreferencesFromForm(
+	form: RequirementConfirmationFormState,
+): RequirementDraft["voicePreferences"] {
+	if (form.voicePackId === "none") {
+		return { enabled: false, voicePackId: "none" };
+	}
+	if (form.voicePackId === "custom") {
+		return {
+			enabled: true,
+			voicePackId: "custom",
+			customVoiceFile: buildVoiceAudioFile({
+				name: form.customVoiceFileName,
+				url: form.customVoiceFileUrl,
+				path: form.customVoiceFilePath,
+			}),
+		};
+	}
+	if (form.voicePackId === "voice_clone") {
+		return {
+			enabled: true,
+			voicePackId: "voice_clone",
+			voiceCloneSourceFile: buildVoiceAudioFile({
+				name: form.voiceCloneSourceFileName,
+				url: form.voiceCloneSourceFileUrl,
+				path: form.voiceCloneSourceFilePath,
+			}),
+		};
+	}
+	return { enabled: true, voicePackId: form.voicePackId };
+}
+
+function buildVoiceAudioFile({
+	name,
+	url,
+	path,
+}: {
+	name: string;
+	url: string;
+	path: string;
+}) {
+	const normalizedUrl = url.trim();
+	const normalizedPath = path.trim();
+	return {
+		name: name.trim() || inferFileName(normalizedPath || normalizedUrl),
+		...(normalizedUrl ? { url: normalizedUrl } : {}),
+		...(normalizedPath ? { path: normalizedPath } : {}),
+	};
+}
+
+function inferFileName(value: string) {
+	const normalized = value.trim();
+	if (!normalized) return "";
+	return normalized.split(/[\\/]/).filter(Boolean).at(-1) ?? normalized;
 }

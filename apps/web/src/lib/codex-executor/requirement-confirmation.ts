@@ -5,7 +5,6 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import {
-	BuiltInVoicePackIdSchema,
 	ConfirmedSetupSchema,
 	ConfirmedSetupTaskTypeSchema,
 	TemplatePreferenceSchema,
@@ -43,14 +42,6 @@ const CheckSchema = z
 	})
 	.strict();
 
-const CustomVoiceFileSchema = z
-	.object({
-		name: z.string().trim().min(1),
-		url: z.string().trim().min(1),
-		path: z.string().trim().min(1).optional(),
-	})
-	.strict();
-
 export const RequirementDraftInputSchema = z
 	.object({
 		originalUserMessage: z.string().trim().min(1),
@@ -61,13 +52,7 @@ export const RequirementDraftInputSchema = z
 		timelinePreferences: ConfirmedSetupSchema.shape.timelinePreferences,
 		titlePreferences: ConfirmedSetupSchema.shape.titlePreferences,
 		captionPreferences: ConfirmedSetupSchema.shape.captionPreferences,
-		voicePreferences: z
-			.object({
-				enabled: z.boolean(),
-				voicePackId: BuiltInVoicePackIdSchema,
-				customVoiceFile: CustomVoiceFileSchema.optional(),
-			})
-			.strict(),
+		voicePreferences: ConfirmedSetupSchema.shape.voicePreferences,
 		characterPreferences: ConfirmedSetupSchema.shape.characterPreferences,
 		bgmPreferences: ConfirmedSetupSchema.shape.bgmPreferences,
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
@@ -108,6 +93,16 @@ export const CancelledRequirementSchema = z
 	})
 	.strict();
 
+const BgmConfirmationPatchSchema = z.discriminatedUnion("mode", [
+	z.object({ mode: z.literal("none") }).strict(),
+	z
+		.object({
+			mode: z.literal("smart_match"),
+			selectedCandidateId: z.string().trim().min(1),
+		})
+		.strict(),
+]);
+
 export const RequirementConfirmationPatchSchema = z
 	.object({
 		timelinePreferences:
@@ -115,17 +110,10 @@ export const RequirementConfirmationPatchSchema = z
 		titlePreferences: ConfirmedSetupSchema.shape.titlePreferences.optional(),
 		captionPreferences:
 			ConfirmedSetupSchema.shape.captionPreferences.optional(),
-		voicePreferences: z
-			.object({
-				enabled: z.boolean(),
-				voicePackId: BuiltInVoicePackIdSchema,
-				customVoiceFile: CustomVoiceFileSchema.optional(),
-			})
-			.strict()
-			.optional(),
+		voicePreferences: ConfirmedSetupSchema.shape.voicePreferences.optional(),
 		characterPreferences:
 			ConfirmedSetupSchema.shape.characterPreferences.optional(),
-		bgmPreferences: ConfirmedSetupSchema.shape.bgmPreferences.optional(),
+		bgmPreferences: BgmConfirmationPatchSchema.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
 		networkMaterialMatching:
 			ConfirmedSetupSchema.shape.networkMaterialMatching.optional(),
@@ -254,6 +242,31 @@ export async function readRequirementDraft({
 	return RequirementDraftSchema.parse(JSON.parse(raw));
 }
 
+function resolveBgmPreferencesPatch({
+	draft,
+	patch,
+}: {
+	draft: RequirementDraft;
+	patch?: RequirementConfirmationPatch["bgmPreferences"];
+}): RequirementDraft["bgmPreferences"] {
+	if (!patch) return draft.bgmPreferences;
+	if (patch.mode === "none") return { mode: "none" };
+	if (draft.bgmPreferences.mode !== "smart_match") {
+		throw new Error("BGM smart_match selection requires draft candidates.");
+	}
+	const candidates = draft.bgmPreferences.candidates ?? [];
+	const selectedCandidate = candidates.find(
+		(candidate) => candidate.id === patch.selectedCandidateId,
+	);
+	if (!selectedCandidate) {
+		throw new Error("Selected BGM candidate is not available in this draft.");
+	}
+	return {
+		...draft.bgmPreferences,
+		selectedCandidate,
+	};
+}
+
 export async function confirmRequirementDraft({
 	root,
 	draftId,
@@ -286,7 +299,10 @@ export async function confirmRequirementDraft({
 			voicePreferences: parsedPatch.voicePreferences ?? draft.voicePreferences,
 			characterPreferences:
 				parsedPatch.characterPreferences ?? draft.characterPreferences,
-			bgmPreferences: parsedPatch.bgmPreferences ?? draft.bgmPreferences,
+			bgmPreferences: resolveBgmPreferencesPatch({
+				draft,
+				patch: parsedPatch.bgmPreferences,
+			}),
 			templatePreference:
 				parsedPatch.templatePreference ?? draft.templatePreference,
 			networkMaterialMatching:

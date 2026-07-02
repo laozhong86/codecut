@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
 	applyConfirmedSetupPatch,
 	ConfirmedSetupSchema,
+	type BgmCandidate,
+	type BgmPreferences,
 } from "../setup-contract";
 
 function confirmedSetup(overrides: Record<string, unknown> = {}) {
@@ -49,6 +51,39 @@ function confirmedSetup(overrides: Record<string, unknown> = {}) {
 			decisionSource: "template",
 		},
 		changes: [],
+		...overrides,
+	};
+}
+
+function bgmCandidate(overrides: Partial<BgmCandidate> = {}): BgmCandidate {
+	return {
+		id: "internet-archive:safe-lofi:safe-lofi.mp3",
+		sourceId: "internet-archive:safe-lofi:safe-lofi.mp3",
+		title: "Safe Lofi Beat",
+		creator: "Open Artist",
+		source: "internet_archive",
+		sourceUrl: "https://archive.org/details/safe-lofi",
+		licenseLabel: "CC BY 4.0",
+		licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+		commercialUseAllowed: true,
+		attributionRequired: true,
+		previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		downloadUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		durationSeconds: 91.2,
+		fileSizeBytes: 1234,
+		...overrides,
+	};
+}
+
+function smartBgmPreferences(
+	overrides: Partial<BgmPreferences> = {},
+): BgmPreferences {
+	const selectedCandidate = bgmCandidate();
+	return {
+		mode: "smart_match",
+		searchQuery: "bright lofi product demo",
+		candidates: [selectedCandidate],
+		selectedCandidate,
 		...overrides,
 	};
 }
@@ -178,19 +213,19 @@ describe("ConfirmedSetup durationContract", () => {
 		const parsed = ConfirmedSetupSchema.parse(
 			confirmedSetup({
 				characterPreferences: { characterId: "ugc-female-host" },
-				bgmPreferences: { mode: "smart_match" },
+				bgmPreferences: smartBgmPreferences(),
 			}),
 		);
 
 		expect(parsed.characterPreferences).toEqual({
 			characterId: "ugc-female-host",
 		});
-		expect(parsed.bgmPreferences).toEqual({ mode: "smart_match" });
+		expect(parsed.bgmPreferences).toEqual(smartBgmPreferences());
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
 					characterPreferences: { characterId: "unknown-character" },
-					bgmPreferences: { mode: "smart_match" },
+					bgmPreferences: smartBgmPreferences(),
 				}),
 			),
 		).toThrow("characterPreferences.characterId must be none or a built-in role");
@@ -220,7 +255,7 @@ describe("ConfirmedSetup durationContract", () => {
 			>[0]["confirmedSetup"],
 			patch: {
 				characterPreferences: { characterId: "ugc-female-host" },
-				bgmPreferences: { mode: "smart_match" },
+				bgmPreferences: smartBgmPreferences(),
 			},
 			reason: "user_selected_role_and_bgm",
 			changedAt: "2026-07-01T00:00:00.000Z",
@@ -229,13 +264,27 @@ describe("ConfirmedSetup durationContract", () => {
 		expect(applied.changedFields).toEqual([
 			"characterPreferences.characterId",
 			"bgmPreferences.mode",
+			"bgmPreferences.searchQuery",
+			"bgmPreferences.candidates",
+			"bgmPreferences.selectedCandidate.id",
+			"bgmPreferences.selectedCandidate.sourceId",
+			"bgmPreferences.selectedCandidate.title",
+			"bgmPreferences.selectedCandidate.creator",
+			"bgmPreferences.selectedCandidate.source",
+			"bgmPreferences.selectedCandidate.sourceUrl",
+			"bgmPreferences.selectedCandidate.licenseLabel",
+			"bgmPreferences.selectedCandidate.licenseUrl",
+			"bgmPreferences.selectedCandidate.commercialUseAllowed",
+			"bgmPreferences.selectedCandidate.attributionRequired",
+			"bgmPreferences.selectedCandidate.previewUrl",
+			"bgmPreferences.selectedCandidate.downloadUrl",
+			"bgmPreferences.selectedCandidate.durationSeconds",
+			"bgmPreferences.selectedCandidate.fileSizeBytes",
 		]);
 		expect(applied.confirmedSetup.characterPreferences).toEqual({
 			characterId: "ugc-female-host",
 		});
-		expect(applied.confirmedSetup.bgmPreferences).toEqual({
-			mode: "smart_match",
-		});
+		expect(applied.confirmedSetup.bgmPreferences).toEqual(smartBgmPreferences());
 	});
 
 	test("character and BGM preference changes require replan", () => {
@@ -248,7 +297,7 @@ describe("ConfirmedSetup durationContract", () => {
 			),
 			patch: {
 				characterPreferences: { characterId: "ugc-female-host" },
-				bgmPreferences: { mode: "smart_match" },
+				bgmPreferences: smartBgmPreferences(),
 			},
 			reason: "user_selected_role_and_bgm",
 			changedAt: "2026-07-01T00:00:00.000Z",
@@ -258,13 +307,201 @@ describe("ConfirmedSetup durationContract", () => {
 		expect(applied.changedFields).toEqual([
 			"characterPreferences.characterId",
 			"bgmPreferences.mode",
+			"bgmPreferences.searchQuery",
+			"bgmPreferences.candidates",
+			"bgmPreferences.selectedCandidate.id",
+			"bgmPreferences.selectedCandidate.sourceId",
+			"bgmPreferences.selectedCandidate.title",
+			"bgmPreferences.selectedCandidate.creator",
+			"bgmPreferences.selectedCandidate.source",
+			"bgmPreferences.selectedCandidate.sourceUrl",
+			"bgmPreferences.selectedCandidate.licenseLabel",
+			"bgmPreferences.selectedCandidate.licenseUrl",
+			"bgmPreferences.selectedCandidate.commercialUseAllowed",
+			"bgmPreferences.selectedCandidate.attributionRequired",
+			"bgmPreferences.selectedCandidate.previewUrl",
+			"bgmPreferences.selectedCandidate.downloadUrl",
+			"bgmPreferences.selectedCandidate.durationSeconds",
+			"bgmPreferences.selectedCandidate.fileSizeBytes",
 		]);
 		expect(applied.confirmedSetup.characterPreferences).toEqual({
 			characterId: "ugc-female-host",
 		});
-		expect(applied.confirmedSetup.bgmPreferences).toEqual({
-			mode: "smart_match",
-		});
+		expect(applied.confirmedSetup.bgmPreferences).toEqual(smartBgmPreferences());
+	});
+
+	test("requires smart matched BGM to carry search query candidates and selected music", () => {
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: { mode: "smart_match" },
+				}),
+			),
+		).toThrow("bgmPreferences.searchQuery is required for smart_match.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: {
+						mode: "smart_match",
+						searchQuery: "lofi",
+						candidates: [],
+						selectedCandidate: bgmCandidate(),
+					},
+				}),
+			),
+		).toThrow("bgmPreferences.candidates must include at least one candidate.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: {
+						mode: "smart_match",
+						searchQuery: "lofi",
+						candidates: [bgmCandidate()],
+					},
+				}),
+			),
+		).toThrow("bgmPreferences.selectedCandidate is required for smart_match.");
+	});
+
+	test("rejects stale or unsafe BGM selections", () => {
+		const selectedCandidate = bgmCandidate();
+		const reorderedSelectedCandidate: BgmCandidate = {
+			sourceId: selectedCandidate.sourceId,
+			id: selectedCandidate.id,
+			title: selectedCandidate.title,
+			creator: selectedCandidate.creator,
+			source: selectedCandidate.source,
+			sourceUrl: selectedCandidate.sourceUrl,
+			licenseLabel: selectedCandidate.licenseLabel,
+			licenseUrl: selectedCandidate.licenseUrl,
+			commercialUseAllowed: selectedCandidate.commercialUseAllowed,
+			attributionRequired: selectedCandidate.attributionRequired,
+			previewUrl: selectedCandidate.previewUrl,
+			downloadUrl: selectedCandidate.downloadUrl,
+			durationSeconds: selectedCandidate.durationSeconds,
+			fileSizeBytes: selectedCandidate.fileSizeBytes,
+		};
+		expect(
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [selectedCandidate],
+						selectedCandidate: reorderedSelectedCandidate,
+					}),
+				}),
+			).bgmPreferences.selectedCandidate,
+		).toEqual(reorderedSelectedCandidate);
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: {
+						...smartBgmPreferences(),
+						selectedCandidate: bgmCandidate({
+							id: "internet-archive:other:other.mp3",
+							sourceId: "internet-archive:other:other.mp3",
+						}),
+					},
+				}),
+			),
+		).toThrow("bgmPreferences.selectedCandidate must be one of candidates.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						selectedCandidate: bgmCandidate({
+							licenseLabel: "CC0",
+							attributionRequired: false,
+						}),
+					}),
+				}),
+			),
+		).toThrow("bgmPreferences.selectedCandidate must be one of candidates.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [bgmCandidate({ commercialUseAllowed: false })],
+						selectedCandidate: bgmCandidate({ commercialUseAllowed: false }),
+					}),
+				}),
+			),
+		).toThrow("BGM candidates must allow commercial use.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								licenseUrl:
+									"https://creativecommons.org/licenses/by-nc/4.0/",
+								commercialUseAllowed: true,
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							licenseUrl:
+								"https://creativecommons.org/licenses/by-nc/4.0/",
+							commercialUseAllowed: true,
+						}),
+					}),
+				}),
+			),
+		).toThrow("BGM licenseUrl must allow commercial video use.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								licenseUrl:
+									"https://example.com/not-real/creativecommons.org/licenses/by/4.0/",
+								commercialUseAllowed: true,
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							licenseUrl:
+								"https://example.com/not-real/creativecommons.org/licenses/by/4.0/",
+							commercialUseAllowed: true,
+						}),
+					}),
+				}),
+			),
+		).toThrow("BGM licenseUrl must allow commercial video use.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								downloadUrl: "https://example.com/safe-lofi.mp3",
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							downloadUrl: "https://example.com/safe-lofi.mp3",
+						}),
+					}),
+				}),
+			),
+		).toThrow("BGM downloadUrl must be an archive.org download URL.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [bgmCandidate({ fileSizeBytes: 100_000_000 })],
+						selectedCandidate: bgmCandidate({ fileSizeBytes: 100_000_000 }),
+					}),
+				}),
+			),
+		).toThrow("BGM fileSizeBytes exceeds the limit.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: {
+						mode: "none",
+						selectedCandidate: bgmCandidate(),
+					},
+				}),
+			),
+		).toThrow("bgmPreferences.mode none cannot include matched music.");
 	});
 
 	test("create template preference changes require replan", () => {
@@ -360,6 +597,26 @@ describe("ConfirmedSetup durationContract", () => {
 				path: "voice.wav",
 			},
 		});
+		const localFileOnly = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				voicePreferences: {
+					enabled: true,
+					voicePackId: "custom",
+					customVoiceFile: {
+						name: "voice.wav",
+						path: "/tmp/voice.wav",
+					},
+				},
+			}),
+		);
+		expect(localFileOnly.voicePreferences).toEqual({
+			enabled: true,
+			voicePackId: "custom",
+			customVoiceFile: {
+				name: "voice.wav",
+				path: "/tmp/voice.wav",
+			},
+		});
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
@@ -402,13 +659,71 @@ describe("ConfirmedSetup durationContract", () => {
 		).toThrow("voicePreferences.voicePackId must be none");
 	});
 
+	test("accepts voice clone preferences with a source audio file", () => {
+		const parsed = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				voicePreferences: {
+					enabled: true,
+					voicePackId: "voice_clone",
+					voiceCloneSourceFile: {
+						name: "reference.wav",
+						path: "/tmp/reference.wav",
+					},
+				},
+			}),
+		);
+
+		expect(parsed.voicePreferences).toEqual({
+			enabled: true,
+			voicePackId: "voice_clone",
+			voiceCloneSourceFile: {
+				name: "reference.wav",
+				path: "/tmp/reference.wav",
+			},
+		});
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					voicePreferences: {
+						enabled: true,
+						voicePackId: "voice_clone",
+					},
+				}),
+			),
+		).toThrow("voicePreferences.voiceCloneSourceFile is required");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					voicePreferences: {
+						enabled: true,
+						voicePackId: "custom",
+						customVoiceFile: {
+							name: "voice.wav",
+							url: "blob:voice",
+						},
+						voiceCloneSourceFile: {
+							name: "reference.wav",
+							path: "/tmp/reference.wav",
+						},
+					},
+				}),
+			),
+		).toThrow(
+			"voicePreferences.voiceCloneSourceFile is only allowed for voice clone.",
+		);
+	});
+
 	test("clears the selected voice when voice is disabled by patch", () => {
 		const applied = applyConfirmedSetupPatch({
 			confirmedSetup: ConfirmedSetupSchema.parse(
 				confirmedSetup({
 					voicePreferences: {
 						enabled: true,
-						voicePackId: "podcast-female",
+						voicePackId: "voice_clone",
+						voiceCloneSourceFile: {
+							name: "reference.wav",
+							path: "/tmp/reference.wav",
+						},
 					},
 				}),
 			),

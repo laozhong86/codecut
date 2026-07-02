@@ -60,6 +60,37 @@ function slashPath(value) {
 	return String(value).replaceAll("\\", "/");
 }
 
+function bgmCandidate(overrides = {}) {
+	return {
+		id: "internet-archive:safe-lofi:safe-lofi.mp3",
+		sourceId: "internet-archive:safe-lofi:safe-lofi.mp3",
+		title: "Safe Lofi Beat",
+		creator: "Open Artist",
+		source: "internet_archive",
+		sourceUrl: "https://archive.org/details/safe-lofi",
+		licenseLabel: "CC BY 4.0",
+		licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+		commercialUseAllowed: true,
+		attributionRequired: true,
+		previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		downloadUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		durationSeconds: 91.2,
+		fileSizeBytes: 1234,
+		...overrides,
+	};
+}
+
+function smartBgmPreferences(overrides = {}) {
+	const selectedCandidate = bgmCandidate();
+	return {
+		mode: "smart_match",
+		searchQuery: "bright lofi product demo",
+		candidates: [selectedCandidate],
+		selectedCandidate,
+		...overrides,
+	};
+}
+
 function readStyleDeclarations(html, selector) {
 	const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	const match = html.match(
@@ -156,6 +187,7 @@ describe("Codecut MCP server contract", () => {
 			"build_post_cut_captions",
 			"list_models",
 			"search_media",
+			"search_bgm_music",
 			"list_templates",
 			"get_template",
 			"resolve_template",
@@ -360,6 +392,7 @@ describe("Codecut MCP server contract", () => {
 
 		expect(readOnlyByTool.get("list_models")).toBe(true);
 		expect(readOnlyByTool.get("search_media")).toBe(true);
+		expect(readOnlyByTool.get("search_bgm_music")).toBe(true);
 		expect(readOnlyByTool.get("build_caption_diagnostics")).toBe(true);
 		expect(readOnlyByTool.get("list_templates")).toBe(true);
 		expect(readOnlyByTool.get("get_template")).toBe(true);
@@ -424,6 +457,7 @@ describe("Codecut MCP server contract", () => {
 			"build_caption_diagnostics",
 			"inspect_timeline",
 			"get_timeline_state",
+			"search_bgm_music",
 		]) {
 			expect(categoryByTool.get(toolName)).toBe(
 				CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
@@ -513,6 +547,113 @@ describe("Codecut MCP server contract", () => {
 			}).success,
 		).toBe(true);
 		expect(tool?.inputSchema.captionStyle.safeParse({}).success).toBe(false);
+	});
+
+	test("exposes search_bgm_music as a read-only Internet Archive matcher", async () => {
+		const tool = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "search_bgm_music",
+		);
+
+		expect(tool?.description).toContain("Internet Archive");
+		expect(tool?.readOnly).toBe(true);
+		expect(tool?.governanceCategory).toBe(
+			CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
+		);
+		expect(tool?.inputSchema.query.safeParse("lofi product demo").success).toBe(
+			true,
+		);
+		expect(tool?.inputSchema.limit.safeParse(5).success).toBe(true);
+		expect(tool?.inputSchema.limit.safeParse(11).success).toBe(false);
+		expect(tool?.inputSchema.commercialOnly.safeParse(true).success).toBe(true);
+	});
+
+	test("searches BGM candidates and filters non-commercial Internet Archive licenses", async () => {
+		const fetchedUrls = [];
+		const result = await serverModule.searchBgmMusic(
+			{ query: "lofi product demo", limit: 5, commercialOnly: true },
+			{
+				fetchImpl: async (url) => {
+					fetchedUrls.push(String(url));
+					if (String(url).startsWith("https://archive.org/advancedsearch.php")) {
+						return {
+							ok: true,
+							status: 200,
+							json: async () => ({
+								response: {
+									numFound: 3,
+									docs: [
+										{
+											identifier: "safe-lofi",
+											title: "Safe Lofi Beat",
+											creator: "Open Artist",
+											licenseurl:
+												"https://creativecommons.org/licenses/by/4.0/",
+											downloads: 12,
+										},
+										{
+											identifier: "non-commercial",
+											title: "NC Beat",
+											licenseurl:
+												"https://creativecommons.org/licenses/by-nc/4.0/",
+										},
+										{
+											identifier: "no-derivatives",
+											title: "ND Beat",
+											licenseurl:
+												"https://creativecommons.org/licenses/by-nd/4.0/",
+										},
+									],
+								},
+							}),
+						};
+					}
+					if (String(url) === "https://archive.org/metadata/safe-lofi") {
+						return {
+							ok: true,
+							status: 200,
+							json: async () => ({
+								metadata: {
+									title: "Safe Lofi Beat",
+									creator: "Open Artist",
+									subject: "lofi; upbeat",
+									licenseurl:
+										"https://creativecommons.org/licenses/by/4.0/",
+								},
+								files: [
+									{
+										name: "safe-lofi.ogg",
+										source: "original",
+										format: "Ogg Vorbis",
+										size: "100",
+										length: "91.2",
+									},
+									{
+										name: "safe-lofi.mp3",
+										source: "original",
+										format: "VBR MP3",
+										size: "1234",
+										length: "91.2",
+									},
+								],
+							}),
+						};
+					}
+					throw new Error(`Unexpected fetch ${url}`);
+				},
+			},
+		);
+
+		expect(result).toEqual({
+			query: "lofi product demo",
+			candidates: [bgmCandidate()],
+			count: 1,
+		});
+		expect(fetchedUrls).not.toContain(
+			"https://archive.org/metadata/non-commercial",
+		);
+		expect(fetchedUrls).not.toContain(
+			"https://archive.org/metadata/no-derivatives",
+		);
 	});
 
 	test("marks template mutation tools as destructive in MCP annotations", () => {
@@ -627,7 +768,7 @@ describe("Codecut MCP server contract", () => {
 			.strict();
 		const roleAndSoundDefaults = {
 			characterPreferences: { characterId: "ugc-female-host" },
-			bgmPreferences: { mode: "smart_match" },
+			bgmPreferences: smartBgmPreferences(),
 			output: {
 				voiceEnabled: true,
 				voicePackId: "podcast-male",
@@ -636,13 +777,34 @@ describe("Codecut MCP server contract", () => {
 		expect(openInputSchema.safeParse(roleAndSoundDefaults).success).toBe(true);
 		expect(
 			requirementOpenInputSchema.safeParse(roleAndSoundDefaults).success,
+		).toBe(false);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				...roleAndSoundDefaults,
+				bgmPreferences: {
+					mode: "smart_match",
+					searchQuery: "bright lofi product demo",
+					selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+				},
+			}).success,
 		).toBe(true);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				...roleAndSoundDefaults,
+				bgmPreferences: {
+					mode: "smart_match",
+					searchQuery: "bright lofi product demo",
+					selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+					limit: 10,
+					commercialOnly: false,
+				},
+			}).success,
+		).toBe(false);
 		const customVoiceDefaults = {
 			output: {
 				voiceEnabled: true,
 				voicePackId: "custom",
 				customVoiceFile: {
-					name: "voice.wav",
 					url: "blob:voice",
 					path: "/tmp/voice.wav",
 				},
@@ -651,6 +813,49 @@ describe("Codecut MCP server contract", () => {
 		expect(openInputSchema.safeParse(customVoiceDefaults).success).toBe(false);
 		expect(
 			requirementOpenInputSchema.safeParse(customVoiceDefaults).success,
+		).toBe(true);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				output: {
+					voiceEnabled: true,
+					voicePackId: "custom",
+				},
+			}).success,
+		).toBe(false);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				output: {
+					voicePackId: "custom",
+				},
+			}).success,
+		).toBe(false);
+		const voiceCloneDefaults = {
+			output: {
+				voiceEnabled: true,
+				voicePackId: "voice_clone",
+				voiceCloneSourceFile: {
+					path: "/tmp/reference.wav",
+				},
+			},
+		};
+		expect(openInputSchema.safeParse(voiceCloneDefaults).success).toBe(false);
+		expect(
+			requirementOpenInputSchema.safeParse(voiceCloneDefaults).success,
+		).toBe(true);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				output: {
+					voiceEnabled: true,
+					voicePackId: "voice_clone",
+				},
+			}).success,
+		).toBe(false);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				output: {
+					voicePackId: "voice_clone",
+				},
+			}).success,
 		).toBe(false);
 		expect(
 			openTool.inputSchema.transitionPreference.safeParse("auto").success,
@@ -1055,6 +1260,247 @@ describe("Codecut MCP server contract", () => {
 			expect(draft.voicePreferences).toEqual({
 				enabled: true,
 				voicePackId: "podcast-female",
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("opens requirement confirmation with server-derived BGM candidates", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-bgm-"));
+		const fetchedUrls = [];
+		try {
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_requirement_confirmation",
+				setupIntent({
+					projectName: "Smart BGM Requirement",
+					bgmPreferences: {
+						mode: "smart_match",
+						searchQuery: "bright lofi product demo",
+						selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+					},
+				}),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async (url) => {
+						fetchedUrls.push(String(url));
+						if (
+							String(url).startsWith(
+								"https://archive.org/advancedsearch.php",
+							)
+						) {
+							return {
+								ok: true,
+								status: 200,
+								json: async () => ({
+									response: {
+										numFound: 1,
+										docs: [
+											{
+												identifier: "safe-lofi",
+												title: "Safe Lofi Beat",
+												creator: "Open Artist",
+												licenseurl:
+													"https://creativecommons.org/licenses/by/4.0/",
+												downloads: 12,
+											},
+										],
+									},
+								}),
+							};
+						}
+						if (String(url) === "https://archive.org/metadata/safe-lofi") {
+							return {
+								ok: true,
+								status: 200,
+								json: async () => ({
+									metadata: {
+										title: "Safe Lofi Beat",
+										creator: "Open Artist",
+										subject: "lofi; upbeat",
+										licenseurl:
+											"https://creativecommons.org/licenses/by/4.0/",
+									},
+									files: [
+										{
+											name: "safe-lofi.mp3",
+											source: "original",
+											format: "VBR MP3",
+											size: "1234",
+											length: "91.2",
+										},
+									],
+								}),
+							};
+						}
+						return { ok: true, status: 200 };
+					},
+				},
+			);
+
+			expect(result.structuredContent.status).toBe(
+				"awaiting_user_confirmation",
+			);
+			expect(result.structuredContent.draft.bgmPreferences).toEqual(
+				smartBgmPreferences(),
+			);
+			expect(
+				fetchedUrls.some((url) =>
+					url.startsWith("https://archive.org/advancedsearch.php"),
+				),
+			).toBe(true);
+			expect(fetchedUrls).toContain("https://archive.org/metadata/safe-lofi");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("rejects forged BGM candidates when opening requirement confirmation", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-bgm-forge-"));
+		try {
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_requirement_confirmation",
+				setupIntent({
+					projectName: "Forged BGM Requirement",
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								title: "Tampered Commercial",
+								licenseLabel: "CC0",
+								fileSizeBytes: 1,
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							title: "Tampered Commercial",
+							licenseLabel: "CC0",
+							fileSizeBytes: 1,
+						}),
+					}),
+				}),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+
+			expect(result.isError).toBe(true);
+			expect(result.structuredContent.status).toBe("invalid_setup_request");
+			expect(result.structuredContent.error).toContain("Unrecognized");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("rejects BGM candidates with forged commercial license claims", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-bgm-license-"));
+		try {
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"submit_codecut_setup",
+				setupIntent({
+					confirmedByUser: true,
+					pendingConfirmationId: "ccsetup_license",
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								licenseUrl:
+									"https://creativecommons.org/licenses/by-nc/4.0/",
+								commercialUseAllowed: true,
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							licenseUrl:
+								"https://creativecommons.org/licenses/by-nc/4.0/",
+							commercialUseAllowed: true,
+						}),
+					}),
+				}),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+
+			expect(result.isError).toBe(true);
+			expect(JSON.stringify(result)).toContain(
+				"BGM licenseUrl must allow commercial video use.",
+			);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("opens requirement confirmation with external voice file defaults", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-voice-"));
+		try {
+			const custom = await serverModule.openCodecutRequirementConfirmation(
+				{
+					projectName: "Custom Voiceover",
+					output: {
+						voiceEnabled: true,
+						voicePackId: "custom",
+						customVoiceFile: {
+							name: "voice.wav",
+							path: "/tmp/voice.wav",
+						},
+					},
+				},
+				{
+					root: directory,
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+				},
+			);
+			expect(custom.structuredContent.draft.voicePreferences).toEqual({
+				enabled: true,
+				voicePackId: "custom",
+				customVoiceFile: {
+					name: "voice.wav",
+					path: "/tmp/voice.wav",
+				},
+			});
+
+			const cloned = await serverModule.openCodecutRequirementConfirmation(
+				{
+					projectName: "Clone Voice",
+					output: {
+						voiceEnabled: true,
+						voicePackId: "voice_clone",
+						voiceCloneSourceFile: {
+							path: "/tmp/reference.wav",
+						},
+					},
+				},
+				{
+					root: directory,
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+				},
+			);
+			expect(cloned.structuredContent.draft.voicePreferences).toEqual({
+				enabled: true,
+				voicePackId: "voice_clone",
+				voiceCloneSourceFile: {
+					name: "reference.wav",
+					path: "/tmp/reference.wav",
+				},
 			});
 		} finally {
 			await rm(directory, { recursive: true, force: true });
@@ -2399,7 +2845,7 @@ describe("Codecut MCP server contract", () => {
 				},
 			}),
 		).toThrow(
-			"customVoiceFile is not supported by CodeCut requirement confirmation.",
+			"customVoiceFile is not supported by CodeCut workspace setup.",
 		);
 	});
 
@@ -2419,15 +2865,15 @@ describe("Codecut MCP server contract", () => {
 		const selected = serverModule.openCodecutWorkspace({
 			projectName: "Role And Sound Controls",
 			characterPreferences: { characterId: "ugc-female-host" },
-			bgmPreferences: { mode: "smart_match" },
+			bgmPreferences: smartBgmPreferences(),
 		});
 		expect(selected.structuredContent.intentDefaults).toMatchObject({
 			characterPreferences: { characterId: "ugc-female-host" },
-			bgmPreferences: { mode: "smart_match" },
+			bgmPreferences: smartBgmPreferences(),
 		});
 		expect(selected._meta.widgetData.intentDefaults).toMatchObject({
 			characterPreferences: { characterId: "ugc-female-host" },
-			bgmPreferences: { mode: "smart_match" },
+			bgmPreferences: smartBgmPreferences(),
 		});
 	});
 
@@ -2739,6 +3185,26 @@ describe("Codecut MCP server contract", () => {
 			expect(builtInVoice.intent.output.voiceEnabled).toBe(true);
 			expect(builtInVoice.intent.output.voicePackId).toBe("podcast-female");
 
+			const voiceClone = await serverModule.inspectCodecutSetup(
+				setupIntent({
+					output: {
+						...setupIntent().output,
+						voiceEnabled: true,
+						voicePackId: "voice_clone",
+						voiceCloneSourceFile: {
+							path: "/tmp/reference.wav",
+						},
+					},
+				}),
+				{ bridgeToolImpl },
+			);
+			expect(voiceClone.status).toBe("ready");
+			expect(voiceClone.intent.output.voicePackId).toBe("voice_clone");
+			expect(voiceClone.intent.output.voiceCloneSourceFile).toEqual({
+				name: "reference.wav",
+				path: "/tmp/reference.wav",
+			});
+
 			for (const [label, intent] of [
 				["invalid project id", setupIntent({ projectId: "../bad" })],
 				["missing project name", setupIntent({ projectName: " " })],
@@ -2803,6 +3269,38 @@ describe("Codecut MCP server contract", () => {
 						output: {
 							...setupIntent().output,
 							voicePackId: "女声",
+						},
+					}),
+				],
+				[
+					"custom voice file with built-in voice",
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath }],
+						output: {
+							...setupIntent().output,
+							voicePackId: "podcast-female",
+							customVoiceFile: {
+								name: "voice.wav",
+								path: "/tmp/voice.wav",
+							},
+						},
+					}),
+				],
+				[
+					"voice clone source with custom voice",
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath }],
+						output: {
+							...setupIntent().output,
+							voicePackId: "custom",
+							customVoiceFile: {
+								name: "voice.wav",
+								path: "/tmp/voice.wav",
+							},
+							voiceCloneSourceFile: {
+								name: "reference.wav",
+								path: "/tmp/reference.wav",
+							},
 						},
 					}),
 				],
@@ -3421,8 +3919,622 @@ describe("Codecut MCP server contract", () => {
 			}
 		});
 
+	test("downloads and imports selected smart matched BGM during setup", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-bgm-setup-"));
+		const filePath = join(directory, "source.mp4");
+		await writeFile(filePath, "video");
+		const opened = serverModule.openCodecutWorkspace(
+			setupIntent({
+				mediaSources: [{ kind: "filePath", filePath }],
+				bgmPreferences: smartBgmPreferences(),
+			}),
+			{ confirmationRoot: directory },
+		);
+		const pendingConfirmationId =
+			opened.structuredContent.pendingConfirmationId;
+		const calls = [];
+		const bridgeToolImpl = async (toolName, args) => {
+			calls.push({ toolName, args });
+			if (toolName === "create_project") {
+				return {
+					structuredContent: {
+						projectId: "launch-cut-canonical",
+						name: "Launch Cut",
+						revision: 1,
+						editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+					},
+				};
+			}
+			if (toolName === "import_media") {
+				const isBgmImport = args.filePath !== filePath;
+				return {
+					structuredContent: {
+						status: "completed",
+						results: [
+							{
+								success: true,
+								data: {
+									assets: [
+										isBgmImport
+											? { id: "bgm-asset-1", name: "safe-lofi.mp3" }
+											: { id: "media-1", name: "source.mp4" },
+									],
+								},
+							},
+						],
+					},
+				};
+			}
+			if (toolName === "get_project_info") {
+				return {
+					structuredContent: {
+						results: [{ success: true, data: { revision: 3 } }],
+					},
+				};
+			}
+			throw new Error(`Unexpected tool ${toolName}`);
+		};
+
+		try {
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({
+					pendingConfirmationId,
+					mediaSources: [{ kind: "filePath", filePath }],
+					bgmPreferences: smartBgmPreferences(),
+				}),
+				{
+					bridgeToolImpl,
+					confirmationRoot: directory,
+					workspaceSourceRoot: directory,
+					fetchImpl: async (url) => {
+						expect(String(url)).toBe(
+							"https://archive.org/download/safe-lofi/safe-lofi.mp3",
+						);
+						const bytes = Buffer.from("audio-bytes");
+							return {
+								ok: true,
+								status: 200,
+								headers: new Headers({
+									"content-type": "audio/mpeg",
+									"content-length": String(bytes.byteLength),
+								}),
+								arrayBuffer: async () =>
+									bytes.buffer.slice(
+										bytes.byteOffset,
+									bytes.byteOffset + bytes.byteLength,
+								),
+						};
+					},
+				},
+			);
+
+			expect(calls.map((call) => call.toolName)).toEqual([
+				"create_project",
+				"import_media",
+				"import_media",
+				"get_project_info",
+			]);
+			expect(
+				calls.find((call) => call.toolName === "create_project")?.args
+					.confirmedSetup.bgmPreferences,
+			).toEqual(smartBgmPreferences());
+			const bgmImportArgs = calls
+				.filter((call) => call.toolName === "import_media")
+				.map((call) => call.args)
+				.find((args) => args.filePath !== filePath);
+			expect(bgmImportArgs).toMatchObject({
+				projectId: "launch-cut-canonical",
+				confirmationToken: result.structuredContent.confirmationToken,
+			});
+			expect(isAbsolute(bgmImportArgs.filePath)).toBe(true);
+			expect(slashPath(bgmImportArgs.filePath)).toContain(
+				".codecut-workspace/projects/launch-cut-canonical/01-input/bgm",
+			);
+			expect(slashPath(bgmImportArgs.filePath)).toContain("safe-lofi.mp3");
+			expect(existsSync(bgmImportArgs.filePath)).toBe(true);
+			expect(
+				Buffer.from(await readFile(bgmImportArgs.filePath)).toString("utf8"),
+			).toBe("audio-bytes");
+			expect(result.structuredContent.bgmAsset).toMatchObject({
+				assetId: "bgm-asset-1",
+				candidate: bgmCandidate(),
+				license: {
+					label: "CC BY 4.0",
+					url: "https://creativecommons.org/licenses/by/4.0/",
+					commercialUseAllowed: true,
+					attributionRequired: true,
+				},
+			});
+			expect(result.structuredContent.continuePrompt).toContain(
+				"audio.bgm.assetId",
+			);
+			expect(result.structuredContent.continuePrompt).toContain("bgm-asset-1");
+		} finally {
+			await rm(directory, {
+				recursive: true,
+				force: true,
+			});
+			}
+		});
+
+		test("blocks forged BGM candidates before creating a project", async () => {
+			const calls = [];
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								downloadUrl: "https://example.com/safe-lofi.mp3",
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							downloadUrl: "https://example.com/safe-lofi.mp3",
+						}),
+					}),
+				}),
+				{
+					bridgeToolImpl: async (toolName, args) => {
+						calls.push({ toolName, args });
+						throw new Error(`Unexpected tool ${toolName}`);
+					},
+				},
+			);
+
+			expect(result.isError).toBe(true);
+			expect(result.structuredContent.status).toBe("blocked");
+			expect(JSON.stringify(result.structuredContent.checks)).toContain(
+				"BGM downloadUrl must be an archive.org download URL.",
+			);
+			expect(calls).toEqual([]);
+		});
+
+		test("fails BGM import when the download response is not audio", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-bgm-type-"));
+			const opened = serverModule.openCodecutWorkspace(
+				setupIntent({ bgmPreferences: smartBgmPreferences() }),
+				{ confirmationRoot: directory },
+			);
+			const pendingConfirmationId =
+				opened.structuredContent.pendingConfirmationId;
+			const calls = [];
+			const bridgeToolImpl = async (toolName, args) => {
+				calls.push({ toolName, args });
+				if (toolName === "create_project") {
+					return {
+						structuredContent: {
+							projectId: "launch-cut-canonical",
+							name: "Launch Cut",
+							revision: 1,
+							editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+						},
+					};
+				}
+				if (toolName === "import_media") {
+					return {
+						structuredContent: {
+							status: "completed",
+							results: [
+								{
+									success: true,
+									data: {
+										assets: [{ id: "media-1", name: "source.mp4" }],
+									},
+								},
+							],
+						},
+					};
+				}
+				throw new Error(`Unexpected tool ${toolName}`);
+			};
+
+			try {
+				const result = await serverModule.submitCodecutSetup(
+					setupIntent({
+						pendingConfirmationId,
+						mediaSources: [],
+						bgmPreferences: smartBgmPreferences(),
+					}),
+					{
+						bridgeToolImpl,
+						confirmationRoot: directory,
+						workspaceSourceRoot: directory,
+						fetchImpl: async () => ({
+							ok: true,
+							status: 200,
+							headers: new Headers({
+								"content-type": "text/html",
+								"content-length": "32",
+							}),
+							arrayBuffer: async () => new ArrayBuffer(32),
+						}),
+					},
+				);
+
+				expect(result.isError).toBe(true);
+				expect(result.structuredContent.status).toBe("bgm_import_failed");
+				expect(result.structuredContent.error).toBe(
+					"BGM download must return audio content.",
+				);
+				expect(calls.map((call) => call.toolName)).toEqual(["create_project"]);
+			} finally {
+				await rm(directory, {
+					recursive: true,
+					force: true,
+				});
+			}
+		});
+
+		test("imports BGM after a valid Internet Archive mirror redirect", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-bgm-redirect-"));
+			const opened = serverModule.openCodecutWorkspace(
+				setupIntent({ mediaSources: [], bgmPreferences: smartBgmPreferences() }),
+				{ confirmationRoot: directory },
+			);
+			const pendingConfirmationId =
+				opened.structuredContent.pendingConfirmationId;
+			const calls = [];
+			const bridgeToolImpl = async (toolName, args) => {
+				calls.push({ toolName, args });
+				if (toolName === "create_project") {
+					return {
+						structuredContent: {
+							projectId: "launch-cut-canonical",
+							name: "Launch Cut",
+							revision: 1,
+							editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+						},
+					};
+				}
+				if (toolName === "import_media") {
+					return {
+						structuredContent: {
+							status: "completed",
+							results: [
+								{
+									success: true,
+									data: { assets: [{ id: "bgm-mirror", name: "safe-lofi.mp3" }] },
+								},
+							],
+						},
+					};
+				}
+				if (toolName === "get_project_info") {
+					return { structuredContent: { results: [{ data: { revision: 2 } }] } };
+				}
+				throw new Error(`Unexpected tool ${toolName}`);
+			};
+			const fetchCalls = [];
+
+			try {
+				const result = await serverModule.submitCodecutSetup(
+					setupIntent({
+						pendingConfirmationId,
+						mediaSources: [],
+						bgmPreferences: smartBgmPreferences(),
+					}),
+					{
+						bridgeToolImpl,
+						confirmationRoot: directory,
+						workspaceSourceRoot: directory,
+						fetchImpl: async (url, init) => {
+							fetchCalls.push({ url: String(url), redirect: init.redirect });
+							if (String(url) === "https://archive.org/download/safe-lofi/safe-lofi.mp3") {
+								return {
+									ok: false,
+									status: 302,
+									headers: new Headers({
+										location:
+											"https://dn721605.ca.archive.org/0/items/safe-lofi/safe-lofi.mp3",
+									}),
+								};
+							}
+							if (
+								String(url) ===
+								"https://dn721605.ca.archive.org/0/items/safe-lofi/safe-lofi.mp3"
+							) {
+								const bytes = Buffer.from("redirected-audio");
+								return {
+									ok: true,
+									status: 200,
+									headers: new Headers({
+										"content-type": "audio/mpeg",
+										"content-length": String(bytes.byteLength),
+									}),
+									arrayBuffer: async () =>
+										bytes.buffer.slice(
+											bytes.byteOffset,
+											bytes.byteOffset + bytes.byteLength,
+										),
+								};
+							}
+							throw new Error(`Unexpected fetch ${url}`);
+						},
+					},
+				);
+
+				expect(result.structuredContent.bgmAsset.assetId).toBe("bgm-mirror");
+				expect(fetchCalls).toEqual([
+					{
+						url: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+						redirect: "manual",
+					},
+					{
+						url: "https://dn721605.ca.archive.org/0/items/safe-lofi/safe-lofi.mp3",
+						redirect: "manual",
+					},
+				]);
+			} finally {
+				await rm(directory, {
+					recursive: true,
+					force: true,
+				});
+			}
+		});
+
+		test("rejects BGM redirects outside Internet Archive without fetching them", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-bgm-ssrf-"));
+			const opened = serverModule.openCodecutWorkspace(
+				setupIntent({ mediaSources: [], bgmPreferences: smartBgmPreferences() }),
+				{ confirmationRoot: directory },
+			);
+			const pendingConfirmationId =
+				opened.structuredContent.pendingConfirmationId;
+			const calls = [];
+			const bridgeToolImpl = async (toolName, args) => {
+				calls.push({ toolName, args });
+				if (toolName === "create_project") {
+					return {
+						structuredContent: {
+							projectId: "launch-cut-canonical",
+							name: "Launch Cut",
+							revision: 1,
+							editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+						},
+					};
+				}
+				throw new Error(`Unexpected tool ${toolName}`);
+			};
+			const fetchCalls = [];
+
+			try {
+				const result = await serverModule.submitCodecutSetup(
+					setupIntent({
+						pendingConfirmationId,
+						mediaSources: [],
+						bgmPreferences: smartBgmPreferences(),
+					}),
+					{
+						bridgeToolImpl,
+						confirmationRoot: directory,
+						workspaceSourceRoot: directory,
+						fetchImpl: async (url, init) => {
+							fetchCalls.push({ url: String(url), redirect: init.redirect });
+							if (String(url) === "https://archive.org/download/safe-lofi/safe-lofi.mp3") {
+								return {
+									ok: false,
+									status: 302,
+									headers: new Headers({
+										location: "http://127.0.0.1/private.mp3",
+									}),
+								};
+							}
+							throw new Error(`Unexpected fetch ${url}`);
+						},
+					},
+				);
+
+				expect(result.isError).toBe(true);
+				expect(result.structuredContent.status).toBe("bgm_import_failed");
+				expect(result.structuredContent.error).toBe(
+					"BGM download redirect must stay on Internet Archive.",
+				);
+				expect(calls.map((call) => call.toolName)).toEqual(["create_project"]);
+				expect(fetchCalls).toEqual([
+					{
+						url: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+						redirect: "manual",
+					},
+				]);
+			} finally {
+				await rm(directory, {
+					recursive: true,
+					force: true,
+				});
+			}
+		});
+
+		test("imports OGG BGM when Internet Archive returns application ogg", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-bgm-ogg-"));
+			const opened = serverModule.openCodecutWorkspace(
+				setupIntent({
+					mediaSources: [],
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								id: "internet-archive:safe-lofi:safe-lofi.ogg",
+								sourceId: "internet-archive:safe-lofi:safe-lofi.ogg",
+								previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.ogg",
+								downloadUrl:
+									"https://archive.org/download/safe-lofi/safe-lofi.ogg",
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							id: "internet-archive:safe-lofi:safe-lofi.ogg",
+							sourceId: "internet-archive:safe-lofi:safe-lofi.ogg",
+							previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.ogg",
+							downloadUrl:
+								"https://archive.org/download/safe-lofi/safe-lofi.ogg",
+						}),
+					}),
+				}),
+				{ confirmationRoot: directory },
+			);
+			const pendingConfirmationId =
+				opened.structuredContent.pendingConfirmationId;
+			const calls = [];
+			const bridgeToolImpl = async (toolName, args) => {
+				calls.push({ toolName, args });
+				if (toolName === "create_project") {
+					return {
+						structuredContent: {
+							projectId: "launch-cut-canonical",
+							name: "Launch Cut",
+							revision: 1,
+							editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+						},
+					};
+				}
+				if (toolName === "import_media") {
+					return {
+						structuredContent: {
+							status: "completed",
+							results: [
+								{
+									success: true,
+									data: { assets: [{ id: "bgm-ogg", name: "safe-lofi.ogg" }] },
+								},
+							],
+						},
+					};
+				}
+				if (toolName === "get_project_info") {
+					return { structuredContent: { results: [{ data: { revision: 2 } }] } };
+				}
+				throw new Error(`Unexpected tool ${toolName}`);
+			};
+
+			try {
+				const result = await serverModule.submitCodecutSetup(
+					setupIntent({
+						pendingConfirmationId,
+						mediaSources: [],
+						bgmPreferences: smartBgmPreferences({
+							candidates: [
+								bgmCandidate({
+									id: "internet-archive:safe-lofi:safe-lofi.ogg",
+									sourceId: "internet-archive:safe-lofi:safe-lofi.ogg",
+									previewUrl:
+										"https://archive.org/download/safe-lofi/safe-lofi.ogg",
+									downloadUrl:
+										"https://archive.org/download/safe-lofi/safe-lofi.ogg",
+								}),
+							],
+							selectedCandidate: bgmCandidate({
+								id: "internet-archive:safe-lofi:safe-lofi.ogg",
+								sourceId: "internet-archive:safe-lofi:safe-lofi.ogg",
+								previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.ogg",
+								downloadUrl:
+									"https://archive.org/download/safe-lofi/safe-lofi.ogg",
+							}),
+						}),
+					}),
+					{
+						bridgeToolImpl,
+						confirmationRoot: directory,
+						workspaceSourceRoot: directory,
+						fetchImpl: async () => {
+							const bytes = Buffer.from("ogg-bytes");
+							return {
+								ok: true,
+								status: 200,
+								headers: new Headers({
+									"content-type": "application/ogg",
+									"content-length": String(bytes.byteLength),
+								}),
+								arrayBuffer: async () =>
+									bytes.buffer.slice(
+										bytes.byteOffset,
+										bytes.byteOffset + bytes.byteLength,
+									),
+							};
+						},
+					},
+				);
+
+				expect(result.structuredContent.bgmAsset.assetId).toBe("bgm-ogg");
+				const bgmImportArgs = calls
+					.filter((call) => call.toolName === "import_media")
+					.map((call) => call.args)
+					.find((args) => args.filePath?.endsWith(".ogg"));
+				expect(bgmImportArgs.filePath).toContain("safe-lofi.ogg");
+			} finally {
+				await rm(directory, {
+					recursive: true,
+					force: true,
+				});
+			}
+		});
+
+		test("fails BGM import when the body download times out", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-bgm-timeout-"));
+			const opened = serverModule.openCodecutWorkspace(
+				setupIntent({ mediaSources: [], bgmPreferences: smartBgmPreferences() }),
+				{ confirmationRoot: directory },
+			);
+			const pendingConfirmationId =
+				opened.structuredContent.pendingConfirmationId;
+			const bridgeToolImpl = async (toolName) => {
+				if (toolName === "create_project") {
+					return {
+						structuredContent: {
+							projectId: "launch-cut-canonical",
+							name: "Launch Cut",
+							revision: 1,
+							editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+						},
+					};
+				}
+				throw new Error(`Unexpected tool ${toolName}`);
+			};
+
+			try {
+				const result = await serverModule.submitCodecutSetup(
+					setupIntent({
+						pendingConfirmationId,
+						mediaSources: [],
+						bgmPreferences: smartBgmPreferences(),
+					}),
+					{
+						bridgeToolImpl,
+						bgmDownloadTimeoutMs: 1,
+						confirmationRoot: directory,
+						workspaceSourceRoot: directory,
+						fetchImpl: async (_url, init) => ({
+							ok: true,
+							status: 200,
+							headers: new Headers({
+								"content-type": "audio/mpeg",
+								"content-length": "32",
+							}),
+							arrayBuffer: async () =>
+								new Promise((_resolve, reject) => {
+									init.signal.addEventListener(
+										"abort",
+										() => {
+											const error = new Error("aborted");
+											error.name = "AbortError";
+											reject(error);
+										},
+										{ once: true },
+									);
+								}),
+						}),
+					},
+				);
+
+				expect(result.isError).toBe(true);
+				expect(result.structuredContent.status).toBe("bgm_import_failed");
+				expect(result.structuredContent.error).toBe("BGM download timed out.");
+			} finally {
+				await rm(directory, {
+					recursive: true,
+					force: true,
+				});
+			}
+		});
+
 		test("reuses a confirmed setup result on repeated submission without creating again", async () => {
-			const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
 		const filePath = join(directory, "source.mp4");
 		await writeFile(filePath, "video");
 		const opened = serverModule.openCodecutWorkspace(

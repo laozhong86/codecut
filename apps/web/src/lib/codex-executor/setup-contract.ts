@@ -11,6 +11,7 @@ import { isCodecutLocalFontFamily } from "@/lib/codecut-fonts";
 import builtinCharacterOptions from "./builtin-character-options.json";
 import { NetworkMaterialMatchingSchema } from "@/lib/network-materials/schema";
 import { BUILT_IN_TEMPLATE_IDS } from "@/lib/templates/registry";
+import { isCommercialVideoSafeLicense } from "@/lib/sounds/internet-archive-search.mjs";
 
 type TextElementRaw = Parameters<typeof buildTextElement>[0]["raw"];
 
@@ -159,6 +160,7 @@ export const BuiltInVoicePackIdSchema = z.enum([
 	"podcast-female",
 	"podcast-male",
 	"custom",
+	"voice_clone",
 ]);
 
 const builtInCharacterIds = new Set([
@@ -181,25 +183,265 @@ const CharacterPreferencesSchema = z
 	})
 	.strict();
 
+const MAX_BGM_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+const INTERNET_ARCHIVE_BGM_HOST = "archive.org";
+const INTERNET_ARCHIVE_BGM_SOURCE_PREFIX = "internet-archive:";
+const BGM_AUDIO_FILE_EXTENSIONS = new Set([
+	".mp3",
+	".m4a",
+	".ogg",
+	".flac",
+	".wav",
+]);
+
+function decodeUrlPathSegments(pathname: string): string[] {
+	return pathname
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => decodeURIComponent(segment));
+}
+
+function readInternetArchiveBgmCandidateParts(value: {
+	source: string;
+	sourceId: string;
+	sourceUrl: string;
+	downloadUrl: string;
+}): { identifier: string; fileName: string } {
+	if (value.source !== "internet_archive") {
+		throw new Error("BGM source must be internet_archive.");
+	}
+	if (!value.sourceId.startsWith(INTERNET_ARCHIVE_BGM_SOURCE_PREFIX)) {
+		throw new Error("BGM sourceId must use the internet-archive prefix.");
+	}
+	const sourceUrl = new URL(value.sourceUrl);
+	if (
+		sourceUrl.protocol !== "https:" ||
+		sourceUrl.hostname !== INTERNET_ARCHIVE_BGM_HOST
+	) {
+		throw new Error("BGM sourceUrl must be an archive.org details URL.");
+	}
+	const sourceSegments = decodeUrlPathSegments(sourceUrl.pathname);
+	if (sourceSegments[0] !== "details" || !sourceSegments[1]) {
+		throw new Error("BGM sourceUrl must be an archive.org details URL.");
+	}
+	const downloadUrl = new URL(value.downloadUrl);
+	if (
+		downloadUrl.protocol !== "https:" ||
+		downloadUrl.hostname !== INTERNET_ARCHIVE_BGM_HOST
+	) {
+		throw new Error("BGM downloadUrl must be an archive.org download URL.");
+	}
+	const downloadSegments = decodeUrlPathSegments(downloadUrl.pathname);
+	if (
+		downloadSegments[0] !== "download" ||
+		!downloadSegments[1] ||
+		downloadSegments.length < 3
+	) {
+		throw new Error("BGM downloadUrl must be an archive.org download URL.");
+	}
+	const identifier = sourceSegments[1];
+	const downloadIdentifier = downloadSegments[1];
+	const fileName = downloadSegments.slice(2).join("/");
+	if (identifier !== downloadIdentifier) {
+		throw new Error("BGM sourceUrl and downloadUrl must use the same item.");
+	}
+	if (
+		value.sourceId !==
+		`${INTERNET_ARCHIVE_BGM_SOURCE_PREFIX}${identifier}:${fileName}`
+	) {
+		throw new Error("BGM sourceId must match the Internet Archive download file.");
+	}
+	const extensionMatch = fileName.match(/\.[^./\\]+$/);
+	const extension = extensionMatch?.[0]?.toLowerCase() ?? "";
+	if (!BGM_AUDIO_FILE_EXTENSIONS.has(extension)) {
+		throw new Error("BGM downloadUrl must point to a supported audio file.");
+	}
+	return { identifier, fileName };
+}
+
+function validateInternetArchiveBgmCandidate(
+	value: {
+		source: string;
+		sourceId: string;
+		sourceUrl: string;
+		downloadUrl: string;
+		licenseUrl: string;
+		commercialUseAllowed: boolean;
+	},
+	ctx: z.RefinementCtx,
+) {
+	try {
+		readInternetArchiveBgmCandidateParts(value);
+	} catch (error) {
+		ctx.addIssue({
+			code: "custom",
+			message:
+				error instanceof Error
+					? error.message
+					: "BGM candidate must point to Internet Archive audio.",
+			path: ["downloadUrl"],
+		});
+	}
+	if (!isCommercialVideoSafeLicense(value.licenseUrl)) {
+		ctx.addIssue({
+			code: "custom",
+			message: "BGM licenseUrl must allow commercial video use.",
+			path: ["licenseUrl"],
+		});
+	}
+	if (isCommercialVideoSafeLicense(value.licenseUrl) !== value.commercialUseAllowed) {
+		ctx.addIssue({
+			code: "custom",
+			message:
+				"BGM commercialUseAllowed must match the selected licenseUrl policy.",
+			path: ["commercialUseAllowed"],
+		});
+	}
+}
+
+const BgmCandidateSchema = z
+	.object({
+		id: z.string().trim().min(1),
+		sourceId: z.string().trim().min(1),
+		title: z.string().trim().min(1),
+		creator: z.string().trim().min(1),
+		source: z.literal("internet_archive"),
+		sourceUrl: z.string().trim().url(),
+		licenseLabel: z.string().trim().min(1),
+		licenseUrl: z.string().trim().url(),
+		commercialUseAllowed: z.boolean(),
+		attributionRequired: z.boolean(),
+		previewUrl: z.string().trim().url().optional(),
+		downloadUrl: z.string().trim().url(),
+		durationSeconds: z.number().nonnegative(),
+		fileSizeBytes: z
+			.number()
+			.int()
+			.positive()
+			.max(MAX_BGM_DOWNLOAD_BYTES, "BGM fileSizeBytes exceeds the limit."),
+	})
+	.strict()
+	.superRefine(validateInternetArchiveBgmCandidate);
+
+function isSameBgmCandidateIdentity(
+	candidate: z.infer<typeof BgmCandidateSchema>,
+	selectedCandidate: z.infer<typeof BgmCandidateSchema>,
+) {
+	return (
+		candidate.id === selectedCandidate.id &&
+		candidate.sourceId === selectedCandidate.sourceId &&
+		candidate.title === selectedCandidate.title &&
+		candidate.creator === selectedCandidate.creator &&
+		candidate.source === selectedCandidate.source &&
+		candidate.sourceUrl === selectedCandidate.sourceUrl &&
+		candidate.licenseLabel === selectedCandidate.licenseLabel &&
+		candidate.licenseUrl === selectedCandidate.licenseUrl &&
+		candidate.commercialUseAllowed === selectedCandidate.commercialUseAllowed &&
+		candidate.attributionRequired === selectedCandidate.attributionRequired &&
+		candidate.previewUrl === selectedCandidate.previewUrl &&
+		candidate.downloadUrl === selectedCandidate.downloadUrl &&
+		candidate.durationSeconds === selectedCandidate.durationSeconds &&
+		candidate.fileSizeBytes === selectedCandidate.fileSizeBytes
+	);
+}
+
 const BgmPreferencesSchema = z
 	.object({
 		mode: z.enum(["none", "smart_match"]),
+		searchQuery: z.string().trim().min(1).optional(),
+		candidates: z.array(BgmCandidateSchema).max(10).optional(),
+		selectedCandidate: BgmCandidateSchema.optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, ctx) => {
+		if (value.mode === "none") {
+			if (
+				value.searchQuery !== undefined ||
+				value.candidates !== undefined ||
+				value.selectedCandidate !== undefined
+			) {
+				ctx.addIssue({
+					code: "custom",
+					message: "bgmPreferences.mode none cannot include matched music.",
+					path: ["mode"],
+				});
+			}
+			return;
+		}
 
-const CustomVoiceFileSchema = z
+		if (!value.searchQuery) {
+			ctx.addIssue({
+				code: "custom",
+				message: "bgmPreferences.searchQuery is required for smart_match.",
+				path: ["searchQuery"],
+			});
+		}
+		if (!value.candidates || value.candidates.length === 0) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"bgmPreferences.candidates must include at least one candidate.",
+				path: ["candidates"],
+			});
+		}
+		if (!value.selectedCandidate) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"bgmPreferences.selectedCandidate is required for smart_match.",
+				path: ["selectedCandidate"],
+			});
+		}
+		const candidates = value.candidates ?? [];
+		if (
+			candidates.some((candidate) => !candidate.commercialUseAllowed) ||
+			value.selectedCandidate?.commercialUseAllowed === false
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message: "BGM candidates must allow commercial use.",
+				path: ["candidates"],
+			});
+		}
+		const selectedCandidate = value.selectedCandidate;
+		if (
+			selectedCandidate &&
+			candidates.length > 0 &&
+			!candidates.some((candidate) =>
+				isSameBgmCandidateIdentity(candidate, selectedCandidate),
+			)
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message: "bgmPreferences.selectedCandidate must be one of candidates.",
+				path: ["selectedCandidate"],
+			});
+		}
+	});
+
+const VoiceAudioFileSchema = z
 	.object({
 		name: z.string().trim().min(1),
-		url: z.string().trim().min(1),
+		url: z.string().trim().min(1).optional(),
 		path: z.string().trim().min(1).optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, ctx) => {
+		if (!value.url && !value.path) {
+			ctx.addIssue({
+				code: "custom",
+				message: "voice file requires url or path.",
+				path: ["url"],
+			});
+		}
+	});
 
 const VoicePreferencesBaseSchema = z
 	.object({
 		enabled: z.boolean(),
 		voicePackId: BuiltInVoicePackIdSchema,
-		customVoiceFile: CustomVoiceFileSchema.optional(),
+		customVoiceFile: VoiceAudioFileSchema.optional(),
+		voiceCloneSourceFile: VoiceAudioFileSchema.optional(),
 	})
 	.strict();
 
@@ -225,12 +467,35 @@ const VoicePreferencesSchema = VoicePreferencesBaseSchema.superRefine(
 				path: ["customVoiceFile"],
 			});
 		}
+		if (
+			value.enabled &&
+			value.voicePackId === "voice_clone" &&
+			!value.voiceCloneSourceFile
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"voicePreferences.voiceCloneSourceFile is required when voice clone is enabled.",
+				path: ["voiceCloneSourceFile"],
+			});
+		}
 		if (value.voicePackId !== "custom" && value.customVoiceFile) {
 			ctx.addIssue({
 				code: "custom",
 				message:
 					"voicePreferences.customVoiceFile is only allowed for custom voice.",
 				path: ["customVoiceFile"],
+			});
+		}
+		if (
+			value.voicePackId !== "voice_clone" &&
+			value.voiceCloneSourceFile
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"voicePreferences.voiceCloneSourceFile is only allowed for voice clone.",
+				path: ["voiceCloneSourceFile"],
 			});
 		}
 		if (!value.enabled && value.voicePackId !== "none") {
@@ -353,7 +618,6 @@ const VoicePreferencesPatchSchema =
 	VoicePreferencesBaseSchema.partial().strict();
 const CharacterPreferencesPatchSchema =
 	CharacterPreferencesSchema.partial().strict();
-const BgmPreferencesPatchSchema = BgmPreferencesSchema.partial().strict();
 const NetworkMaterialMatchingPatchSchema =
 	NetworkMaterialMatchingSchema.partial().strict();
 
@@ -364,7 +628,7 @@ export const ConfirmedSetupPatchSchema = z
 		captionPreferences: CaptionPreferencesPatchSchema.optional(),
 		voicePreferences: VoicePreferencesPatchSchema.optional(),
 		characterPreferences: CharacterPreferencesPatchSchema.optional(),
-		bgmPreferences: BgmPreferencesPatchSchema.optional(),
+		bgmPreferences: BgmPreferencesSchema.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
 		networkMaterialMatching: NetworkMaterialMatchingPatchSchema.optional(),
 		exportPreferences: ExportPreferencesPatchSchema.optional(),
@@ -407,6 +671,7 @@ export type ExportPreferences = ConfirmedSetup["exportPreferences"];
 export type VoicePreferences = ConfirmedSetup["voicePreferences"];
 export type CharacterPreferences = ConfirmedSetup["characterPreferences"];
 export type BgmPreferences = ConfirmedSetup["bgmPreferences"];
+export type BgmCandidate = z.infer<typeof BgmCandidateSchema>;
 export type TemplatePreference = ConfirmedSetup["templatePreference"];
 export type ConfirmedNetworkMaterialMatching =
 	ConfirmedSetup["networkMaterialMatching"];
@@ -647,11 +912,18 @@ export function applyConfirmedSetupPatch({
 					...current.voicePreferences,
 					...parsedPatchInput.voicePreferences,
 				});
+	const bgmPreferences =
+		parsedPatchInput.bgmPreferences === undefined
+			? current.bgmPreferences
+			: normalizePatchedBgmPreferences(parsedPatchInput.bgmPreferences);
 	const parsedPatch = {
 		...parsedPatchInput,
 		...(parsedPatchInput.voicePreferences === undefined
 			? {}
 			: { voicePreferences }),
+		...(parsedPatchInput.bgmPreferences === undefined
+			? {}
+			: { bgmPreferences }),
 	};
 	const next = ConfirmedSetupSchema.parse({
 		...current,
@@ -672,10 +944,7 @@ export function applyConfirmedSetupPatch({
 			...current.characterPreferences,
 			...(parsedPatch.characterPreferences ?? {}),
 		},
-		bgmPreferences: {
-			...current.bgmPreferences,
-			...(parsedPatch.bgmPreferences ?? {}),
-		},
+		bgmPreferences,
 		templatePreference:
 			parsedPatch.templatePreference ?? current.templatePreference,
 		networkMaterialMatching: {
@@ -713,8 +982,12 @@ export function applyConfirmedSetupPatch({
 				"voicePreferences.enabled",
 				"voicePreferences.voicePackId",
 				"voicePreferences.customVoiceFile",
+				"voicePreferences.voiceCloneSourceFile",
 				"characterPreferences.characterId",
 				"bgmPreferences.mode",
+				"bgmPreferences.searchQuery",
+				"bgmPreferences.candidates",
+				"bgmPreferences.selectedCandidate",
 				"templatePreference",
 				"networkMaterialMatching.enabled",
 				"networkMaterialMatching.placement",
@@ -735,8 +1008,26 @@ function normalizePatchedVoicePreferences(
 	if (!value.enabled) {
 		return { enabled: false, voicePackId: "none" };
 	}
-	if (value.voicePackId !== "custom") {
-		return { enabled: true, voicePackId: value.voicePackId };
+	if (value.voicePackId === "custom") {
+		return {
+			enabled: true,
+			voicePackId: value.voicePackId,
+			customVoiceFile: value.customVoiceFile,
+		};
+	}
+	if (value.voicePackId === "voice_clone") {
+		return {
+			enabled: true,
+			voicePackId: value.voicePackId,
+			voiceCloneSourceFile: value.voiceCloneSourceFile,
+		};
+	}
+	return { enabled: true, voicePackId: value.voicePackId };
+}
+
+function normalizePatchedBgmPreferences(value: BgmPreferences): BgmPreferences {
+	if (value.mode === "none") {
+		return { mode: "none" };
 	}
 	return value;
 }

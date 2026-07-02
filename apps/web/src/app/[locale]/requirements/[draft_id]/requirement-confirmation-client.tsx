@@ -121,6 +121,17 @@ export function RequirementConfirmationClient({
 		!form.requestedTemplate.trim();
 	const draftTemplateNameMissing =
 		form?.templatePreferenceMode === "create" && !form.draftTemplateName.trim();
+	const customVoiceFileMissing =
+		form?.voicePackId === "custom" &&
+		!form.customVoiceFileUrl.trim() &&
+		!form.customVoiceFilePath.trim();
+	const voiceCloneSourceFileMissing =
+		form?.voicePackId === "voice_clone" &&
+		!form.voiceCloneSourceFileUrl.trim() &&
+		!form.voiceCloneSourceFilePath.trim();
+	const bgmSelectionMissing =
+		form?.bgmMode === "smart_match" &&
+		(form.bgmCandidates.length === 0 || !form.selectedBgmCandidateId);
 
 	function updateNetworkMaterialProvider(
 		provider: RequirementConfirmationFormState["networkMaterialProviders"][number],
@@ -135,8 +146,8 @@ export function RequirementConfirmationClient({
 						? checked
 						: form.networkMaterialProviders.includes(option),
 			),
-			});
-		}
+		});
+	}
 
 	async function submitConfirmation() {
 		if (!draft || !form) return;
@@ -625,6 +636,8 @@ export function RequirementConfirmationClient({
 								<option value="none">{t("关闭")}</option>
 								<option value="podcast-female">{t("女声")}</option>
 								<option value="podcast-male">{t("男声")}</option>
+								<option value="custom">{t("自定义配音")}</option>
+								<option value="voice_clone">{t("声音克隆")}</option>
 							</select>
 						</label>
 						<label className="grid gap-2 text-sm font-medium">
@@ -645,6 +658,200 @@ export function RequirementConfirmationClient({
 							</select>
 						</label>
 					</div>
+					{form.bgmMode === "smart_match" && (
+						<div className="grid gap-3 rounded-md border bg-background p-3">
+							<div className="grid gap-1 text-sm">
+								<span className="font-medium">{t("搜索关键词")}</span>
+								<span className="break-all text-muted-foreground">
+									{form.bgmSearchQuery || t("未生成")}
+								</span>
+							</div>
+							<div className="grid gap-2">
+								<span className="text-sm font-medium">{t("背景音乐候选")}</span>
+								{form.bgmCandidates.map((candidate) => (
+									<label
+										key={candidate.id}
+										className="grid cursor-pointer gap-2 rounded-md border p-3 text-sm"
+									>
+										<div className="flex items-start gap-3">
+											<input
+												type="radio"
+												name="bgmCandidate"
+												className="mt-1"
+												checked={form.selectedBgmCandidateId === candidate.id}
+												onChange={() =>
+													setForm({
+														...form,
+														selectedBgmCandidateId: candidate.id,
+													})
+												}
+											/>
+											<div className="grid flex-1 gap-1">
+												<div className="flex flex-wrap items-center gap-2">
+													<span className="font-medium">{candidate.title}</span>
+													{form.selectedBgmCandidateId === candidate.id && (
+														<span className="rounded-sm border px-1.5 py-0.5 text-xs text-muted-foreground">
+															{t("当前选中")}
+														</span>
+													)}
+												</div>
+												<span className="text-muted-foreground">
+													{candidate.creator}
+													{candidate.durationSeconds
+														? ` · ${Math.round(candidate.durationSeconds)}s`
+														: ""}
+												</span>
+												<div className="flex flex-wrap gap-3 text-muted-foreground">
+													<span>
+														{t("授权")}: {candidate.licenseLabel}
+													</span>
+													<span>
+														{candidate.commercialUseAllowed
+															? t("商业可用")
+															: t("不可商用")}
+													</span>
+													<span>
+														{candidate.attributionRequired
+															? t("需署名")
+															: t("无需署名")}
+													</span>
+												</div>
+												<div className="flex flex-wrap gap-3">
+													<a
+														className="text-primary underline-offset-4 hover:underline"
+														href={candidate.sourceUrl}
+														target="_blank"
+														rel="noreferrer"
+													>
+														{t("来源")}
+													</a>
+													{candidate.previewUrl && (
+														<a
+															className="text-primary underline-offset-4 hover:underline"
+															href={candidate.previewUrl}
+															target="_blank"
+															rel="noreferrer"
+														>
+															{t("预览")}
+														</a>
+													)}
+													<a
+														className="text-primary underline-offset-4 hover:underline"
+														href={candidate.licenseUrl}
+														target="_blank"
+														rel="noreferrer"
+													>
+														{t("授权")}
+													</a>
+												</div>
+											</div>
+										</div>
+									</label>
+								))}
+							</div>
+							{bgmSelectionMissing && (
+								<p className="text-sm text-destructive">
+									{t("需要先搜索并选择背景音乐")}
+								</p>
+							)}
+						</div>
+					)}
+					{form.voicePackId === "custom" && (
+						<div className="grid gap-4 md:grid-cols-3">
+							<label className="grid gap-2 text-sm font-medium">
+								{t("配音文件名称")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.customVoiceFileName}
+									onChange={(event) =>
+										setForm({
+											...form,
+											customVoiceFileName: event.target.value,
+										})
+									}
+								/>
+							</label>
+							<label className="grid gap-2 text-sm font-medium">
+								{t("配音文件 URL")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.customVoiceFileUrl}
+									onChange={(event) =>
+										setForm({
+											...form,
+											customVoiceFileUrl: event.target.value,
+										})
+									}
+								/>
+							</label>
+							<label className="grid gap-2 text-sm font-medium">
+								{t("配音文件路径")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.customVoiceFilePath}
+									onChange={(event) =>
+										setForm({
+											...form,
+											customVoiceFilePath: event.target.value,
+										})
+									}
+								/>
+							</label>
+							{customVoiceFileMissing && (
+								<p className="text-sm text-destructive md:col-span-3">
+									{t("自定义配音需要提供文件 URL 或路径")}
+								</p>
+							)}
+						</div>
+					)}
+					{form.voicePackId === "voice_clone" && (
+						<div className="grid gap-4 md:grid-cols-3">
+							<label className="grid gap-2 text-sm font-medium">
+								{t("克隆音频名称")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.voiceCloneSourceFileName}
+									onChange={(event) =>
+										setForm({
+											...form,
+											voiceCloneSourceFileName: event.target.value,
+										})
+									}
+								/>
+							</label>
+							<label className="grid gap-2 text-sm font-medium">
+								{t("克隆音频 URL")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.voiceCloneSourceFileUrl}
+									onChange={(event) =>
+										setForm({
+											...form,
+											voiceCloneSourceFileUrl: event.target.value,
+										})
+									}
+								/>
+							</label>
+							<label className="grid gap-2 text-sm font-medium">
+								{t("克隆音频路径")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.voiceCloneSourceFilePath}
+									onChange={(event) =>
+										setForm({
+											...form,
+											voiceCloneSourceFilePath: event.target.value,
+										})
+									}
+								/>
+							</label>
+							{voiceCloneSourceFileMissing && (
+								<p className="text-sm text-destructive md:col-span-3">
+									{t("声音克隆需要提供音频 URL 或路径")}
+								</p>
+							)}
+						</div>
+					)}
 				</section>
 
 				<div className="grid gap-2 rounded-md border p-4 text-sm font-medium">
@@ -678,7 +885,10 @@ export function RequirementConfirmationClient({
 						readback.status !== "awaiting_user_confirmation" ||
 						networkMaterialProvidersMissing ||
 						specifiedTemplateMissing ||
-						draftTemplateNameMissing
+						draftTemplateNameMissing ||
+						customVoiceFileMissing ||
+						voiceCloneSourceFileMissing ||
+						bgmSelectionMissing
 					}
 				>
 					{t("确认需求")}

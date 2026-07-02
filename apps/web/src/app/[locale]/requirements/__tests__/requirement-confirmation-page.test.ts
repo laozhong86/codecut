@@ -19,13 +19,26 @@ describe("requirement confirmation page UI", () => {
 		expect(source).toContain("characterId");
 		expect(source).toContain("voicePackId");
 		expect(source).toContain("bgmMode");
+		expect(source).toContain("bgmSearchQuery");
+		expect(source).toContain("bgmCandidates");
+		expect(source).toContain("selectedBgmCandidateId");
 		expect(source).toContain("角色与声音");
 		expect(source).toContain("角色");
 		expect(source).toContain("关闭");
 		expect(source).toContain("女声");
 		expect(source).toContain("男声");
+		expect(source).toContain("自定义配音");
+		expect(source).toContain("声音克隆");
+		expect(source).toContain("配音文件 URL");
+		expect(source).toContain("克隆音频 URL");
 		expect(source).toContain("BGM");
 		expect(source).toContain("智能匹配");
+		expect(source).toContain("背景音乐候选");
+		expect(source).toContain("授权");
+		expect(source).toContain("来源");
+		expect(source).toContain("预览");
+		expect(source).toContain("需要先搜索并选择背景音乐");
+		expect(source).not.toContain("bgmSearchInput");
 		expect(source).toContain("确认需求");
 		expect(source).toContain("/api/codex-requirements/");
 	});
@@ -76,16 +89,17 @@ describe("requirement confirmation page UI", () => {
 		expect(client).toContain("标题文本");
 		expect(client).toContain("字体样式");
 		expect(client).toContain("关闭");
+		expect(client).toContain("自定义配音");
+		expect(client).toContain("声音克隆");
 		expect(client).toContain("智能匹配");
+		expect(client).toContain('form.voicePackId === "custom"');
+		expect(client).toContain('form.voicePackId === "voice_clone"');
 		expect(client).toContain("form.captionEnabled &&");
 		expect(client).toContain('form.templatePreferenceMode === "specified"');
 		expect(client).toContain('form.templatePreferenceMode === "create"');
 		expect(client).toContain("draftTemplateName");
 		expect(client).not.toContain("固定标题");
 		expect(client).not.toContain("等待确认");
-		expect(client).not.toContain("选择文件");
-		expect(client).not.toContain("文件URL");
-		expect(client).not.toContain("文件路径");
 	});
 
 	test("specified template uses the built-in template list instead of free text", async () => {
