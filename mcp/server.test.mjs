@@ -777,6 +777,16 @@ describe("Codecut MCP server contract", () => {
 		expect(openInputSchema.safeParse(roleAndSoundDefaults).success).toBe(true);
 		expect(
 			requirementOpenInputSchema.safeParse(roleAndSoundDefaults).success,
+		).toBe(false);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				...roleAndSoundDefaults,
+				bgmPreferences: {
+					mode: "smart_match",
+					searchQuery: "bright lofi product demo",
+					selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+				},
+			}).success,
 		).toBe(true);
 		const customVoiceDefaults = {
 			output: {
@@ -1244,10 +1254,143 @@ describe("Codecut MCP server contract", () => {
 		}
 	});
 
+	test("opens requirement confirmation with server-derived BGM candidates", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-bgm-"));
+		const fetchedUrls = [];
+		try {
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_requirement_confirmation",
+				setupIntent({
+					projectName: "Smart BGM Requirement",
+					bgmPreferences: {
+						mode: "smart_match",
+						searchQuery: "bright lofi product demo",
+						selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+					},
+				}),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async (url) => {
+						fetchedUrls.push(String(url));
+						if (
+							String(url).startsWith(
+								"https://archive.org/advancedsearch.php",
+							)
+						) {
+							return {
+								ok: true,
+								status: 200,
+								json: async () => ({
+									response: {
+										numFound: 1,
+										docs: [
+											{
+												identifier: "safe-lofi",
+												title: "Safe Lofi Beat",
+												creator: "Open Artist",
+												licenseurl:
+													"https://creativecommons.org/licenses/by/4.0/",
+												downloads: 12,
+											},
+										],
+									},
+								}),
+							};
+						}
+						if (String(url) === "https://archive.org/metadata/safe-lofi") {
+							return {
+								ok: true,
+								status: 200,
+								json: async () => ({
+									metadata: {
+										title: "Safe Lofi Beat",
+										creator: "Open Artist",
+										subject: "lofi; upbeat",
+										licenseurl:
+											"https://creativecommons.org/licenses/by/4.0/",
+									},
+									files: [
+										{
+											name: "safe-lofi.mp3",
+											source: "original",
+											format: "VBR MP3",
+											size: "1234",
+											length: "91.2",
+										},
+									],
+								}),
+							};
+						}
+						return { ok: true, status: 200 };
+					},
+				},
+			);
+
+			expect(result.structuredContent.status).toBe(
+				"awaiting_user_confirmation",
+			);
+			expect(result.structuredContent.draft.bgmPreferences).toEqual(
+				smartBgmPreferences(),
+			);
+			expect(
+				fetchedUrls.some((url) =>
+					url.startsWith("https://archive.org/advancedsearch.php"),
+				),
+			).toBe(true);
+			expect(fetchedUrls).toContain("https://archive.org/metadata/safe-lofi");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("rejects forged BGM candidates when opening requirement confirmation", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-bgm-forge-"));
+		try {
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"open_codecut_requirement_confirmation",
+				setupIntent({
+					projectName: "Forged BGM Requirement",
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								title: "Tampered Commercial",
+								licenseLabel: "CC0",
+								fileSizeBytes: 1,
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							title: "Tampered Commercial",
+							licenseLabel: "CC0",
+							fileSizeBytes: 1,
+						}),
+					}),
+				}),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+
+			expect(result.isError).toBe(true);
+			expect(result.structuredContent.status).toBe("invalid_setup_request");
+			expect(result.structuredContent.error).toContain("Unrecognized");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test("opens requirement confirmation with external voice file defaults", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-req-voice-"));
 		try {
-			const custom = serverModule.openCodecutRequirementConfirmation(
+			const custom = await serverModule.openCodecutRequirementConfirmation(
 				{
 					projectName: "Custom Voiceover",
 					output: {
@@ -1277,7 +1420,7 @@ describe("Codecut MCP server contract", () => {
 				},
 			});
 
-			const cloned = serverModule.openCodecutRequirementConfirmation(
+			const cloned = await serverModule.openCodecutRequirementConfirmation(
 				{
 					projectName: "Clone Voice",
 					output: {

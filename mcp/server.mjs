@@ -605,6 +605,23 @@ const workspaceBgmPreferencesSchema = z
 			});
 		}
 	});
+const requirementOpenBgmPreferencesSchema = z.discriminatedUnion("mode", [
+	z.object({ mode: z.literal("none") }).strict(),
+	z
+		.object({
+			mode: z.literal("smart_match"),
+			searchQuery: z.string().trim().min(1),
+			selectedCandidateId: z.string().trim().min(1),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(MAX_BGM_CANDIDATE_LIMIT)
+				.optional(),
+			commercialOnly: z.boolean().optional(),
+		})
+		.strict(),
+]);
 const searchBgmMusicInputSchema = {
 	query: z
 		.string()
@@ -993,6 +1010,7 @@ const workspaceOpenInputSchema = {
 };
 const requirementOpenInputSchema = {
 	...workspaceOpenInputSchema,
+	bgmPreferences: requirementOpenBgmPreferencesSchema.optional(),
 	output: workspaceRequirementOpenOutputSchema.optional(),
 };
 
@@ -2684,12 +2702,53 @@ function newRequirementDraftId(requestedProjectId) {
 	return `ccreq_${stem}_${suffix}`;
 }
 
-function buildRequirementDraftFromInput(
+async function resolveRequirementOpenInputBgmPreferences(
+	input,
+	{ fetchImpl = fetch } = {},
+) {
+	if (input?.bgmPreferences === undefined) {
+		return input;
+	}
+	const bgmPreferences = requirementOpenBgmPreferencesSchema.parse(
+		input.bgmPreferences,
+	);
+	if (bgmPreferences.mode !== "smart_match") {
+		return { ...input, bgmPreferences };
+	}
+	const result = await searchInternetArchiveBgm({
+		query: bgmPreferences.searchQuery,
+		limit: bgmPreferences.limit ?? DEFAULT_BGM_CANDIDATE_LIMIT,
+		commercialOnly: bgmPreferences.commercialOnly ?? true,
+		fetchImpl,
+	});
+	const selectedCandidate = result.candidates.find(
+		(candidate) => candidate.id === bgmPreferences.selectedCandidateId,
+	);
+	if (!selectedCandidate) {
+		throw new Error(
+			"Selected BGM candidate is not available from the current search result.",
+		);
+	}
+	return {
+		...input,
+		bgmPreferences: {
+			mode: "smart_match",
+			searchQuery: result.query,
+			candidates: result.candidates,
+			selectedCandidate,
+		},
+	};
+}
+
+async function buildRequirementDraftFromInput(
 	input = {},
-	{ allowExternalVoiceFiles = false } = {},
+	{ allowExternalVoiceFiles = false, fetchImpl = fetch } = {},
 ) {
 	assertNoLegacyWorkspaceOpenFields(input);
-	const intentDefaults = buildWorkspaceIntentDefaults(input, {
+	const resolvedInput = await resolveRequirementOpenInputBgmPreferences(input, {
+		fetchImpl,
+	});
+	const intentDefaults = buildWorkspaceIntentDefaults(resolvedInput, {
 		allowExternalVoiceFiles,
 	});
 	const normalized = normalizeWorkspaceIntent({
@@ -2774,21 +2833,19 @@ function browserOpenForRequirementConfirmation(confirmationUrl) {
 	};
 }
 
-export function openCodecutRequirementConfirmation(
+export async function openCodecutRequirementConfirmation(
 	input = {},
-	{ root = pluginRoot, cwd = pluginRoot, env = process.env } = {},
+	{ root = pluginRoot, cwd = pluginRoot, env = process.env, fetchImpl = fetch } = {},
 ) {
-	const draft = buildRequirementDraftFromInput(input, {
+	const draft = await buildRequirementDraftFromInput(input, {
 		allowExternalVoiceFiles: true,
+		fetchImpl,
 	});
 	const directory = requirementStoreDirectory(root, draft.draftId);
 	mkdirSync(directory, { recursive: true });
 	writeRequirementJson(join(directory, "draft.json"), draft);
 	appendRequirementEvent(root, draft.draftId, { type: "draft_created" });
-	const locale =
-		buildWorkspaceIntentDefaults(input, {
-			allowExternalVoiceFiles: true,
-		}).uiLanguage || "en";
+	const locale = input.uiLanguage || input.locale || "en";
 	const confirmationUrl = confirmationUrlForDraft({
 		draftId: draft.draftId,
 		cwd,
@@ -6477,10 +6534,11 @@ export async function callCodecutWorkspaceTool(
 		const blocked = await assertCodecutServiceReady({ cwd, env, fetchImpl });
 		if (blocked) return blocked;
 		try {
-			return openCodecutRequirementConfirmation(input, {
+			return await openCodecutRequirementConfirmation(input, {
 				root: resolveRequirementStoreRoot({ cwd, env }),
 				cwd,
 				env,
+				fetchImpl,
 			});
 		} catch (error) {
 			return buildCodecutSetupInvalidResult(extractErrorMessage(error));
