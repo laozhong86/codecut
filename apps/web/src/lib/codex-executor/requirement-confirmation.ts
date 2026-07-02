@@ -71,6 +71,7 @@ export const RequirementDraftInputSchema = z
 		characterPreferences: ConfirmedSetupSchema.shape.characterPreferences,
 		bgmPreferences: ConfirmedSetupSchema.shape.bgmPreferences,
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
+		networkMaterialMatching: ConfirmedSetupSchema.shape.networkMaterialMatching,
 		exportPreferences: ConfirmedSetupSchema.shape.exportPreferences,
 		checks: z.array(CheckSchema),
 	})
@@ -126,6 +127,8 @@ export const RequirementConfirmationPatchSchema = z
 			ConfirmedSetupSchema.shape.characterPreferences.optional(),
 		bgmPreferences: ConfirmedSetupSchema.shape.bgmPreferences.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
+		networkMaterialMatching:
+			ConfirmedSetupSchema.shape.networkMaterialMatching.optional(),
 		exportPreferences: ConfirmedSetupSchema.shape.exportPreferences.optional(),
 	})
 	.strict();
@@ -286,6 +289,8 @@ export async function confirmRequirementDraft({
 			bgmPreferences: parsedPatch.bgmPreferences ?? draft.bgmPreferences,
 			templatePreference:
 				parsedPatch.templatePreference ?? draft.templatePreference,
+			networkMaterialMatching:
+				parsedPatch.networkMaterialMatching ?? draft.networkMaterialMatching,
 			exportPreferences:
 				parsedPatch.exportPreferences ?? draft.exportPreferences,
 			changes: [],

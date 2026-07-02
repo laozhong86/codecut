@@ -63,11 +63,11 @@ function confirmedSetupBody(
 			transitionPreference: "auto",
 			generateIntroCover: true,
 			requirements: "Create a clear short video.",
-		},
-		titlePreferences: { enabled: false },
-		captionPreferences: {
-			enabled: true,
-			language: "auto",
+			},
+			titlePreferences: { enabled: false },
+			captionPreferences: {
+				enabled: true,
+				language: "auto",
 			font: "auto",
 			size: captionSize,
 			stylePreset: "product-punch",
@@ -75,17 +75,24 @@ function confirmedSetupBody(
 		voicePreferences: {
 			enabled: false,
 			voicePackId: "none",
-		},
-		characterPreferences: { characterId: "none" },
-		bgmPreferences: { mode: "none" },
-		templatePreference: { mode: "auto" },
-		exportPreferences: {
-			format: "mp4",
-			quality: "high",
-			includeAudio: true,
-		},
-		changes: [],
-	};
+			},
+			characterPreferences: { characterId: "none" },
+			bgmPreferences: { mode: "none" },
+			templatePreference: { mode: "auto" },
+			networkMaterialMatching: {
+				enabled: false,
+				placement: "background",
+				providers: ["pexels", "pixabay", "coverr"],
+				resolvedTemplateId: "talking-head-short",
+				decisionSource: "template",
+			},
+			exportPreferences: {
+				format: "mp4",
+				quality: "high",
+				includeAudio: true,
+			},
+			changes: [],
+		};
 }
 
 describe("codex executor API routes", () => {

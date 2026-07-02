@@ -9,6 +9,7 @@ import {
 
 export const BUILT_IN_TEMPLATE_IDS = [
 	"talking-head-short",
+	"talking-head-broll-split",
 	"tutorial-demo",
 	"product-proof-ad",
 	"narrated-broll",
@@ -16,10 +17,7 @@ export const BUILT_IN_TEMPLATE_IDS = [
 
 export type BuiltInTemplateId = (typeof BUILT_IN_TEMPLATE_IDS)[number];
 
-export type CreateTemplateInput = Omit<
-	Template,
-	"createdAt" | "updatedAt"
-> & {
+export type CreateTemplateInput = Omit<Template, "createdAt" | "updatedAt"> & {
 	now: Date;
 };
 
@@ -94,6 +92,65 @@ export const builtInTemplates = [
 				"The requested cleanup depends on silence or word-level detection that is not available.",
 			],
 		},
+		networkMaterialPolicy: {
+			defaultEnabled: false,
+			searchBasis: "voiceover_content",
+			defaultPlacement: "background",
+			allowedPlacements: ["background", "top", "bottom"],
+		},
+		createdAt: builtInTimestamp,
+		updatedAt: builtInTimestamp,
+	},
+	{
+		id: "talking-head-broll-split",
+		name: "Talking-head B-roll split",
+		description:
+			"Combine a talking-head source with narration-matched network B-roll in a vertical split layout.",
+		source: "built-in",
+		readOnly: true,
+		trigger: {
+			types: ["talking-head-broll-split"],
+			defaultForTypes: ["talking-head-broll-split"],
+			aliases: ["口播配素材", "口播分屏", "talking head b-roll"],
+		},
+		plan: {
+			objective:
+				"Combine a talking-head source with narration-matched network B-roll in a vertical split layout.",
+			steps: [
+				{
+					id: "match-broll",
+					label: "Match B-roll",
+					instruction:
+						"Use voiceover content to select chronological network material beats with traceable sources.",
+				},
+				{
+					id: "compose-split",
+					label: "Compose split",
+					instruction:
+						"Place network material in the selected top or bottom slot and keep the presenter in the opposite slot.",
+				},
+			],
+			verification: [
+				"Network material matches cite search terms, provider, source URL, license, and crop risk.",
+				"CompositeLayoutPlan validates and get_timeline_state verifies separate presenter and network material tracks.",
+			],
+		},
+		execution: {
+			path: "composite-layout-v1",
+			requiredEvidence: ["transcript", "visual-proof"],
+			defaultStructure: ["talking-head presenter", "matched B-roll slot"],
+			stopConditions: [
+				"Voiceover or ASR text is missing.",
+				"Network material matching returns no licensed candidates.",
+				"The requested layout requires face tracking, automatic person masking, or a non-9:16 split target.",
+			],
+		},
+		networkMaterialPolicy: {
+			defaultEnabled: true,
+			searchBasis: "voiceover_content",
+			defaultPlacement: "top",
+			allowedPlacements: ["top", "bottom"],
+		},
 		createdAt: builtInTimestamp,
 		updatedAt: builtInTimestamp,
 	},
@@ -141,6 +198,12 @@ export const builtInTemplates = [
 				"Transcript or visible step context is missing.",
 				"The request needs OCR or scene detection that is not available.",
 			],
+		},
+		networkMaterialPolicy: {
+			defaultEnabled: false,
+			searchBasis: "voiceover_content",
+			defaultPlacement: "background",
+			allowedPlacements: ["background", "top", "bottom"],
 		},
 		createdAt: builtInTimestamp,
 		updatedAt: builtInTimestamp,
@@ -190,6 +253,12 @@ export const builtInTemplates = [
 				"The requested claim cannot be tied to spoken or visible evidence.",
 			],
 		},
+		networkMaterialPolicy: {
+			defaultEnabled: false,
+			searchBasis: "voiceover_content",
+			defaultPlacement: "background",
+			allowedPlacements: ["background", "top", "bottom"],
+		},
 		createdAt: builtInTimestamp,
 		updatedAt: builtInTimestamp,
 	},
@@ -230,12 +299,22 @@ export const builtInTemplates = [
 		execution: {
 			path: "narrated-remix-v1",
 			requiredEvidence: ["existing-narration-audio", "visual-broll"],
-			defaultStructure: ["intro beat", "supporting visual beats", "closing beat"],
+			defaultStructure: [
+				"intro beat",
+				"supporting visual beats",
+				"closing beat",
+			],
 			stopConditions: [
 				"Existing narration audio is missing.",
 				"Visual B-roll is missing.",
 				"The request requires TTS, BGM, SFX, effects, or append mode.",
 			],
+		},
+		networkMaterialPolicy: {
+			defaultEnabled: true,
+			searchBasis: "voiceover_content",
+			defaultPlacement: "background",
+			allowedPlacements: ["background"],
 		},
 		createdAt: builtInTimestamp,
 		updatedAt: builtInTimestamp,
@@ -371,6 +450,13 @@ function chooseTemplateTriggerType({
 	platformHint?: string;
 }): TemplateTriggerType | null {
 	const text = `${userIntent ?? ""} ${platformHint ?? ""}`.toLowerCase();
+	if (
+		/(口播配素材|口播分屏|出镜人.*素材|素材.*出镜人|talking[- ]?head.*b[- ]?roll|split.*b[- ]?roll|b[- ]?roll.*split)/i.test(
+			text,
+		)
+	) {
+		return "talking-head-broll-split";
+	}
 	if (/(商品|带货|ugc|广告|转化|product|conversion|ad\b)/i.test(text)) {
 		return "product-proof-ad";
 	}

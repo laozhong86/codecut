@@ -4,6 +4,7 @@ import {
 	formStateFromRequirementDraft,
 } from "../requirement-confirmation-patch";
 import type { RequirementDraft } from "../requirement-confirmation";
+import type { RequirementConfirmationFormState } from "../requirement-confirmation-patch";
 
 function requirementDraftFixture(): RequirementDraft {
 	return {
@@ -51,6 +52,13 @@ function requirementDraftFixture(): RequirementDraft {
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
 		},
+		networkMaterialMatching: {
+			enabled: true,
+			placement: "top",
+			providers: ["pexels", "pixabay", "coverr"],
+			resolvedTemplateId: "talking-head-broll-split",
+			decisionSource: "template",
+		},
 		exportPreferences: {
 			format: "mp4",
 			quality: "high",
@@ -92,6 +100,19 @@ describe("requirement confirmation patch builder", () => {
 
 		expect(form.characterId).toBe("ugc-female-host");
 		expect(form.bgmMode).toBe("smart_match");
+	});
+
+	test("reads network material matching from the requirement draft", () => {
+		const draft = requirementDraftFixture();
+		const form = formStateFromRequirementDraft(draft);
+
+		expect(form.networkMaterialEnabled).toBe(true);
+		expect(form.networkMaterialPlacement).toBe("top");
+		expect(form.networkMaterialProviders).toEqual([
+			"pexels",
+			"pixabay",
+			"coverr",
+		]);
 	});
 
 	test("submits voice preferences only when the user changes voice selection", () => {
@@ -213,6 +234,28 @@ describe("requirement confirmation patch builder", () => {
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
 			characterPreferences: { characterId: "ugc-female-host" },
 			bgmPreferences: { mode: "smart_match" },
+		});
+	});
+
+	test("submits network material matching changes when the user overrides template defaults", () => {
+		const draft = requirementDraftFixture();
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			networkMaterialEnabled: false,
+			networkMaterialPlacement: "bottom" as const,
+			networkMaterialProviders: [
+				"pexels",
+			] as RequirementConfirmationFormState["networkMaterialProviders"],
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			networkMaterialMatching: {
+				enabled: false,
+				placement: "bottom",
+				providers: ["pexels"],
+				resolvedTemplateId: "talking-head-broll-split",
+				decisionSource: "user",
+			},
 		});
 	});
 });

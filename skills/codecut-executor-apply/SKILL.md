@@ -1,6 +1,6 @@
 ---
 name: codecut-executor-apply
-description: Use when a confirmed Codecut editing plan is ready for local executor commands, including service readiness, bridge env, doctor checks, media import, transcription, EditPlan application, caption build, and get_timeline_state verification.
+description: Use when a confirmed Codecut editing plan is ready for local executor commands, including service readiness, bridge env, doctor checks, media import, transcription, EditPlan/NarratedRemixPlan/CompositeLayoutPlan application, caption build, and get_timeline_state verification.
 ---
 
 # Codecut Executor Apply
@@ -30,7 +30,7 @@ Executor apply mutates Codecut state. Use it only after requirement intake passe
 
 This skill owns executor readiness and execution: fixed local runtime checks,
 bridge env loading, doctor checks, media import, template import after explicit
-confirmation, EditPlan/NarratedRemixPlan application, caption build, timeline
+confirmation, EditPlan/NarratedRemixPlan/CompositeLayoutPlan application, caption build, timeline
 readback, and export proof.
 
 It does not confirm missing user requirements, collect source material facts,
@@ -44,7 +44,7 @@ skill keeps the minimum command surface needed to operate the current executor.
   available.
 - Bridge env from `apps/web/.env.local`.
 - Imported media IDs and readback from material/evidence stages.
-- Strict EditPlan, NarratedRemixPlan, verification JSON, template draft path,
+- Strict EditPlan, NarratedRemixPlan, CompositeLayoutPlan, verification JSON, template draft path,
   explicit controlled subtitle import request, or explicit export request.
 
 ## Outputs
@@ -166,6 +166,16 @@ Use `validate-edit-plan`, `preview-edit-plan`, and `apply-plan` from the docs.
 Captioned EditPlans must use `captions[]` plus top-level `captionStyle` only.
 Do not add arbitrary caption font or CSS fields to the plan.
 
+Apply a strict implemented CompositeLayoutPlan:
+
+Use `apply-composite-layout-plan` from the docs only after network material
+media has already been downloaded, imported, matched, and understood. Verify
+`get_timeline_state` readback includes a `Network Material` track, a `Presenter`
+track, and `visual.layoutSlot.cropMode: "cover-slot"` for both surfaces. For
+`top`, the network material slot starts at `y: 0` and the presenter slot starts
+at `y: 0.45`; for `bottom`, the presenter starts at `y: 0` and network material
+starts at `y: 0.55`.
+
 For user-supplied SRT/ASS files, use the controlled `import-subtitles`
 exception instead of rebuilding the timeline through EditPlan. Require an
 absolute file path, explicit `format`, `trackName`, `captionStyle`, and a
@@ -216,7 +226,7 @@ Use `fresh-session-smoke` from the docs.
 
 ## Failure Rule
 
-Do not continue after `doctor-install`, `doctor`, `fresh-session-smoke`, `import-media`, `import-template`, `transcribe`, `transcribe_volcengine_media`, `build_volcengine_media_captions`, `build-post-cut-captions`, `import-subtitles`, `apply-plan`, or `get_timeline_state` fails. Fix the failing gate first.
+Do not continue after `doctor-install`, `doctor`, `fresh-session-smoke`, `import-media`, `import-template`, `transcribe`, `transcribe_volcengine_media`, `build_volcengine_media_captions`, `build-post-cut-captions`, `import-subtitles`, `apply-plan`, `apply-narrated-remix-plan`, `apply-composite-layout-plan`, or `get_timeline_state` fails. Fix the failing gate first.
 
 When the confirmed requirement expects Volcengine or provider-backed source
 audio transcription, a missing public HTTPS source URL is a provider gate. Stop

@@ -250,15 +250,17 @@ function templateFromForm({
 			profileId: form.executionProfileId,
 			selectedTemplate,
 		}),
+		networkMaterialPolicy: {
+			defaultEnabled: false,
+			searchBasis: "voiceover_content",
+			defaultPlacement: "background",
+			allowedPlacements: ["background", "top", "bottom"],
+		},
 		now,
 	});
 }
 
-function TemplateBadge({
-	label,
-}: {
-	label: string;
-}) {
+function TemplateBadge({ label }: { label: string }) {
 	return (
 		<span className="text-muted-foreground rounded border px-1.5 py-0.5 text-[10px] uppercase">
 			{label}
@@ -406,18 +408,18 @@ function TemplatesDialogContent() {
 									onClick={() => selectTemplate(template)}
 								>
 									<div className="flex min-w-0 flex-1 flex-col items-start gap-1">
-											<div className="flex w-full items-center gap-2">
-												<span className="truncate font-medium">
-													{template.name}
-												</span>
-												<TemplateBadge
-													label={
-														template.source === "built-in"
-															? t("Built-in")
-															: t("User")
-													}
-												/>
-											</div>
+										<div className="flex w-full items-center gap-2">
+											<span className="truncate font-medium">
+												{template.name}
+											</span>
+											<TemplateBadge
+												label={
+													template.source === "built-in"
+														? t("Built-in")
+														: t("User")
+												}
+											/>
+										</div>
 										<span className="text-muted-foreground truncate text-xs">
 											{template.id}
 										</span>
@@ -550,9 +552,7 @@ function TemplatesDialogContent() {
 						/>
 					</div>
 					<div className="flex flex-col gap-2 md:col-span-2">
-						<Label htmlFor="template-verification">
-							{t("Verification")}
-						</Label>
+						<Label htmlFor="template-verification">{t("Verification")}</Label>
 						<Textarea
 							id="template-verification"
 							value={form.verification}

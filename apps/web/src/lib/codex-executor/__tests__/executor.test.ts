@@ -90,6 +90,7 @@ function envelope({
 		| "preview_edit_plan"
 		| "apply_edit_plan"
 		| "apply_narrated_remix_plan"
+		| "apply_composite_layout_plan"
 		| "create_text_background_effect"
 		| "create_human_pip_effect"
 		| "generate_digital_human"
@@ -228,6 +229,13 @@ function confirmedSetupFixture({
 		characterPreferences: { characterId: "none" },
 		bgmPreferences: { mode: "none" },
 		templatePreference,
+		networkMaterialMatching: {
+			enabled: false,
+			placement: "background",
+			providers: ["pexels"],
+			resolvedTemplateId: "talking-head-short",
+			decisionSource: "template",
+		},
 		exportPreferences: {
 			format: exportFormat,
 			quality: exportQuality,
@@ -6168,6 +6176,158 @@ describe("codex executor", () => {
 		});
 	});
 
+	test("applies a composite layout plan through the local executor", async () => {
+		await createExecutorProject({ projectId, name: "Composite layout" });
+		const presenterImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "presenter.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("presenter").toString("base64"),
+					size: 9,
+					lastModified: 1,
+					duration: 10,
+					width: 1080,
+					height: 1920,
+				},
+			}),
+		});
+		const networkImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "network-material.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("network").toString("base64"),
+					size: 7,
+					lastModified: 1,
+					duration: 6,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const presenterId = resultData<{ assets: Array<{ id: string }> }>(
+			presenterImport.results[0],
+		).assets[0].id;
+		const networkMaterialId = resultData<{ assets: Array<{ id: string }> }>(
+			networkImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_composite_layout_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 10, aspectRatio: "9:16" },
+						placement: "top",
+						presenter: {
+							mediaId: presenterId,
+							sourceStart: 0,
+							sourceEnd: 10,
+						},
+						networkMaterialBeats: [
+							{
+								id: "network-1",
+								mediaId: networkMaterialId,
+								provider: "pexels",
+								searchTerm: "startup office",
+								sourceUrl: "https://www.pexels.com/video/123/",
+								license: {
+									label: "Pexels License",
+									url: "https://www.pexels.com/license/",
+								},
+								sourceStart: 0,
+								sourceEnd: 5,
+								timelineStart: 0,
+								cropMode: "cover-slot",
+							},
+						],
+						rationale: "Place supporting B-roll above the presenter.",
+					},
+				},
+			}),
+		});
+		const timelineResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({ tool: "get_timeline_state", args: {} }),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "apply_composite_layout_plan",
+			success: true,
+			message: "Applied CompositeLayoutPlan with 1 network material beat(s).",
+			data: {
+				networkMaterialElementCount: 1,
+				presenterElementCount: 1,
+				totalDuration: 10,
+				placement: "top",
+			},
+		});
+		const timeline = resultData<{
+			tracks: Array<{
+				type: string;
+				elements: Array<{
+					type: string;
+					mediaId?: string;
+					visual?: {
+						muted?: boolean;
+						layoutSlot?: {
+							x: number;
+							y: number;
+							width: number;
+							height: number;
+							cropMode: string;
+						};
+					};
+				}>;
+			}>;
+		}>(timelineResult.results[0]);
+		expect(timeline.tracks).toHaveLength(2);
+		expect(timeline.tracks[0]).toMatchObject({
+			type: "video",
+			elements: [
+				{
+					type: "video",
+					mediaId: networkMaterialId,
+					visual: {
+						muted: true,
+						layoutSlot: {
+							x: 0,
+							y: 0,
+							width: 1,
+							height: 0.45,
+							cropMode: "cover-slot",
+						},
+					},
+				},
+			],
+		});
+		expect(timeline.tracks[1]).toMatchObject({
+			type: "video",
+			elements: [
+				{
+					type: "video",
+					mediaId: presenterId,
+					visual: {
+						muted: false,
+						layoutSlot: {
+							x: 0,
+							y: 0.45,
+							width: 1,
+							height: 0.55,
+							cropMode: "cover-slot",
+						},
+					},
+				},
+			],
+		});
+	});
+
 	test("rejects narrated remix captions when confirmed captions are disabled", async () => {
 		await createExecutorProject({
 			projectId,
@@ -6230,7 +6390,9 @@ describe("codex executor", () => {
 							},
 						],
 						narration: { mediaId: narrationId, sourceStart: 0 },
-						captions: [{ text: "Should be blocked", startTime: 0, duration: 2 }],
+						captions: [
+							{ text: "Should be blocked", startTime: 0, duration: 2 },
+						],
 						captionStyle: {
 							preset: "talking-head-pop",
 							position: "lower-safe",

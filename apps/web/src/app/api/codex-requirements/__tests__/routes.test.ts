@@ -74,6 +74,13 @@ function validDraftInput(): RequirementDraftInput {
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
 		},
+		networkMaterialMatching: {
+			enabled: false,
+			placement: "background",
+			providers: ["pexels"],
+			resolvedTemplateId: "talking-head-short",
+			decisionSource: "template",
+		},
 		exportPreferences: {
 			format: "mp4",
 			quality: "high",

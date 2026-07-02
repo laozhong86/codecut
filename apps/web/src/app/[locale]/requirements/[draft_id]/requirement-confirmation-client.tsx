@@ -13,6 +13,17 @@ import {
 	type RequirementConfirmationFormState,
 } from "@/lib/codex-executor/requirement-confirmation-patch";
 
+const NETWORK_MATERIAL_PROVIDER_OPTIONS = [
+	"pexels",
+	"pixabay",
+	"coverr",
+] as const;
+const NETWORK_MATERIAL_PLACEMENT_OPTIONS = [
+	"background",
+	"top",
+	"bottom",
+] as const;
+
 type RequirementReadback =
 	| {
 			status: "awaiting_user_confirmation";
@@ -33,6 +44,15 @@ function mediaSourceLabel(source: RequirementDraft["mediaSources"][number]) {
 	if (source.kind === "filePath") return source.filePath;
 	if (source.kind === "directoryPath") return source.directoryPath;
 	return source.url;
+}
+
+function networkMaterialPlacementLabel(
+	placement: RequirementConfirmationFormState["networkMaterialPlacement"],
+	t: (key: string) => string,
+) {
+	if (placement === "background") return t("背景");
+	if (placement === "top") return t("靠上");
+	return t("靠下");
 }
 
 function mediaSourceKey(source: RequirementDraft["mediaSources"][number]) {
@@ -81,6 +101,25 @@ export function RequirementConfirmationClient({
 	const draft = readback?.draft;
 	const projectName = draft?.requestedProjectName || "";
 	const mediaSources = draft?.mediaSources || [];
+	const networkMaterialProvidersMissing =
+		form?.networkMaterialEnabled === true &&
+		form.networkMaterialProviders.length === 0;
+
+	function updateNetworkMaterialProvider(
+		provider: RequirementConfirmationFormState["networkMaterialProviders"][number],
+		checked: boolean,
+	) {
+		if (!form) return;
+		setForm({
+			...form,
+			networkMaterialProviders: NETWORK_MATERIAL_PROVIDER_OPTIONS.filter(
+				(option) =>
+					option === provider
+						? checked
+						: form.networkMaterialProviders.includes(option),
+			),
+			});
+		}
 
 	async function submitConfirmation() {
 		if (!draft || !form) return;
@@ -289,6 +328,77 @@ export function RequirementConfirmationClient({
 								/>
 							</label>
 						)}
+					</div>
+				</section>
+
+				<section className="grid gap-4 rounded-md border p-4">
+					<div className="flex items-center justify-between gap-4">
+						<div>
+							<h2 className="text-base font-semibold">{t("网络素材匹配")}</h2>
+							<p className="mt-1 text-sm text-muted-foreground">
+								{draft.networkMaterialMatching.enabled
+									? t("模板建议：开启网络素材匹配")
+									: t("模板建议：关闭网络素材匹配")}
+							</p>
+						</div>
+						<Switch
+							checked={form.networkMaterialEnabled}
+							onCheckedChange={(checked) =>
+								setForm({ ...form, networkMaterialEnabled: checked })
+							}
+						/>
+					</div>
+					<div className="grid gap-4 md:grid-cols-2">
+						<label className="grid gap-2 text-sm font-medium">
+							{t("显示位置")}
+							<select
+								className="h-10 rounded-md border bg-background px-3"
+								value={form.networkMaterialPlacement}
+								disabled={!form.networkMaterialEnabled}
+								onChange={(event) =>
+									setForm({
+										...form,
+										networkMaterialPlacement: event.target
+											.value as RequirementConfirmationFormState["networkMaterialPlacement"],
+									})
+								}
+								>
+									{NETWORK_MATERIAL_PLACEMENT_OPTIONS.map((placement) => (
+										<option key={placement} value={placement}>
+											{networkMaterialPlacementLabel(placement, t)}
+										</option>
+									))}
+								</select>
+						</label>
+						<div className="grid gap-2 text-sm font-medium">
+							<span>{t("素材渠道")}</span>
+							<div className="flex min-h-10 flex-wrap items-center gap-4 rounded-md border bg-background px-3 py-2">
+								{NETWORK_MATERIAL_PROVIDER_OPTIONS.map((provider) => (
+									<label
+										key={provider}
+										className="flex items-center gap-2 text-sm capitalize"
+									>
+										<input
+											type="checkbox"
+											checked={form.networkMaterialProviders.includes(provider)}
+											disabled={!form.networkMaterialEnabled}
+											onChange={(event) =>
+												updateNetworkMaterialProvider(
+													provider,
+													event.target.checked,
+												)
+											}
+										/>
+										{provider}
+									</label>
+								))}
+							</div>
+							{networkMaterialProvidersMissing && (
+								<p className="text-sm text-destructive">
+									{t("开启网络素材匹配时至少选择一个渠道")}
+								</p>
+							)}
+						</div>
 					</div>
 				</section>
 
@@ -513,7 +623,9 @@ export function RequirementConfirmationClient({
 					type="button"
 					onClick={submitConfirmation}
 					disabled={
-						isSubmitting || readback.status !== "awaiting_user_confirmation"
+						isSubmitting ||
+						readback.status !== "awaiting_user_confirmation" ||
+						networkMaterialProvidersMissing
 					}
 				>
 					{t("确认需求")}

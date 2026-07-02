@@ -4,7 +4,9 @@ import type { LegacyTemplateRecord } from "../migration";
 
 const now = new Date("2026-07-01T00:00:00.000Z");
 
-export function createUserTemplate(overrides: Partial<Template> = {}): Template {
+export function createUserTemplate(
+	overrides: Partial<Template> = {},
+): Template {
 	return createTemplate({
 		id: "user-proof",
 		name: "User proof",
@@ -33,6 +35,12 @@ export function createUserTemplate(overrides: Partial<Template> = {}): Template 
 			defaultStructure: ["hook", "proof", "CTA"],
 			captionPreset: "product-punch",
 			stopConditions: ["Product facts are missing."],
+		},
+		networkMaterialPolicy: {
+			defaultEnabled: false,
+			searchBasis: "voiceover_content",
+			defaultPlacement: "background",
+			allowedPlacements: ["background", "top", "bottom"],
 		},
 		now,
 		...overrides,
