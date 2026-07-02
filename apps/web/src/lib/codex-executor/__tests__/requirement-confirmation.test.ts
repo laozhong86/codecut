@@ -229,6 +229,38 @@ describe("requirement confirmation store", () => {
 		});
 	});
 
+	test("confirmation patch can select a voice clone source audio file", async () => {
+		const root = await mkdtemp(join(tmpdir(), "codecut-req-"));
+		const draft = await createRequirementDraft({
+			root,
+			input: validDraftInput(),
+		});
+
+		const confirmed = await confirmRequirementDraft({
+			root,
+			draftId: draft.draftId,
+			patch: {
+				voicePreferences: {
+					enabled: true,
+					voicePackId: "voice_clone",
+					voiceCloneSourceFile: {
+						name: "reference.wav",
+						path: "/tmp/reference.wav",
+					},
+				},
+			},
+		});
+
+		expect(confirmed.confirmedSetup.voicePreferences).toEqual({
+			enabled: true,
+			voicePackId: "voice_clone",
+			voiceCloneSourceFile: {
+				name: "reference.wav",
+				path: "/tmp/reference.wav",
+			},
+		});
+	});
+
 	test("defaults missing character and BGM preferences on existing drafts", () => {
 		const legacyDraft = {
 			...validDraftInput(),

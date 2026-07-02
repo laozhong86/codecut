@@ -121,6 +121,14 @@ export function RequirementConfirmationClient({
 		!form.requestedTemplate.trim();
 	const draftTemplateNameMissing =
 		form?.templatePreferenceMode === "create" && !form.draftTemplateName.trim();
+	const customVoiceFileMissing =
+		form?.voicePackId === "custom" &&
+		!form.customVoiceFileUrl.trim() &&
+		!form.customVoiceFilePath.trim();
+	const voiceCloneSourceFileMissing =
+		form?.voicePackId === "voice_clone" &&
+		!form.voiceCloneSourceFileUrl.trim() &&
+		!form.voiceCloneSourceFilePath.trim();
 
 	function updateNetworkMaterialProvider(
 		provider: RequirementConfirmationFormState["networkMaterialProviders"][number],
@@ -625,6 +633,8 @@ export function RequirementConfirmationClient({
 								<option value="none">{t("关闭")}</option>
 								<option value="podcast-female">{t("女声")}</option>
 								<option value="podcast-male">{t("男声")}</option>
+								<option value="custom">{t("自定义配音")}</option>
+								<option value="voice_clone">{t("声音克隆")}</option>
 							</select>
 						</label>
 						<label className="grid gap-2 text-sm font-medium">
@@ -645,6 +655,102 @@ export function RequirementConfirmationClient({
 							</select>
 						</label>
 					</div>
+					{form.voicePackId === "custom" && (
+						<div className="grid gap-4 md:grid-cols-3">
+							<label className="grid gap-2 text-sm font-medium">
+								{t("配音文件名称")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.customVoiceFileName}
+									onChange={(event) =>
+										setForm({
+											...form,
+											customVoiceFileName: event.target.value,
+										})
+									}
+								/>
+							</label>
+							<label className="grid gap-2 text-sm font-medium">
+								{t("配音文件 URL")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.customVoiceFileUrl}
+									onChange={(event) =>
+										setForm({
+											...form,
+											customVoiceFileUrl: event.target.value,
+										})
+									}
+								/>
+							</label>
+							<label className="grid gap-2 text-sm font-medium">
+								{t("配音文件路径")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.customVoiceFilePath}
+									onChange={(event) =>
+										setForm({
+											...form,
+											customVoiceFilePath: event.target.value,
+										})
+									}
+								/>
+							</label>
+							{customVoiceFileMissing && (
+								<p className="text-sm text-destructive md:col-span-3">
+									{t("自定义配音需要提供文件 URL 或路径")}
+								</p>
+							)}
+						</div>
+					)}
+					{form.voicePackId === "voice_clone" && (
+						<div className="grid gap-4 md:grid-cols-3">
+							<label className="grid gap-2 text-sm font-medium">
+								{t("克隆音频名称")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.voiceCloneSourceFileName}
+									onChange={(event) =>
+										setForm({
+											...form,
+											voiceCloneSourceFileName: event.target.value,
+										})
+									}
+								/>
+							</label>
+							<label className="grid gap-2 text-sm font-medium">
+								{t("克隆音频 URL")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.voiceCloneSourceFileUrl}
+									onChange={(event) =>
+										setForm({
+											...form,
+											voiceCloneSourceFileUrl: event.target.value,
+										})
+									}
+								/>
+							</label>
+							<label className="grid gap-2 text-sm font-medium">
+								{t("克隆音频路径")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.voiceCloneSourceFilePath}
+									onChange={(event) =>
+										setForm({
+											...form,
+											voiceCloneSourceFilePath: event.target.value,
+										})
+									}
+								/>
+							</label>
+							{voiceCloneSourceFileMissing && (
+								<p className="text-sm text-destructive md:col-span-3">
+									{t("声音克隆需要提供音频 URL 或路径")}
+								</p>
+							)}
+						</div>
+					)}
 				</section>
 
 				<div className="grid gap-2 rounded-md border p-4 text-sm font-medium">
@@ -678,7 +784,9 @@ export function RequirementConfirmationClient({
 						readback.status !== "awaiting_user_confirmation" ||
 						networkMaterialProvidersMissing ||
 						specifiedTemplateMissing ||
-						draftTemplateNameMissing
+						draftTemplateNameMissing ||
+						customVoiceFileMissing ||
+						voiceCloneSourceFileMissing
 					}
 				>
 					{t("确认需求")}

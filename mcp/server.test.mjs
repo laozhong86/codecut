@@ -642,7 +642,6 @@ describe("Codecut MCP server contract", () => {
 				voiceEnabled: true,
 				voicePackId: "custom",
 				customVoiceFile: {
-					name: "voice.wav",
 					url: "blob:voice",
 					path: "/tmp/voice.wav",
 				},
@@ -651,7 +650,20 @@ describe("Codecut MCP server contract", () => {
 		expect(openInputSchema.safeParse(customVoiceDefaults).success).toBe(false);
 		expect(
 			requirementOpenInputSchema.safeParse(customVoiceDefaults).success,
-		).toBe(false);
+		).toBe(true);
+		const voiceCloneDefaults = {
+			output: {
+				voiceEnabled: true,
+				voicePackId: "voice_clone",
+				voiceCloneSourceFile: {
+					path: "/tmp/reference.wav",
+				},
+			},
+		};
+		expect(openInputSchema.safeParse(voiceCloneDefaults).success).toBe(false);
+		expect(
+			requirementOpenInputSchema.safeParse(voiceCloneDefaults).success,
+		).toBe(true);
 		expect(
 			openTool.inputSchema.transitionPreference.safeParse("auto").success,
 		).toBe(true);
@@ -1055,6 +1067,72 @@ describe("Codecut MCP server contract", () => {
 			expect(draft.voicePreferences).toEqual({
 				enabled: true,
 				voicePackId: "podcast-female",
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("opens requirement confirmation with external voice file defaults", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-voice-"));
+		try {
+			const custom = serverModule.openCodecutRequirementConfirmation(
+				{
+					projectName: "Custom Voiceover",
+					output: {
+						voiceEnabled: true,
+						voicePackId: "custom",
+						customVoiceFile: {
+							name: "voice.wav",
+							path: "/tmp/voice.wav",
+						},
+					},
+				},
+				{
+					root: directory,
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+				},
+			);
+			expect(custom.structuredContent.draft.voicePreferences).toEqual({
+				enabled: true,
+				voicePackId: "custom",
+				customVoiceFile: {
+					name: "voice.wav",
+					path: "/tmp/voice.wav",
+				},
+			});
+
+			const cloned = serverModule.openCodecutRequirementConfirmation(
+				{
+					projectName: "Clone Voice",
+					output: {
+						voiceEnabled: true,
+						voicePackId: "voice_clone",
+						voiceCloneSourceFile: {
+							path: "/tmp/reference.wav",
+						},
+					},
+				},
+				{
+					root: directory,
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+				},
+			);
+			expect(cloned.structuredContent.draft.voicePreferences).toEqual({
+				enabled: true,
+				voicePackId: "voice_clone",
+				voiceCloneSourceFile: {
+					name: "reference.wav",
+					path: "/tmp/reference.wav",
+				},
 			});
 		} finally {
 			await rm(directory, { recursive: true, force: true });
@@ -2399,7 +2477,7 @@ describe("Codecut MCP server contract", () => {
 				},
 			}),
 		).toThrow(
-			"customVoiceFile is not supported by CodeCut requirement confirmation.",
+			"customVoiceFile is not supported by CodeCut workspace setup.",
 		);
 	});
 
@@ -2739,6 +2817,26 @@ describe("Codecut MCP server contract", () => {
 			expect(builtInVoice.intent.output.voiceEnabled).toBe(true);
 			expect(builtInVoice.intent.output.voicePackId).toBe("podcast-female");
 
+			const voiceClone = await serverModule.inspectCodecutSetup(
+				setupIntent({
+					output: {
+						...setupIntent().output,
+						voiceEnabled: true,
+						voicePackId: "voice_clone",
+						voiceCloneSourceFile: {
+							path: "/tmp/reference.wav",
+						},
+					},
+				}),
+				{ bridgeToolImpl },
+			);
+			expect(voiceClone.status).toBe("ready");
+			expect(voiceClone.intent.output.voicePackId).toBe("voice_clone");
+			expect(voiceClone.intent.output.voiceCloneSourceFile).toEqual({
+				name: "reference.wav",
+				path: "/tmp/reference.wav",
+			});
+
 			for (const [label, intent] of [
 				["invalid project id", setupIntent({ projectId: "../bad" })],
 				["missing project name", setupIntent({ projectName: " " })],
@@ -2803,6 +2901,38 @@ describe("Codecut MCP server contract", () => {
 						output: {
 							...setupIntent().output,
 							voicePackId: "女声",
+						},
+					}),
+				],
+				[
+					"custom voice file with built-in voice",
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath }],
+						output: {
+							...setupIntent().output,
+							voicePackId: "podcast-female",
+							customVoiceFile: {
+								name: "voice.wav",
+								path: "/tmp/voice.wav",
+							},
+						},
+					}),
+				],
+				[
+					"voice clone source with custom voice",
+					setupIntent({
+						mediaSources: [{ kind: "filePath", filePath }],
+						output: {
+							...setupIntent().output,
+							voicePackId: "custom",
+							customVoiceFile: {
+								name: "voice.wav",
+								path: "/tmp/voice.wav",
+							},
+							voiceCloneSourceFile: {
+								name: "reference.wav",
+								path: "/tmp/reference.wav",
+							},
 						},
 					}),
 				],

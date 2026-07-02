@@ -360,6 +360,26 @@ describe("ConfirmedSetup durationContract", () => {
 				path: "voice.wav",
 			},
 		});
+		const localFileOnly = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				voicePreferences: {
+					enabled: true,
+					voicePackId: "custom",
+					customVoiceFile: {
+						name: "voice.wav",
+						path: "/tmp/voice.wav",
+					},
+				},
+			}),
+		);
+		expect(localFileOnly.voicePreferences).toEqual({
+			enabled: true,
+			voicePackId: "custom",
+			customVoiceFile: {
+				name: "voice.wav",
+				path: "/tmp/voice.wav",
+			},
+		});
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
@@ -402,13 +422,71 @@ describe("ConfirmedSetup durationContract", () => {
 		).toThrow("voicePreferences.voicePackId must be none");
 	});
 
+	test("accepts voice clone preferences with a source audio file", () => {
+		const parsed = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				voicePreferences: {
+					enabled: true,
+					voicePackId: "voice_clone",
+					voiceCloneSourceFile: {
+						name: "reference.wav",
+						path: "/tmp/reference.wav",
+					},
+				},
+			}),
+		);
+
+		expect(parsed.voicePreferences).toEqual({
+			enabled: true,
+			voicePackId: "voice_clone",
+			voiceCloneSourceFile: {
+				name: "reference.wav",
+				path: "/tmp/reference.wav",
+			},
+		});
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					voicePreferences: {
+						enabled: true,
+						voicePackId: "voice_clone",
+					},
+				}),
+			),
+		).toThrow("voicePreferences.voiceCloneSourceFile is required");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					voicePreferences: {
+						enabled: true,
+						voicePackId: "custom",
+						customVoiceFile: {
+							name: "voice.wav",
+							url: "blob:voice",
+						},
+						voiceCloneSourceFile: {
+							name: "reference.wav",
+							path: "/tmp/reference.wav",
+						},
+					},
+				}),
+			),
+		).toThrow(
+			"voicePreferences.voiceCloneSourceFile is only allowed for voice clone.",
+		);
+	});
+
 	test("clears the selected voice when voice is disabled by patch", () => {
 		const applied = applyConfirmedSetupPatch({
 			confirmedSetup: ConfirmedSetupSchema.parse(
 				confirmedSetup({
 					voicePreferences: {
 						enabled: true,
-						voicePackId: "podcast-female",
+						voicePackId: "voice_clone",
+						voiceCloneSourceFile: {
+							name: "reference.wav",
+							path: "/tmp/reference.wav",
+						},
 					},
 				}),
 			),

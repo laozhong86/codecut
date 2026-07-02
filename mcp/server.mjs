@@ -74,6 +74,7 @@ const workspaceVoicePackChoiceValues = [
 	noBuiltinVoicePackId,
 	...builtinVoicePackIds,
 	"custom",
+	"voice_clone",
 ];
 const workspaceOpenVoicePackChoiceValues = [
 	noBuiltinVoicePackId,
@@ -416,13 +417,22 @@ const workspaceMediaSourceSchema = z
 	.strict();
 const workspaceMediaSourcesSchema = z.array(workspaceMediaSourceSchema);
 
-const customVoiceFileSchema = z
+const voiceAudioFileSchema = z
 	.object({
-		name: z.string().trim().min(1),
-		url: z.string().trim().min(1),
+		name: z.string().trim().min(1).optional(),
+		url: z.string().trim().min(1).optional(),
 		path: z.string().trim().min(1).optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, ctx) => {
+		if (!value.url && !value.path) {
+			ctx.addIssue({
+				code: "custom",
+				message: "voice file requires url or path.",
+				path: ["url"],
+			});
+		}
+	});
 
 const workspaceOutputBaseSchema = z
 	.object({
@@ -435,7 +445,8 @@ const workspaceOutputBaseSchema = z
 		captionStylePreset: captionStylePresetSchema,
 		voiceEnabled: z.boolean(),
 		voicePackId: workspaceVoicePackIdSchema.optional(),
-		customVoiceFile: customVoiceFileSchema.optional(),
+		customVoiceFile: voiceAudioFileSchema.optional(),
+		voiceCloneSourceFile: voiceAudioFileSchema.optional(),
 	})
 	.strict();
 const workspaceOutputSchema = workspaceOutputBaseSchema.superRefine(
@@ -450,12 +461,30 @@ const workspaceOutputSchema = workspaceOutputBaseSchema.superRefine(
 				});
 			}
 		}
+		if (value.voiceEnabled && value.voicePackId === "voice_clone") {
+			if (!value.voiceCloneSourceFile) {
+				ctx.addIssue({
+					code: "custom",
+					message:
+						"output.voiceCloneSourceFile is required when voice clone is enabled.",
+					path: ["voiceCloneSourceFile"],
+				});
+			}
+		}
 		if (value.voicePackId !== "custom" && value.customVoiceFile) {
 			ctx.addIssue({
 				code: "custom",
 				message:
 					"output.customVoiceFile is only allowed when voicePackId is custom.",
 				path: ["customVoiceFile"],
+			});
+		}
+		if (value.voicePackId !== "voice_clone" && value.voiceCloneSourceFile) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"output.voiceCloneSourceFile is only allowed when voicePackId is voice_clone.",
+				path: ["voiceCloneSourceFile"],
 			});
 		}
 	},
@@ -471,6 +500,21 @@ const workspaceOpenOutputSchema = z
 		captionStylePreset: captionStylePresetSchema.optional(),
 		voiceEnabled: z.boolean().optional(),
 		voicePackId: z.enum(workspaceOpenVoicePackChoiceValues).optional(),
+	})
+	.strict();
+const workspaceRequirementOpenOutputSchema = z
+	.object({
+		format: outputFormatSchema.optional(),
+		quality: outputQualitySchema.optional(),
+		includeAudio: z.boolean().optional(),
+		captionEnabled: z.boolean().optional(),
+		captionFont: captionFontSchema.optional(),
+		captionSize: captionSizeSchema.optional(),
+		captionStylePreset: captionStylePresetSchema.optional(),
+		voiceEnabled: z.boolean().optional(),
+		voicePackId: workspaceVoicePackIdSchema.optional(),
+		customVoiceFile: voiceAudioFileSchema.optional(),
+		voiceCloneSourceFile: voiceAudioFileSchema.optional(),
 	})
 	.strict();
 
@@ -554,7 +598,8 @@ const confirmedSetupPatchSchema = z
 			.object({
 				enabled: z.boolean().optional(),
 				voicePackId: workspaceVoicePackIdSchema.optional(),
-				customVoiceFile: customVoiceFileSchema.optional(),
+				customVoiceFile: voiceAudioFileSchema.optional(),
+				voiceCloneSourceFile: voiceAudioFileSchema.optional(),
 			})
 			.strict()
 			.optional(),
@@ -651,6 +696,10 @@ const workspaceOpenInputSchema = {
 	output: workspaceOpenOutputSchema.optional(),
 	titlePreferences: titlePreferencesBaseSchema.partial().optional(),
 	generateIntroCover: z.boolean().optional(),
+};
+const requirementOpenInputSchema = {
+	...workspaceOpenInputSchema,
+	output: workspaceRequirementOpenOutputSchema.optional(),
 };
 
 const projectOnlyInputSchema = {
@@ -1834,7 +1883,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		title: "Open CodeCut Requirement Confirmation",
 		description:
 			"Create a durable local CodeCut requirement confirmation draft and return the local web confirmation URL. This writes only .codecut-workspace/requirements/<draftId>/draft.json and must not create projects, import media, generate media, mutate timelines, or export files.",
-		inputSchema: workspaceOpenInputSchema,
+		inputSchema: requirementOpenInputSchema,
 		readOnly: false,
 		modelVisible: true,
 	},
@@ -2332,9 +2381,14 @@ function newRequirementDraftId(requestedProjectId) {
 	return `ccreq_${stem}_${suffix}`;
 }
 
-function buildRequirementDraftFromInput(input = {}) {
+function buildRequirementDraftFromInput(
+	input = {},
+	{ allowExternalVoiceFiles = false } = {},
+) {
 	assertNoLegacyWorkspaceOpenFields(input);
-	const intentDefaults = buildWorkspaceIntentDefaults(input);
+	const intentDefaults = buildWorkspaceIntentDefaults(input, {
+		allowExternalVoiceFiles,
+	});
 	const normalized = normalizeWorkspaceIntent({
 		...intentDefaults,
 		confirmedByUser: false,
@@ -2421,12 +2475,17 @@ export function openCodecutRequirementConfirmation(
 	input = {},
 	{ root = pluginRoot, cwd = pluginRoot, env = process.env } = {},
 ) {
-	const draft = buildRequirementDraftFromInput(input);
+	const draft = buildRequirementDraftFromInput(input, {
+		allowExternalVoiceFiles: true,
+	});
 	const directory = requirementStoreDirectory(root, draft.draftId);
 	mkdirSync(directory, { recursive: true });
 	writeRequirementJson(join(directory, "draft.json"), draft);
 	appendRequirementEvent(root, draft.draftId, { type: "draft_created" });
-	const locale = buildWorkspaceIntentDefaults(input).uiLanguage || "en";
+	const locale =
+		buildWorkspaceIntentDefaults(input, {
+			allowExternalVoiceFiles: true,
+		}).uiLanguage || "en";
 	const confirmationUrl = confirmationUrlForDraft({
 		draftId: draft.draftId,
 		cwd,
@@ -2570,6 +2629,17 @@ function buildWorkspaceIntentFromConfirmedRequirement({
 			voiceEnabled: confirmedSetup.voicePreferences.enabled,
 			voicePackId:
 				confirmedSetup.voicePreferences.voicePackId || noBuiltinVoicePackId,
+			...(confirmedSetup.voicePreferences.customVoiceFile
+				? {
+						customVoiceFile: confirmedSetup.voicePreferences.customVoiceFile,
+					}
+				: {}),
+			...(confirmedSetup.voicePreferences.voiceCloneSourceFile
+				? {
+						voiceCloneSourceFile:
+							confirmedSetup.voicePreferences.voiceCloneSourceFile,
+					}
+				: {}),
 		},
 		titlePreferences: confirmedSetup.titlePreferences,
 		generateIntroCover: confirmedSetup.timelinePreferences.generateIntroCover,
@@ -3230,6 +3300,9 @@ function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 			...(normalized.output.voicePackId === "custom"
 				? { customVoiceFile: normalized.output.customVoiceFile }
 				: {}),
+			...(normalized.output.voicePackId === "voice_clone"
+				? { voiceCloneSourceFile: normalized.output.voiceCloneSourceFile }
+				: {}),
 		},
 		characterPreferences: normalized.characterPreferences,
 		bgmPreferences: normalized.bgmPreferences,
@@ -3288,7 +3361,10 @@ export async function recoverCodecutSetup(input, { confirmationRoot } = {}) {
 	}
 }
 
-function buildWorkspaceIntentDefaults(input = {}) {
+function buildWorkspaceIntentDefaults(
+	input = {},
+	{ allowExternalVoiceFiles = false } = {},
+) {
 	const uiLanguage = normalizeWorkspaceUiLanguage(
 		input.uiLanguage || input.locale || "",
 	);
@@ -3324,9 +3400,17 @@ function buildWorkspaceIntentDefaults(input = {}) {
 			templatePreference,
 		},
 	);
-	if (input.output?.customVoiceFile !== undefined) {
+	if (!allowExternalVoiceFiles && input.output?.customVoiceFile !== undefined) {
 		throw new Error(
-			"customVoiceFile is not supported by CodeCut requirement confirmation.",
+			"customVoiceFile is not supported by CodeCut workspace setup.",
+		);
+	}
+	if (
+		!allowExternalVoiceFiles &&
+		input.output?.voiceCloneSourceFile !== undefined
+	) {
+		throw new Error(
+			"voiceCloneSourceFile is not supported by CodeCut workspace setup.",
 		);
 	}
 	const defaults = {
@@ -3368,11 +3452,19 @@ function buildWorkspaceIntentDefaults(input = {}) {
 						input.output.voicePackId !== noBuiltinVoicePackId,
 			voicePackId: resolveWorkspaceVoicePackIdDefault(
 				input.output?.voicePackId,
+				{ allowExternalVoiceFiles },
 			),
 			...(input.output?.customVoiceFile
 				? {
 						customVoiceFile: normalizeCustomVoiceFile(
 							input.output.customVoiceFile,
+						),
+					}
+				: {}),
+			...(input.output?.voiceCloneSourceFile
+				? {
+						voiceCloneSourceFile: normalizeCustomVoiceFile(
+							input.output.voiceCloneSourceFile,
 						),
 					}
 				: {}),
@@ -3814,11 +3906,12 @@ function validateWorkspaceVoiceChoice(output) {
 	if (!workspaceVoicePackChoiceValues.includes(output.voicePackId)) {
 		return {
 			ok: false,
-			message: "Voice must be none, podcast-female, podcast-male, or custom.",
+			message:
+				"Voice must be none, podcast-female, podcast-male, custom, or voice_clone.",
 		};
 	}
 	if (output.voicePackId === "custom") {
-		const parsed = customVoiceFileSchema.safeParse(output.customVoiceFile);
+		const parsed = voiceAudioFileSchema.safeParse(output.customVoiceFile);
 		if (!parsed.success) {
 			return {
 				ok: false,
@@ -3827,6 +3920,29 @@ function validateWorkspaceVoiceChoice(output) {
 					"Custom voice requires a selected audio file.",
 			};
 		}
+	}
+	if (output.voicePackId !== "custom" && output.customVoiceFile) {
+		return {
+			ok: false,
+			message: "Custom voice file is only valid when voice is custom.",
+		};
+	}
+	if (output.voicePackId === "voice_clone") {
+		const parsed = voiceAudioFileSchema.safeParse(output.voiceCloneSourceFile);
+		if (!parsed.success) {
+			return {
+				ok: false,
+				message:
+					parsed.error.issues[0]?.message ||
+					"Voice clone requires a source audio file.",
+			};
+		}
+	}
+	if (output.voicePackId !== "voice_clone" && output.voiceCloneSourceFile) {
+		return {
+			ok: false,
+			message: "Voice clone source file is only valid when voice is voice_clone.",
+		};
 	}
 	return { ok: true, message: "Voice choice is valid." };
 }
@@ -3850,21 +3966,39 @@ function normalizeWorkspaceVoicePackId(value) {
 
 function normalizeCustomVoiceFile(value) {
 	if (!value || typeof value !== "object") return undefined;
-	const name = String(value.name || "").trim();
 	const url = String(value.url || "").trim();
 	const path = String(value.path || "").trim();
+	const name =
+		String(value.name || "").trim() || inferVoiceAudioFileName(path || url);
 	return {
 		name,
-		url,
+		...(url ? { url } : {}),
 		...(path ? { path } : {}),
 	};
 }
 
-function resolveWorkspaceVoicePackIdDefault(value) {
+function inferVoiceAudioFileName(value) {
+	const normalized = String(value || "").trim();
+	if (!normalized) return "";
+	return normalized.split(/[\\/]/).filter(Boolean).at(-1) || normalized;
+}
+
+function resolveWorkspaceVoicePackIdDefault(
+	value,
+	{ allowExternalVoiceFiles = false } = {},
+) {
 	const normalized = normalizeWorkspaceVoicePackId(value);
 	if (workspaceOpenVoicePackChoiceValues.includes(normalized)) return normalized;
+	if (
+		allowExternalVoiceFiles &&
+		workspaceVoicePackChoiceValues.includes(normalized)
+	) {
+		return normalized;
+	}
 	throw new Error(
-		"voicePackId must be none, podcast-female, or podcast-male.",
+		allowExternalVoiceFiles
+			? "voicePackId must be none, podcast-female, podcast-male, custom, or voice_clone."
+			: "voicePackId must be none, podcast-female, or podcast-male.",
 	);
 }
 
@@ -3951,6 +4085,9 @@ function normalizeWorkspaceIntent(intent) {
 						noBuiltinVoicePackId),
 			voicePackId: normalizeWorkspaceVoicePackId(intent.output?.voicePackId),
 			customVoiceFile: normalizeCustomVoiceFile(intent.output?.customVoiceFile),
+			voiceCloneSourceFile: normalizeCustomVoiceFile(
+				intent.output?.voiceCloneSourceFile,
+			),
 		},
 		titlePreferences: normalizeWorkspaceTitlePreferences(
 			intent.titlePreferences,

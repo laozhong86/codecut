@@ -5,7 +5,6 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import {
-	BuiltInVoicePackIdSchema,
 	ConfirmedSetupSchema,
 	ConfirmedSetupTaskTypeSchema,
 	TemplatePreferenceSchema,
@@ -43,14 +42,6 @@ const CheckSchema = z
 	})
 	.strict();
 
-const CustomVoiceFileSchema = z
-	.object({
-		name: z.string().trim().min(1),
-		url: z.string().trim().min(1),
-		path: z.string().trim().min(1).optional(),
-	})
-	.strict();
-
 export const RequirementDraftInputSchema = z
 	.object({
 		originalUserMessage: z.string().trim().min(1),
@@ -61,13 +52,7 @@ export const RequirementDraftInputSchema = z
 		timelinePreferences: ConfirmedSetupSchema.shape.timelinePreferences,
 		titlePreferences: ConfirmedSetupSchema.shape.titlePreferences,
 		captionPreferences: ConfirmedSetupSchema.shape.captionPreferences,
-		voicePreferences: z
-			.object({
-				enabled: z.boolean(),
-				voicePackId: BuiltInVoicePackIdSchema,
-				customVoiceFile: CustomVoiceFileSchema.optional(),
-			})
-			.strict(),
+		voicePreferences: ConfirmedSetupSchema.shape.voicePreferences,
 		characterPreferences: ConfirmedSetupSchema.shape.characterPreferences,
 		bgmPreferences: ConfirmedSetupSchema.shape.bgmPreferences,
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
@@ -115,14 +100,7 @@ export const RequirementConfirmationPatchSchema = z
 		titlePreferences: ConfirmedSetupSchema.shape.titlePreferences.optional(),
 		captionPreferences:
 			ConfirmedSetupSchema.shape.captionPreferences.optional(),
-		voicePreferences: z
-			.object({
-				enabled: z.boolean(),
-				voicePackId: BuiltInVoicePackIdSchema,
-				customVoiceFile: CustomVoiceFileSchema.optional(),
-			})
-			.strict()
-			.optional(),
+		voicePreferences: ConfirmedSetupSchema.shape.voicePreferences.optional(),
 		characterPreferences:
 			ConfirmedSetupSchema.shape.characterPreferences.optional(),
 		bgmPreferences: ConfirmedSetupSchema.shape.bgmPreferences.optional(),

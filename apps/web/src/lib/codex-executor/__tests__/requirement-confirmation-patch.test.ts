@@ -143,6 +143,92 @@ describe("requirement confirmation patch builder", () => {
 		});
 	});
 
+	test("submits custom voiceover file preferences", () => {
+		const draft = requirementDraftFixture();
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			voicePackId: "custom" as const,
+			customVoiceFileName: "voice.wav",
+			customVoiceFileUrl: "blob:voice",
+			customVoiceFilePath: "/tmp/voice.wav",
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			voicePreferences: {
+				enabled: true,
+				voicePackId: "custom",
+				customVoiceFile: {
+					name: "voice.wav",
+					url: "blob:voice",
+					path: "/tmp/voice.wav",
+				},
+			},
+		});
+	});
+
+	test("submits voice clone source audio preferences", () => {
+		const draft = requirementDraftFixture();
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			voicePackId: "voice_clone" as const,
+			voiceCloneSourceFileName: "reference.wav",
+			voiceCloneSourceFileUrl: "blob:reference",
+			voiceCloneSourceFilePath: "/tmp/reference.wav",
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			voicePreferences: {
+				enabled: true,
+				voicePackId: "voice_clone",
+				voiceCloneSourceFile: {
+					name: "reference.wav",
+					url: "blob:reference",
+					path: "/tmp/reference.wav",
+				},
+			},
+		});
+	});
+
+	test("reads custom and cloned voice file preferences from the requirement draft", () => {
+		const customDraft: RequirementDraft = {
+			...requirementDraftFixture(),
+			voicePreferences: {
+				enabled: true,
+				voicePackId: "custom",
+				customVoiceFile: {
+					name: "voice.wav",
+					url: "blob:voice",
+					path: "/tmp/voice.wav",
+				},
+			},
+		};
+		expect(formStateFromRequirementDraft(customDraft)).toMatchObject({
+			voicePackId: "custom",
+			customVoiceFileName: "voice.wav",
+			customVoiceFileUrl: "blob:voice",
+			customVoiceFilePath: "/tmp/voice.wav",
+		});
+
+		const cloneDraft: RequirementDraft = {
+			...requirementDraftFixture(),
+			voicePreferences: {
+				enabled: true,
+				voicePackId: "voice_clone",
+				voiceCloneSourceFile: {
+					name: "reference.wav",
+					url: "blob:reference",
+					path: "/tmp/reference.wav",
+				},
+			},
+		};
+		expect(formStateFromRequirementDraft(cloneDraft)).toMatchObject({
+			voicePackId: "voice_clone",
+			voiceCloneSourceFileName: "reference.wav",
+			voiceCloneSourceFileUrl: "blob:reference",
+			voiceCloneSourceFilePath: "/tmp/reference.wav",
+		});
+	});
+
 	test("defaults to a real voice when the user enables voiceover from none", () => {
 		const draft = requirementDraftFixture();
 		const form = {

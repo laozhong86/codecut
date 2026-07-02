@@ -159,6 +159,7 @@ export const BuiltInVoicePackIdSchema = z.enum([
 	"podcast-female",
 	"podcast-male",
 	"custom",
+	"voice_clone",
 ]);
 
 const builtInCharacterIds = new Set([
@@ -187,19 +188,29 @@ const BgmPreferencesSchema = z
 	})
 	.strict();
 
-const CustomVoiceFileSchema = z
+const VoiceAudioFileSchema = z
 	.object({
 		name: z.string().trim().min(1),
-		url: z.string().trim().min(1),
+		url: z.string().trim().min(1).optional(),
 		path: z.string().trim().min(1).optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, ctx) => {
+		if (!value.url && !value.path) {
+			ctx.addIssue({
+				code: "custom",
+				message: "voice file requires url or path.",
+				path: ["url"],
+			});
+		}
+	});
 
 const VoicePreferencesBaseSchema = z
 	.object({
 		enabled: z.boolean(),
 		voicePackId: BuiltInVoicePackIdSchema,
-		customVoiceFile: CustomVoiceFileSchema.optional(),
+		customVoiceFile: VoiceAudioFileSchema.optional(),
+		voiceCloneSourceFile: VoiceAudioFileSchema.optional(),
 	})
 	.strict();
 
@@ -225,12 +236,35 @@ const VoicePreferencesSchema = VoicePreferencesBaseSchema.superRefine(
 				path: ["customVoiceFile"],
 			});
 		}
+		if (
+			value.enabled &&
+			value.voicePackId === "voice_clone" &&
+			!value.voiceCloneSourceFile
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"voicePreferences.voiceCloneSourceFile is required when voice clone is enabled.",
+				path: ["voiceCloneSourceFile"],
+			});
+		}
 		if (value.voicePackId !== "custom" && value.customVoiceFile) {
 			ctx.addIssue({
 				code: "custom",
 				message:
 					"voicePreferences.customVoiceFile is only allowed for custom voice.",
 				path: ["customVoiceFile"],
+			});
+		}
+		if (
+			value.voicePackId !== "voice_clone" &&
+			value.voiceCloneSourceFile
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"voicePreferences.voiceCloneSourceFile is only allowed for voice clone.",
+				path: ["voiceCloneSourceFile"],
 			});
 		}
 		if (!value.enabled && value.voicePackId !== "none") {
@@ -713,6 +747,7 @@ export function applyConfirmedSetupPatch({
 				"voicePreferences.enabled",
 				"voicePreferences.voicePackId",
 				"voicePreferences.customVoiceFile",
+				"voicePreferences.voiceCloneSourceFile",
 				"characterPreferences.characterId",
 				"bgmPreferences.mode",
 				"templatePreference",
@@ -735,10 +770,21 @@ function normalizePatchedVoicePreferences(
 	if (!value.enabled) {
 		return { enabled: false, voicePackId: "none" };
 	}
-	if (value.voicePackId !== "custom") {
-		return { enabled: true, voicePackId: value.voicePackId };
+	if (value.voicePackId === "custom") {
+		return {
+			enabled: true,
+			voicePackId: value.voicePackId,
+			customVoiceFile: value.customVoiceFile,
+		};
 	}
-	return value;
+	if (value.voicePackId === "voice_clone") {
+		return {
+			enabled: true,
+			voicePackId: value.voicePackId,
+			voiceCloneSourceFile: value.voiceCloneSourceFile,
+		};
+	}
+	return { enabled: true, voicePackId: value.voicePackId };
 }
 
 function collectPatchChanges({
