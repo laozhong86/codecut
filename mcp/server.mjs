@@ -40,6 +40,7 @@ import {
 import { initWorkspace } from "../scripts/codecut-workspace.mjs";
 import {
 	DEFAULT_BGM_CANDIDATE_LIMIT,
+	MAX_BGM_DOWNLOAD_BYTES,
 	MAX_BGM_CANDIDATE_LIMIT,
 	searchInternetArchiveBgm,
 } from "../apps/web/src/lib/sounds/internet-archive-search.mjs";
@@ -50,6 +51,16 @@ const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const builtinCharacterOptions = require("../apps/web/src/lib/codex-executor/builtin-character-options.json");
 const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
+const bgmDownloadTimeoutMs = 30_000;
+const internetArchiveBgmHost = "archive.org";
+const internetArchiveBgmSourcePrefix = "internet-archive:";
+const bgmAudioFileExtensions = new Set([
+	".mp3",
+	".m4a",
+	".ogg",
+	".flac",
+	".wav",
+]);
 const bridgeAllowedEnvKeys = new Set([
 	"RUNNINGHUB_API_KEY",
 	"VOLCENGINE_OPEN_SPEECH_API_KEY",
@@ -351,6 +362,92 @@ const workspaceCharacterPreferencesSchema = z
 		characterId: workspaceCharacterIdSchema,
 	})
 	.strict();
+
+function decodeUrlPathSegments(pathname) {
+	return pathname
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => decodeURIComponent(segment));
+}
+
+function readInternetArchiveBgmCandidateParts(value) {
+	if (value.source !== "internet_archive") {
+		throw new Error("BGM source must be internet_archive.");
+	}
+	if (!String(value.sourceId || "").startsWith(internetArchiveBgmSourcePrefix)) {
+		throw new Error("BGM sourceId must use the internet-archive prefix.");
+	}
+	const sourceUrl = new URL(value.sourceUrl);
+	if (
+		sourceUrl.protocol !== "https:" ||
+		sourceUrl.hostname !== internetArchiveBgmHost
+	) {
+		throw new Error("BGM sourceUrl must be an archive.org details URL.");
+	}
+	const sourceSegments = decodeUrlPathSegments(sourceUrl.pathname);
+	if (sourceSegments[0] !== "details" || !sourceSegments[1]) {
+		throw new Error("BGM sourceUrl must be an archive.org details URL.");
+	}
+	const downloadUrl = new URL(value.downloadUrl);
+	if (
+		downloadUrl.protocol !== "https:" ||
+		downloadUrl.hostname !== internetArchiveBgmHost
+	) {
+		throw new Error("BGM downloadUrl must be an archive.org download URL.");
+	}
+	const downloadSegments = decodeUrlPathSegments(downloadUrl.pathname);
+	if (
+		downloadSegments[0] !== "download" ||
+		!downloadSegments[1] ||
+		downloadSegments.length < 3
+	) {
+		throw new Error("BGM downloadUrl must be an archive.org download URL.");
+	}
+	const identifier = sourceSegments[1];
+	const downloadIdentifier = downloadSegments[1];
+	const fileName = downloadSegments.slice(2).join("/");
+	if (identifier !== downloadIdentifier) {
+		throw new Error("BGM sourceUrl and downloadUrl must use the same item.");
+	}
+	if (
+		value.sourceId !==
+		`${internetArchiveBgmSourcePrefix}${identifier}:${fileName}`
+	) {
+		throw new Error("BGM sourceId must match the Internet Archive download file.");
+	}
+	const extension = extname(fileName).toLowerCase();
+	if (!bgmAudioFileExtensions.has(extension)) {
+		throw new Error("BGM downloadUrl must point to a supported audio file.");
+	}
+	return { identifier, fileName, downloadUrl };
+}
+
+function validateInternetArchiveBgmCandidate(value, ctx) {
+	try {
+		readInternetArchiveBgmCandidateParts(value);
+	} catch (error) {
+		ctx.addIssue({
+			code: "custom",
+			message:
+				error instanceof Error
+					? error.message
+					: "BGM candidate must point to Internet Archive audio.",
+			path: ["downloadUrl"],
+		});
+	}
+}
+
+function isSameBgmCandidateIdentity(candidate, selectedCandidate) {
+	return (
+		candidate.id === selectedCandidate.id &&
+		candidate.sourceId === selectedCandidate.sourceId &&
+		candidate.source === selectedCandidate.source &&
+		candidate.sourceUrl === selectedCandidate.sourceUrl &&
+		candidate.licenseUrl === selectedCandidate.licenseUrl &&
+		candidate.downloadUrl === selectedCandidate.downloadUrl
+	);
+}
+
 const bgmCandidateSchema = z
 	.object({
 		id: z.string().trim().min(1),
@@ -363,11 +460,17 @@ const bgmCandidateSchema = z
 		licenseUrl: z.string().trim().url(),
 		commercialUseAllowed: z.boolean(),
 		attributionRequired: z.boolean(),
-		previewUrl: z.string().trim().url().optional(),
-		downloadUrl: z.string().trim().url(),
-		durationSeconds: z.number().nonnegative(),
-	})
-	.strict();
+			previewUrl: z.string().trim().url().optional(),
+			downloadUrl: z.string().trim().url(),
+			durationSeconds: z.number().nonnegative(),
+			fileSizeBytes: z
+				.number()
+				.int()
+				.positive()
+				.max(MAX_BGM_DOWNLOAD_BYTES, "BGM fileSizeBytes exceeds the limit."),
+		})
+		.strict()
+		.superRefine(validateInternetArchiveBgmCandidate);
 const workspaceBgmPreferencesSchema = z
 	.object({
 		mode: bgmPreferenceModeSchema,
@@ -425,14 +528,13 @@ const workspaceBgmPreferencesSchema = z
 				path: ["candidates"],
 			});
 		}
-		if (
-			value.selectedCandidate &&
-			candidates.length > 0 &&
-			!candidates.some(
-				(candidate) =>
-					JSON.stringify(candidate) === JSON.stringify(value.selectedCandidate),
-			)
-		) {
+			if (
+				value.selectedCandidate &&
+				candidates.length > 0 &&
+				!candidates.some((candidate) =>
+					isSameBgmCandidateIdentity(candidate, value.selectedCandidate),
+				)
+			) {
 			ctx.addIssue({
 				code: "custom",
 				message: "bgmPreferences.selectedCandidate must be one of candidates.",
@@ -4716,25 +4818,108 @@ async function downloadBgmCandidate({ candidate, workspace, fetchImpl }) {
 	if (!workspace?.projectDirectory) {
 		throw new Error("Workspace directory is required before importing BGM.");
 	}
-	const downloadUrl = new URL(candidate.downloadUrl);
-	if (downloadUrl.protocol !== "https:") {
-		throw new Error("BGM downloadUrl must be HTTPS.");
+	readInternetArchiveBgmCandidateParts(candidate);
+	if (candidate.fileSizeBytes > MAX_BGM_DOWNLOAD_BYTES) {
+		throw new Error("BGM fileSizeBytes exceeds the download limit.");
 	}
-	const response = await fetchImpl(candidate.downloadUrl);
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), bgmDownloadTimeoutMs);
+	let response;
+	try {
+		response = await fetchImpl(candidate.downloadUrl, {
+			signal: controller.signal,
+		});
+	} catch (error) {
+		if (error?.name === "AbortError") {
+			throw new Error("BGM download timed out.");
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
 	if (!response?.ok) {
 		throw new Error(
 			`BGM download failed with status ${response?.status ?? 0}.`,
 		);
 	}
-	if (typeof response.arrayBuffer !== "function") {
-		throw new Error("BGM download did not return binary audio data.");
-	}
-	const bytes = Buffer.from(await response.arrayBuffer());
+	validateBgmDownloadResponse(response);
+	const bytes = await readBgmDownloadBytes(response, candidate);
 	const bgmDirectory = join(workspace.projectDirectory, "01-input", "bgm");
 	await mkdir(bgmDirectory, { recursive: true });
 	const filePath = join(bgmDirectory, safeBgmFileName(candidate));
 	await writeFile(filePath, bytes);
 	return filePath;
+}
+
+function getResponseHeader(response, name) {
+	if (typeof response.headers?.get === "function") {
+		return response.headers.get(name);
+	}
+	const headers = response.headers;
+	if (!headers || typeof headers !== "object") return null;
+	return headers[name] ?? headers[name.toLowerCase()] ?? null;
+}
+
+function parseByteSize(value) {
+	if (value === null || value === undefined || value === "") return 0;
+	const size = Number(value);
+	return Number.isFinite(size) && size > 0 ? size : 0;
+}
+
+function validateBgmDownloadResponse(response) {
+	const contentType = String(getResponseHeader(response, "content-type") || "")
+		.split(";")[0]
+		.trim()
+		.toLowerCase();
+	if (
+		contentType &&
+		!contentType.startsWith("audio/") &&
+		contentType !== "application/octet-stream"
+	) {
+		throw new Error("BGM download must return audio content.");
+	}
+	const contentLength = parseByteSize(
+		getResponseHeader(response, "content-length"),
+	);
+	if (contentLength > MAX_BGM_DOWNLOAD_BYTES) {
+		throw new Error("BGM download exceeds the size limit.");
+	}
+}
+
+async function readBgmDownloadBytes(response, candidate) {
+	const reader = response.body?.getReader?.();
+	if (reader) {
+		const chunks = [];
+		let totalBytes = 0;
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			const chunk = Buffer.from(value);
+			totalBytes += chunk.byteLength;
+			if (totalBytes > MAX_BGM_DOWNLOAD_BYTES) {
+				throw new Error("BGM download exceeds the size limit.");
+			}
+			chunks.push(chunk);
+		}
+		return Buffer.concat(chunks, totalBytes);
+	}
+	if (typeof response.arrayBuffer !== "function") {
+		throw new Error("BGM download did not return binary audio data.");
+	}
+	const expectedSize =
+		parseByteSize(getResponseHeader(response, "content-length")) ||
+		candidate.fileSizeBytes;
+	if (!expectedSize) {
+		throw new Error("BGM download size is required before reading audio data.");
+	}
+	if (expectedSize > MAX_BGM_DOWNLOAD_BYTES) {
+		throw new Error("BGM download exceeds the size limit.");
+	}
+	const bytes = Buffer.from(await response.arrayBuffer());
+	if (bytes.byteLength > MAX_BGM_DOWNLOAD_BYTES) {
+		throw new Error("BGM download exceeds the size limit.");
+	}
+	return bytes;
 }
 
 function safeBgmFileName(candidate) {

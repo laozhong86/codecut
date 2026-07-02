@@ -182,6 +182,105 @@ const CharacterPreferencesSchema = z
 	})
 	.strict();
 
+const MAX_BGM_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+const INTERNET_ARCHIVE_BGM_HOST = "archive.org";
+const INTERNET_ARCHIVE_BGM_SOURCE_PREFIX = "internet-archive:";
+const BGM_AUDIO_FILE_EXTENSIONS = new Set([
+	".mp3",
+	".m4a",
+	".ogg",
+	".flac",
+	".wav",
+]);
+
+function decodeUrlPathSegments(pathname: string): string[] {
+	return pathname
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => decodeURIComponent(segment));
+}
+
+function readInternetArchiveBgmCandidateParts(value: {
+	source: string;
+	sourceId: string;
+	sourceUrl: string;
+	downloadUrl: string;
+}): { identifier: string; fileName: string } {
+	if (value.source !== "internet_archive") {
+		throw new Error("BGM source must be internet_archive.");
+	}
+	if (!value.sourceId.startsWith(INTERNET_ARCHIVE_BGM_SOURCE_PREFIX)) {
+		throw new Error("BGM sourceId must use the internet-archive prefix.");
+	}
+	const sourceUrl = new URL(value.sourceUrl);
+	if (
+		sourceUrl.protocol !== "https:" ||
+		sourceUrl.hostname !== INTERNET_ARCHIVE_BGM_HOST
+	) {
+		throw new Error("BGM sourceUrl must be an archive.org details URL.");
+	}
+	const sourceSegments = decodeUrlPathSegments(sourceUrl.pathname);
+	if (sourceSegments[0] !== "details" || !sourceSegments[1]) {
+		throw new Error("BGM sourceUrl must be an archive.org details URL.");
+	}
+	const downloadUrl = new URL(value.downloadUrl);
+	if (
+		downloadUrl.protocol !== "https:" ||
+		downloadUrl.hostname !== INTERNET_ARCHIVE_BGM_HOST
+	) {
+		throw new Error("BGM downloadUrl must be an archive.org download URL.");
+	}
+	const downloadSegments = decodeUrlPathSegments(downloadUrl.pathname);
+	if (
+		downloadSegments[0] !== "download" ||
+		!downloadSegments[1] ||
+		downloadSegments.length < 3
+	) {
+		throw new Error("BGM downloadUrl must be an archive.org download URL.");
+	}
+	const identifier = sourceSegments[1];
+	const downloadIdentifier = downloadSegments[1];
+	const fileName = downloadSegments.slice(2).join("/");
+	if (identifier !== downloadIdentifier) {
+		throw new Error("BGM sourceUrl and downloadUrl must use the same item.");
+	}
+	if (
+		value.sourceId !==
+		`${INTERNET_ARCHIVE_BGM_SOURCE_PREFIX}${identifier}:${fileName}`
+	) {
+		throw new Error("BGM sourceId must match the Internet Archive download file.");
+	}
+	const extensionMatch = fileName.match(/\.[^./\\]+$/);
+	const extension = extensionMatch?.[0]?.toLowerCase() ?? "";
+	if (!BGM_AUDIO_FILE_EXTENSIONS.has(extension)) {
+		throw new Error("BGM downloadUrl must point to a supported audio file.");
+	}
+	return { identifier, fileName };
+}
+
+function validateInternetArchiveBgmCandidate(
+	value: {
+		source: string;
+		sourceId: string;
+		sourceUrl: string;
+		downloadUrl: string;
+	},
+	ctx: z.RefinementCtx,
+) {
+	try {
+		readInternetArchiveBgmCandidateParts(value);
+	} catch (error) {
+		ctx.addIssue({
+			code: "custom",
+			message:
+				error instanceof Error
+					? error.message
+					: "BGM candidate must point to Internet Archive audio.",
+			path: ["downloadUrl"],
+		});
+	}
+}
+
 const BgmCandidateSchema = z
 	.object({
 		id: z.string().trim().min(1),
@@ -197,8 +296,28 @@ const BgmCandidateSchema = z
 		previewUrl: z.string().trim().url().optional(),
 		downloadUrl: z.string().trim().url(),
 		durationSeconds: z.number().nonnegative(),
+		fileSizeBytes: z
+			.number()
+			.int()
+			.positive()
+			.max(MAX_BGM_DOWNLOAD_BYTES, "BGM fileSizeBytes exceeds the limit."),
 	})
-	.strict();
+	.strict()
+	.superRefine(validateInternetArchiveBgmCandidate);
+
+function isSameBgmCandidateIdentity(
+	candidate: z.infer<typeof BgmCandidateSchema>,
+	selectedCandidate: z.infer<typeof BgmCandidateSchema>,
+) {
+	return (
+		candidate.id === selectedCandidate.id &&
+		candidate.sourceId === selectedCandidate.sourceId &&
+		candidate.source === selectedCandidate.source &&
+		candidate.sourceUrl === selectedCandidate.sourceUrl &&
+		candidate.licenseUrl === selectedCandidate.licenseUrl &&
+		candidate.downloadUrl === selectedCandidate.downloadUrl
+	);
+}
 
 const BgmPreferencesSchema = z
 	.object({
@@ -258,12 +377,12 @@ const BgmPreferencesSchema = z
 				path: ["candidates"],
 			});
 		}
+		const selectedCandidate = value.selectedCandidate;
 		if (
-			value.selectedCandidate &&
+			selectedCandidate &&
 			candidates.length > 0 &&
-			!candidates.some(
-				(candidate) =>
-					JSON.stringify(candidate) === JSON.stringify(value.selectedCandidate),
+			!candidates.some((candidate) =>
+				isSameBgmCandidateIdentity(candidate, selectedCandidate),
 			)
 		) {
 			ctx.addIssue({

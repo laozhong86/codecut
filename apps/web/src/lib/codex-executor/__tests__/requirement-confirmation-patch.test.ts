@@ -84,6 +84,7 @@ function bgmCandidate(overrides: Partial<BgmCandidate> = {}): BgmCandidate {
 		previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
 		downloadUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
 		durationSeconds: 91.2,
+		fileSizeBytes: 1234,
 		...overrides,
 	};
 }
@@ -391,6 +392,7 @@ describe("requirement confirmation patch builder", () => {
 			previewUrl: "https://archive.org/download/uplift/uplift.mp3",
 			downloadUrl: "https://archive.org/download/uplift/uplift.mp3",
 			durationSeconds: 73,
+			fileSizeBytes: 2345,
 		});
 		const draft: RequirementDraft = {
 			...requirementDraftFixture(),

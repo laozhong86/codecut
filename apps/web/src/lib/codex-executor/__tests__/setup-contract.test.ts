@@ -70,6 +70,7 @@ function bgmCandidate(overrides: Partial<BgmCandidate> = {}): BgmCandidate {
 		previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
 		downloadUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
 		durationSeconds: 91.2,
+		fileSizeBytes: 1234,
 		...overrides,
 	};
 }
@@ -278,6 +279,7 @@ describe("ConfirmedSetup durationContract", () => {
 			"bgmPreferences.selectedCandidate.previewUrl",
 			"bgmPreferences.selectedCandidate.downloadUrl",
 			"bgmPreferences.selectedCandidate.durationSeconds",
+			"bgmPreferences.selectedCandidate.fileSizeBytes",
 		]);
 		expect(applied.confirmedSetup.characterPreferences).toEqual({
 			characterId: "ugc-female-host",
@@ -320,6 +322,7 @@ describe("ConfirmedSetup durationContract", () => {
 			"bgmPreferences.selectedCandidate.previewUrl",
 			"bgmPreferences.selectedCandidate.downloadUrl",
 			"bgmPreferences.selectedCandidate.durationSeconds",
+			"bgmPreferences.selectedCandidate.fileSizeBytes",
 		]);
 		expect(applied.confirmedSetup.characterPreferences).toEqual({
 			characterId: "ugc-female-host",
@@ -361,6 +364,33 @@ describe("ConfirmedSetup durationContract", () => {
 	});
 
 	test("rejects stale or unsafe BGM selections", () => {
+		const selectedCandidate = bgmCandidate();
+		const reorderedSelectedCandidate: BgmCandidate = {
+			sourceId: selectedCandidate.sourceId,
+			id: selectedCandidate.id,
+			title: selectedCandidate.title,
+			creator: selectedCandidate.creator,
+			source: selectedCandidate.source,
+			sourceUrl: selectedCandidate.sourceUrl,
+			licenseLabel: selectedCandidate.licenseLabel,
+			licenseUrl: selectedCandidate.licenseUrl,
+			commercialUseAllowed: selectedCandidate.commercialUseAllowed,
+			attributionRequired: selectedCandidate.attributionRequired,
+			previewUrl: selectedCandidate.previewUrl,
+			downloadUrl: selectedCandidate.downloadUrl,
+			durationSeconds: selectedCandidate.durationSeconds,
+			fileSizeBytes: selectedCandidate.fileSizeBytes,
+		};
+		expect(
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [selectedCandidate],
+						selectedCandidate: reorderedSelectedCandidate,
+					}),
+				}),
+			).bgmPreferences.selectedCandidate,
+		).toEqual(reorderedSelectedCandidate);
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
@@ -384,6 +414,32 @@ describe("ConfirmedSetup durationContract", () => {
 				}),
 			),
 		).toThrow("BGM candidates must allow commercial use.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								downloadUrl: "https://example.com/safe-lofi.mp3",
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							downloadUrl: "https://example.com/safe-lofi.mp3",
+						}),
+					}),
+				}),
+			),
+		).toThrow("BGM downloadUrl must be an archive.org download URL.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [bgmCandidate({ fileSizeBytes: 100_000_000 })],
+						selectedCandidate: bgmCandidate({ fileSizeBytes: 100_000_000 }),
+					}),
+				}),
+			),
+		).toThrow("BGM fileSizeBytes exceeds the limit.");
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({

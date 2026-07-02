@@ -48,6 +48,7 @@ function bgmCandidate(overrides: Record<string, unknown> = {}) {
 		previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
 		downloadUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
 		durationSeconds: 91.2,
+		fileSizeBytes: 1234,
 		...overrides,
 	};
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 export const INTERNET_ARCHIVE_BGM_SOURCE = "internet_archive";
 export const DEFAULT_BGM_CANDIDATE_LIMIT = 5;
 export const MAX_BGM_CANDIDATE_LIMIT = 10;
+export const MAX_BGM_DOWNLOAD_BYTES = 50 * 1024 * 1024;
 
 const internetArchiveDocSchema = z.object({
 	identifier: z.string(),
@@ -184,6 +185,10 @@ async function transformInternetArchiveDoc({ doc, commercialOnly, fetchImpl }) {
 
 	const file = selectArchiveAudioFile(metadata.files ?? []);
 	if (!file) return null;
+	const fileSizeBytes = Number(file.size ?? 0) || 0;
+	if (fileSizeBytes <= 0 || fileSizeBytes > MAX_BGM_DOWNLOAD_BYTES) {
+		return null;
+	}
 
 	const downloadUrl = buildArchiveDownloadUrl({
 		identifier: doc.identifier,
@@ -211,7 +216,7 @@ async function transformInternetArchiveDoc({ doc, commercialOnly, fetchImpl }) {
 		previewUrl: downloadUrl,
 		downloadUrl,
 		durationSeconds: Number(file.length ?? 0) || 0,
-		filesize: Number(file.size ?? 0) || 0,
+		filesize: fileSizeBytes,
 		type: file.format ?? "audio",
 		tags: splitArchiveTags(metadata.metadata?.subject),
 		licenseLabel,
@@ -269,6 +274,7 @@ export function archiveResultToBgmCandidate(result) {
 		previewUrl: result.previewUrl,
 		downloadUrl: result.downloadUrl,
 		durationSeconds: result.durationSeconds,
+		fileSizeBytes: result.filesize,
 	};
 }
 

@@ -75,6 +75,7 @@ function bgmCandidate(overrides = {}) {
 		previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
 		downloadUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
 		durationSeconds: 91.2,
+		fileSizeBytes: 1234,
 		...overrides,
 	};
 }
@@ -3793,12 +3794,16 @@ describe("Codecut MCP server contract", () => {
 							"https://archive.org/download/safe-lofi/safe-lofi.mp3",
 						);
 						const bytes = Buffer.from("audio-bytes");
-						return {
-							ok: true,
-							status: 200,
-							arrayBuffer: async () =>
-								bytes.buffer.slice(
-									bytes.byteOffset,
+							return {
+								ok: true,
+								status: 200,
+								headers: new Headers({
+									"content-type": "audio/mpeg",
+									"content-length": String(bytes.byteLength),
+								}),
+								arrayBuffer: async () =>
+									bytes.buffer.slice(
+										bytes.byteOffset,
 									bytes.byteOffset + bytes.byteLength,
 								),
 						};
@@ -3852,10 +3857,117 @@ describe("Codecut MCP server contract", () => {
 				recursive: true,
 				force: true,
 			});
-		}
-	});
+			}
+		});
 
-	test("reuses a confirmed setup result on repeated submission without creating again", async () => {
+		test("blocks forged BGM candidates before creating a project", async () => {
+			const calls = [];
+			const result = await serverModule.submitCodecutSetup(
+				setupIntent({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								downloadUrl: "https://example.com/safe-lofi.mp3",
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							downloadUrl: "https://example.com/safe-lofi.mp3",
+						}),
+					}),
+				}),
+				{
+					bridgeToolImpl: async (toolName, args) => {
+						calls.push({ toolName, args });
+						throw new Error(`Unexpected tool ${toolName}`);
+					},
+				},
+			);
+
+			expect(result.isError).toBe(true);
+			expect(result.structuredContent.status).toBe("blocked");
+			expect(JSON.stringify(result.structuredContent.checks)).toContain(
+				"BGM downloadUrl must be an archive.org download URL.",
+			);
+			expect(calls).toEqual([]);
+		});
+
+		test("fails BGM import when the download response is not audio", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-bgm-type-"));
+			const opened = serverModule.openCodecutWorkspace(
+				setupIntent({ bgmPreferences: smartBgmPreferences() }),
+				{ confirmationRoot: directory },
+			);
+			const pendingConfirmationId =
+				opened.structuredContent.pendingConfirmationId;
+			const calls = [];
+			const bridgeToolImpl = async (toolName, args) => {
+				calls.push({ toolName, args });
+				if (toolName === "create_project") {
+					return {
+						structuredContent: {
+							projectId: "launch-cut-canonical",
+							name: "Launch Cut",
+							revision: 1,
+							editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+						},
+					};
+				}
+				if (toolName === "import_media") {
+					return {
+						structuredContent: {
+							status: "completed",
+							results: [
+								{
+									success: true,
+									data: {
+										assets: [{ id: "media-1", name: "source.mp4" }],
+									},
+								},
+							],
+						},
+					};
+				}
+				throw new Error(`Unexpected tool ${toolName}`);
+			};
+
+			try {
+				const result = await serverModule.submitCodecutSetup(
+					setupIntent({
+						pendingConfirmationId,
+						mediaSources: [],
+						bgmPreferences: smartBgmPreferences(),
+					}),
+					{
+						bridgeToolImpl,
+						confirmationRoot: directory,
+						workspaceSourceRoot: directory,
+						fetchImpl: async () => ({
+							ok: true,
+							status: 200,
+							headers: new Headers({
+								"content-type": "text/html",
+								"content-length": "32",
+							}),
+							arrayBuffer: async () => new ArrayBuffer(32),
+						}),
+					},
+				);
+
+				expect(result.isError).toBe(true);
+				expect(result.structuredContent.status).toBe("bgm_import_failed");
+				expect(result.structuredContent.error).toBe(
+					"BGM download must return audio content.",
+				);
+				expect(calls.map((call) => call.toolName)).toEqual(["create_project"]);
+			} finally {
+				await rm(directory, {
+					recursive: true,
+					force: true,
+				});
+			}
+		});
+
+		test("reuses a confirmed setup result on repeated submission without creating again", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
 		const filePath = join(directory, "source.mp4");
 		await writeFile(filePath, "video");
