@@ -499,11 +499,23 @@
               <select id="template-preference-mode" name="templatePreferenceMode">
                 <option value="auto" data-i18n="templatePreferenceAuto">Auto match</option>
                 <option value="specified" data-i18n="templatePreferenceSpecified">Specified template</option>
+                <option value="create" data-i18n="templatePreferenceCreate">Create template</option>
               </select>
             </label>
-            <label>
+            <label id="requested-template-field">
               <span data-i18n="requestedTemplate">Requested template</span>
-              <input id="requested-template" name="requestedTemplate" type="text" data-i18n-placeholder="requestedTemplatePlaceholder">
+              <select id="requested-template" name="requestedTemplate">
+                <option value="" data-i18n="requestedTemplatePlaceholder">Select a built-in template</option>
+                <option value="talking-head-short">Talking-head short</option>
+                <option value="talking-head-broll-split">Talking-head B-roll split</option>
+                <option value="tutorial-demo">Tutorial / demo</option>
+                <option value="product-proof-ad">Product proof ad</option>
+                <option value="narrated-broll">Narrated B-roll</option>
+              </select>
+            </label>
+            <label id="draft-template-name-field">
+              <span data-i18n="draftTemplateName">Template draft name</span>
+              <input id="draft-template-name" name="draftTemplateName" type="text" data-i18n-placeholder="draftTemplateNamePlaceholder">
             </label>
             <label>
               <span data-i18n="format">Format</span>
@@ -643,8 +655,11 @@
             templatePreference: "Template",
             templatePreferenceAuto: "Auto match",
             templatePreferenceSpecified: "Specified template",
+            templatePreferenceCreate: "Create template",
             requestedTemplate: "Requested template",
-            requestedTemplatePlaceholder: "Template ID, name, or alias",
+            requestedTemplatePlaceholder: "Select a built-in template",
+            draftTemplateName: "Template draft name",
+            draftTemplateNamePlaceholder: "Name the template draft",
             format: "Format",
             quality: "Quality",
             qualityLow: "low",
@@ -763,8 +778,11 @@
             templatePreference: "模板",
             templatePreferenceAuto: "自动匹配",
             templatePreferenceSpecified: "指定模板",
+            templatePreferenceCreate: "创建模板",
             requestedTemplate: "指定模板",
-            requestedTemplatePlaceholder: "模板 ID、名称或别名",
+            requestedTemplatePlaceholder: "选择内置模板",
+            draftTemplateName: "模板草稿名称",
+            draftTemplateNamePlaceholder: "输入模板草稿名称",
             format: "格式",
             quality: "质量",
             qualityLow: "低",
@@ -828,7 +846,10 @@
           captionStylePreset: document.getElementById("caption-style-preset"),
           transitionPreference: document.getElementById("transition-preference"),
           templatePreferenceMode: document.getElementById("template-preference-mode"),
+          requestedTemplateField: document.getElementById("requested-template-field"),
           requestedTemplate: document.getElementById("requested-template"),
+          draftTemplateNameField: document.getElementById("draft-template-name-field"),
+          draftTemplateName: document.getElementById("draft-template-name"),
           outputFormat: document.getElementById("output-format"),
           outputQuality: document.getElementById("output-quality"),
           includeAudio: document.getElementById("include-audio"),
@@ -848,6 +869,13 @@
         let currentTitlePreferences = { enabled: false };
         let setupSubmitted = false;
         let activeLanguage = "en";
+        const BUILT_IN_TEMPLATE_IDS = [
+          "talking-head-short",
+          "talking-head-broll-split",
+          "tutorial-demo",
+          "product-proof-ad",
+          "narrated-broll",
+        ];
 
         function normalizeUiLanguage(value) {
           const language = String(value || "").trim().toLowerCase();
@@ -923,6 +951,14 @@
           return `${base}-${suffix}`.slice(0, 64).replace(/-+$/g, "");
         }
 
+        function refreshTemplatePreferenceFields() {
+          const mode = fields.templatePreferenceMode.value;
+          fields.requestedTemplateField.hidden = mode !== "specified";
+          fields.requestedTemplate.disabled = mode !== "specified";
+          fields.draftTemplateNameField.hidden = mode !== "create";
+          fields.draftTemplateName.disabled = mode !== "create";
+        }
+
         function applyDefaults(defaults) {
           fields.projectName.value = defaults.projectName || "";
           currentProjectId = defaults.projectId || slugify(fields.projectName.value);
@@ -937,9 +973,16 @@
           setSelectValue(fields.captionStylePreset, defaults.output?.captionStylePreset || "creator-clean");
           setSelectValue(fields.transitionPreference, defaults.transitionPreference || "auto");
           setSelectValue(fields.templatePreferenceMode, defaults.templatePreference?.mode || "auto");
-          fields.requestedTemplate.value = defaults.templatePreference?.mode === "specified"
-            ? String(defaults.templatePreference.requestedTemplate || "")
+          const requestedTemplate = defaults.templatePreference?.mode === "specified"
+            ? String(defaults.templatePreference.requestedTemplate || "").trim()
             : "";
+          fields.requestedTemplate.value = BUILT_IN_TEMPLATE_IDS.includes(requestedTemplate)
+            ? requestedTemplate
+            : "";
+          fields.draftTemplateName.value = defaults.templatePreference?.mode === "create"
+            ? String(defaults.templatePreference.draftTemplateName || "").trim()
+            : "";
+          refreshTemplatePreferenceFields();
           setSelectValue(fields.outputFormat, defaults.output?.format || "mp4");
           setSelectValue(fields.outputQuality, defaults.output?.quality || "high");
           setSelectValue(fields.includeAudio, defaults.output?.includeAudio === false ? "false" : "true");
@@ -1511,6 +1554,12 @@
               requestedTemplate: fields.requestedTemplate.value.trim(),
             };
           }
+          if (fields.templatePreferenceMode.value === "create") {
+            return {
+              mode: "create",
+              draftTemplateName: fields.draftTemplateName.value.trim(),
+            };
+          }
           return { mode: "auto" };
         }
 
@@ -1840,6 +1889,10 @@
         });
         fields.mediaFilePicker.addEventListener("change", handlePickedFiles);
         fields.mediaFolderPicker.addEventListener("change", handlePickedFolder);
+        fields.templatePreferenceMode.addEventListener("change", () => {
+          refreshTemplatePreferenceFields();
+          resetReadyState();
+        });
         fields.form.addEventListener("input", () => {
           resetReadyState();
         });

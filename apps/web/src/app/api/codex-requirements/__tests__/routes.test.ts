@@ -72,7 +72,7 @@ function validDraftInput(): RequirementDraftInput {
 		bgmPreferences: { mode: "none" },
 		templatePreference: {
 			mode: "specified",
-			requestedTemplate: "TikTok 解说视频模板",
+			requestedTemplate: "talking-head-broll-split",
 		},
 		networkMaterialMatching: {
 			enabled: false,
@@ -130,7 +130,7 @@ describe("codex requirement confirmation API routes", () => {
 				requestedProjectName: "22号解说口播保留原片时长",
 				templatePreference: {
 					mode: "specified",
-					requestedTemplate: "TikTok 解说视频模板",
+					requestedTemplate: "talking-head-broll-split",
 				},
 			},
 		});

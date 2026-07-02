@@ -18,7 +18,7 @@ After classifying the request, read the matching workflow recipe before
 generating an EditPlan, NarratedRemixPlan, or CompositeLayoutPlan draft. Recipes are planning
 guidance for the current Codecut MVP; they do not imply new bridge tools.
 
-Before writing an EditingDecisionLedger, EditPlan, NarratedRemixPlan, or CompositeLayoutPlan, call `resolve_template` using either the user's requested template or the current intent, platform, and material evidence. Codecut templates live in `apps/web/src/lib/templates/registry.ts` and user templates share the same resolver. The template is a planning constraint, not a runtime fallback. If required evidence is missing, stop and report the template stop condition instead of choosing a weaker template.
+Before writing an EditingDecisionLedger, EditPlan, NarratedRemixPlan, or CompositeLayoutPlan, call `resolve_template` using either the user's requested built-in template or the current intent, platform, and material evidence. Codecut templates live in `apps/web/src/lib/templates/registry.ts` and user templates share the same resolver. The template is a planning constraint, not a runtime fallback. If confirmed setup uses `templatePreference.mode: "create"`, do not pass `draftTemplateName` as a requested template; complete the primary edit or reference analysis first, then ask the user whether to create a template draft. If required evidence is missing, stop and report the template stop condition instead of choosing a weaker template.
 
 Every planning run must write `04-planning/template-resolution.json` plus a short markdown note with match mode, candidate templates, selected template, missing evidence, and stop reason.
 

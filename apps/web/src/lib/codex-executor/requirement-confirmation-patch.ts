@@ -6,13 +6,15 @@ import type {
 	NetworkMaterialPlacement,
 	NetworkMaterialProvider,
 } from "@/lib/network-materials/schema";
+import type { BuiltInTemplateId } from "@/lib/templates/registry";
 
 export type RequirementConfirmationFormState = {
 	aspectRatio: "9:16" | "16:9" | "1:1";
 	durationMode: "auto" | "preserve_source" | "custom_range";
 	generateIntroCover: boolean;
 	templatePreferenceMode: RequirementDraft["templatePreference"]["mode"];
-	requestedTemplate: string;
+	requestedTemplate: BuiltInTemplateId | "";
+	draftTemplateName: string;
 	networkMaterialEnabled: boolean;
 	networkMaterialPlacement: NetworkMaterialPlacement;
 	networkMaterialProviders: NetworkMaterialProvider[];
@@ -44,6 +46,10 @@ export function formStateFromRequirementDraft(
 		requestedTemplate:
 			draft.templatePreference.mode === "specified"
 				? draft.templatePreference.requestedTemplate
+				: "",
+		draftTemplateName:
+			draft.templatePreference.mode === "create"
+				? draft.templatePreference.draftTemplateName
 				: "",
 		networkMaterialEnabled: draft.networkMaterialMatching.enabled,
 		networkMaterialPlacement: draft.networkMaterialMatching.placement,
@@ -100,15 +106,16 @@ export function buildRequirementConfirmationPatch({
 		form.templatePreferenceMode === "specified"
 			? {
 					mode: "specified" as const,
-					requestedTemplate: form.requestedTemplate,
+					requestedTemplate: form.requestedTemplate as BuiltInTemplateId,
 				}
-			: { mode: "auto" as const };
+			: form.templatePreferenceMode === "create"
+				? {
+						mode: "create" as const,
+						draftTemplateName: form.draftTemplateName.trim(),
+					}
+				: { mode: "auto" as const };
 	if (
-		draft.templatePreference.mode !== nextTemplatePreference.mode ||
-		(draft.templatePreference.mode === "specified" &&
-			nextTemplatePreference.mode === "specified" &&
-			draft.templatePreference.requestedTemplate !==
-				nextTemplatePreference.requestedTemplate)
+		templatePreferenceChanged(draft.templatePreference, nextTemplatePreference)
 	) {
 		patch.templatePreference = nextTemplatePreference;
 	}
@@ -208,4 +215,18 @@ export function buildRequirementConfirmationPatch({
 	}
 
 	return patch;
+}
+
+function templatePreferenceChanged(
+	before: RequirementDraft["templatePreference"],
+	after: NonNullable<RequirementConfirmationPatch["templatePreference"]>,
+) {
+	if (before.mode !== after.mode) return true;
+	if (before.mode === "specified" && after.mode === "specified") {
+		return before.requestedTemplate !== after.requestedTemplate;
+	}
+	if (before.mode === "create" && after.mode === "create") {
+		return before.draftTemplateName !== after.draftTemplateName;
+	}
+	return false;
 }

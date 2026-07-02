@@ -99,19 +99,52 @@ describe("ConfirmedSetup durationContract", () => {
 			confirmedSetup({
 				templatePreference: {
 					mode: "specified",
-					requestedTemplate: "TikTok 解说视频模板",
+					requestedTemplate: "talking-head-broll-split",
 				},
 			}),
 		);
 
 		expect(parsed.templatePreference).toEqual({
 			mode: "specified",
-			requestedTemplate: "TikTok 解说视频模板",
+			requestedTemplate: "talking-head-broll-split",
 		});
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
 					templatePreference: { mode: "specified" },
+				}),
+			),
+		).toThrow();
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					templatePreference: {
+						mode: "specified",
+						requestedTemplate: "TikTok 解说视频模板",
+					},
+				}),
+			),
+		).toThrow();
+	});
+
+	test("accepts create template preference with draft template name", () => {
+		const parsed = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				templatePreference: {
+					mode: "create",
+					draftTemplateName: "TikTok 解说模板草稿",
+				},
+			}),
+		);
+
+		expect(parsed.templatePreference).toEqual({
+			mode: "create",
+			draftTemplateName: "TikTok 解说模板草稿",
+		});
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					templatePreference: { mode: "create", draftTemplateName: "" },
 				}),
 			),
 		).toThrow();
@@ -231,6 +264,30 @@ describe("ConfirmedSetup durationContract", () => {
 		});
 		expect(applied.confirmedSetup.bgmPreferences).toEqual({
 			mode: "smart_match",
+		});
+	});
+
+	test("create template preference changes require replan", () => {
+		const applied = applyConfirmedSetupPatch({
+			confirmedSetup: ConfirmedSetupSchema.parse(confirmedSetup()),
+			patch: {
+				templatePreference: {
+					mode: "create",
+					draftTemplateName: "复盘模板草稿",
+				},
+			},
+			reason: "user_requested_template_draft",
+			changedAt: "2026-07-01T00:00:00.000Z",
+		});
+
+		expect(applied.requiresReplan).toBe(true);
+		expect(applied.changedFields).toEqual([
+			"templatePreference.mode",
+			"templatePreference.draftTemplateName",
+		]);
+		expect(applied.confirmedSetup.templatePreference).toEqual({
+			mode: "create",
+			draftTemplateName: "复盘模板草稿",
 		});
 	});
 

@@ -318,12 +318,25 @@ const workspaceTaskTypeSchema = z.enum(workspaceTaskTypeValues);
 const workspaceCharacterIdSchema = z.enum(workspaceCharacterChoiceValues);
 const bgmPreferenceModeSchema = z.enum(bgmPreferenceModeValues);
 const durationGoalModeSchema = z.enum(["auto", "custom"]);
+const builtInTemplateIdValues = [
+	"talking-head-short",
+	"talking-head-broll-split",
+	"tutorial-demo",
+	"product-proof-ad",
+	"narrated-broll",
+];
 const templatePreferenceSchema = z.discriminatedUnion("mode", [
 	z.object({ mode: z.literal("auto") }).strict(),
 	z
 		.object({
 			mode: z.literal("specified"),
-			requestedTemplate: z.string().trim().min(1),
+			requestedTemplate: z.enum(builtInTemplateIdValues),
+		})
+		.strict(),
+	z
+		.object({
+			mode: z.literal("create"),
+			draftTemplateName: z.string().trim().min(1),
 		})
 		.strict(),
 ]);
@@ -1802,8 +1815,8 @@ export const CODECUT_WORKSPACE_TOOLS = [
 	{
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
-		description:
-			"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. When the user asks to keep the original duration, avoid trimming the total length, preserve the complete source, or avoid deleting source ranges, pass durationContract with totalDurationMode preserve_source and/or sourceCoverageMode full_source plus sourceDurationSeconds from ffprobe for local files. Do not set generateIntroCover true with preserve_source plus full_source; a timeline intro cover changes duration, so use a fixed title or project cover instead. Use durationGoalMode custom only for explicit duration ranges, and keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+			description:
+				"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. templatePreference.mode must be auto, specified with an existing built-in requestedTemplate, or create with draftTemplateName for a later user-confirmed template draft. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. When the user asks to keep the original duration, avoid trimming the total length, preserve the complete source, or avoid deleting source ranges, pass durationContract with totalDurationMode preserve_source and/or sourceCoverageMode full_source plus sourceDurationSeconds from ffprobe for local files. Do not set generateIntroCover true with preserve_source plus full_source; a timeline intro cover changes duration, so use a fixed title or project cover instead. Use durationGoalMode custom only for explicit duration ranges, and keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -3606,6 +3619,12 @@ function normalizeTemplatePreference(value) {
 			requestedTemplate: String(value.requestedTemplate || "").trim(),
 		};
 	}
+	if (mode === "create") {
+		return {
+			mode: "create",
+			draftTemplateName: String(value.draftTemplateName || "").trim(),
+		};
+	}
 	return { mode };
 }
 
@@ -3616,14 +3635,21 @@ function validateTemplatePreference(value) {
 	if (
 		value?.mode === "specified" &&
 		typeof value.requestedTemplate === "string" &&
-		value.requestedTemplate.trim().length > 0
+		builtInTemplateIdValues.includes(value.requestedTemplate.trim())
 	) {
-		return { ok: true, message: "Template preference names a template." };
+		return { ok: true, message: "Template preference names a built-in template." };
+	}
+	if (
+		value?.mode === "create" &&
+		typeof value.draftTemplateName === "string" &&
+		value.draftTemplateName.trim().length > 0
+	) {
+		return { ok: true, message: "Template preference requests a draft template." };
 	}
 	return {
 		ok: false,
 		message:
-			"Template preference must be auto or specified with requestedTemplate.",
+			"Template preference must be auto, specified with a built-in requestedTemplate, or create with draftTemplateName.",
 	};
 }
 
@@ -4344,6 +4370,19 @@ function buildSetupBlockedResult(content) {
 	};
 }
 
+function buildTemplateResolutionPrompt(intent) {
+	const templatePreference = intent.templatePreference || { mode: "auto" };
+	const lines = [
+		`Before any EditingDecisionLedger, EditPlan, or NarratedRemixPlan, call resolve_template using this templatePreference: ${JSON.stringify(templatePreference)}. If mode is specified, pass requestedTemplate. If mode is auto, pass userIntent, platform/material facts, and available evidence. If mode is create, do not pass draftTemplateName as requestedTemplate; use auto template resolution only when the primary edit needs an existing planning template. Do not invent a workflow if template resolution fails.`,
+	];
+	if (templatePreference.mode === "create") {
+		lines.push(
+			`After the edit or reference analysis is complete, ask the user whether to create a template draft named "${templatePreference.draftTemplateName}". Do not import the template until the user confirms the draft.`,
+		);
+	}
+	return lines;
+}
+
 function buildContinuePrompt({
 	intent,
 	projectId,
@@ -4400,7 +4439,7 @@ function buildContinuePrompt({
 		`The CodeCut workspace index is already initialized at ${workspace?.projectDirectory}. Do not rerun codecut-workspace init for this project; use add-assets, probe-assets, and write-doc for later workspace updates.`,
 		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. Click this host-rendered link if manual preview is needed: [Open CodeCut editor](${editorUrl}). If the selected tab is already on that URL, do not reload it.`,
 		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state with projectId "${projectId}".`,
-		`Before any EditingDecisionLedger, EditPlan, or NarratedRemixPlan, call resolve_template using this templatePreference: ${JSON.stringify(intent.templatePreference)}. If mode is specified, pass requestedTemplate. If mode is auto, pass userIntent, platform/material facts, and available evidence. Do not invent a workflow if template resolution fails.`,
+		...buildTemplateResolutionPrompt(intent),
 		`Network material matching decision: ${JSON.stringify(intent.networkMaterialMatching)}. If enabled, derive ordered English search terms only from voiceover, spokenScript, or ASR text; use providers in the confirmed order; fail clearly when text, API keys, candidates, downloads, or license fields are missing; record source, license, search term, voiceover segment, dimensions, duration, imported media id, and crop risk before material understanding.`,
 		`Write template resolution evidence before planning: 04-planning/template-resolution.json and a short markdown note with match mode, candidate templates, selected template, missing evidence, and stop reason.`,
 		...guardrails,

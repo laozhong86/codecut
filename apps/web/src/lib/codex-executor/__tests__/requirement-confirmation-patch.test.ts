@@ -50,7 +50,7 @@ function requirementDraftFixture(): RequirementDraft {
 		bgmPreferences: { mode: "none" },
 		templatePreference: {
 			mode: "specified",
-			requestedTemplate: "TikTok 解说视频模板",
+			requestedTemplate: "talking-head-broll-split",
 		},
 		networkMaterialMatching: {
 			enabled: true,
@@ -87,7 +87,23 @@ describe("requirement confirmation patch builder", () => {
 		const form = formStateFromRequirementDraft(draft);
 
 		expect(form.templatePreferenceMode).toBe("specified");
-		expect(form.requestedTemplate).toBe("TikTok 解说视频模板");
+		expect(form.requestedTemplate).toBe("talking-head-broll-split");
+		expect(form.draftTemplateName).toBe("");
+	});
+
+	test("reads create template preference from the requirement draft", () => {
+		const draft: RequirementDraft = {
+			...requirementDraftFixture(),
+			templatePreference: {
+				mode: "create",
+				draftTemplateName: "TikTok 解说模板草稿",
+			},
+		};
+		const form = formStateFromRequirementDraft(draft);
+
+		expect(form.templatePreferenceMode).toBe("create");
+		expect(form.requestedTemplate).toBe("");
+		expect(form.draftTemplateName).toBe("TikTok 解说模板草稿");
 	});
 
 	test("reads character and BGM preferences from the requirement draft", () => {
@@ -234,6 +250,41 @@ describe("requirement confirmation patch builder", () => {
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
 			characterPreferences: { characterId: "ugc-female-host" },
 			bgmPreferences: { mode: "smart_match" },
+		});
+	});
+
+	test("submits template preference changes when the user selects a built-in template", () => {
+		const draft: RequirementDraft = {
+			...requirementDraftFixture(),
+			templatePreference: { mode: "auto" },
+		};
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			templatePreferenceMode: "specified" as const,
+			requestedTemplate: "narrated-broll" as const,
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			templatePreference: {
+				mode: "specified",
+				requestedTemplate: "narrated-broll",
+			},
+		});
+	});
+
+	test("submits template preference changes when the user asks to create a template", () => {
+		const draft = requirementDraftFixture();
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			templatePreferenceMode: "create" as const,
+			draftTemplateName: "TikTok 解说模板草稿",
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
+			templatePreference: {
+				mode: "create",
+				draftTemplateName: "TikTok 解说模板草稿",
+			},
 		});
 	});
 
