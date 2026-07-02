@@ -41,6 +41,12 @@ Use this skill for three jobs:
 2. Import a user-confirmed draft into Codecut templates.
 3. Apply a named reference-derived template to new source material.
 
+When a confirmed edit or reference-analysis setup uses
+`templatePreference.mode: "create"`, the primary job still completes first. Use
+the confirmed `draftTemplateName` only as the proposed draft name after that
+completion, ask the user whether to create the draft, and import only after the
+user confirms the exact draft.
+
 Do not present a reference template as a CapCut-style effect package, animated
 subtitle engine, smart crop model, TTS system, BGM generator, or automatic
 marketplace template. Unsupported reference behaviors must be named as runtime

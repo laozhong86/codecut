@@ -687,12 +687,24 @@ describe("Codecut MCP server contract", () => {
 			submitTool?.inputSchema.transitionPreference.safeParse("dissolve")
 				.success,
 		).toBe(true);
-		expect(
-			submitTool?.inputSchema.transitionPreference.safeParse("spin").success,
-		).toBe(false);
-		expect(openTool.description).toContain("uiLanguage");
-		expect(openTool.description).toContain("mediaPaths");
-		expect(openTool.description).toContain("directoryPaths");
+			expect(
+				submitTool?.inputSchema.transitionPreference.safeParse("spin").success,
+			).toBe(false);
+			expect(
+				openTool.inputSchema.templatePreference.safeParse({
+					mode: "create",
+					draftTemplateName: "TikTok 解说模板草稿",
+				}).success,
+			).toBe(true);
+			expect(
+				submitTool.inputSchema.templatePreference.safeParse({
+					mode: "specified",
+					requestedTemplate: "TikTok 解说视频模板",
+				}).success,
+			).toBe(false);
+			expect(openTool.description).toContain("uiLanguage");
+			expect(openTool.description).toContain("mediaPaths");
+			expect(openTool.description).toContain("directoryPaths");
 		expect(openTool.description).toContain("web service");
 		expect(openTool.description).toContain(
 			"Use exactly one source input style",
@@ -838,8 +850,9 @@ describe("Codecut MCP server contract", () => {
 			'<select id="caption-style-preset"',
 			'<select id="voice-pack"',
 			'<select id="transition-preference"',
-			'<select id="template-preference-mode"',
-			'<input id="requested-template"',
+				'<select id="template-preference-mode"',
+				'<select id="requested-template"',
+				'<input id="draft-template-name"',
 			'value="zh-CN"',
 			'value="en"',
 			'value="auto"',
@@ -873,12 +886,14 @@ describe("Codecut MCP server contract", () => {
 			"transitionPreferenceDissolve",
 			"transitionPreferenceSlideLeft",
 			"transitionPreferenceZoomIn",
-			"templatePreference",
-			"templatePreferenceAuto",
-			"templatePreferenceSpecified",
-			"requestedTemplate",
-			"captionFontAuto",
-			"captionSizeMedium",
+				"templatePreference",
+				"templatePreferenceAuto",
+				"templatePreferenceSpecified",
+				"templatePreferenceCreate",
+				"requestedTemplate",
+				"draftTemplateName",
+				"captionFontAuto",
+				"captionSizeMedium",
 			"captionStyleCreatorClean",
 			"captionStyleShortFormBold",
 			"setSelectValue",
@@ -2039,35 +2054,35 @@ describe("Codecut MCP server contract", () => {
 	});
 
 	test("carries template preference through workspace setup", async () => {
-		const opened = serverModule.openCodecutWorkspace({
-			projectName: "Creator Launch",
-			templatePreference: {
+			const opened = serverModule.openCodecutWorkspace({
+				projectName: "Creator Launch",
+				templatePreference: {
+					mode: "specified",
+					requestedTemplate: "product-proof-ad",
+				},
+			});
+			expect(opened.structuredContent.intentDefaults.templatePreference).toEqual({
 				mode: "specified",
-				requestedTemplate: "ugc proof",
-			},
-		});
-		expect(opened.structuredContent.intentDefaults.templatePreference).toEqual({
-			mode: "specified",
-			requestedTemplate: "ugc proof",
-		});
-		expect(opened._meta.widgetData.intentDefaults.templatePreference).toEqual({
-			mode: "specified",
-			requestedTemplate: "ugc proof",
-		});
+				requestedTemplate: "product-proof-ad",
+			});
+			expect(opened._meta.widgetData.intentDefaults.templatePreference).toEqual({
+				mode: "specified",
+				requestedTemplate: "product-proof-ad",
+			});
 
 		const ready = await serverModule.inspectCodecutSetup(
 			setupIntent({
-				templatePreference: {
-					mode: "specified",
-					requestedTemplate: "ugc proof",
-				},
-			}),
-		);
-		expect(ready.status).toBe("ready");
-		expect(ready.intent.templatePreference).toEqual({
-			mode: "specified",
-			requestedTemplate: "ugc proof",
-		});
+					templatePreference: {
+						mode: "specified",
+						requestedTemplate: "product-proof-ad",
+					},
+				}),
+			);
+			expect(ready.status).toBe("ready");
+			expect(ready.intent.templatePreference).toEqual({
+				mode: "specified",
+				requestedTemplate: "product-proof-ad",
+			});
 
 		const blocked = await serverModule.inspectCodecutSetup(
 			setupIntent({
@@ -2078,14 +2093,28 @@ describe("Codecut MCP server contract", () => {
 			}),
 		);
 		expect(blocked.status).toBe("blocked");
-		expect(blocked.checks).toContainEqual({
-			id: "template-preference",
-			label: "Template preference",
-			ok: false,
-			detail:
-				"Template preference must be auto or specified with requestedTemplate.",
+			expect(blocked.checks).toContainEqual({
+				id: "template-preference",
+				label: "Template preference",
+				ok: false,
+				detail:
+					"Template preference must be auto, specified with a built-in requestedTemplate, or create with draftTemplateName.",
+			});
+
+			const createReady = await serverModule.inspectCodecutSetup(
+				setupIntent({
+					templatePreference: {
+						mode: "create",
+						draftTemplateName: "TikTok 解说模板草稿",
+					},
+				}),
+			);
+			expect(createReady.status).toBe("ready");
+			expect(createReady.intent.templatePreference).toEqual({
+				mode: "create",
+				draftTemplateName: "TikTok 解说模板草稿",
+			});
 		});
-	});
 
 	test("carries network material matching through workspace setup", async () => {
 		const networkMaterialMatching = {
@@ -3292,10 +3321,86 @@ describe("Codecut MCP server contract", () => {
 				force: true,
 			});
 		}
-	});
+		});
 
-	test("reuses a confirmed setup result on repeated submission without creating again", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+		test("create template preference asks for a draft confirmation after primary work", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
+			const opened = serverModule.openCodecutWorkspace(
+				{
+					projectName: "Template From Edit",
+					templatePreference: {
+						mode: "create",
+						draftTemplateName: "TikTok 解说模板草稿",
+					},
+					mediaSources: [
+						{ kind: "url", url: "https://cdn.example.com/source.mp4" },
+					],
+				},
+				{ confirmationRoot: directory },
+			);
+			const bridgeToolImpl = async (toolName) => {
+				if (toolName === "create_project") {
+					return {
+						structuredContent: {
+							projectId: "template-from-edit",
+							name: "Template From Edit",
+							revision: 1,
+							editorUrl: "http://127.0.0.1:4100/en/editor/template-from-edit",
+						},
+					};
+				}
+				if (toolName === "get_project_info") {
+					return {
+						structuredContent: {
+							results: [{ success: true, data: { revision: 1 } }],
+						},
+					};
+				}
+				throw new Error(`Unexpected tool ${toolName}`);
+			};
+
+			try {
+				const result = await serverModule.submitCodecutSetup(
+					setupIntent({
+						pendingConfirmationId: opened.structuredContent.pendingConfirmationId,
+						projectId: "template-from-edit",
+						projectName: "Template From Edit",
+						templatePreference: {
+							mode: "create",
+							draftTemplateName: "TikTok 解说模板草稿",
+						},
+						mediaSources: [
+							{ kind: "url", url: "https://cdn.example.com/source.mp4" },
+						],
+					}),
+					{
+						bridgeToolImpl,
+						confirmationRoot: directory,
+						workspaceSourceRoot: directory,
+					},
+				);
+
+				const prompt = result.structuredContent.continuePrompt;
+				expect(prompt).toContain(
+					'templatePreference: {"mode":"create","draftTemplateName":"TikTok 解说模板草稿"}',
+				);
+				expect(prompt).toContain(
+					"After the edit or reference analysis is complete, ask the user whether to create a template draft named",
+				);
+				expect(prompt).toContain("TikTok 解说模板草稿");
+				expect(prompt).toContain(
+					"Do not import the template until the user confirms the draft.",
+				);
+			} finally {
+				await rm(directory, {
+					recursive: true,
+					force: true,
+				});
+			}
+		});
+
+		test("reuses a confirmed setup result on repeated submission without creating again", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
 		const filePath = join(directory, "source.mp4");
 		await writeFile(filePath, "video");
 		const opened = serverModule.openCodecutWorkspace(

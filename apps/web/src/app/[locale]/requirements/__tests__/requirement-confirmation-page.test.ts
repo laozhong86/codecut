@@ -66,7 +66,10 @@ describe("requirement confirmation page UI", () => {
 		expect(client).toContain("templatePreferenceMode");
 		expect(client).toContain("Agent 自动匹配");
 		expect(client).toContain("指定模板");
+		expect(client).toContain("创建模板");
 		expect(client).toContain("模板名称");
+		expect(client).toContain("模板草稿名称");
+		expect(client).toContain("BUILT_IN_TEMPLATE_OPTIONS");
 		expect(client).toContain("form.titleEnabled &&");
 		expect(client).toContain("titleMode");
 		expect(client).toContain("自动生成");
@@ -76,11 +79,30 @@ describe("requirement confirmation page UI", () => {
 		expect(client).toContain("智能匹配");
 		expect(client).toContain("form.captionEnabled &&");
 		expect(client).toContain('form.templatePreferenceMode === "specified"');
+		expect(client).toContain('form.templatePreferenceMode === "create"');
+		expect(client).toContain("draftTemplateName");
 		expect(client).not.toContain("固定标题");
 		expect(client).not.toContain("等待确认");
 		expect(client).not.toContain("选择文件");
 		expect(client).not.toContain("文件URL");
 		expect(client).not.toContain("文件路径");
+	});
+
+	test("specified template uses the built-in template list instead of free text", async () => {
+		const client = await readFile(
+			"apps/web/src/app/[locale]/requirements/[draft_id]/requirement-confirmation-client.tsx",
+			"utf8",
+		);
+
+		expect(client).toContain("builtInTemplates.map");
+		expect(client).toContain("requestedTemplate:");
+		expect(client).toContain("value={form.requestedTemplate}");
+		expect(client).toContain(
+			'as RequirementConfirmationFormState["requestedTemplate"]',
+		);
+		expect(client).not.toContain(
+			'<input\n\t\t\t\t\t\t\t\t\t\tclassName="h-10 rounded-md border bg-background px-3"\n\t\t\t\t\t\t\t\t\t\tvalue={form.requestedTemplate}',
+		);
 	});
 
 	test("keeps video cover control the same height as other spec controls", async () => {

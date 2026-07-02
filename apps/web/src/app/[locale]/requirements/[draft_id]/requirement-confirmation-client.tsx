@@ -12,6 +12,7 @@ import {
 	formStateFromRequirementDraft,
 	type RequirementConfirmationFormState,
 } from "@/lib/codex-executor/requirement-confirmation-patch";
+import { builtInTemplates } from "@/lib/templates/registry";
 
 const NETWORK_MATERIAL_PROVIDER_OPTIONS = [
 	"pexels",
@@ -23,6 +24,17 @@ const NETWORK_MATERIAL_PLACEMENT_OPTIONS = [
 	"top",
 	"bottom",
 ] as const;
+const BUILT_IN_TEMPLATE_OPTIONS = builtInTemplates.map((template) => {
+	const chineseAlias = template.trigger.aliases.find((alias) =>
+		/[\u4e00-\u9fa5]/.test(alias),
+	);
+	return {
+		id: template.id,
+		label: chineseAlias
+			? `${chineseAlias}（${template.id}）`
+			: `${template.name}（${template.id}）`,
+	};
+});
 
 type RequirementReadback =
 	| {
@@ -104,6 +116,11 @@ export function RequirementConfirmationClient({
 	const networkMaterialProvidersMissing =
 		form?.networkMaterialEnabled === true &&
 		form.networkMaterialProviders.length === 0;
+	const specifiedTemplateMissing =
+		form?.templatePreferenceMode === "specified" &&
+		!form.requestedTemplate.trim();
+	const draftTemplateNameMissing =
+		form?.templatePreferenceMode === "create" && !form.draftTemplateName.trim();
 
 	function updateNetworkMaterialProvider(
 		provider: RequirementConfirmationFormState["networkMaterialProviders"][number],
@@ -311,21 +328,55 @@ export function RequirementConfirmationClient({
 							>
 								<option value="auto">{t("Agent 自动匹配")}</option>
 								<option value="specified">{t("指定模板")}</option>
+								<option value="create">{t("创建模板")}</option>
 							</select>
 						</label>
 						{form.templatePreferenceMode === "specified" && (
 							<label className="grid gap-2 text-sm font-medium">
 								{t("模板名称")}
-								<input
+								<select
 									className="h-10 rounded-md border bg-background px-3"
 									value={form.requestedTemplate}
 									onChange={(event) =>
 										setForm({
 											...form,
-											requestedTemplate: event.target.value,
+											requestedTemplate: event.target
+												.value as RequirementConfirmationFormState["requestedTemplate"],
+										})
+									}
+								>
+									<option value="">{t("请选择模板")}</option>
+									{BUILT_IN_TEMPLATE_OPTIONS.map((template) => (
+										<option key={template.id} value={template.id}>
+											{template.label}
+										</option>
+									))}
+								</select>
+								{specifiedTemplateMissing && (
+									<p className="text-sm text-destructive">
+										{t("请选择内置模板")}
+									</p>
+								)}
+							</label>
+						)}
+						{form.templatePreferenceMode === "create" && (
+							<label className="grid gap-2 text-sm font-medium">
+								{t("模板草稿名称")}
+								<input
+									className="h-10 rounded-md border bg-background px-3"
+									value={form.draftTemplateName}
+									onChange={(event) =>
+										setForm({
+											...form,
+											draftTemplateName: event.target.value,
 										})
 									}
 								/>
+								{draftTemplateNameMissing && (
+									<p className="text-sm text-destructive">
+										{t("请输入模板草稿名称")}
+									</p>
+								)}
 							</label>
 						)}
 					</div>
@@ -362,13 +413,13 @@ export function RequirementConfirmationClient({
 											.value as RequirementConfirmationFormState["networkMaterialPlacement"],
 									})
 								}
-								>
-									{NETWORK_MATERIAL_PLACEMENT_OPTIONS.map((placement) => (
-										<option key={placement} value={placement}>
-											{networkMaterialPlacementLabel(placement, t)}
-										</option>
-									))}
-								</select>
+							>
+								{NETWORK_MATERIAL_PLACEMENT_OPTIONS.map((placement) => (
+									<option key={placement} value={placement}>
+										{networkMaterialPlacementLabel(placement, t)}
+									</option>
+								))}
+							</select>
 						</label>
 						<div className="grid gap-2 text-sm font-medium">
 							<span>{t("素材渠道")}</span>
@@ -625,7 +676,9 @@ export function RequirementConfirmationClient({
 					disabled={
 						isSubmitting ||
 						readback.status !== "awaiting_user_confirmation" ||
-						networkMaterialProvidersMissing
+						networkMaterialProvidersMissing ||
+						specifiedTemplateMissing ||
+						draftTemplateNameMissing
 					}
 				>
 					{t("确认需求")}

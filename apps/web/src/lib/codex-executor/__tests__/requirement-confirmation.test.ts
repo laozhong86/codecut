@@ -51,7 +51,7 @@ function validDraftInput(): RequirementDraftInput {
 		bgmPreferences: { mode: "none" },
 		templatePreference: {
 			mode: "specified",
-			requestedTemplate: "TikTok 解说视频模板",
+			requestedTemplate: "talking-head-broll-split",
 		},
 		networkMaterialMatching: {
 			enabled: true,
@@ -135,7 +135,7 @@ describe("requirement confirmation store", () => {
 		);
 		expect(readback.draft.templatePreference).toEqual({
 			mode: "specified",
-			requestedTemplate: "TikTok 解说视频模板",
+			requestedTemplate: "talking-head-broll-split",
 		});
 		expect(readback.draft.networkMaterialMatching).toEqual({
 			enabled: true,
@@ -187,7 +187,7 @@ describe("requirement confirmation store", () => {
 		});
 		expect(confirmed.confirmedSetup.templatePreference).toEqual({
 			mode: "specified",
-			requestedTemplate: "TikTok 解说视频模板",
+			requestedTemplate: "talking-head-broll-split",
 		});
 
 		const file = JSON.parse(
@@ -205,7 +205,7 @@ describe("requirement confirmation store", () => {
 		expect(file.status).toBe("confirmed");
 		expect(file.confirmedSetup.templatePreference).toEqual({
 			mode: "specified",
-			requestedTemplate: "TikTok 解说视频模板",
+			requestedTemplate: "talking-head-broll-split",
 		});
 	});
 

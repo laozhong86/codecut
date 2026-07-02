@@ -914,7 +914,7 @@ After application, Codex must verify `get_timeline_state` proof fields:
 14. Codex selects the target media asset for editing.
 15. Codex calls `transcribe_media` for that media asset when the selected outcome needs transcript evidence.
 16. Codex audits material facts: transcript, visual proof, product facts, existing narration audio, and visual B-roll.
-17. Codex calls `resolve_template` and writes `04-planning/template-resolution.json` plus short markdown evidence, or reports why no template can satisfy the request.
+17. Codex calls `resolve_template` and writes `04-planning/template-resolution.json` plus short markdown evidence, or reports why no template can satisfy the request. If the confirmed setup uses `templatePreference.mode: "create"`, Codex does not treat `draftTemplateName` as an existing template; it completes the primary edit or reference analysis, then asks whether to create a template draft and imports only after user confirmation.
 18. Codex calls `build_video_context` for transcript-first planning when a long
    source video needs structured context.
 19. Codex calls `build-visual-context` when tutorial, product-proof,
