@@ -191,6 +191,7 @@ describe("Codecut MCP server contract", () => {
 			"list_templates",
 			"get_template",
 			"resolve_template",
+			"check_template_import",
 			"import_template",
 			"update_template",
 			"delete_template",
@@ -397,6 +398,7 @@ describe("Codecut MCP server contract", () => {
 		expect(readOnlyByTool.get("list_templates")).toBe(true);
 		expect(readOnlyByTool.get("get_template")).toBe(true);
 		expect(readOnlyByTool.get("resolve_template")).toBe(true);
+		expect(readOnlyByTool.get("check_template_import")).toBe(true);
 		expect(readOnlyByTool.get("import_template")).toBe(false);
 		expect(readOnlyByTool.get("update_template")).toBe(false);
 		expect(readOnlyByTool.get("delete_template")).toBe(false);
@@ -1908,6 +1910,9 @@ describe("Codecut MCP server contract", () => {
 		const resolveTool = CODECUT_MCP_TOOLS.find(
 			(candidate) => candidate.name === "resolve_template",
 		);
+		const checkImportTool = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "check_template_import",
+		);
 
 		expect(listTool?.description).toContain("List");
 		expect(listTool?.readOnly).toBe(true);
@@ -1944,6 +1949,11 @@ describe("Codecut MCP server contract", () => {
 		expect(resolveTool?.inputSchema.hasVisualBroll.safeParse(false).success).toBe(
 			true,
 		);
+		expect(
+			checkImportTool?.inputSchema.templateJsonFile.safeParse(
+				"/tmp/template.json",
+			).success,
+		).toBe(true);
 	});
 
 	test("serves the workspace widget for stale hashed resource URIs", async () => {
@@ -5635,13 +5645,9 @@ describe("Codecut MCP server contract", () => {
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
-			"send",
+			"list-templates",
 			"--project-id",
 			"project-1",
-			"--tool",
-			"list_templates",
-			"--args-json",
-			"{}",
 		]);
 
 		expect(
@@ -5651,13 +5657,11 @@ describe("Codecut MCP server contract", () => {
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
-			"send",
+			"get-template",
 			"--project-id",
 			"project-1",
-			"--tool",
-			"get_template",
-			"--args-json",
-			'{"templateId":"proof-demo-cut"}',
+			"--template-id",
+			"proof-demo-cut",
 		]);
 
 		expect(
@@ -5675,13 +5679,25 @@ describe("Codecut MCP server contract", () => {
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
-			"send",
+			"resolve-template",
 			"--project-id",
 			"project-1",
-			"--tool",
-			"resolve_template",
 			"--args-json",
 			'{"requestedTemplate":"proof demo","triggerType":"product-proof-ad","userIntent":"tiktok explainer","platformHint":"TikTok","hasTranscript":true,"hasVisualProof":true,"hasProductFacts":false,"hasExistingNarrationAudio":false,"hasVisualBroll":false}',
+		]);
+
+		expect(
+			buildBridgeCliArgs("check_template_import", {
+				projectId: "project-1",
+				templateJsonFile: "/tmp/template.json",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"check-template-import",
+			"--project-id",
+			"project-1",
+			"--template-json-file",
+			"/tmp/template.json",
 		]);
 
 		expect(

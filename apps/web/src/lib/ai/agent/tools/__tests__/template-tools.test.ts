@@ -7,6 +7,7 @@ import {
 } from "@/lib/templates";
 import { getToolByName } from "../index";
 import {
+	executeCheckTemplateImportTool,
 	executeDeleteTemplateTool,
 	executeGetTemplateTool,
 	executeImportTemplateTool,
@@ -99,6 +100,10 @@ describe("template tools", () => {
 			name: "resolve_template",
 			requiresConfirmation: false,
 		});
+		expect(getToolByName({ name: "check_template_import" })).toMatchObject({
+			name: "check_template_import",
+			requiresConfirmation: false,
+		});
 		expect(getToolByName({ name: "import_template" })).toMatchObject({
 			name: "import_template",
 			requiresConfirmation: true,
@@ -136,9 +141,77 @@ describe("template tools", () => {
 				aliases: ["proof demo"],
 				stepCount: 1,
 				verificationCount: 1,
-					templateCount: 6,
+				templateCount: 6,
 				sourceOfTruth: "codecut-template-library",
 				visibleInTemplatesUi: true,
+			},
+		});
+	});
+
+	test("checks whether a template can be imported", async () => {
+		const service = buildService();
+
+		const result = await executeCheckTemplateImportTool({
+			args: { template: buildTemplate() },
+			service,
+		});
+
+		expect(result).toEqual({
+			success: true,
+			message: 'Template "Proof demo cut" (proof-demo-cut) can be imported.',
+			data: {
+				canImport: true,
+				code: "ready",
+				message: "Template can be imported: proof-demo-cut",
+				draft: {
+					templateId: "proof-demo-cut",
+					name: "Proof demo cut",
+					description: "A proof-led template.",
+					source: "user",
+					readOnly: false,
+					triggerTypes: ["product-proof-ad"],
+					defaultForTypes: [],
+					aliases: ["proof demo"],
+					stepCount: 1,
+					verificationCount: 1,
+					executionPath: "edit-plan-v1",
+					requiredEvidence: [
+						"transcript",
+						"visual-proof",
+						"product-facts",
+					],
+					sourceOfTruth: "codecut-template-library",
+				},
+				nextActions: [
+					"Call import_template after explicit user confirmation.",
+				],
+				sourceOfTruth: "codecut-template-library",
+			},
+		});
+	});
+
+	test("returns an import conflict instead of throwing when template ID exists", async () => {
+		const service = buildService();
+		await service.registerTemplate({ template: buildTemplate() });
+
+		const result = await executeImportTemplateTool({
+			args: { confirmedByUser: true, template: buildTemplate() },
+			service,
+		});
+
+		expect(result).toMatchObject({
+			success: false,
+			message: "Template import blocked: Template already exists: proof-demo-cut",
+			data: {
+				canImport: false,
+				code: "template-id-conflict",
+				draft: { templateId: "proof-demo-cut" },
+				existingTemplate: { templateId: "proof-demo-cut" },
+				nextActions: [
+					"Call update_template after explicit user confirmation to replace the existing user template.",
+					"Change template.id and call import_template to save it as a new template.",
+				],
+				sourceOfTruth: "codecut-template-library",
 			},
 		});
 	});
@@ -152,7 +225,7 @@ describe("template tools", () => {
 		expect(result).toMatchObject({
 			success: true,
 			data: {
-					templateCount: 6,
+				templateCount: 6,
 				sourceOfTruth: "codecut-template-library",
 			},
 		});

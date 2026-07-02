@@ -26,6 +26,32 @@ describe("migrateLegacyTemplateRecord", () => {
 		});
 	});
 
+	test("maps compatible legacy trigger profiles to the strictest execution profile", () => {
+		const result = migrateLegacyTemplateRecord(
+			createLegacyTemplateRecord({
+				id: "legacy-proof-demo",
+				trigger: {
+					types: ["tutorial-demo", "product-proof-ad"],
+					defaultForTypes: [],
+					aliases: ["proof demo"],
+				},
+			}),
+		);
+
+		expect(result).toMatchObject({
+			id: "legacy-proof-demo",
+			source: "user",
+			readOnly: false,
+			execution: {
+				path: "edit-plan-v1",
+				requiredEvidence: ["transcript", "visual-proof", "product-facts"],
+			},
+			networkMaterialPolicy: {
+				defaultEnabled: false,
+			},
+		});
+	});
+
 	test("fails when a legacy template has no unique execution profile", () => {
 		expect(() =>
 			migrateLegacyTemplateRecord(

@@ -1266,6 +1266,7 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["list_templates", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["get_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["resolve_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["check_template_import", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["get_timeline_state", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["validate_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["preview_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
@@ -1562,7 +1563,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "list_templates",
 		title: "List Codecut Templates",
 		description:
-			"List Codecut built-in templates from the local executor registry for one explicit project.",
+			"List Codecut templates from the browser local template library for one explicit project.",
 		inputSchema: projectOnlyInputSchema,
 		readOnly: true,
 	},
@@ -1581,7 +1582,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "resolve_template",
 		title: "Resolve Codecut Template",
 		description:
-			"Resolve one Codecut built-in template by ID, name, alias, or default trigger type through the local executor registry.",
+			"Resolve one Codecut template by ID, name, alias, or default trigger type through the browser local template library.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			requestedTemplate: z
@@ -1598,6 +1599,17 @@ export const CODECUT_MCP_TOOLS = [
 			hasProductFacts: z.boolean().optional(),
 			hasExistingNarrationAudio: z.boolean().optional(),
 			hasVisualBroll: z.boolean().optional(),
+		},
+		readOnly: true,
+	},
+	{
+		name: "check_template_import",
+		title: "Check Codecut Template Import",
+		description:
+			"Check one Template JSON file against the browser local template library before importing. Read-only: reports ID conflicts, built-in reservations, and trigger conflicts without writing.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			templateJsonFile: templateJsonFileSchema,
 		},
 		readOnly: true,
 	},
@@ -5595,24 +5607,24 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				},
 			});
 		case "list_templates":
-			return buildSendArgs({
-				projectId,
-				toolName,
-				args: {},
-			});
+			return ["scripts/codex-bridge.mjs", "list-templates", "--project-id", projectId];
 		case "get_template":
-			return buildSendArgs({
+			return [
+				"scripts/codex-bridge.mjs",
+				"get-template",
+				"--project-id",
 				projectId,
-				toolName,
-				args: {
-					templateId: requireStringArg(args, "templateId"),
-				},
-			});
+				"--template-id",
+				requireStringArg(args, "templateId"),
+			];
 		case "resolve_template":
-			return buildSendArgs({
+			return [
+				"scripts/codex-bridge.mjs",
+				"resolve-template",
+				"--project-id",
 				projectId,
-				toolName,
-				args: {
+				"--args-json",
+				JSON.stringify({
 					...(args.requestedTemplate === undefined
 						? {}
 						: {
@@ -5647,8 +5659,17 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 					...(optionalBooleanArg(args, "hasVisualBroll") === undefined
 						? {}
 						: { hasVisualBroll: optionalBooleanArg(args, "hasVisualBroll") }),
-				},
-			});
+				}),
+			];
+		case "check_template_import":
+			return [
+				"scripts/codex-bridge.mjs",
+				"check-template-import",
+				"--project-id",
+				projectId,
+				"--template-json-file",
+				requireStringArg(args, "templateJsonFile"),
+			];
 		case "import_template":
 			requireConfirmedByUser(args);
 			return [

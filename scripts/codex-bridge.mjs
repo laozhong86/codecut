@@ -128,6 +128,10 @@ function usage() {
 		"  node scripts/codex-bridge.mjs ripple-delete-ranges --project-id <id> --args-json '<json>' --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs list-models --project-id <id> [--type <transcription|digital_human>]",
 		"  node scripts/codex-bridge.mjs search-media --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs list-templates --project-id <id>",
+		"  node scripts/codex-bridge.mjs get-template --project-id <id> --template-id <id>",
+		"  node scripts/codex-bridge.mjs resolve-template --project-id <id> --args-json '<json>'",
+		"  node scripts/codex-bridge.mjs check-template-import --project-id <id> --template-json-file /absolute/path/template.json",
 		"  node scripts/codex-bridge.mjs import-template --project-id <id> --template-json-file /absolute/path/template.json --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs update-template --project-id <id> --template-json-file /absolute/path/template.json --confirmed-by-user true",
 		"  node scripts/codex-bridge.mjs delete-template --project-id <id> --template-id <id> --confirmed-by-user true",
@@ -2158,6 +2162,77 @@ function requireConfirmedTemplateImport(confirmedByUser) {
 	}
 }
 
+export function buildListTemplatesEnvelope({ projectId }) {
+	return buildCommandEnvelope({
+		projectId,
+		tool: "list_templates",
+		args: {},
+	});
+}
+
+export function buildGetTemplateEnvelope({ projectId, templateId }) {
+	if (typeof templateId !== "string" || templateId.trim() === "") {
+		throw new Error("--template-id is required");
+	}
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "get_template",
+		args: {
+			templateId: templateId.trim(),
+		},
+	});
+}
+
+export function buildResolveTemplateEnvelope({
+	projectId,
+	requestedTemplate,
+	triggerType,
+	userIntent,
+	platformHint,
+	hasTranscript,
+	hasVisualProof,
+	hasProductFacts,
+	hasExistingNarrationAudio,
+	hasVisualBroll,
+}) {
+	return buildCommandEnvelope({
+		projectId,
+		tool: "resolve_template",
+		args: {
+			...(requestedTemplate === undefined ? {} : { requestedTemplate }),
+			...(triggerType === undefined ? {} : { triggerType }),
+			...(userIntent === undefined ? {} : { userIntent }),
+			...(platformHint === undefined ? {} : { platformHint }),
+			...(hasTranscript === undefined ? {} : { hasTranscript }),
+			...(hasVisualProof === undefined ? {} : { hasVisualProof }),
+			...(hasProductFacts === undefined ? {} : { hasProductFacts }),
+			...(hasExistingNarrationAudio === undefined
+				? {}
+				: { hasExistingNarrationAudio }),
+			...(hasVisualBroll === undefined ? {} : { hasVisualBroll }),
+		},
+	});
+}
+
+export async function buildCheckTemplateImportEnvelope({
+	projectId,
+	templateJsonFile,
+}) {
+	const template = await readJsonObjectFile({
+		filePath: templateJsonFile,
+		flagName: "template-json-file",
+	});
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "check_template_import",
+		args: {
+			template,
+		},
+	});
+}
+
 export async function buildImportTemplateEnvelope({
 	projectId,
 	templateJsonFile,
@@ -3583,6 +3658,26 @@ export async function runCli({
 			projectId: flags.projectId,
 			...payload,
 		});
+	} else if (command === "list-templates") {
+		envelope = buildListTemplatesEnvelope({
+			projectId: flags.projectId,
+		});
+	} else if (command === "get-template") {
+		envelope = buildGetTemplateEnvelope({
+			projectId: flags.projectId,
+			templateId: flags.templateId,
+		});
+	} else if (command === "resolve-template") {
+		const payload = parseArgsJsonFlag(flags);
+		envelope = buildResolveTemplateEnvelope({
+			projectId: flags.projectId,
+			...payload,
+		});
+	} else if (command === "check-template-import") {
+		envelope = await buildCheckTemplateImportEnvelope({
+			projectId: flags.projectId,
+			templateJsonFile: flags.templateJsonFile,
+		});
 	} else if (command === "import-template") {
 		envelope = await buildImportTemplateEnvelope({
 			projectId: flags.projectId,
@@ -3750,6 +3845,10 @@ export async function runCli({
 	}
 
 	const result =
+		command === "list-templates" ||
+		command === "get-template" ||
+		command === "resolve-template" ||
+		command === "check-template-import" ||
 		command === "import-template" ||
 		command === "update-template" ||
 		command === "delete-template"
