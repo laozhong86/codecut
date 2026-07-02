@@ -78,6 +78,13 @@ import {
 	type DurationContract,
 	type DurationGoal,
 } from "@/lib/codex-executor/setup-contract";
+import {
+	TemplateTriggerTypeSchema,
+	builtInTemplates,
+	resolveTemplate as resolveBuiltInTemplate,
+	type Template,
+	type TemplateMaterialFacts,
+} from "@/lib/templates";
 import { assertAsrProviderResult } from "@/lib/transcription/asr-provider-contract";
 import {
 	type RunningHubExecutorMediaAsset,
@@ -157,6 +164,8 @@ type ExecutorToolName =
 	| "update_project_settings"
 	| "update_project_preferences"
 	| "list_media_assets"
+	| "list_templates"
+	| "resolve_template"
 	| "import_media_file"
 	| "set_project_cover"
 	| "clear_project_cover"
@@ -290,6 +299,8 @@ const commandSchema = z
 			"update_project_settings",
 			"update_project_preferences",
 			"list_media_assets",
+			"list_templates",
+			"resolve_template",
 			"import_media_file",
 			"set_project_cover",
 			"clear_project_cover",
@@ -852,6 +863,22 @@ const searchMediaArgsSchema = z
 		scope: z.enum(["metadata", "spoken", "both"]).optional(),
 		mediaId: z.string().min(1).optional(),
 		limit: z.number().int().min(1).max(50).optional(),
+	})
+	.strict();
+
+const listTemplatesArgsSchema = z.object({}).strict();
+
+const resolveTemplateArgsSchema = z
+	.object({
+		requestedTemplate: z.string().trim().min(1).optional(),
+		triggerType: TemplateTriggerTypeSchema.optional(),
+		userIntent: z.string().trim().min(1).optional(),
+		platformHint: z.string().trim().min(1).optional(),
+		hasTranscript: z.boolean().optional(),
+		hasVisualProof: z.boolean().optional(),
+		hasProductFacts: z.boolean().optional(),
+		hasExistingNarrationAudio: z.boolean().optional(),
+		hasVisualBroll: z.boolean().optional(),
 	})
 	.strict();
 
@@ -2273,6 +2300,75 @@ function runListMediaAssets({ state }: { state: ExecutorProjectState }) {
 		success: true,
 		message: `Found ${assets.length} media asset(s)`,
 		data: { assets },
+	};
+}
+
+const BUILT_IN_TEMPLATE_SOURCE = "codecut-built-in-template-registry";
+
+function summarizeBuiltInTemplate(template: Template) {
+	return {
+		templateId: template.id,
+		name: template.name,
+		description: template.description,
+		source: template.source,
+		readOnly: template.readOnly,
+		triggerTypes: template.trigger.types,
+		defaultForTypes: template.trigger.defaultForTypes,
+		aliases: template.trigger.aliases,
+		stepCount: template.plan.steps.length,
+		verificationCount: template.plan.verification.length,
+		executionPath: template.execution.path,
+		requiredEvidence: template.execution.requiredEvidence,
+		sourceOfTruth: BUILT_IN_TEMPLATE_SOURCE,
+	};
+}
+
+function runListTemplates({ args }: { args: Record<string, unknown> }) {
+	listTemplatesArgsSchema.parse(args);
+	const templates = builtInTemplates.map(summarizeBuiltInTemplate);
+	return {
+		success: true,
+		message: `Listed ${templates.length} CodeCut built-in template(s)`,
+		data: {
+			sourceOfTruth: BUILT_IN_TEMPLATE_SOURCE,
+			templateCount: templates.length,
+			templates,
+		},
+	};
+}
+
+function materialFactsFromResolveTemplateArgs(
+	args: z.infer<typeof resolveTemplateArgsSchema>,
+): TemplateMaterialFacts {
+	return {
+		hasTranscript: args.hasTranscript,
+		hasVisualProof: args.hasVisualProof,
+		hasProductFacts: args.hasProductFacts,
+		hasExistingNarrationAudio: args.hasExistingNarrationAudio,
+		hasVisualBroll: args.hasVisualBroll,
+	};
+}
+
+function runResolveTemplate({ args }: { args: Record<string, unknown> }) {
+	const parsed = resolveTemplateArgsSchema.parse(args);
+	const resolution = resolveBuiltInTemplate({
+		userTemplates: [],
+		requestedTemplate: parsed.requestedTemplate,
+		triggerType: parsed.triggerType,
+		userIntent: parsed.userIntent,
+		platformHint: parsed.platformHint,
+		materialFacts: materialFactsFromResolveTemplateArgs(parsed),
+	});
+
+	return {
+		success: resolution.success,
+		message: resolution.success
+			? `Resolved template "${resolution.template.name}" (${resolution.template.id})`
+			: resolution.message,
+		data: {
+			sourceOfTruth: BUILT_IN_TEMPLATE_SOURCE,
+			resolution,
+		},
 	};
 }
 
@@ -6013,6 +6109,12 @@ async function executeCommand({
 	}
 	if (command.tool === "list_media_assets") {
 		return runListMediaAssets({ state });
+	}
+	if (command.tool === "list_templates") {
+		return runListTemplates({ args: command.args });
+	}
+	if (command.tool === "resolve_template") {
+		return runResolveTemplate({ args: command.args });
 	}
 	if (command.tool === "import_media_file") {
 		return runImportMedia({ state, args: command.args });

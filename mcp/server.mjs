@@ -1183,7 +1183,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "list_templates",
 		title: "List Codecut Templates",
 		description:
-			"List Codecut templates from the browser local Templates UI library for one explicit project bridge session.",
+			"List Codecut built-in templates from the local executor registry for one explicit project.",
 		inputSchema: projectOnlyInputSchema,
 		readOnly: true,
 	},
@@ -1202,7 +1202,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "resolve_template",
 		title: "Resolve Codecut Template",
 		description:
-			"Resolve one Codecut template by ID, name, alias, or default trigger type from the browser local Templates UI library.",
+			"Resolve one Codecut built-in template by ID, name, alias, or default trigger type through the local executor registry.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			requestedTemplate: z
@@ -1212,6 +1212,13 @@ export const CODECUT_MCP_TOOLS = [
 				.describe("Template ID, exact name, or alias mentioned by the user.")
 				.optional(),
 			triggerType: templateTriggerTypeSchema.optional(),
+			userIntent: z.string().trim().min(1).optional(),
+			platformHint: z.string().trim().min(1).optional(),
+			hasTranscript: z.boolean().optional(),
+			hasVisualProof: z.boolean().optional(),
+			hasProductFacts: z.boolean().optional(),
+			hasExistingNarrationAudio: z.boolean().optional(),
+			hasVisualBroll: z.boolean().optional(),
 		},
 		readOnly: true,
 	},
@@ -4853,6 +4860,32 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 					...(args.triggerType === undefined
 						? {}
 						: { triggerType: requireStringArg(args, "triggerType") }),
+					...(args.userIntent === undefined
+						? {}
+						: { userIntent: requireStringArg(args, "userIntent") }),
+					...(args.platformHint === undefined
+						? {}
+						: { platformHint: requireStringArg(args, "platformHint") }),
+					...(optionalBooleanArg(args, "hasTranscript") === undefined
+						? {}
+						: { hasTranscript: optionalBooleanArg(args, "hasTranscript") }),
+					...(optionalBooleanArg(args, "hasVisualProof") === undefined
+						? {}
+						: { hasVisualProof: optionalBooleanArg(args, "hasVisualProof") }),
+					...(optionalBooleanArg(args, "hasProductFacts") === undefined
+						? {}
+						: { hasProductFacts: optionalBooleanArg(args, "hasProductFacts") }),
+					...(optionalBooleanArg(args, "hasExistingNarrationAudio") === undefined
+						? {}
+						: {
+								hasExistingNarrationAudio: optionalBooleanArg(
+									args,
+									"hasExistingNarrationAudio",
+								),
+							}),
+					...(optionalBooleanArg(args, "hasVisualBroll") === undefined
+						? {}
+						: { hasVisualBroll: optionalBooleanArg(args, "hasVisualBroll") }),
 				},
 			});
 		case "import_template":
