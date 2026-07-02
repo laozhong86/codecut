@@ -908,7 +908,7 @@ describe("Codecut MCP server contract", () => {
 					mode: "specified",
 					requestedTemplate: "TikTok 解说视频模板",
 				}).success,
-			).toBe(false);
+			).toBe(true);
 			expect(openTool.description).toContain("uiLanguage");
 			expect(openTool.description).toContain("mediaPaths");
 			expect(openTool.description).toContain("directoryPaths");
@@ -2562,6 +2562,20 @@ describe("Codecut MCP server contract", () => {
 				requestedTemplate: "product-proof-ad",
 			});
 
+		const userTemplateReady = await serverModule.inspectCodecutSetup(
+			setupIntent({
+				templatePreference: {
+					mode: "specified",
+					requestedTemplate: "tiktok-viral-breakdown-voiceover",
+				},
+			}),
+		);
+		expect(userTemplateReady.status).toBe("ready");
+		expect(userTemplateReady.intent.templatePreference).toEqual({
+			mode: "specified",
+			requestedTemplate: "tiktok-viral-breakdown-voiceover",
+		});
+
 		const blocked = await serverModule.inspectCodecutSetup(
 			setupIntent({
 				templatePreference: {
@@ -2576,7 +2590,7 @@ describe("Codecut MCP server contract", () => {
 				label: "Template preference",
 				ok: false,
 				detail:
-					"Template preference must be auto, specified with a built-in requestedTemplate, or create with draftTemplateName.",
+					"Template preference must be auto, specified with a non-empty requestedTemplate, or create with draftTemplateName.",
 			});
 
 			const createReady = await serverModule.inspectCodecutSetup(

@@ -337,19 +337,12 @@ const workspaceTaskTypeSchema = z.enum(workspaceTaskTypeValues);
 const workspaceCharacterIdSchema = z.enum(workspaceCharacterChoiceValues);
 const bgmPreferenceModeSchema = z.enum(bgmPreferenceModeValues);
 const durationGoalModeSchema = z.enum(["auto", "custom"]);
-const builtInTemplateIdValues = [
-	"talking-head-short",
-	"talking-head-broll-split",
-	"tutorial-demo",
-	"product-proof-ad",
-	"narrated-broll",
-];
 const templatePreferenceSchema = z.discriminatedUnion("mode", [
 	z.object({ mode: z.literal("auto") }).strict(),
 	z
 		.object({
 			mode: z.literal("specified"),
-			requestedTemplate: z.enum(builtInTemplateIdValues),
+			requestedTemplate: z.string().trim().min(1),
 		})
 		.strict(),
 	z
@@ -2214,7 +2207,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 			description:
-				"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. templatePreference.mode must be auto, specified with an existing built-in requestedTemplate, or create with draftTemplateName for a later user-confirmed template draft. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. When the user asks to keep the original duration, avoid trimming the total length, preserve the complete source, or avoid deleting source ranges, pass durationContract with totalDurationMode preserve_source and/or sourceCoverageMode full_source plus sourceDurationSeconds from ffprobe for local files. Do not set generateIntroCover true with preserve_source plus full_source; a timeline intro cover changes duration, so use a fixed title or project cover instead. Use durationGoalMode custom only for explicit duration ranges, and keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+				"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. templatePreference.mode must be auto, specified with a non-empty requestedTemplate from the template library, or create with draftTemplateName for a later user-confirmed template draft. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. When the user asks to keep the original duration, avoid trimming the total length, preserve the complete source, or avoid deleting source ranges, pass durationContract with totalDurationMode preserve_source and/or sourceCoverageMode full_source plus sourceDurationSeconds from ffprobe for local files. Do not set generateIntroCover true with preserve_source plus full_source; a timeline intro cover changes duration, so use a fixed title or project cover instead. Use durationGoalMode custom only for explicit duration ranges, and keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -4143,9 +4136,9 @@ function validateTemplatePreference(value) {
 	if (
 		value?.mode === "specified" &&
 		typeof value.requestedTemplate === "string" &&
-		builtInTemplateIdValues.includes(value.requestedTemplate.trim())
+		value.requestedTemplate.trim().length > 0
 	) {
-		return { ok: true, message: "Template preference names a built-in template." };
+		return { ok: true, message: "Template preference names a template." };
 	}
 	if (
 		value?.mode === "create" &&
@@ -4157,7 +4150,7 @@ function validateTemplatePreference(value) {
 	return {
 		ok: false,
 		message:
-			"Template preference must be auto, specified with a built-in requestedTemplate, or create with draftTemplateName.",
+			"Template preference must be auto, specified with a non-empty requestedTemplate, or create with draftTemplateName.",
 	};
 }
 

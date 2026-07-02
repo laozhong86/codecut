@@ -6,7 +6,6 @@ import type {
 	NetworkMaterialPlacement,
 	NetworkMaterialProvider,
 } from "@/lib/network-materials/schema";
-import type { BuiltInTemplateId } from "@/lib/templates/registry";
 import type { BgmCandidate } from "./setup-contract";
 
 export type RequirementConfirmationFormState = {
@@ -14,7 +13,7 @@ export type RequirementConfirmationFormState = {
 	durationMode: "auto" | "preserve_source" | "custom_range";
 	generateIntroCover: boolean;
 	templatePreferenceMode: RequirementDraft["templatePreference"]["mode"];
-	requestedTemplate: BuiltInTemplateId | "";
+	requestedTemplate: string;
 	draftTemplateName: string;
 	networkMaterialEnabled: boolean;
 	networkMaterialPlacement: NetworkMaterialPlacement;
@@ -142,7 +141,7 @@ export function buildRequirementConfirmationPatch({
 		form.templatePreferenceMode === "specified"
 			? {
 					mode: "specified" as const,
-					requestedTemplate: form.requestedTemplate as BuiltInTemplateId,
+					requestedTemplate: form.requestedTemplate.trim(),
 				}
 			: form.templatePreferenceMode === "create"
 				? {

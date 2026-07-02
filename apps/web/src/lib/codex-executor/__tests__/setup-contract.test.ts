@@ -143,6 +143,19 @@ describe("ConfirmedSetup durationContract", () => {
 			mode: "specified",
 			requestedTemplate: "talking-head-broll-split",
 		});
+		expect(
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					templatePreference: {
+						mode: "specified",
+						requestedTemplate: "tiktok-viral-breakdown-voiceover",
+					},
+				}),
+			).templatePreference,
+		).toEqual({
+			mode: "specified",
+			requestedTemplate: "tiktok-viral-breakdown-voiceover",
+		});
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
@@ -155,7 +168,7 @@ describe("ConfirmedSetup durationContract", () => {
 				confirmedSetup({
 					templatePreference: {
 						mode: "specified",
-						requestedTemplate: "TikTok 解说视频模板",
+						requestedTemplate: "",
 					},
 				}),
 			),

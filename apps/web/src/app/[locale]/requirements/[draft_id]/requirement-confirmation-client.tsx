@@ -12,7 +12,7 @@ import {
 	formStateFromRequirementDraft,
 	type RequirementConfirmationFormState,
 } from "@/lib/codex-executor/requirement-confirmation-patch";
-import { builtInTemplates } from "@/lib/templates/registry";
+import { templateService, type Template } from "@/lib/templates";
 
 const NETWORK_MATERIAL_PROVIDER_OPTIONS = [
 	"pexels",
@@ -24,17 +24,20 @@ const NETWORK_MATERIAL_PLACEMENT_OPTIONS = [
 	"top",
 	"bottom",
 ] as const;
-const BUILT_IN_TEMPLATE_OPTIONS = builtInTemplates.map((template) => {
+
+type TemplateOption = {
+	id: string;
+	label: string;
+};
+
+function templateOptionLabel(template: Template) {
 	const chineseAlias = template.trigger.aliases.find((alias) =>
 		/[\u4e00-\u9fa5]/.test(alias),
 	);
-	return {
-		id: template.id,
-		label: chineseAlias
-			? `${chineseAlias}（${template.id}）`
-			: `${template.name}（${template.id}）`,
-	};
-});
+	return chineseAlias
+		? `${chineseAlias}（${template.id}）`
+		: `${template.name}（${template.id}）`;
+}
 
 type RequirementReadback =
 	| {
@@ -83,6 +86,11 @@ export function RequirementConfirmationClient({
 	);
 	const [error, setError] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [templateOptions, setTemplateOptions] = useState<TemplateOption[]>([]);
+	const [templateOptionsLoaded, setTemplateOptionsLoaded] = useState(false);
+	const [templateOptionsError, setTemplateOptionsError] = useState<
+		string | null
+	>(null);
 
 	useEffect(() => {
 		let active = true;
@@ -110,6 +118,36 @@ export function RequirementConfirmationClient({
 		};
 	}, [draftId]);
 
+	useEffect(() => {
+		let active = true;
+		setTemplateOptionsLoaded(false);
+		setTemplateOptionsError(null);
+		templateService.listTemplates()
+			.then((templates) => {
+				if (!active) return;
+				setTemplateOptions(
+					templates.map((template) => ({
+						id: template.id,
+						label: templateOptionLabel(template),
+					})),
+				);
+				setTemplateOptionsLoaded(true);
+			})
+			.catch((loadError) => {
+				if (!active) return;
+				setTemplateOptions([]);
+				setTemplateOptionsError(
+					loadError instanceof Error
+						? loadError.message
+						: "Template library load failed.",
+				);
+				setTemplateOptionsLoaded(true);
+			});
+		return () => {
+			active = false;
+		};
+	}, []);
+
 	const draft = readback?.draft;
 	const projectName = draft?.requestedProjectName || "";
 	const mediaSources = draft?.mediaSources || [];
@@ -119,6 +157,16 @@ export function RequirementConfirmationClient({
 	const specifiedTemplateMissing =
 		form?.templatePreferenceMode === "specified" &&
 		!form.requestedTemplate.trim();
+	const specifiedTemplateUnavailable =
+		form?.templatePreferenceMode === "specified" &&
+		Boolean(form.requestedTemplate.trim()) &&
+		templateOptionsLoaded &&
+		!templateOptions.some(
+			(template) => template.id === form.requestedTemplate.trim(),
+		);
+	const specifiedTemplateLibraryBlocked =
+		form?.templatePreferenceMode === "specified" &&
+		(!templateOptionsLoaded || templateOptionsError !== null);
 	const draftTemplateNameMissing =
 		form?.templatePreferenceMode === "create" && !form.draftTemplateName.trim();
 	const customVoiceFileMissing =
@@ -132,6 +180,12 @@ export function RequirementConfirmationClient({
 	const bgmSelectionMissing =
 		form?.bgmMode === "smart_match" &&
 		(form.bgmCandidates.length === 0 || !form.selectedBgmCandidateId);
+	const requestedTemplateOptionVisible =
+		form?.templatePreferenceMode === "specified" &&
+		Boolean(form.requestedTemplate.trim()) &&
+		!templateOptions.some(
+			(template) => template.id === form.requestedTemplate.trim(),
+		);
 
 	function updateNetworkMaterialProvider(
 		provider: RequirementConfirmationFormState["networkMaterialProviders"][number],
@@ -348,6 +402,7 @@ export function RequirementConfirmationClient({
 								<select
 									className="h-10 rounded-md border bg-background px-3"
 									value={form.requestedTemplate}
+									disabled={!templateOptionsLoaded || templateOptionsError !== null}
 									onChange={(event) =>
 										setForm({
 											...form,
@@ -357,15 +412,35 @@ export function RequirementConfirmationClient({
 									}
 								>
 									<option value="">{t("请选择模板")}</option>
-									{BUILT_IN_TEMPLATE_OPTIONS.map((template) => (
+									{requestedTemplateOptionVisible && (
+										<option value={form.requestedTemplate}>
+											{form.requestedTemplate}
+										</option>
+									)}
+									{templateOptions.map((template) => (
 										<option key={template.id} value={template.id}>
 											{template.label}
 										</option>
 									))}
 								</select>
+								{!templateOptionsLoaded && (
+									<p className="text-sm text-muted-foreground">
+										{t("模板库加载中")}
+									</p>
+								)}
+								{templateOptionsError && (
+									<p className="text-sm text-destructive">
+										{t("模板库加载失败")}
+									</p>
+								)}
 								{specifiedTemplateMissing && (
 									<p className="text-sm text-destructive">
-										{t("请选择内置模板")}
+										{t("请选择模板")}
+									</p>
+								)}
+								{specifiedTemplateUnavailable && (
+									<p className="text-sm text-destructive">
+										{t("模板不存在或模板库未加载")}
 									</p>
 								)}
 							</label>
@@ -885,6 +960,8 @@ export function RequirementConfirmationClient({
 						readback.status !== "awaiting_user_confirmation" ||
 						networkMaterialProvidersMissing ||
 						specifiedTemplateMissing ||
+						specifiedTemplateUnavailable ||
+						specifiedTemplateLibraryBlocked ||
 						draftTemplateNameMissing ||
 						customVoiceFileMissing ||
 						voiceCloneSourceFileMissing ||
