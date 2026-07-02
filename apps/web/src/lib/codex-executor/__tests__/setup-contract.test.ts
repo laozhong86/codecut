@@ -53,6 +53,36 @@ function confirmedSetup(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+function bgmCandidate(overrides: Record<string, unknown> = {}) {
+	return {
+		id: "internet-archive:safe-lofi:safe-lofi.mp3",
+		sourceId: "internet-archive:safe-lofi:safe-lofi.mp3",
+		title: "Safe Lofi Beat",
+		creator: "Open Artist",
+		source: "internet_archive",
+		sourceUrl: "https://archive.org/details/safe-lofi",
+		licenseLabel: "CC BY 4.0",
+		licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+		commercialUseAllowed: true,
+		attributionRequired: true,
+		previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		downloadUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		durationSeconds: 91.2,
+		...overrides,
+	};
+}
+
+function smartBgmPreferences(overrides: Record<string, unknown> = {}) {
+	const selectedCandidate = bgmCandidate();
+	return {
+		mode: "smart_match",
+		searchQuery: "bright lofi product demo",
+		candidates: [selectedCandidate],
+		selectedCandidate,
+		...overrides,
+	};
+}
+
 describe("ConfirmedSetup durationContract", () => {
 	test("accepts the default selected-segment duration contract and fills tolerance", () => {
 		const parsed = ConfirmedSetupSchema.parse(confirmedSetup());
@@ -178,19 +208,19 @@ describe("ConfirmedSetup durationContract", () => {
 		const parsed = ConfirmedSetupSchema.parse(
 			confirmedSetup({
 				characterPreferences: { characterId: "ugc-female-host" },
-				bgmPreferences: { mode: "smart_match" },
+				bgmPreferences: smartBgmPreferences(),
 			}),
 		);
 
 		expect(parsed.characterPreferences).toEqual({
 			characterId: "ugc-female-host",
 		});
-		expect(parsed.bgmPreferences).toEqual({ mode: "smart_match" });
+		expect(parsed.bgmPreferences).toEqual(smartBgmPreferences());
 		expect(() =>
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
 					characterPreferences: { characterId: "unknown-character" },
-					bgmPreferences: { mode: "smart_match" },
+					bgmPreferences: smartBgmPreferences(),
 				}),
 			),
 		).toThrow("characterPreferences.characterId must be none or a built-in role");
@@ -220,7 +250,7 @@ describe("ConfirmedSetup durationContract", () => {
 			>[0]["confirmedSetup"],
 			patch: {
 				characterPreferences: { characterId: "ugc-female-host" },
-				bgmPreferences: { mode: "smart_match" },
+				bgmPreferences: smartBgmPreferences(),
 			},
 			reason: "user_selected_role_and_bgm",
 			changedAt: "2026-07-01T00:00:00.000Z",
@@ -229,13 +259,26 @@ describe("ConfirmedSetup durationContract", () => {
 		expect(applied.changedFields).toEqual([
 			"characterPreferences.characterId",
 			"bgmPreferences.mode",
+			"bgmPreferences.searchQuery",
+			"bgmPreferences.candidates",
+			"bgmPreferences.selectedCandidate.id",
+			"bgmPreferences.selectedCandidate.sourceId",
+			"bgmPreferences.selectedCandidate.title",
+			"bgmPreferences.selectedCandidate.creator",
+			"bgmPreferences.selectedCandidate.source",
+			"bgmPreferences.selectedCandidate.sourceUrl",
+			"bgmPreferences.selectedCandidate.licenseLabel",
+			"bgmPreferences.selectedCandidate.licenseUrl",
+			"bgmPreferences.selectedCandidate.commercialUseAllowed",
+			"bgmPreferences.selectedCandidate.attributionRequired",
+			"bgmPreferences.selectedCandidate.previewUrl",
+			"bgmPreferences.selectedCandidate.downloadUrl",
+			"bgmPreferences.selectedCandidate.durationSeconds",
 		]);
 		expect(applied.confirmedSetup.characterPreferences).toEqual({
 			characterId: "ugc-female-host",
 		});
-		expect(applied.confirmedSetup.bgmPreferences).toEqual({
-			mode: "smart_match",
-		});
+		expect(applied.confirmedSetup.bgmPreferences).toEqual(smartBgmPreferences());
 	});
 
 	test("character and BGM preference changes require replan", () => {
@@ -248,7 +291,7 @@ describe("ConfirmedSetup durationContract", () => {
 			),
 			patch: {
 				characterPreferences: { characterId: "ugc-female-host" },
-				bgmPreferences: { mode: "smart_match" },
+				bgmPreferences: smartBgmPreferences(),
 			},
 			reason: "user_selected_role_and_bgm",
 			changedAt: "2026-07-01T00:00:00.000Z",
@@ -258,13 +301,95 @@ describe("ConfirmedSetup durationContract", () => {
 		expect(applied.changedFields).toEqual([
 			"characterPreferences.characterId",
 			"bgmPreferences.mode",
+			"bgmPreferences.searchQuery",
+			"bgmPreferences.candidates",
+			"bgmPreferences.selectedCandidate.id",
+			"bgmPreferences.selectedCandidate.sourceId",
+			"bgmPreferences.selectedCandidate.title",
+			"bgmPreferences.selectedCandidate.creator",
+			"bgmPreferences.selectedCandidate.source",
+			"bgmPreferences.selectedCandidate.sourceUrl",
+			"bgmPreferences.selectedCandidate.licenseLabel",
+			"bgmPreferences.selectedCandidate.licenseUrl",
+			"bgmPreferences.selectedCandidate.commercialUseAllowed",
+			"bgmPreferences.selectedCandidate.attributionRequired",
+			"bgmPreferences.selectedCandidate.previewUrl",
+			"bgmPreferences.selectedCandidate.downloadUrl",
+			"bgmPreferences.selectedCandidate.durationSeconds",
 		]);
 		expect(applied.confirmedSetup.characterPreferences).toEqual({
 			characterId: "ugc-female-host",
 		});
-		expect(applied.confirmedSetup.bgmPreferences).toEqual({
-			mode: "smart_match",
-		});
+		expect(applied.confirmedSetup.bgmPreferences).toEqual(smartBgmPreferences());
+	});
+
+	test("requires smart matched BGM to carry search query candidates and selected music", () => {
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: { mode: "smart_match" },
+				}),
+			),
+		).toThrow("bgmPreferences.searchQuery is required for smart_match.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: {
+						mode: "smart_match",
+						searchQuery: "lofi",
+						candidates: [],
+						selectedCandidate: bgmCandidate(),
+					},
+				}),
+			),
+		).toThrow("bgmPreferences.candidates must include at least one candidate.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: {
+						mode: "smart_match",
+						searchQuery: "lofi",
+						candidates: [bgmCandidate()],
+					},
+				}),
+			),
+		).toThrow("bgmPreferences.selectedCandidate is required for smart_match.");
+	});
+
+	test("rejects stale or unsafe BGM selections", () => {
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: {
+						...smartBgmPreferences(),
+						selectedCandidate: bgmCandidate({
+							id: "internet-archive:other:other.mp3",
+							sourceId: "internet-archive:other:other.mp3",
+						}),
+					},
+				}),
+			),
+		).toThrow("bgmPreferences.selectedCandidate must be one of candidates.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [bgmCandidate({ commercialUseAllowed: false })],
+						selectedCandidate: bgmCandidate({ commercialUseAllowed: false }),
+					}),
+				}),
+			),
+		).toThrow("BGM candidates must allow commercial use.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: {
+						mode: "none",
+						selectedCandidate: bgmCandidate(),
+					},
+				}),
+			),
+		).toThrow("bgmPreferences.mode none cannot include matched music.");
 	});
 
 	test("create template preference changes require replan", () => {

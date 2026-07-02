@@ -2,6 +2,7 @@ import { webEnv } from "@codecut/env/web";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { searchInternetArchiveSongs } from "@/lib/sounds/internet-archive-search.mjs";
 
 const searchParamsSchema = z.object({
 	q: z.string().max(500, "Query too long").optional(),
@@ -182,240 +183,7 @@ async function checkSoundSearchRateLimit({
 	}
 }
 
-const internetArchiveDocSchema = z.object({
-	identifier: z.string(),
-	title: z.union([z.string(), z.array(z.string())]).optional(),
-	creator: z.union([z.string(), z.array(z.string())]).optional(),
-	licenseurl: z.union([z.string(), z.array(z.string())]).optional(),
-	downloads: z.number().optional(),
-});
-
-const internetArchiveSearchResponseSchema = z.object({
-	response: z.object({
-		numFound: z.number(),
-		docs: z.array(internetArchiveDocSchema),
-	}),
-});
-
-const internetArchiveFileSchema = z.object({
-	name: z.string(),
-	source: z.string().optional(),
-	format: z.string().optional(),
-	size: z.union([z.string(), z.number()]).optional(),
-	length: z.union([z.string(), z.number()]).optional(),
-});
-
-const internetArchiveMetadataResponseSchema = z.object({
-	server: z.string().optional(),
-	d1: z.string().optional(),
-	metadata: z
-		.object({
-			identifier: z.string().optional(),
-			title: z.union([z.string(), z.array(z.string())]).optional(),
-			creator: z.union([z.string(), z.array(z.string())]).optional(),
-			subject: z.union([z.string(), z.array(z.string())]).optional(),
-			licenseurl: z.union([z.string(), z.array(z.string())]).optional(),
-			description: z.string().optional(),
-			date: z.string().optional(),
-		})
-		.optional(),
-	files: z.array(internetArchiveFileSchema).optional(),
-});
-
-function firstString(value: string | string[] | undefined): string | undefined {
-	if (Array.isArray(value)) return value[0];
-	return value;
-}
-
-function normalizeArchiveTerms(query?: string): string[] {
-	return (query ?? "")
-		.trim()
-		.split(/\s+/)
-		.map((term) => term.replace(/[^\p{L}\p{N}_-]/gu, ""))
-		.filter(Boolean)
-		.slice(0, 8);
-}
-
-function buildInternetArchiveQuery(query?: string): string {
-	const terms = normalizeArchiveTerms(query);
-	const termQuery =
-		terms.length > 0
-			? ` AND (${terms
-					.map(
-						(term) => `title:${term} OR subject:${term} OR description:${term}`,
-					)
-					.join(" OR ")})`
-			: "";
-
-	return `mediatype:audio${termQuery} AND licenseurl:*creativecommons*`;
-}
-
-function isCommercialVideoSafeLicense(licenseUrl?: string): boolean {
-	const normalized = licenseUrl?.toLowerCase() ?? "";
-	if (!normalized) return false;
-	if (
-		normalized.includes("/by-nc") ||
-		normalized.includes("noncommercial") ||
-		normalized.includes("/by-nd") ||
-		normalized.includes("noderivatives")
-	) {
-		return false;
-	}
-
-	return (
-		normalized.includes("creativecommons.org/publicdomain/") ||
-		normalized.includes("creativecommons.org/licenses/by/") ||
-		normalized.includes("creativecommons.org/licenses/by-sa/")
-	);
-}
-
-function formatLicenseLabel(licenseUrl?: string): string {
-	const normalized = licenseUrl?.toLowerCase() ?? "";
-	if (normalized.includes("/zero/")) return "CC0";
-	if (normalized.includes("/publicdomain/")) return "Public Domain";
-
-	const match = normalized.match(/licenses\/(by-sa|by)\/([0-9.]+)/);
-	if (!match) return "Creative Commons";
-
-	return `CC ${match[1].toUpperCase()} ${match[2].replace(/\.$/, "")}`;
-}
-
-function archiveAudioFileScore(
-	file: z.infer<typeof internetArchiveFileSchema>,
-) {
-	const name = file.name.toLowerCase();
-	const sourceScore = file.source === "original" ? 0 : 10;
-	if (name.endsWith(".mp3")) return sourceScore;
-	if (name.endsWith(".m4a")) return sourceScore + 1;
-	if (name.endsWith(".ogg")) return sourceScore + 2;
-	if (name.endsWith(".flac")) return sourceScore + 3;
-	if (name.endsWith(".wav")) return sourceScore + 4;
-	return Number.POSITIVE_INFINITY;
-}
-
-function selectArchiveAudioFile(
-	files: z.infer<typeof internetArchiveFileSchema>[],
-) {
-	return files
-		.filter((file) => Number.isFinite(archiveAudioFileScore(file)))
-		.sort((a, b) => archiveAudioFileScore(a) - archiveAudioFileScore(b))[0];
-}
-
-function buildArchiveDownloadUrl({
-	identifier,
-	fileName,
-}: {
-	identifier: string;
-	fileName: string;
-}): string {
-	const encodedIdentifier = encodeURIComponent(identifier);
-	const encodedFileName = fileName.split("/").map(encodeURIComponent).join("/");
-	return `https://archive.org/download/${encodedIdentifier}/${encodedFileName}`;
-}
-
-function buildArchiveNumericId(value: string): number {
-	let hash = 2166136261;
-	for (const char of value) {
-		hash ^= char.charCodeAt(0);
-		hash = Math.imul(hash, 16777619);
-	}
-	return -(hash >>> 0 || 1);
-}
-
-function splitArchiveTags(value: string | string[] | undefined): string[] {
-	if (Array.isArray(value)) return value;
-	return (value ?? "")
-		.split(";")
-		.map((tag) => tag.trim())
-		.filter(Boolean);
-}
-
-async function transformInternetArchiveDoc({
-	doc,
-	commercialOnly,
-}: {
-	doc: z.infer<typeof internetArchiveDocSchema>;
-	commercialOnly: boolean;
-}) {
-	const docLicenseUrl = firstString(doc.licenseurl);
-	if (commercialOnly && !isCommercialVideoSafeLicense(docLicenseUrl)) {
-		return null;
-	}
-
-	let metadataResponse: Response;
-	try {
-		metadataResponse = await fetch(
-			`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`,
-		);
-	} catch {
-		return null;
-	}
-	if (!metadataResponse.ok) return null;
-
-	let rawMetadata: unknown;
-	try {
-		rawMetadata = await metadataResponse.json();
-	} catch {
-		return null;
-	}
-	const metadataValidation =
-		internetArchiveMetadataResponseSchema.safeParse(rawMetadata);
-	if (!metadataValidation.success) return null;
-
-	const metadata = metadataValidation.data;
-	const licenseUrl =
-		firstString(metadata.metadata?.licenseurl) ?? docLicenseUrl;
-	if (commercialOnly && !isCommercialVideoSafeLicense(licenseUrl)) {
-		return null;
-	}
-
-	const file = selectArchiveAudioFile(metadata.files ?? []);
-	if (!file) return null;
-
-	const downloadUrl = buildArchiveDownloadUrl({
-		identifier: doc.identifier,
-		fileName: file.name,
-	});
-	const sourceId = `internet-archive:${doc.identifier}:${file.name}`;
-	const title =
-		firstString(metadata.metadata?.title) ??
-		firstString(doc.title) ??
-		file.name;
-	const creator =
-		firstString(metadata.metadata?.creator) ??
-		firstString(doc.creator) ??
-		"Internet Archive";
-
-	return {
-		id: buildArchiveNumericId(sourceId),
-		name: title,
-		description: metadata.metadata?.description ?? "",
-		url: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`,
-		previewUrl: downloadUrl,
-		downloadUrl,
-		duration: Number(file.length ?? 0) || 0,
-		filesize: Number(file.size ?? 0) || 0,
-		type: file.format ?? "audio",
-		channels: 0,
-		bitrate: 0,
-		bitdepth: 0,
-		samplerate: 0,
-		username: creator,
-		tags: splitArchiveTags(metadata.metadata?.subject),
-		license: formatLicenseLabel(licenseUrl),
-		licenseUrl,
-		sourceId,
-		source: "internet_archive" as const,
-		commercialUseAllowed: isCommercialVideoSafeLicense(licenseUrl),
-		attributionRequired: !licenseUrl?.toLowerCase().includes("/publicdomain/"),
-		created: metadata.metadata?.date ?? "",
-		downloads: doc.downloads ?? 0,
-		rating: 0,
-		ratingCount: 0,
-	};
-}
-
-async function searchInternetArchiveSongs({
+async function searchInternetArchiveSongResponse({
 	query,
 	page,
 	pageSize,
@@ -428,73 +196,33 @@ async function searchInternetArchiveSongs({
 	sort: string;
 	commercialOnly: boolean;
 }) {
-	const params = new URLSearchParams({
-		q: buildInternetArchiveQuery(query),
-		rows: pageSize.toString(),
-		page: page.toString(),
-		output: "json",
-	});
-	for (const field of [
-		"identifier",
-		"title",
-		"creator",
-		"licenseurl",
-		"downloads",
-	]) {
-		params.append("fl[]", field);
-	}
-	params.append("sort[]", sort === "created" ? "date desc" : "downloads desc");
+	try {
+		const responseData = await searchInternetArchiveSongs({
+			query,
+			page,
+			pageSize,
+			sort,
+			commercialOnly,
+		});
+		const responseValidation = apiResponseSchema.safeParse(responseData);
+		if (!responseValidation.success) {
+			return NextResponse.json(
+				{ error: "Internal response formatting error" },
+				{ status: 500 },
+			);
+		}
 
-	const response = await fetch(
-		`https://archive.org/advancedsearch.php?${params.toString()}`,
-	);
-	if (!response.ok) {
+		return NextResponse.json(responseValidation.data);
+	} catch (error) {
+		const status =
+			error && typeof error === "object" && "status" in error
+				? Number((error as { status?: unknown }).status)
+				: 502;
 		return NextResponse.json(
-			{ error: "Failed to search Internet Archive songs" },
-			{ status: response.status },
+			{ error: error instanceof Error ? error.message : "Search failed" },
+			{ status: Number.isFinite(status) ? status : 502 },
 		);
 	}
-
-	const rawData = await response.json();
-	const archiveValidation =
-		internetArchiveSearchResponseSchema.safeParse(rawData);
-	if (!archiveValidation.success) {
-		return NextResponse.json(
-			{ error: "Invalid response from Internet Archive" },
-			{ status: 502 },
-		);
-	}
-
-	const transformedResults = (
-		await Promise.all(
-			archiveValidation.data.response.docs.map((doc) =>
-				transformInternetArchiveDoc({ doc, commercialOnly }),
-			),
-		)
-	).filter((result): result is NonNullable<typeof result> => result !== null);
-
-	const responseData = {
-		count: archiveValidation.data.response.numFound,
-		next: transformedResults.length === pageSize ? "next" : null,
-		previous: page > 1 ? "previous" : null,
-		results: transformedResults,
-		query: query || "",
-		type: "songs",
-		page,
-		pageSize,
-		sort,
-		minRating: undefined,
-	};
-
-	const responseValidation = apiResponseSchema.safeParse(responseData);
-	if (!responseValidation.success) {
-		return NextResponse.json(
-			{ error: "Internal response formatting error" },
-			{ status: 500 },
-		);
-	}
-
-	return NextResponse.json(responseValidation.data);
 }
 
 export async function GET(request: NextRequest) {
@@ -537,7 +265,7 @@ export async function GET(request: NextRequest) {
 		} = validationResult.data;
 
 		if (type === "songs") {
-			return searchInternetArchiveSongs({
+			return searchInternetArchiveSongResponse({
 				query,
 				page,
 				pageSize,

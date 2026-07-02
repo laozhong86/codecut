@@ -19,6 +19,9 @@ describe("requirement confirmation page UI", () => {
 		expect(source).toContain("characterId");
 		expect(source).toContain("voicePackId");
 		expect(source).toContain("bgmMode");
+		expect(source).toContain("bgmSearchQuery");
+		expect(source).toContain("bgmCandidates");
+		expect(source).toContain("selectedBgmCandidateId");
 		expect(source).toContain("角色与声音");
 		expect(source).toContain("角色");
 		expect(source).toContain("关闭");
@@ -30,6 +33,12 @@ describe("requirement confirmation page UI", () => {
 		expect(source).toContain("克隆音频 URL");
 		expect(source).toContain("BGM");
 		expect(source).toContain("智能匹配");
+		expect(source).toContain("背景音乐候选");
+		expect(source).toContain("授权");
+		expect(source).toContain("来源");
+		expect(source).toContain("预览");
+		expect(source).toContain("需要先搜索并选择背景音乐");
+		expect(source).not.toContain("bgmSearchInput");
 		expect(source).toContain("确认需求");
 		expect(source).toContain("/api/codex-requirements/");
 	});

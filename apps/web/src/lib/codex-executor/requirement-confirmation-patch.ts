@@ -7,6 +7,7 @@ import type {
 	NetworkMaterialProvider,
 } from "@/lib/network-materials/schema";
 import type { BuiltInTemplateId } from "@/lib/templates/registry";
+import type { BgmCandidate } from "./setup-contract";
 
 export type RequirementConfirmationFormState = {
 	aspectRatio: "9:16" | "16:9" | "1:1";
@@ -43,6 +44,9 @@ export type RequirementConfirmationFormState = {
 	outputQuality: "low" | "medium" | "high" | "very_high";
 	characterId: RequirementDraft["characterPreferences"]["characterId"];
 	bgmMode: RequirementDraft["bgmPreferences"]["mode"];
+	bgmSearchQuery: string;
+	bgmCandidates: BgmCandidate[];
+	selectedBgmCandidateId: string;
 	requirements: string;
 };
 
@@ -90,6 +94,18 @@ export function formStateFromRequirementDraft(
 		outputQuality: draft.exportPreferences.quality,
 		characterId: draft.characterPreferences.characterId,
 		bgmMode: draft.bgmPreferences.mode,
+		bgmSearchQuery:
+			draft.bgmPreferences.mode === "smart_match"
+				? (draft.bgmPreferences.searchQuery ?? "")
+				: "",
+		bgmCandidates:
+			draft.bgmPreferences.mode === "smart_match"
+				? [...(draft.bgmPreferences.candidates ?? [])]
+				: [],
+		selectedBgmCandidateId:
+			draft.bgmPreferences.mode === "smart_match"
+				? (draft.bgmPreferences.selectedCandidate?.id ?? "")
+				: "",
 		requirements: draft.timelinePreferences.requirements,
 	};
 }
@@ -226,8 +242,11 @@ export function buildRequirementConfirmationPatch({
 		patch.characterPreferences = { characterId: form.characterId };
 	}
 
-	if (draft.bgmPreferences.mode !== form.bgmMode) {
-		patch.bgmPreferences = { mode: form.bgmMode };
+	const nextBgmPreferences = buildBgmPreferencesFromForm(form);
+	if (
+		JSON.stringify(draft.bgmPreferences) !== JSON.stringify(nextBgmPreferences)
+	) {
+		patch.bgmPreferences = nextBgmPreferences;
 	}
 
 	return patch;
@@ -245,6 +264,24 @@ function templatePreferenceChanged(
 		return before.draftTemplateName !== after.draftTemplateName;
 	}
 	return false;
+}
+
+function buildBgmPreferencesFromForm(
+	form: RequirementConfirmationFormState,
+): RequirementDraft["bgmPreferences"] {
+	if (form.bgmMode === "none") {
+		return { mode: "none" };
+	}
+	const candidates = form.bgmCandidates.slice(0, 10);
+	const selectedCandidate = candidates.find(
+		(candidate) => candidate.id === form.selectedBgmCandidateId,
+	);
+	return {
+		mode: "smart_match",
+		searchQuery: form.bgmSearchQuery,
+		candidates,
+		...(selectedCandidate ? { selectedCandidate } : {}),
+	};
 }
 
 function buildVoicePreferencesFromForm(

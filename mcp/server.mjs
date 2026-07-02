@@ -10,7 +10,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { stat } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import {
 	basename,
@@ -38,6 +38,11 @@ import {
 	resolveCodecutConfirmationRoot,
 } from "../scripts/codecut-confirmation-gate.mjs";
 import { initWorkspace } from "../scripts/codecut-workspace.mjs";
+import {
+	DEFAULT_BGM_CANDIDATE_LIMIT,
+	MAX_BGM_CANDIDATE_LIMIT,
+	searchInternetArchiveBgm,
+} from "../apps/web/src/lib/sounds/internet-archive-search.mjs";
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -346,11 +351,115 @@ const workspaceCharacterPreferencesSchema = z
 		characterId: workspaceCharacterIdSchema,
 	})
 	.strict();
+const bgmCandidateSchema = z
+	.object({
+		id: z.string().trim().min(1),
+		sourceId: z.string().trim().min(1),
+		title: z.string().trim().min(1),
+		creator: z.string().trim().min(1),
+		source: z.literal("internet_archive"),
+		sourceUrl: z.string().trim().url(),
+		licenseLabel: z.string().trim().min(1),
+		licenseUrl: z.string().trim().url(),
+		commercialUseAllowed: z.boolean(),
+		attributionRequired: z.boolean(),
+		previewUrl: z.string().trim().url().optional(),
+		downloadUrl: z.string().trim().url(),
+		durationSeconds: z.number().nonnegative(),
+	})
+	.strict();
 const workspaceBgmPreferencesSchema = z
 	.object({
 		mode: bgmPreferenceModeSchema,
+		searchQuery: z.string().trim().min(1).optional(),
+		candidates: z.array(bgmCandidateSchema).max(10).optional(),
+		selectedCandidate: bgmCandidateSchema.optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, ctx) => {
+		if (value.mode === "none") {
+			if (
+				value.searchQuery !== undefined ||
+				value.candidates !== undefined ||
+				value.selectedCandidate !== undefined
+			) {
+				ctx.addIssue({
+					code: "custom",
+					message: "bgmPreferences.mode none cannot include matched music.",
+					path: ["mode"],
+				});
+			}
+			return;
+		}
+		if (!value.searchQuery) {
+			ctx.addIssue({
+				code: "custom",
+				message: "bgmPreferences.searchQuery is required for smart_match.",
+				path: ["searchQuery"],
+			});
+		}
+		if (!value.candidates || value.candidates.length === 0) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"bgmPreferences.candidates must include at least one candidate.",
+				path: ["candidates"],
+			});
+		}
+		if (!value.selectedCandidate) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"bgmPreferences.selectedCandidate is required for smart_match.",
+				path: ["selectedCandidate"],
+			});
+		}
+		const candidates = value.candidates ?? [];
+		if (
+			candidates.some((candidate) => !candidate.commercialUseAllowed) ||
+			value.selectedCandidate?.commercialUseAllowed === false
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message: "BGM candidates must allow commercial use.",
+				path: ["candidates"],
+			});
+		}
+		if (
+			value.selectedCandidate &&
+			candidates.length > 0 &&
+			!candidates.some(
+				(candidate) =>
+					JSON.stringify(candidate) === JSON.stringify(value.selectedCandidate),
+			)
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message: "bgmPreferences.selectedCandidate must be one of candidates.",
+				path: ["selectedCandidate"],
+			});
+		}
+	});
+const searchBgmMusicInputSchema = {
+	query: z
+		.string()
+		.trim()
+		.min(1)
+		.describe("Music search keyword inferred from the confirmed edit need."),
+	limit: z
+		.number()
+		.int()
+		.min(1)
+		.max(MAX_BGM_CANDIDATE_LIMIT)
+		.default(DEFAULT_BGM_CANDIDATE_LIMIT)
+		.optional()
+		.describe("Maximum candidates to return. Defaults to 5 and caps at 10."),
+	commercialOnly: z
+		.boolean()
+		.default(true)
+		.optional()
+		.describe("When true, excludes NC/ND licenses for commercial videos."),
+};
 const networkMaterialPlacementValues = ["background", "top", "bottom"];
 const networkMaterialProviderValues = ["pexels", "pixabay", "coverr"];
 const networkMaterialDecisionSourceValues = ["template", "user"];
@@ -603,14 +712,11 @@ const confirmedSetupPatchSchema = z
 			})
 			.strict()
 			.optional(),
-		characterPreferences: workspaceCharacterPreferencesSchema
-			.partial()
-			.strict()
-			.optional(),
-		bgmPreferences: workspaceBgmPreferencesSchema
-			.partial()
-			.strict()
-			.optional(),
+			characterPreferences: workspaceCharacterPreferencesSchema
+				.partial()
+				.strict()
+				.optional(),
+			bgmPreferences: workspaceBgmPreferencesSchema.optional(),
 		templatePreference: templatePreferenceSchema.optional(),
 		networkMaterialMatching: networkMaterialMatchingSchema
 			.partial()
@@ -941,6 +1047,7 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["build_post_cut_captions", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["search_bgm_music", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["list_templates", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["get_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["resolve_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
@@ -1226,6 +1333,14 @@ export const CODECUT_MCP_TOOLS = [
 			mediaId: mediaIdSchema.optional(),
 			limit: z.number().int().positive().optional(),
 		},
+		readOnly: true,
+	},
+	{
+		name: "search_bgm_music",
+		title: "Search Codecut BGM Music",
+		description:
+			"Search Internet Archive music candidates for a background music preference. Read-only: returns candidates only and never creates projects, downloads files, imports media, or mutates timelines.",
+		inputSchema: searchBgmMusicInputSchema,
 		readOnly: true,
 	},
 	{
@@ -2656,6 +2771,7 @@ export async function createCodecutProjectFromRequirement(
 		confirmationRoot,
 		bridgeToolImpl = callBridgeCliTool,
 		statImpl = stat,
+		fetchImpl = fetch,
 		workspaceSourceRoot = root,
 	} = {},
 ) {
@@ -2700,6 +2816,7 @@ export async function createCodecutProjectFromRequirement(
 	const result = await submitCodecutSetup(setupIntent, {
 		bridgeToolImpl,
 		statImpl,
+		fetchImpl,
 		confirmationRoot,
 		workspaceSourceRoot,
 	});
@@ -2992,6 +3109,7 @@ export async function submitCodecutSetup(
 	{
 		bridgeToolImpl = callBridgeCliTool,
 		statImpl = stat,
+		fetchImpl = fetch,
 		confirmationRoot,
 		workspaceSourceRoot = pluginRoot,
 		workspaceInitImpl = initWorkspace,
@@ -3167,6 +3285,27 @@ export async function submitCodecutSetup(
 		importedMedia.push(importedAsset);
 	}
 
+	let bgmAsset = null;
+	try {
+		bgmAsset = await importSelectedBgmAsset({
+			normalized,
+			projectId: projectContext.projectId,
+			workspace,
+			confirmationToken,
+			bridgeToolImpl,
+			fetchImpl,
+		});
+	} catch (error) {
+		return buildSetupErrorResult({
+			status: "bgm_import_failed",
+			...projectContext,
+			importedMedia,
+			deferredMediaSources,
+			intent: normalized,
+			error: extractErrorMessage(error),
+		});
+	}
+
 	const projectInfoResult = await bridgeToolImpl("get_project_info", {
 		projectId: projectContext.projectId,
 	});
@@ -3211,6 +3350,7 @@ export async function submitCodecutSetup(
 		editorUrl,
 		confirmationToken,
 		importedMedia,
+		bgmAsset,
 		deferredMediaSources,
 		workspace,
 		intent: resultIntent,
@@ -3222,6 +3362,7 @@ export async function submitCodecutSetup(
 			editorUrl,
 			confirmationToken,
 			importedMedia,
+			bgmAsset,
 			deferredMediaSources,
 			workspace,
 		}),
@@ -3763,12 +3904,14 @@ function validateWorkspaceCharacterPreferences(value) {
 }
 
 function validateWorkspaceBgmPreferences(value) {
-	if (bgmPreferenceModeValues.includes(value?.mode)) {
+	const parsed = workspaceBgmPreferencesSchema.safeParse(value);
+	if (parsed.success) {
 		return { ok: true, message: "BGM choice is valid." };
 	}
 	return {
 		ok: false,
-		message: "BGM must be none or smart_match.",
+		message:
+			parsed.error.issues[0]?.message || "BGM must be none or smart_match.",
 	};
 }
 
@@ -3956,7 +4099,17 @@ function normalizeWorkspaceCharacterPreferences(value) {
 
 function normalizeWorkspaceBgmPreferences(value) {
 	const mode = String(value?.mode ?? "none").trim();
-	return { mode: mode || "none" };
+	if (mode !== "smart_match") return { mode: mode || "none" };
+	return {
+		mode,
+		searchQuery: String(value.searchQuery || "").trim(),
+		candidates: Array.isArray(value.candidates)
+			? value.candidates.slice(0, MAX_BGM_CANDIDATE_LIMIT)
+			: [],
+		...(value.selectedCandidate
+			? { selectedCandidate: value.selectedCandidate }
+			: {}),
+	};
 }
 
 function normalizeWorkspaceVoicePackId(value) {
@@ -4489,6 +4642,93 @@ function buildImportMediaArgs(intent) {
 	};
 }
 
+async function importSelectedBgmAsset({
+	normalized,
+	projectId,
+	workspace,
+	confirmationToken,
+	bridgeToolImpl,
+	fetchImpl,
+}) {
+	const candidate = normalized.bgmPreferences?.selectedCandidate;
+	if (normalized.bgmPreferences?.mode !== "smart_match" || !candidate) {
+		return null;
+	}
+
+	const filePath = await downloadBgmCandidate({
+		candidate,
+		workspace,
+		fetchImpl,
+	});
+	const importResult = await bridgeToolImpl("import_media", {
+		projectId,
+		filePath,
+		confirmationToken,
+	});
+	if (importResult?.isError) {
+		throw new Error(extractErrorMessage(importResult));
+	}
+	const importedAsset = extractImportedMedia(
+		importResult?.structuredContent || importResult,
+	);
+	if (!importedAsset?.id) {
+		throw new Error("import_media did not return an imported BGM asset.");
+	}
+
+	return {
+		assetId: importedAsset.id,
+		candidate,
+		license: {
+			label: candidate.licenseLabel,
+			url: candidate.licenseUrl,
+			commercialUseAllowed: candidate.commercialUseAllowed,
+			attributionRequired: candidate.attributionRequired,
+		},
+		filePath,
+		importedAsset,
+	};
+}
+
+async function downloadBgmCandidate({ candidate, workspace, fetchImpl }) {
+	if (!workspace?.projectDirectory) {
+		throw new Error("Workspace directory is required before importing BGM.");
+	}
+	const downloadUrl = new URL(candidate.downloadUrl);
+	if (downloadUrl.protocol !== "https:") {
+		throw new Error("BGM downloadUrl must be HTTPS.");
+	}
+	const response = await fetchImpl(candidate.downloadUrl);
+	if (!response?.ok) {
+		throw new Error(
+			`BGM download failed with status ${response?.status ?? 0}.`,
+		);
+	}
+	if (typeof response.arrayBuffer !== "function") {
+		throw new Error("BGM download did not return binary audio data.");
+	}
+	const bytes = Buffer.from(await response.arrayBuffer());
+	const bgmDirectory = join(workspace.projectDirectory, "01-input", "bgm");
+	await mkdir(bgmDirectory, { recursive: true });
+	const filePath = join(bgmDirectory, safeBgmFileName(candidate));
+	await writeFile(filePath, bytes);
+	return filePath;
+}
+
+function safeBgmFileName(candidate) {
+	const urlName = basename(new URL(candidate.downloadUrl).pathname);
+	const fallbackName = `${candidate.title || candidate.sourceId || "bgm"}.mp3`;
+	const rawName = urlName || fallbackName;
+	const extension = extname(rawName) || ".mp3";
+	const baseName = rawName.slice(0, rawName.length - extension.length) || "bgm";
+	const safeBaseName =
+		baseName
+			.normalize("NFKD")
+			.replace(/[^\w.-]+/g, "-")
+			.replace(/^-+|-+$/g, "")
+			.slice(0, 80) || "bgm";
+	return `${safeBaseName}${extension.toLowerCase()}`;
+}
+
 function buildSetupErrorResult(content) {
 	return {
 		content: [
@@ -4535,6 +4775,7 @@ function buildContinuePrompt({
 	editorUrl,
 	confirmationToken,
 	importedMedia,
+	bgmAsset,
 	deferredMediaSources,
 	workspace,
 }) {
@@ -4587,6 +4828,11 @@ function buildContinuePrompt({
 		`Network material matching decision: ${JSON.stringify(intent.networkMaterialMatching)}. If enabled, derive ordered English search terms only from voiceover, spokenScript, or ASR text; use providers in the confirmed order; fail clearly when text, API keys, candidates, downloads, or license fields are missing; record source, license, search term, voiceover segment, dimensions, duration, imported media id, and crop risk before material understanding.`,
 		`Write template resolution evidence before planning: 04-planning/template-resolution.json and a short markdown note with match mode, candidate templates, selected template, missing evidence, and stop reason.`,
 		...guardrails,
+		...(bgmAsset
+			? [
+					`Selected BGM asset: use audio.bgm.assetId "${bgmAsset.assetId}" with mode "loop_to_timeline" and low background volume. Candidate and license: ${JSON.stringify({ candidate: bgmAsset.candidate, license: bgmAsset.license })}.`,
+				]
+			: []),
 		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
 		`Deferred media sources: ${JSON.stringify(deferredMediaSources)}.`,
 		`Confirmed intent: ${JSON.stringify(intent)}.`,
@@ -5738,6 +5984,38 @@ export async function callBridgeCliTool(
 	}
 }
 
+export async function searchBgmMusic(input, { fetchImpl = fetch } = {}) {
+	const parsed = z.object(searchBgmMusicInputSchema).strict().parse(input);
+	const result = await searchInternetArchiveBgm({
+		query: parsed.query,
+		limit: parsed.limit ?? DEFAULT_BGM_CANDIDATE_LIMIT,
+		commercialOnly: parsed.commercialOnly ?? true,
+		fetchImpl,
+	});
+
+	return {
+		query: result.query,
+		candidates: result.candidates,
+		count: result.count,
+	};
+}
+
+async function callCodecutMcpTool(toolName, input) {
+	if (toolName === "search_bgm_music") {
+		const result = await searchBgmMusic(input);
+		return {
+			content: [
+				{
+					type: "text",
+					text: `Found ${result.candidates.length} BGM candidate(s) for "${result.query}".`,
+				},
+			],
+			structuredContent: result,
+		};
+	}
+	return callBridgeCliTool(toolName, input);
+}
+
 function pluginVersion() {
 	const manifest = JSON.parse(
 		readFileSync(resolve(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
@@ -5805,7 +6083,7 @@ export function createCodecutMcpServer() {
 					"codecut/governanceCategory": tool.governanceCategory,
 				},
 			},
-			async (input) => callBridgeCliTool(tool.name, input),
+			async (input) => callCodecutMcpTool(tool.name, input),
 		);
 	}
 

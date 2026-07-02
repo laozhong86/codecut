@@ -75,6 +75,36 @@ function validDraftInput(): RequirementDraftInput {
 	};
 }
 
+function bgmCandidate(overrides: Record<string, unknown> = {}) {
+	return {
+		id: "internet-archive:safe-lofi:safe-lofi.mp3",
+		sourceId: "internet-archive:safe-lofi:safe-lofi.mp3",
+		title: "Safe Lofi Beat",
+		creator: "Open Artist",
+		source: "internet_archive",
+		sourceUrl: "https://archive.org/details/safe-lofi",
+		licenseLabel: "CC BY 4.0",
+		licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+		commercialUseAllowed: true,
+		attributionRequired: true,
+		previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		downloadUrl: "https://archive.org/download/safe-lofi/safe-lofi.mp3",
+		durationSeconds: 91.2,
+		...overrides,
+	};
+}
+
+function smartBgmPreferences(overrides: Record<string, unknown> = {}) {
+	const selectedCandidate = bgmCandidate();
+	return {
+		mode: "smart_match",
+		searchQuery: "bright lofi product demo",
+		candidates: [selectedCandidate],
+		selectedCandidate,
+		...overrides,
+	};
+}
+
 describe("requirement confirmation store", () => {
 	test("uses explicit requirement root before shared plugin storage", () => {
 		const explicitRoot = join(tmpdir(), "codecut-explicit-req-root");
@@ -165,7 +195,7 @@ describe("requirement confirmation store", () => {
 				},
 				voicePreferences: { enabled: true, voicePackId: "podcast-female" },
 				characterPreferences: { characterId: "ugc-female-host" },
-				bgmPreferences: { mode: "smart_match" },
+				bgmPreferences: smartBgmPreferences(),
 			},
 		});
 
@@ -182,9 +212,9 @@ describe("requirement confirmation store", () => {
 		expect(confirmed.confirmedSetup.characterPreferences).toEqual({
 			characterId: "ugc-female-host",
 		});
-		expect(confirmed.confirmedSetup.bgmPreferences).toEqual({
-			mode: "smart_match",
-		});
+		expect(confirmed.confirmedSetup.bgmPreferences).toEqual(
+			smartBgmPreferences(),
+		);
 		expect(confirmed.confirmedSetup.templatePreference).toEqual({
 			mode: "specified",
 			requestedTemplate: "talking-head-broll-split",
@@ -207,6 +237,7 @@ describe("requirement confirmation store", () => {
 			mode: "specified",
 			requestedTemplate: "talking-head-broll-split",
 		});
+		expect(file.confirmedSetup.bgmPreferences).toEqual(smartBgmPreferences());
 	});
 
 	test("confirmation patch can update template preference", async () => {
