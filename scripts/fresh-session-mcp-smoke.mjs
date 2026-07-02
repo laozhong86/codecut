@@ -41,6 +41,17 @@ export const REQUIRED_MCP_TOOLS = [
 const searchablePhrase =
 	"CodeCut transcript smoke searchable phrase. This audio verifies spoken search media indexing.";
 const mcpRequestTimeoutMs = 180_000;
+const templateResolveInputNames = [
+	"hasExistingNarrationAudio",
+	"hasProductFacts",
+	"hasTranscript",
+	"hasVisualBroll",
+	"hasVisualProof",
+	"platformHint",
+	"requestedTemplate",
+	"triggerType",
+	"userIntent",
+];
 
 function usage() {
 	return [
@@ -158,14 +169,19 @@ export function assertFreshMcpToolSurface({ tools }) {
 	const templateResolveProperties = schemaProperties(
 		requireTool({ toolsByName, name: "resolve_template" }),
 	);
+	const missingTemplateResolveInputs = templateResolveInputNames.filter(
+		(name) =>
+			!templateResolveProperties ||
+			typeof templateResolveProperties !== "object" ||
+			!Object.hasOwn(templateResolveProperties, name),
+	);
 	if (
 		!templateResolveProperties ||
 		typeof templateResolveProperties !== "object" ||
-		!Object.hasOwn(templateResolveProperties, "requestedTemplate") ||
-		!Object.hasOwn(templateResolveProperties, "triggerType")
+		missingTemplateResolveInputs.length > 0
 	) {
 		throw new Error(
-			"resolve_template input schema must expose requestedTemplate and triggerType.",
+			`resolve_template input schema is missing: ${missingTemplateResolveInputs.join(",")}`,
 		);
 	}
 
@@ -204,7 +220,7 @@ export function assertFreshMcpToolSurface({ tools }) {
 		templateGetInputs: ["templateId"],
 		templateImportInputs: ["confirmedByUser", "templateJsonFile"],
 		templateListInputs: [],
-		templateResolveInputs: ["requestedTemplate", "triggerType"],
+		templateResolveInputs: templateResolveInputNames,
 		templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
 	};
 }

@@ -1160,16 +1160,24 @@ node scripts/codex-bridge.mjs import-template \
 	  --confirmed-by-user true
 ```
 
-Read browser-local Codecut templates only after opening the editor URL for one
-project so the browser bridge is mounted. These reads do not mutate templates or
-timelines; templates remain planning data and do not replace EditPlan validation
-or timeline readback:
+Read Codecut built-in templates through the local executor registry. `list_templates`
+and `resolve_template` do not require a mounted browser bridge, do not read
+browser IndexedDB user templates, and do not mutate templates or timelines.
+Templates remain planning data and do not replace EditPlan validation or timeline
+readback:
 
 ```bash
 node scripts/codex-bridge.mjs send \
   --project-id <id> \
   --tool list_templates \
   --args-json '{}'
+```
+
+```bash
+node scripts/codex-bridge.mjs send \
+  --project-id <id> \
+  --tool resolve_template \
+  --args-json '{"requestedTemplate":"TikTok 解说视频模板","hasTranscript":true}'
 ```
 
 Transcribe an existing imported media asset:

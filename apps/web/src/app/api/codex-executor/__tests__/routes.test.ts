@@ -213,6 +213,103 @@ describe("codex executor API routes", () => {
 		});
 	});
 
+	test("lists and resolves built-in templates through executor commands", async () => {
+		await postProjects(
+			request({
+				url: `${origin}/api/codex-executor/projects`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: { projectId: "project-template", name: "Template contract" },
+			}),
+		);
+
+		const listResponse = await postCommands(
+			request({
+				url: `${origin}/api/codex-executor/commands`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					envelope: {
+						version: 1,
+						projectId: "project-template",
+						source: "codex",
+						commands: [{ id: "cmd-1", tool: "list_templates", args: {} }],
+					},
+				},
+			}),
+		);
+		const listBody = await listResponse.json();
+
+		expect({ status: listResponse.status, body: listBody }).toMatchObject({
+			status: 200,
+			body: {
+				status: "completed",
+				results: [
+					{
+						commandId: "cmd-1",
+						success: true,
+						data: {
+							sourceOfTruth: "codecut-built-in-template-registry",
+							templates: expect.arrayContaining([
+								expect.objectContaining({ templateId: "talking-head-short" }),
+							]),
+						},
+					},
+				],
+			},
+		});
+
+		const resolveResponse = await postCommands(
+			request({
+				url: `${origin}/api/codex-executor/commands`,
+				method: "POST",
+				headers: { authorization: `Bearer ${token}` },
+				body: {
+					envelope: {
+						version: 1,
+						projectId: "project-template",
+						source: "codex",
+						commands: [
+							{
+								id: "cmd-2",
+								tool: "resolve_template",
+								args: {
+									requestedTemplate: "TikTok 解说视频模板",
+									hasTranscript: true,
+								},
+							},
+						],
+					},
+				},
+			}),
+		);
+		const resolveBody = await resolveResponse.json();
+
+		expect({ status: resolveResponse.status, body: resolveBody }).toMatchObject({
+			status: 200,
+			body: {
+				status: "completed",
+				results: [
+					{
+						commandId: "cmd-2",
+						success: true,
+						data: {
+							resolution: {
+								success: true,
+								template: { id: "talking-head-short" },
+								match: {
+									mode: "specified",
+									requestedTemplate: "TikTok 解说视频模板",
+								},
+							},
+							sourceOfTruth: "codecut-built-in-template-registry",
+						},
+					},
+				],
+			},
+		});
+	});
+
 	test("rejects invalid confirmedSetup caption size", async () => {
 		const invalidConfirmedSetup = {
 			...confirmedSetupBody("large"),

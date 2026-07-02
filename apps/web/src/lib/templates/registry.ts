@@ -46,7 +46,14 @@ export const builtInTemplates = [
 		trigger: {
 			types: ["talking-head-short"],
 			defaultForTypes: ["talking-head-short"],
-			aliases: ["talking head", "口播精剪", "口播短视频"],
+			aliases: [
+				"talking head",
+				"口播精剪",
+				"口播短视频",
+				"TikTok 解说视频模板",
+				"TikTok 解说模板",
+				"解说视频模板",
+			],
 		},
 		plan: {
 			objective:

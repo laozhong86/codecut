@@ -70,16 +70,23 @@ describe("fresh-session MCP smoke helpers", () => {
 				},
 			},
 		};
-		const templateResolveTool = {
-			name: "resolve_template",
-			inputSchema: {
-				properties: {
-					projectId: {},
-					requestedTemplate: {},
-					triggerType: {},
-				},
-			},
-		};
+const templateResolveTool = {
+	name: "resolve_template",
+	inputSchema: {
+		properties: {
+			hasExistingNarrationAudio: {},
+			hasProductFacts: {},
+			hasTranscript: {},
+			hasVisualBroll: {},
+			hasVisualProof: {},
+			platformHint: {},
+			projectId: {},
+			requestedTemplate: {},
+			triggerType: {},
+			userIntent: {},
+		},
+	},
+};
 		const tools = [
 			importTool,
 			templateListTool,
@@ -107,7 +114,17 @@ describe("fresh-session MCP smoke helpers", () => {
 				templateGetInputs: ["templateId"],
 				templateImportInputs: ["confirmedByUser", "templateJsonFile"],
 				templateListInputs: [],
-				templateResolveInputs: ["requestedTemplate", "triggerType"],
+				templateResolveInputs: [
+					"hasExistingNarrationAudio",
+					"hasProductFacts",
+					"hasTranscript",
+					"hasVisualBroll",
+					"hasVisualProof",
+					"platformHint",
+					"requestedTemplate",
+					"triggerType",
+					"userIntent",
+				],
 				templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
 			});
 	});
@@ -160,9 +177,16 @@ describe("fresh-session MCP smoke helpers", () => {
 									name: "resolve_template",
 									inputSchema: {
 										properties: {
+											hasExistingNarrationAudio: {},
+											hasProductFacts: {},
+											hasTranscript: {},
+											hasVisualBroll: {},
+											hasVisualProof: {},
+											platformHint: {},
 											projectId: {},
 											requestedTemplate: {},
 											triggerType: {},
+											userIntent: {},
 										},
 									},
 								},
@@ -222,7 +246,17 @@ describe("fresh-session MCP smoke helpers", () => {
 					templateGetInputs: ["templateId"],
 					templateImportInputs: ["confirmedByUser", "templateJsonFile"],
 					templateListInputs: [],
-					templateResolveInputs: ["requestedTemplate", "triggerType"],
+						templateResolveInputs: [
+							"hasExistingNarrationAudio",
+							"hasProductFacts",
+							"hasTranscript",
+							"hasVisualBroll",
+							"hasVisualProof",
+							"platformHint",
+							"requestedTemplate",
+							"triggerType",
+							"userIntent",
+						],
 					templateUpdateInputs: ["confirmedByUser", "templateJsonFile"],
 				},
 			});

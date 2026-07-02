@@ -1476,6 +1476,28 @@ describe("Codecut MCP server contract", () => {
 			resolveTool?.inputSchema.triggerType.safeParse("product-proof-ad")
 				.success,
 		).toBe(true);
+		expect(resolveTool?.inputSchema.userIntent.safeParse("tiktok explainer").success).toBe(
+			true,
+		);
+		expect(resolveTool?.inputSchema.platformHint.safeParse("TikTok").success).toBe(
+			true,
+		);
+		expect(resolveTool?.inputSchema.hasTranscript.safeParse(true).success).toBe(
+			true,
+		);
+		expect(resolveTool?.inputSchema.hasVisualProof.safeParse(true).success).toBe(
+			true,
+		);
+		expect(resolveTool?.inputSchema.hasProductFacts.safeParse(false).success).toBe(
+			true,
+		);
+		expect(
+			resolveTool?.inputSchema.hasExistingNarrationAudio.safeParse(false)
+				.success,
+		).toBe(true);
+		expect(resolveTool?.inputSchema.hasVisualBroll.safeParse(false).success).toBe(
+			true,
+		);
 	});
 
 	test("serves the workspace widget for stale hashed resource URIs", async () => {
@@ -4531,6 +4553,13 @@ describe("Codecut MCP server contract", () => {
 				projectId: "project-1",
 				requestedTemplate: "proof demo",
 				triggerType: "product-proof-ad",
+				userIntent: "tiktok explainer",
+				platformHint: "TikTok",
+				hasTranscript: true,
+				hasVisualProof: true,
+				hasProductFacts: false,
+				hasExistingNarrationAudio: false,
+				hasVisualBroll: false,
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
@@ -4540,7 +4569,7 @@ describe("Codecut MCP server contract", () => {
 			"--tool",
 			"resolve_template",
 			"--args-json",
-			'{"requestedTemplate":"proof demo","triggerType":"product-proof-ad"}',
+			'{"requestedTemplate":"proof demo","triggerType":"product-proof-ad","userIntent":"tiktok explainer","platformHint":"TikTok","hasTranscript":true,"hasVisualProof":true,"hasProductFacts":false,"hasExistingNarrationAudio":false,"hasVisualBroll":false}',
 		]);
 
 		expect(

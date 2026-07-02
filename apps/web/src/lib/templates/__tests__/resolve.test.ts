@@ -95,6 +95,23 @@ describe("resolveTemplate", () => {
 		});
 	});
 
+	test("resolves the TikTok explainer template alias to the talking-head short template", () => {
+		const result = resolveTemplate({
+			userTemplates: [],
+			requestedTemplate: "TikTok 解说视频模板",
+			materialFacts: { hasTranscript: true },
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			match: {
+				mode: "specified",
+				requestedTemplate: "TikTok 解说视频模板",
+			},
+			template: { id: "talking-head-short", source: "built-in" },
+		});
+	});
+
 	test("fails fast when selected template evidence is missing", () => {
 		const result = resolveTemplate({
 			userTemplates: [userTemplate()],
