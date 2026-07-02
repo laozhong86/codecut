@@ -17,6 +17,9 @@ mock.module("@/lib/rate-limit", () => ({
 }));
 
 const { GET } = await import("../route");
+const { isCommercialVideoSafeLicense } = await import(
+	"../../../../../lib/sounds/internet-archive-search.mjs"
+);
 
 const origin = "http://localhost:4100";
 const originalFetch = globalThis.fetch;
@@ -153,6 +156,24 @@ describe("sound search route", () => {
 		expect(fetchedUrls).not.toContain(
 			"https://archive.org/metadata/no-derivatives",
 		);
+	});
+
+	test("requires a real Creative Commons host for commercial song licenses", () => {
+		expect(
+			isCommercialVideoSafeLicense(
+				"https://creativecommons.org/licenses/by/4.0/",
+			),
+		).toBe(true);
+		expect(
+			isCommercialVideoSafeLicense(
+				"https://example.com/not-real/creativecommons.org/licenses/by/4.0/",
+			),
+		).toBe(false);
+		expect(
+			isCommercialVideoSafeLicense(
+				"https://creativecommons.org/licenses/by-nc/4.0/",
+			),
+		).toBe(false);
 	});
 
 	test("fails fast when Freesound effects search has no API key", async () => {

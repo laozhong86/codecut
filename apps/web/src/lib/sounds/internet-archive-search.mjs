@@ -73,34 +73,68 @@ export function buildInternetArchiveQuery(query) {
 	return `mediatype:audio${termQuery} AND licenseurl:*creativecommons*`;
 }
 
-export function isCommercialVideoSafeLicense(licenseUrl) {
-	const normalized = licenseUrl?.toLowerCase() ?? "";
-	if (!normalized) return false;
-	if (
-		normalized.includes("/by-nc") ||
-		normalized.includes("noncommercial") ||
-		normalized.includes("/by-nd") ||
-		normalized.includes("noderivatives")
-	) {
-		return false;
-	}
+const creativeCommonsLicenseHosts = new Set([
+	"creativecommons.org",
+	"www.creativecommons.org",
+]);
 
-	return (
-		normalized.includes("creativecommons.org/publicdomain/") ||
-		normalized.includes("creativecommons.org/licenses/by/") ||
-		normalized.includes("creativecommons.org/licenses/by-sa/")
-	);
+function isLicenseVersionSegment(value) {
+	return /^[0-9]+(?:\.[0-9]+)*$/.test(value);
+}
+
+function isAllowedLicensePathSuffix(segments) {
+	if (segments.length === 3) return true;
+	if (segments.length !== 4) return false;
+	return segments[3] === "legalcode" ||
+		segments[3].startsWith("legalcode.") ||
+		segments[3].startsWith("deed.");
+}
+
+function parseCreativeCommonsLicenseUrl(licenseUrl) {
+	try {
+		const url = new URL(licenseUrl);
+		if (!["http:", "https:"].includes(url.protocol)) return null;
+		if (!creativeCommonsLicenseHosts.has(url.hostname.toLowerCase())) {
+			return null;
+		}
+		const segments = url.pathname
+			.toLowerCase()
+			.split("/")
+			.filter(Boolean);
+		if (
+			segments[0] === "licenses" &&
+			["by", "by-sa"].includes(segments[1]) &&
+			isLicenseVersionSegment(segments[2] ?? "") &&
+			isAllowedLicensePathSuffix(segments)
+		) {
+			return { family: "licenses", kind: segments[1], version: segments[2] };
+		}
+		if (
+			segments[0] === "publicdomain" &&
+			["zero", "mark"].includes(segments[1]) &&
+			isLicenseVersionSegment(segments[2] ?? "") &&
+			isAllowedLicensePathSuffix(segments)
+		) {
+			return { family: "publicdomain", kind: segments[1], version: segments[2] };
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+export function isCommercialVideoSafeLicense(licenseUrl) {
+	return parseCreativeCommonsLicenseUrl(licenseUrl) !== null;
 }
 
 export function formatLicenseLabel(licenseUrl) {
-	const normalized = licenseUrl?.toLowerCase() ?? "";
-	if (normalized.includes("/zero/")) return "CC0";
-	if (normalized.includes("/publicdomain/")) return "Public Domain";
+	const parsed = parseCreativeCommonsLicenseUrl(licenseUrl);
+	if (!parsed) return "Creative Commons";
+	if (parsed.family === "publicdomain") {
+		return parsed.kind === "zero" ? "CC0" : "Public Domain";
+	}
 
-	const match = normalized.match(/licenses\/(by-sa|by)\/([0-9.]+)/);
-	if (!match) return "Creative Commons";
-
-	return `CC ${match[1].toUpperCase()} ${match[2].replace(/\.$/, "")}`;
+	return `CC ${parsed.kind.toUpperCase()} ${parsed.version}`;
 }
 
 function archiveAudioFileScore(file) {
