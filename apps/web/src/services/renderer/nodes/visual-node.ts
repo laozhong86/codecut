@@ -1,6 +1,7 @@
 import type { CanvasRenderer } from "../canvas-renderer";
 import { BaseNode } from "./base-node";
 import type {
+	LayoutSlot,
 	SourceCrop,
 	TimelineElementKeyframes,
 	Transform,
@@ -18,6 +19,7 @@ export interface VisualNodeParams {
 	opacity: number;
 	keyframes?: TimelineElementKeyframes;
 	sourceCrop?: SourceCrop;
+	layoutSlot?: LayoutSlot;
 	playbackRate?: number;
 	reversed?: boolean;
 }
@@ -44,9 +46,45 @@ function resolveSourceCrop({
 		crop.x + crop.width > sourceWidth ||
 		crop.y + crop.height > sourceHeight
 	) {
-		throw new Error("Timeline sourceCrop is outside the rendered source frame.");
+		throw new Error(
+			"Timeline sourceCrop is outside the rendered source frame.",
+		);
 	}
 	return crop;
+}
+
+export function resolveLayoutSlotRect({
+	layoutSlot,
+	canvasWidth,
+	canvasHeight,
+}: {
+	layoutSlot: LayoutSlot;
+	canvasWidth: number;
+	canvasHeight: number;
+}): { x: number; y: number; width: number; height: number } {
+	if (
+		layoutSlot.cropMode !== "cover-slot" ||
+		!Number.isFinite(layoutSlot.x) ||
+		!Number.isFinite(layoutSlot.y) ||
+		!Number.isFinite(layoutSlot.width) ||
+		!Number.isFinite(layoutSlot.height) ||
+		layoutSlot.x < 0 ||
+		layoutSlot.y < 0 ||
+		layoutSlot.width <= 0 ||
+		layoutSlot.height <= 0 ||
+		layoutSlot.x + layoutSlot.width > 1 ||
+		layoutSlot.y + layoutSlot.height > 1
+	) {
+		throw new Error(
+			"Timeline layoutSlot must be a valid cover-slot rectangle.",
+		);
+	}
+	return {
+		x: layoutSlot.x * canvasWidth,
+		y: layoutSlot.y * canvasHeight,
+		width: layoutSlot.width * canvasWidth,
+		height: layoutSlot.height * canvasHeight,
+	};
 }
 
 export abstract class VisualNode<
@@ -96,14 +134,35 @@ export abstract class VisualNode<
 			keyframes: this.params.keyframes,
 			localTime: time - this.params.timeOffset,
 		});
-		const containScale = Math.min(
-			renderer.width / crop.width,
-			renderer.height / crop.height,
-		);
-		const scaledWidth = crop.width * containScale * transform.scale;
-		const scaledHeight = crop.height * containScale * transform.scale;
-		const x = renderer.width / 2 + transform.position.x - scaledWidth / 2;
-		const y = renderer.height / 2 + transform.position.y - scaledHeight / 2;
+		const slotRect = this.params.layoutSlot
+			? resolveLayoutSlotRect({
+					layoutSlot: this.params.layoutSlot,
+					canvasWidth: renderer.width,
+					canvasHeight: renderer.height,
+				})
+			: { x: 0, y: 0, width: renderer.width, height: renderer.height };
+		if (this.params.layoutSlot) {
+			renderer.context.beginPath();
+			renderer.context.rect(
+				slotRect.x,
+				slotRect.y,
+				slotRect.width,
+				slotRect.height,
+			);
+			renderer.context.clip();
+		}
+		const baseScale = this.params.layoutSlot
+			? Math.max(slotRect.width / crop.width, slotRect.height / crop.height)
+			: Math.min(renderer.width / crop.width, renderer.height / crop.height);
+		const scaledWidth = crop.width * baseScale * transform.scale;
+		const scaledHeight = crop.height * baseScale * transform.scale;
+		const x =
+			slotRect.x + slotRect.width / 2 + transform.position.x - scaledWidth / 2;
+		const y =
+			slotRect.y +
+			slotRect.height / 2 +
+			transform.position.y -
+			scaledHeight / 2;
 
 		renderer.context.globalAlpha = opacity;
 

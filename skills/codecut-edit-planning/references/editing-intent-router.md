@@ -15,16 +15,17 @@ needed clarification with choices and one recommended option -> workflow route
 -> planning artifacts -> `codecut-executor-apply` handoff.
 
 After classifying the request, read the matching workflow recipe before
-generating an EditPlan or NarratedRemixPlan draft. Recipes are planning
+generating an EditPlan, NarratedRemixPlan, or CompositeLayoutPlan draft. Recipes are planning
 guidance for the current Codecut MVP; they do not imply new bridge tools.
 
-Before writing an EditingDecisionLedger, EditPlan, or NarratedRemixPlan, call `resolve_template` using either the user's requested template or the current intent, platform, and material evidence. Codecut templates live in `apps/web/src/lib/templates/registry.ts` and user templates share the same resolver. The template is a planning constraint, not a runtime fallback. If required evidence is missing, stop and report the template stop condition instead of choosing a weaker template.
+Before writing an EditingDecisionLedger, EditPlan, NarratedRemixPlan, or CompositeLayoutPlan, call `resolve_template` using either the user's requested template or the current intent, platform, and material evidence. Codecut templates live in `apps/web/src/lib/templates/registry.ts` and user templates share the same resolver. The template is a planning constraint, not a runtime fallback. If required evidence is missing, stop and report the template stop condition instead of choosing a weaker template.
 
 Every planning run must write `04-planning/template-resolution.json` plus a short markdown note with match mode, candidate templates, selected template, missing evidence, and stop reason.
 
 Built-in template IDs:
 
 - `talking-head-short`: transcript-backed talking-head cleanup or short-form polish.
+- `talking-head-broll-split`: talking-head presenter plus narration-matched network material through CompositeLayoutPlan v1.
 - `tutorial-demo`: transcript plus visible step evidence for tutorial or software demo.
 - `product-proof-ad`: product facts plus visual proof for UGC/product conversion.
 - `narrated-broll`: existing narration audio plus imported visual B-roll through NarratedRemixPlan v1 only.
@@ -55,12 +56,13 @@ choosing a generic highlight edit.
 | --- | --- | --- | --- | --- | --- | --- |
 | Long-to-short | Resolve by business goal | "把长视频剪成短视频", "提炼精华", "剪成 45 秒" | Compression | transcript, source duration, optional scenes | [long-to-short](workflow-recipes/long-to-short.md) | Implemented through EditingDecisionLedger plus EditPlan v1 |
 | Talking-head polish | `talking-head-short` | "去废话", "剪紧凑", "口播精剪" | Pace and clarity | transcript, optional silence spans, source duration | [talking-head-polish](workflow-recipes/talking-head-polish.md) | Codex transcript-first planning is implemented; word-boundary enforcement is not automatic |
+| Talking-head network material split | `talking-head-broll-split` | "口播配素材", "口播分屏", "出镜人上/下配素材", "网络素材匹配" | Presenter plus evidence B-roll | confirmed networkMaterialMatching, voiceover/ASR text, imported network candidates, provider/license records, presenter visual evidence | material-understanding plus CompositeLayoutPlan contract | Implemented through CompositeLayoutPlan v1 and `apply_composite_layout_plan` |
 | TikTok/Reels/Shorts | Resolve by business goal | "TikTok 版", "9:16", "爆款开头" | Platform fit | transcript, aspect ratio, optional scenes | [long-to-short](workflow-recipes/long-to-short.md) | Implemented as long-to-short plus EditingDecisionLedger and explicit project settings; EditPlan aspectRatio does not mutate canvas |
 | Tutorial/demo | `tutorial-demo` | "教程", "软件演示", "步骤讲清楚" | Comprehension | transcript, OCR/UI text, scene steps | [long-to-short](workflow-recipes/long-to-short.md) plus visual-context warnings | Gated when OCR/scene context is missing |
 | UGC/product ad | `product-proof-ad` | "商品短视频", "带货", "广告", "转化", "转化型短视频" | Proof and conversion | visual proof, transcript claims, product context | [long-to-short](workflow-recipes/long-to-short.md) plus claim guardrails | Requires EditingDecisionLedger; gated when proof or offer facts are missing |
 | AI video re-edit | Resolve or block | "AI 视频二创", "AI 成片修一下" | Remove artifacts and tighten story | keyframes/contact sheet, transcript if any | [timeline-inspection](workflow-recipes/timeline-inspection.md) before any edit | Gated until visual context exists |
 | Subtitle/caption pass | Resolve or block | "加字幕", "字幕好看点", "翻译字幕" | Readability | transcript or supplied captions | [subtitle-pass](workflow-recipes/subtitle-pass.md) | Implemented within EditPlan v1 caption limits |
-| Voiceover/narration | `narrated-broll` when narration audio and visual B-roll exist | "配音", "旁白", "讲解" | Narrative clarity | approved script, existing or generated audio, target duration | [voiceover-remix](workflow-recipes/voiceover-remix.md) | Existing audio insertion and provider-backed speech generation are exposed; multi-source remix remains gated |
+| Voiceover/narration | `narrated-broll` when narration audio and visual B-roll exist | "配音", "旁白", "讲解" | Narrative clarity | approved script, existing narration audio, imported visual B-roll, target duration | [voiceover-remix](workflow-recipes/voiceover-remix.md) | Implemented through NarratedRemixPlan v1 for existing narration audio and imported B-roll |
 | Timeline inspection | Resolve or block | "看看项目里有什么", "验证剪辑结果", "能导出吗" | Confidence before mutation/export | active editor project, timeline state | [timeline-inspection](workflow-recipes/timeline-inspection.md) | Implemented read-only |
 | Template/style application | Only if expressible as a Codecut template | "套模板", "像这个风格", "统一样式", "复刻这个剪辑手法" | Reusable visual language | template, style reference, existing timeline or accessible finished reference videos | Use `codecut-reference-template` for reference-derived drafts/imports, then [timeline-inspection](workflow-recipes/timeline-inspection.md) before mutation | Gated unless expressible in template guidance plus current EditPlan v1/NarratedRemixPlan v1 |
 | Batch variants | Resolve per variant | "批量剪", "多个版本", "不同角度" | Scale | shared assets, variant goals | [long-to-short](workflow-recipes/long-to-short.md) per variant | Gated; run one verified variant before scaling |

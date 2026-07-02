@@ -1,6 +1,6 @@
 ---
 name: codecut-edit-planning
-description: Use when a Codecut editing job needs intent routing, workflow recipe selection, candidate clip comparison, an EditingDecisionLedger, a strict EditPlan or NarratedRemixPlan draft, or a verification spec before executor apply.
+description: Use when a Codecut editing job needs intent routing, workflow recipe selection, candidate clip comparison, an EditingDecisionLedger, a strict EditPlan, NarratedRemixPlan, CompositeLayoutPlan draft, or a verification spec before executor apply.
 ---
 
 # Codecut Edit Planning
@@ -26,13 +26,14 @@ stage.
 | Need speech cleanup or talking-head polish planning | `references/workflow-recipes/talking-head-polish.md` | Filler, restarts, repeated setup, dead air, or sentence-boundary cleanup affects the edit | Transcript timestamps or retained-meaning evidence is missing | Handoff verification spec only |
 | Need subtitle planning | `references/workflow-recipes/subtitle-pass.md` | Caption source, timing, readability, translation, or burned-in subtitle policy affects the result | Timed caption source or caption policy is missing | Handoff verification spec only |
 | Need narration or B-roll remix planning | `references/workflow-recipes/voiceover-remix.md` | Existing narration audio, visual B-roll, captions, and target duration must align | Approved narration asset, visual asset facts, or caption timing is missing | Handoff verification spec only |
+| Need talking-head presenter plus network material layout planning | `../codecut-material-understanding/SKILL.md`, then `../codecut/references/codecut-agent-tool-contract.md` | Confirmed `networkMaterialMatching.enabled` is true and imported network material candidates affect layout | Voiceover/ASR text, imported candidate media, provider/license/source records, crop risk, or presenter visual evidence is missing | CompositeLayoutPlan draft and layout readback spec only |
 | Need existing project inspection or export-readiness planning | `references/workflow-recipes/timeline-inspection.md` | The user asks what exists, what changed, or whether export is safe | Project ID is missing or readback evidence must be gathered by `codecut-executor-apply` | Handoff verification spec only |
 
 ## Stage Ownership
 
 This skill owns the `edit-planning` stage: intent routing, evidence sufficiency,
 one recipe selection, candidate clip comparison, EditingDecisionLedger authoring,
-strict EditPlan or NarratedRemixPlan draft authoring, and verification spec
+strict EditPlan, NarratedRemixPlan, or CompositeLayoutPlan draft authoring, and verification spec
 authoring.
 
 It does not collect setup answers, download or probe source material, create
@@ -49,8 +50,8 @@ export.
 ## Inputs
 
 - Passed requirement-intake output, including confirmed output form, platform,
-  aspect ratio, caption policy, business goal, and side-effect token when a
-  later executor stage needs it.
+  aspect ratio, caption policy, business goal, network material matching
+  decision, and side-effect token when a later executor stage needs it.
 - Material audit with selected source assets, local paths, durations,
   dimensions, audio flags, warnings, and blockers.
 - Material-understanding report when material roles, content meaning,
@@ -74,7 +75,7 @@ export.
   candidates beat rejected alternatives.
 - EditingDecisionLedger, SpeechCleanupPlan projection notes, or narration remix
   beat plan as appropriate for the selected recipe.
-- Strict EditPlan v1 or NarratedRemixPlan v1 draft using only implemented
+- Strict EditPlan v1, NarratedRemixPlan v1, or CompositeLayoutPlan v1 draft using only implemented
   fields.
 - Verification spec for `codecut-executor-apply`, including expected plan file,
   validation target, readback fields, visual QA needs, caption quality checks,
@@ -94,6 +95,7 @@ exists:
 - `.codecut-workspace/projects/<projectId>/04-planning/title-generation-brief.md`
 - `.codecut-workspace/projects/<projectId>/04-planning/plan-drafts/edit-plan.json`
 - `.codecut-workspace/projects/<projectId>/04-planning/plan-drafts/narrated-remix-plan.json`
+- `.codecut-workspace/projects/<projectId>/04-planning/plan-drafts/composite-layout-plan.json`
 - `.codecut-workspace/projects/<projectId>/04-planning/verification-spec.json`
 - `.codecut-workspace/projects/<projectId>/04-planning/planning-blockers.md`
 
@@ -116,7 +118,8 @@ artifact path.
   source, or platform strategy is missing.
 - No candidate clip passes standalone coherence for the requested result.
 - The requested style, effect, crop, BGM, audio, subtitle animation, overlay, or
-  remix cannot be represented in current EditPlan v1 or NarratedRemixPlan v1.
+  remix cannot be represented in current EditPlan v1, NarratedRemixPlan v1, or
+  CompositeLayoutPlan v1.
 - Platform, aspect ratio, caption policy, output form, project replacement, or
   export intent is required but not confirmed by the user or an upstream stage.
 - Stored methodology conflicts with current explicit user instructions and the

@@ -7,6 +7,7 @@ import {
 	TemplateTriggerTypeSchema,
 	type Template,
 	type TemplateExecution,
+	type TemplateMaterialPolicy,
 	type TemplateTriggerType,
 } from "./schema";
 
@@ -26,6 +27,7 @@ export type LegacyTemplateRecord = z.infer<typeof LegacyTemplateRecordSchema>;
 
 const mappableTriggerTypes = new Set<TemplateTriggerType>([
 	"talking-head-short",
+	"talking-head-broll-split",
 	"tutorial-demo",
 	"product-proof-ad",
 	"narrated-broll",
@@ -36,6 +38,7 @@ export function migrateLegacyTemplateRecord(
 ): Template {
 	const parsed = LegacyTemplateRecordSchema.parse(legacyTemplate);
 	const execution = resolveLegacyExecutionProfile(parsed);
+	const networkMaterialPolicy = resolveLegacyNetworkMaterialPolicy(parsed);
 	return TemplateSchema.parse({
 		id: parsed.id,
 		name: parsed.name,
@@ -47,6 +50,7 @@ export function migrateLegacyTemplateRecord(
 		source: "user",
 		readOnly: false,
 		execution,
+		networkMaterialPolicy,
 	});
 }
 
@@ -69,4 +73,25 @@ function resolveLegacyExecutionProfile(
 		);
 	}
 	return builtIn.execution;
+}
+
+function resolveLegacyNetworkMaterialPolicy(
+	legacyTemplate: LegacyTemplateRecord,
+): TemplateMaterialPolicy {
+	const matches = legacyTemplate.trigger.types.filter((type) =>
+		mappableTriggerTypes.has(TemplateTriggerTypeSchema.parse(type)),
+	);
+	const uniqueMatches = [...new Set(matches)];
+	if (uniqueMatches.length !== 1) {
+		throw new Error(
+			`Legacy template ${legacyTemplate.id} cannot be migrated because no unique network material policy matches trigger types: ${legacyTemplate.trigger.types.join(", ")}.`,
+		);
+	}
+	const builtIn = getBuiltInTemplate(uniqueMatches[0]);
+	if (!builtIn) {
+		throw new Error(
+			`Legacy template ${legacyTemplate.id} cannot be migrated because network material policy ${uniqueMatches[0]} is not registered.`,
+		);
+	}
+	return builtIn.networkMaterialPolicy;
 }

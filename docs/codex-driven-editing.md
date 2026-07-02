@@ -131,7 +131,7 @@ Every manifest declares:
 - `requiredEvidence`: material facts that must exist before planning.
 - `defaultStructure`: the required story or sequence shape.
 - `captionPreset`: an implemented EditPlan caption preset when the execution path supports one.
-- `executionPath`: `edit-plan-v1`, `speech-cleanup-to-edit-plan-v1`, or `narrated-remix-v1`.
+- `executionPath`: `edit-plan-v1`, `speech-cleanup-to-edit-plan-v1`, `narrated-remix-v1`, or `composite-layout-v1`.
 - `stopConditions`: unsupported requests that must stop before mutation.
 - `verification`: the readback proof expected after apply.
 
@@ -140,6 +140,7 @@ Built-in template IDs:
 | Template ID | Use case | Required evidence | Execution path |
 | --- | --- | --- | --- |
 | `talking-head-short` | Talking-head cleanup, filler removal, short-form polish | transcript | `speech-cleanup-to-edit-plan-v1` |
+| `talking-head-broll-split` | Talking-head presenter plus narration-matched network B-roll split screen | transcript, visual proof | `composite-layout-v1` |
 | `tutorial-demo` | Tutorial, software demo, step-by-step explanation | transcript, visual proof | `edit-plan-v1` |
 | `product-proof-ad` | UGC/product ad and conversion edit | transcript, visual proof, product facts | `edit-plan-v1` |
 | `narrated-broll` | Existing narration audio plus visual B-roll remix | existing narration audio, visual B-roll | `narrated-remix-v1` |
@@ -150,13 +151,15 @@ Selection order:
 material audit
   -> resolve_template
   -> write 04-planning/template-resolution.json and markdown evidence
-  -> EditingDecisionLedger or NarratedRemixPlan
-  -> strict EditPlan v1 or NarratedRemixPlan v1
-  -> apply_edit_plan or apply_narrated_remix_plan
+  -> EditingDecisionLedger, NarratedRemixPlan, or CompositeLayoutPlan
+  -> strict EditPlan v1, NarratedRemixPlan v1, or CompositeLayoutPlan v1
+  -> apply_edit_plan, apply_narrated_remix_plan, or apply_composite_layout_plan
   -> get_timeline_state readback
 ```
 
 If required evidence is missing, Codex must report the selected template and the missing evidence. It must not use another template as a downgrade path. Unsupported capabilities such as TTS, animated subtitle templates, arbitrary CSS, smart face crop, BGM/SFX inside narrated remix, append mode, and template effects must fail fast unless the current plan contract supports them.
+
+Templates also declare `networkMaterialPolicy`. It decides the default only; the requirement confirmation page must show the recommendation and let the user change `networkMaterialMatching.enabled`, `placement`, and provider order before any network search starts. Network matching is based on voiceover, spokenScript, or ASR text only.
 
 ## Required Local Environment
 
@@ -845,6 +848,43 @@ After application, Codex must verify `get_timeline_state` proof fields:
 - track-level `muted` and `hidden` fields are present when the track type
   supports them.
 
+## CompositeLayoutPlan Contract
+
+For talking-head presenter plus network material split layouts, Codex may use
+the separate `CompositeLayoutPlan v1` contract with
+`apply_composite_layout_plan`.
+
+P1 supports only:
+
+- already imported presenter video;
+- already imported network material video or image assets;
+- `background`, `top`, or `bottom` placement;
+- `top` and `bottom` split layouts only for `9:16`;
+- `cover-slot` crop mode for all network material beats;
+- full timeline replacement after validation.
+
+P1 does not support:
+
+- network search or download inside the apply tool;
+- automatic person masking, face tracking, or chroma key;
+- background talking-head composition without an existing presenter mask;
+- arbitrary per-clip transforms outside the fixed layout slots.
+
+`top` means the network material uses the top 45% of the canvas and presenter
+video uses the lower 55%. `bottom` reverses that placement. Background mode lays
+both surfaces over the full canvas and is allowed for presenter composition only
+when the plan carries mask evidence.
+
+After application, Codex must verify `get_timeline_state` proof fields:
+
+- one `Network Material` visual track with muted network material elements;
+- one `Presenter` visual track with the presenter element unmuted;
+- each visual element exposes `visual.layoutSlot.cropMode: "cover-slot"`;
+- `top` readback uses network material `layoutSlot.y: 0` and presenter
+  `layoutSlot.y: 0.45`;
+- `bottom` readback uses presenter `layoutSlot.y: 0` and network material
+  `layoutSlot.y: 0.55`.
+
 ## End-to-End Workflow
 
 1. Codex reads the user message and writes intent analysis before creating a
@@ -1300,6 +1340,15 @@ Apply a NarratedRemixPlan file:
 node scripts/codex-bridge.mjs apply-narrated-remix-plan \
   --project-id <id> \
   --plan-json-file /absolute/path/remix-plan.json \
+  --replace-existing true
+```
+
+Apply a CompositeLayoutPlan file:
+
+```bash
+node scripts/codex-bridge.mjs apply-composite-layout-plan \
+  --project-id <id> \
+  --plan-json-file /absolute/path/composite-layout-plan.json \
   --replace-existing true
 ```
 

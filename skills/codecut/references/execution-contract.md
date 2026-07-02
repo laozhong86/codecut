@@ -27,7 +27,7 @@ here instead of copying a separate success definition.
 | Outcome | Durable truth | Required readback | Stop before claiming success | Minimum proof |
 | --- | --- | --- | --- | --- |
 | Workspace ready | Confirmed `projectId`, business project name, setup token when side effects are needed, and `.codecut-workspace/projects/<projectId>` | `get_project_info` or workspace state that proves the project is readable | Project ID is missing, workspace path is absent, or setup token is required but missing | Workspace path plus readable project state |
-| Timeline mutated | Applied strict EditPlan, NarratedRemixPlan, or explicit low-level repair | `get_timeline_state` after mutation; include affected tracks, elements, duration, media IDs, and revision when available | `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `verify_timeline`, or `get_timeline_state` fails | Readback summary matching expected tracks/elements and requested edit |
+| Timeline mutated | Applied strict EditPlan, NarratedRemixPlan, CompositeLayoutPlan, or explicit low-level repair | `get_timeline_state` after mutation; include affected tracks, elements, duration, media IDs, and revision when available | `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `apply_narrated_remix_plan`, `apply_composite_layout_plan`, `verify_timeline`, or `get_timeline_state` fails | Readback summary matching expected tracks/elements and requested edit |
 | Captions, covers, crop, or transitions applied | Timeline/editor state contains the requested native objects or project cover metadata | `get_timeline_state` with text/style/cover/sourceCrop/transition fields, or `get_project_info` for project cover | Required native object is missing, unsupported, or represented by a fake substitute | Field-level readback for the requested object |
 | Local MP4 export produced | `export_project` or equivalent verified executor path produced one explicit file | Export metadata plus local file existence, non-zero size, and sampled export frames when visual delivery matters | File is missing, empty, not readable, or was produced by an unverified fallback path | Export file path, size, metadata, and export-frame verdict |
 | Timeline still frame produced | `export_timeline_frame` produced the requested local PNG | Local file existence, non-zero size, and requested timestamp/format proof | `inspect_timeline` contact sheets are used as the still-frame product | PNG path, timestamp, format, and file proof |
@@ -262,7 +262,7 @@ Before this loop starts, the local service and current executor path must be rea
 11. `export_project` only after user confirmation and only with explicit `format`, `quality`, `includeAudio`, `outputFile`, and `overwrite`
 12. `export_timeline_frame` only after user confirmation and only with explicit `timeSeconds`, `format: "png"`, `outputFile`, and `overwrite`
 
-`validate_edit_plan` and `preview_edit_plan` are read-only. `apply_edit_plan` is the only EditPlan mutation path. `verify_timeline` compares explicit verification JSON to current timeline metrics and reports field-level mismatches.
+`validate_edit_plan` and `preview_edit_plan` are read-only. `apply_edit_plan` is the only EditPlan mutation path. `apply_narrated_remix_plan` and `apply_composite_layout_plan` are separate strict plan mutation paths for their own schemas. `verify_timeline` compares explicit verification JSON to current timeline metrics and reports field-level mismatches.
 
 `export_project` is executor-native and writes one explicit local file. `export_timeline_frame` is executor-native and writes one explicit local PNG frame file. The local executor must not use browser download as a fallback. If the current server runtime lacks a Node-compatible renderer, export fails fast with that runtime gap.
 
@@ -275,6 +275,7 @@ If a bridge command stays pending until timeout, stop the editing loop. If the c
 | Pure routing or config skill change | Codex skill validator plus file existence check |
 | Agent tool contract | Schema/content check proving required tools and failure behavior are documented |
 | Current EditPlan apply path | `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `verify_timeline`, and `get_timeline_state`; do not claim all-or-nothing rollback until implemented |
+| Current CompositeLayoutPlan apply path | `apply_composite_layout_plan` and `get_timeline_state` proving `Network Material`/`Presenter` tracks and `visual.layoutSlot` fields |
 | Timeline command or manager | Focused unit test proving state before and after |
 | User action | Action definition, handler behavior, and undo/redo expectation |
 | UI editor change | Focused test where available plus browser-visible proof |

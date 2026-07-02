@@ -84,7 +84,7 @@ stage proof.
 - `../../docs/openmontage-to-codecut-adaptation.md`: OpenMontage compatibility
   and adaptation blueprint.
 - `../../docs/codex-driven-editing.md`: current implementation truth, command
-  contract, EditPlan/NarratedRemixPlan details, and failure handling.
+  contract, EditPlan/NarratedRemixPlan/CompositeLayoutPlan details, and failure handling.
 - `codecut`: route requests to the correct stage
   skill or recipe.
 - `codecut-scriptwriting`: create upstream cover title, video title, voiceover
@@ -111,7 +111,7 @@ Use this skill as a map, not as the execution manual.
 | Need a hook, voiceover script, spoken-word draft, or de-AI copy cleanup before editing | `../codecut-scriptwriting/SKILL.md` | The user asks for 口播脚本, 口播稿, 口播文案, 文案润色, 去 AI 味, hook, script, voiceover, narration, or spoken copy that later CodeCut planning should use | Missing topic, audience, proof, platform, or duration would force false claims or unusable spoken timing | ScriptwritingBrief only; no timeline mutation |
 | Opening a new edit plan with confirmed local preferences | `../codecut-methodology-capture/SKILL.md` only for the private store contract, then `../codecut-edit-planning/SKILL.md` | A workspace already has `.codecut-workspace/user-methodology/` files | Current user instructions conflict with stored methodology | Read-only local methodology context; no mutation |
 | Need material roles, content understanding, script-to-material matching, replacement/PIP/split-screen/circular talking-head suitability, or material risk reporting | `../codecut-material-understanding/SKILL.md` | Material audit exists and understanding is needed before planning | Material audit or required transcript/visual evidence is missing | `02-inventory/material-understanding.json` and `.md`; no timeline mutation |
-| Need transcript, VideoContext, candidate clips, decision ledger, or an EditPlan/NarratedRemixPlan draft | `../codecut-edit-planning/SKILL.md` | Material evidence or planning strategy affects the edit | Required material-understanding, transcript, visual, or planning evidence is missing or unsupported by current CodeCut contracts | Use executor readback only after `codecut-executor-apply` runs |
+| Need transcript, VideoContext, candidate clips, decision ledger, or an EditPlan/NarratedRemixPlan/CompositeLayoutPlan draft | `../codecut-edit-planning/SKILL.md` | Material evidence or planning strategy affects the edit | Required material-understanding, transcript, visual, network material records, or planning evidence is missing or unsupported by current CodeCut contracts | Use executor readback only after `codecut-executor-apply` runs |
 | Need to remember feedback, update preferences, capture a correction, or produce post-project learning | `../codecut-methodology-capture/SKILL.md` | The user says "remember this", "以后按这个", "更新偏好", "刚才这里剪错了", or a completed project needs a methodology proposal | User confirmation is missing for long-term preference updates | Proposal under `08-learning/`; confirmed updates under `.codecut-workspace/user-methodology/` |
 | Need implementation work inside CodeCut code | `../../docs/codex-driven-editing.md` and focused tests | A runtime/tool/schema change is required | Source/cache/session proof is stale for plugin-facing changes | Run the touched contract test and plugin freshness check |
 
@@ -183,7 +183,7 @@ normal new-job intake path.
 | Material understanding, material role labeling, "这些素材适合怎么用", "帮我理解素材", "给脚本匹配素材", replacement suitability, picture-in-picture suitability, split-screen suitability, or circular talking-head suitability before final editing decisions | **REQUIRED SUB-SKILL:** Use `codecut-material-understanding` after material ingest and before `codecut-edit-planning`. Do not mutate the timeline or choose the final edit recipe in this stage. |
 | Finished/reference videos, "learn this editing style", "复刻模板", reference-derived template draft/import/application | **REQUIRED SUB-SKILL:** Use `codecut-reference-template` before EditPlan authoring or executor mutation. |
 | Project cover, short-video poster, thumbnail, cover prompt, cover image, cover evidence-frame selection, or setting an independent project cover outside the timeline | **REQUIRED SUB-SKILL:** Use `codecut-cover-generation` before image generation, media import, or `set_project_cover`. |
-| Transcript, VideoContext, candidate clips, decision ledger, or EditPlan/NarratedRemixPlan authoring | **REQUIRED SUB-SKILL:** Use `codecut-edit-planning` before executor validation or mutation. If material roles, script matching, replacement, PIP, split-screen, or circular talking-head suitability affects the plan, require the material-understanding report first. If the requirement says 标题根据素材生成, 顶部固定标题, 封面标题, 视频标题, 标题优化, or 爆款标题 and no explicit final title was provided by the user, require `codecut-title-generation` before edit planning. |
+| Transcript, VideoContext, candidate clips, decision ledger, or EditPlan/NarratedRemixPlan/CompositeLayoutPlan authoring | **REQUIRED SUB-SKILL:** Use `codecut-edit-planning` before executor validation or mutation. If material roles, script matching, replacement, PIP, split-screen, network material matching, or circular talking-head suitability affects the plan, require the material-understanding report first. If the requirement says 标题根据素材生成, 顶部固定标题, 封面标题, 视频标题, 标题优化, or 爆款标题 and no explicit final title was provided by the user, require `codecut-title-generation` before edit planning. |
 | Executor service, env, doctor, import, apply, caption build, timeline readback | **REQUIRED SUB-SKILL:** Use `codecut-executor-apply`. |
 | Opening a new planning pass after confirmed workspace creation | Read `.codecut-workspace/user-methodology/profile.md` and `rules.md` if they exist, then use `codecut-edit-planning`. Current user instructions override stored methodology. |
 | User says "remember this", "以后按这个", "更新偏好", "刚才这里剪错了", or gives reusable editing feedback | **REQUIRED SUB-SKILL:** Use `codecut-methodology-capture`. First generate a project proposal; do not update long-term preferences without explicit user confirmation. |
@@ -225,8 +225,8 @@ normal new-job intake path.
   `remove_clips`, `split_clip`, `set_clip_properties`, `set_keyframes`,
   `add_transitions`, `update_transition`, `remove_transition`, and
   `ripple_delete_ranges` are advanced repair tools after timeline readback or
-  explicit user intent. Normal generated edits go through strict EditPlan or
-  NarratedRemixPlan paths.
+  explicit user intent. Normal generated edits go through strict EditPlan,
+  NarratedRemixPlan, or CompositeLayoutPlan paths.
 - Caption typography uses top-level `captionStyle` presets only. Do not emit
   arbitrary `fontFamily`, `fontSize`, CSS, or per-caption style objects in an
   EditPlan. CodeCut caption presets preserve CJK defaults for Chinese captions

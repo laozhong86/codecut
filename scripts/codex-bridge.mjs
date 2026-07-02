@@ -56,6 +56,7 @@ const confirmationGatedCommands = new Set([
 	"generate-volcengine-cloned-voice",
 	"apply-plan",
 	"apply-narrated-remix-plan",
+	"apply-composite-layout-plan",
 	"add-texts",
 	"add-captions",
 	"import-subtitles",
@@ -89,6 +90,7 @@ const confirmationGatedSendTools = new Set([
 	"ripple_delete_ranges",
 	"create_text_background_effect",
 	"create_human_pip_effect",
+	"apply_composite_layout_plan",
 	"export_timeline_frame",
 ]);
 
@@ -139,6 +141,7 @@ function usage() {
 		"  node scripts/codex-bridge.mjs preview-edit-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json",
 		"  node scripts/codex-bridge.mjs apply-plan --project-id <id> --plan-json-file /absolute/path/edit-plan.json --replace-existing <true|false> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs apply-narrated-remix-plan --project-id <id> --plan-json-file /absolute/path/remix-plan.json --replace-existing <true|false> --confirmation-token <token>",
+		"  node scripts/codex-bridge.mjs apply-composite-layout-plan --project-id <id> --plan-json-file /absolute/path/composite-layout-plan.json --replace-existing <true|false> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs verify-timeline --project-id <id> --verification-json-file /absolute/path/verification.json",
 		"  node scripts/codex-bridge.mjs export --project-id <id> --format <mp4|webm> --quality <low|medium|high|very_high> --include-audio <true|false> --output-file /absolute/path/out.mp4 --overwrite <true|false> --confirmation-token <token>",
 		"  node scripts/codex-bridge.mjs export-timeline-frame --project-id <id> --time-seconds <seconds> --format png --output-file /absolute/path/frame.png --overwrite <true|false> --confirmation-token <token>",
@@ -197,7 +200,9 @@ function assertOnlyFlags(flags, allowedKeys, command) {
 }
 
 function assertOnlyOptions(options, allowedKeys, context) {
-	const unexpected = Object.keys(options).filter((key) => !allowedKeys.has(key));
+	const unexpected = Object.keys(options).filter(
+		(key) => !allowedKeys.has(key),
+	);
 	if (unexpected.length > 0) {
 		throw new Error(
 			`${context} does not accept option(s): ${unexpected.join(", ")}`,
@@ -2429,9 +2434,7 @@ function requireOneOf(value, flagName, allowedValues) {
 		throw new Error(`--${flagName} is required`);
 	}
 	if (!allowedValues.includes(value)) {
-		throw new Error(
-			`--${flagName} must be one of ${allowedValues.join(", ")}`,
-		);
+		throw new Error(`--${flagName} must be one of ${allowedValues.join(", ")}`);
 	}
 	return value;
 }
@@ -2903,6 +2906,29 @@ export async function buildNarratedRemixPlanEnvelope({
 	});
 }
 
+export async function buildCompositeLayoutPlanEnvelope({
+	projectId,
+	planJsonFile,
+	replaceExisting,
+}) {
+	if (typeof replaceExisting !== "boolean") {
+		throw new Error("--replace-existing is required");
+	}
+	const plan = await readJsonObjectFile({
+		filePath: planJsonFile,
+		flagName: "plan-json-file",
+	});
+
+	return buildCommandEnvelope({
+		projectId,
+		tool: "apply_composite_layout_plan",
+		args: {
+			plan,
+			replaceExisting,
+		},
+	});
+}
+
 export async function buildValidateEditPlanEnvelope({
 	projectId,
 	planJsonFile,
@@ -3343,14 +3369,14 @@ export async function runCli({
 			}),
 			fetchImpl,
 		});
-			const timelineResult = await postEnvelope({
-				config,
-				envelope: buildGetTimelineStateEnvelope({
-					projectId: flags.projectId,
-					includeReferencedMedia: true,
-				}),
-				fetchImpl,
-			});
+		const timelineResult = await postEnvelope({
+			config,
+			envelope: buildGetTimelineStateEnvelope({
+				projectId: flags.projectId,
+				includeReferencedMedia: true,
+			}),
+			fetchImpl,
+		});
 		const report = buildFreshSessionSmokeReport({
 			projectId: flags.projectId,
 			installDoctorResult,
@@ -3446,44 +3472,44 @@ export async function runCli({
 			mediaId: flags.mediaId,
 			targetAspectRatio: flags.targetAspectRatio,
 		});
-		} else if (command === "inspect-video-range") {
-			envelope = buildInspectVideoRangeEnvelope({
-				projectId: flags.projectId,
-				mediaId: flags.mediaId,
-				startSeconds: Number(flags.startSeconds),
-				endSeconds: Number(flags.endSeconds),
-				frameCount:
-					flags.frameCount === undefined ? undefined : Number(flags.frameCount),
-			});
-		} else if (command === "get-timeline-state") {
-			assertOnlyFlags(
-				flags,
-				new Set([
-					"projectId",
-					"startTime",
-					"endTime",
-					"includeFrames",
-					"includeReferencedMedia",
-				]),
-				command,
-			);
-			envelope = buildGetTimelineStateEnvelope({
-				projectId: flags.projectId,
-				startTime:
-					flags.startTime === undefined ? undefined : Number(flags.startTime),
-				endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
-				includeFrames:
-					flags.includeFrames === undefined
-						? undefined
-						: parseBoolean(flags.includeFrames, "includeFrames"),
-				includeReferencedMedia:
-					flags.includeReferencedMedia === undefined
-						? undefined
-						: parseBoolean(
-								flags.includeReferencedMedia,
-								"includeReferencedMedia",
-							),
-			});
+	} else if (command === "inspect-video-range") {
+		envelope = buildInspectVideoRangeEnvelope({
+			projectId: flags.projectId,
+			mediaId: flags.mediaId,
+			startSeconds: Number(flags.startSeconds),
+			endSeconds: Number(flags.endSeconds),
+			frameCount:
+				flags.frameCount === undefined ? undefined : Number(flags.frameCount),
+		});
+	} else if (command === "get-timeline-state") {
+		assertOnlyFlags(
+			flags,
+			new Set([
+				"projectId",
+				"startTime",
+				"endTime",
+				"includeFrames",
+				"includeReferencedMedia",
+			]),
+			command,
+		);
+		envelope = buildGetTimelineStateEnvelope({
+			projectId: flags.projectId,
+			startTime:
+				flags.startTime === undefined ? undefined : Number(flags.startTime),
+			endTime: flags.endTime === undefined ? undefined : Number(flags.endTime),
+			includeFrames:
+				flags.includeFrames === undefined
+					? undefined
+					: parseBoolean(flags.includeFrames, "includeFrames"),
+			includeReferencedMedia:
+				flags.includeReferencedMedia === undefined
+					? undefined
+					: parseBoolean(
+							flags.includeReferencedMedia,
+							"includeReferencedMedia",
+						),
+		});
 	} else if (command === "inspect-timeline") {
 		envelope = buildInspectTimelineEnvelope({
 			projectId: flags.projectId,
@@ -3704,6 +3730,12 @@ export async function runCli({
 		});
 	} else if (command === "apply-narrated-remix-plan") {
 		envelope = await buildNarratedRemixPlanEnvelope({
+			projectId: flags.projectId,
+			planJsonFile: flags.planJsonFile,
+			replaceExisting: parseBoolean(flags.replaceExisting, "replaceExisting"),
+		});
+	} else if (command === "apply-composite-layout-plan") {
+		envelope = await buildCompositeLayoutPlanEnvelope({
 			projectId: flags.projectId,
 			planJsonFile: flags.planJsonFile,
 			replaceExisting: parseBoolean(flags.replaceExisting, "replaceExisting"),

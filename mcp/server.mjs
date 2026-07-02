@@ -114,9 +114,7 @@ const templateJsonFileSchema = z
 	.string()
 	.trim()
 	.min(1)
-	.describe(
-		"Absolute path to a confirmed Template JSON draft file.",
-	);
+	.describe("Absolute path to a confirmed Template JSON draft file.");
 const templateIdSchema = z
 	.string()
 	.trim()
@@ -313,6 +311,18 @@ const templatePreferenceSchema = z.discriminatedUnion("mode", [
 		})
 		.strict(),
 ]);
+const networkMaterialPlacementValues = ["background", "top", "bottom"];
+const networkMaterialProviderValues = ["pexels", "pixabay", "coverr"];
+const networkMaterialDecisionSourceValues = ["template", "user"];
+const networkMaterialMatchingSchema = z
+	.object({
+		enabled: z.boolean(),
+		placement: z.enum(networkMaterialPlacementValues),
+		providers: z.array(z.enum(networkMaterialProviderValues)).min(1),
+		resolvedTemplateId: z.string().trim().min(1),
+		decisionSource: z.enum(networkMaterialDecisionSourceValues),
+	})
+	.strict();
 const durationGoalRangeSecondsSchema = z
 	.object({
 		minSeconds: z.number().positive(),
@@ -389,8 +399,8 @@ const workspaceOutputBaseSchema = z
 		customVoiceFile: customVoiceFileSchema.optional(),
 	})
 	.strict();
-const workspaceOutputSchema = workspaceOutputBaseSchema
-	.superRefine((value, ctx) => {
+const workspaceOutputSchema = workspaceOutputBaseSchema.superRefine(
+	(value, ctx) => {
 		if (value.voiceEnabled && value.voicePackId === "custom") {
 			if (!value.customVoiceFile) {
 				ctx.addIssue({
@@ -409,7 +419,8 @@ const workspaceOutputSchema = workspaceOutputBaseSchema
 				path: ["customVoiceFile"],
 			});
 		}
-	});
+	},
+);
 
 const titlePreferencesBaseSchema = z
 	.object({
@@ -496,6 +507,10 @@ const confirmedSetupPatchSchema = z
 			.strict()
 			.optional(),
 		templatePreference: templatePreferenceSchema.optional(),
+		networkMaterialMatching: networkMaterialMatchingSchema
+			.partial()
+			.strict()
+			.optional(),
 	})
 	.strict();
 
@@ -519,6 +534,7 @@ const workspaceIntentInputSchema = {
 	captionLanguage: z.string().trim(),
 	transitionPreference: transitionPreferenceSchema,
 	templatePreference: templatePreferenceSchema.optional(),
+	networkMaterialMatching: networkMaterialMatchingSchema.optional(),
 	output: workspaceOutputSchema,
 	titlePreferences: titlePreferencesSchema,
 	generateIntroCover: z.boolean(),
@@ -565,6 +581,7 @@ const workspaceOpenInputSchema = {
 	captionLanguage: z.string().trim().optional(),
 	transitionPreference: transitionPreferenceSchema.optional(),
 	templatePreference: templatePreferenceSchema.optional(),
+	networkMaterialMatching: networkMaterialMatchingSchema.optional(),
 	locale: z.string().trim().optional(),
 	uiLanguage: z.string().trim().optional(),
 	output: workspaceOutputBaseSchema.partial().optional(),
@@ -811,24 +828,19 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["build_post_cut_captions", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["list_models", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["search_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
-	[
-		"list_templates",
-		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
-	],
-	[
-		"get_template",
-		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
-	],
-	[
-		"resolve_template",
-		CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ,
-	],
+	["list_templates", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["get_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["resolve_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["get_timeline_state", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["validate_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["preview_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["apply_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	[
 		"apply_narrated_remix_plan",
+		CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION,
+	],
+	[
+		"apply_composite_layout_plan",
 		CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION,
 	],
 	["verify_timeline", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
@@ -860,18 +872,9 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["import_media", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	["set_project_cover", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	["clear_project_cover", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
-	[
-		"import_template",
-		CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT,
-	],
-	[
-		"update_template",
-		CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT,
-	],
-	[
-		"delete_template",
-		CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT,
-	],
+	["import_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
+	["update_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
+	["delete_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.ASSET_SIDE_EFFECT],
 	["export_project", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EXTERNAL_SIDE_EFFECT],
 	[
 		"export_timeline_frame",
@@ -914,6 +917,7 @@ const codecutToolGovernanceCategoryByName = new Map([
 export const DESTRUCTIVE_MCP_TOOL_NAMES = new Set([
 	"apply_edit_plan",
 	"apply_narrated_remix_plan",
+	"apply_composite_layout_plan",
 	"import_template",
 	"update_template",
 	"delete_template",
@@ -1231,6 +1235,21 @@ export const CODECUT_MCP_TOOLS = [
 		title: "Apply Codecut Narrated Remix Plan",
 		description:
 			"Apply one existing NarratedRemixPlan JSON file to one explicit Codecut executor project.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			...confirmationTokenInputSchema,
+			planJsonFile: planJsonFileSchema,
+			replaceExisting: z
+				.boolean()
+				.describe("Whether Codecut should replace the existing timeline."),
+		},
+		readOnly: false,
+	},
+	{
+		name: "apply_composite_layout_plan",
+		title: "Apply Codecut Composite Layout Plan",
+		description:
+			"Apply one existing CompositeLayoutPlan v1 JSON file to one explicit Codecut executor project. Use this after network material candidates have already been downloaded, imported, matched, and understood; this tool only lays out presenter video plus network material clips on the timeline.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			...confirmationTokenInputSchema,
@@ -2266,6 +2285,7 @@ function buildRequirementDraftFromInput(input = {}) {
 		captionPreferences: confirmedSetup.captionPreferences,
 		voicePreferences: confirmedSetup.voicePreferences,
 		templatePreference: confirmedSetup.templatePreference,
+		networkMaterialMatching: confirmedSetup.networkMaterialMatching,
 		exportPreferences: confirmedSetup.exportPreferences,
 		checks: [
 			{
@@ -2463,6 +2483,7 @@ function buildWorkspaceIntentFromConfirmedRequirement({
 		transitionPreference:
 			confirmedSetup.timelinePreferences.transitionPreference,
 		templatePreference: confirmedSetup.templatePreference,
+		networkMaterialMatching: confirmedSetup.networkMaterialMatching,
 		output: {
 			format: confirmedSetup.exportPreferences.format,
 			quality: confirmedSetup.exportPreferences.quality,
@@ -2760,6 +2781,16 @@ async function validateCodecutSetupIntent(intent) {
 		templatePreferenceCheck.ok,
 		templatePreferenceCheck.message,
 	);
+	const networkMaterialMatchingCheck = validateNetworkMaterialMatching(
+		normalized.networkMaterialMatching,
+	);
+	pushCheck(
+		checks,
+		"network-material-matching",
+		"Network material matching",
+		networkMaterialMatchingCheck.ok,
+		networkMaterialMatchingCheck.message,
+	);
 	pushCheck(
 		checks,
 		"caption-font",
@@ -2782,13 +2813,7 @@ async function validateCodecutSetupIntent(intent) {
 		"Caption style preset must be a supported CodeCut caption preset.",
 	);
 	const voiceCheck = validateWorkspaceVoiceChoice(normalized.output);
-	pushCheck(
-		checks,
-		"voice-pack",
-		"Voice",
-		voiceCheck.ok,
-		voiceCheck.message,
-	);
+	pushCheck(checks, "voice-pack", "Voice", voiceCheck.ok, voiceCheck.message);
 
 	return {
 		status: checks.every((check) => check.ok) ? "ready" : "blocked",
@@ -3112,6 +3137,7 @@ function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 				: {}),
 		},
 		templatePreference: normalized.templatePreference,
+		networkMaterialMatching: normalized.networkMaterialMatching,
 		exportPreferences: {
 			format: normalized.output.format,
 			quality: normalized.output.quality,
@@ -3190,6 +3216,17 @@ function buildWorkspaceIntentDefaults(input = {}) {
 	const durationContract = normalizeDurationContract(input.durationContract, {
 		durationGoalMode,
 	});
+	const templatePreference = normalizeTemplatePreference(
+		input.templatePreference,
+	);
+	const networkMaterialMatching = normalizeNetworkMaterialMatching(
+		input.networkMaterialMatching,
+		{
+			projectName,
+			requirements,
+			templatePreference,
+		},
+	);
 	const defaults = {
 		projectId:
 			String(input.projectId || "").trim() ||
@@ -3248,7 +3285,8 @@ function buildWorkspaceIntentDefaults(input = {}) {
 		transitionPreference: normalizeWorkspaceTransitionPreference(
 			input.transitionPreference,
 		),
-		templatePreference: normalizeTemplatePreference(input.templatePreference),
+		templatePreference,
+		networkMaterialMatching,
 		requirements,
 		requirementOptions,
 		durationContract,
@@ -3501,12 +3539,141 @@ function validateTemplatePreference(value) {
 	};
 }
 
+const networkMaterialTemplatePolicies = {
+	"narrated-broll": {
+		defaultEnabled: true,
+		defaultPlacement: "background",
+	},
+	"talking-head-broll-split": {
+		defaultEnabled: true,
+		defaultPlacement: "top",
+	},
+	"talking-head-short": {
+		defaultEnabled: false,
+		defaultPlacement: "background",
+	},
+	"tutorial-demo": {
+		defaultEnabled: false,
+		defaultPlacement: "background",
+	},
+	"product-proof-ad": {
+		defaultEnabled: false,
+		defaultPlacement: "background",
+	},
+};
+
+function defaultNetworkMaterialMatchingForContext({
+	projectName = "",
+	requirements = "",
+	templatePreference,
+} = {}) {
+	const resolvedTemplateId = resolveNetworkMaterialPolicyTemplateId({
+		projectName,
+		requirements,
+		templatePreference,
+	});
+	const policy =
+		networkMaterialTemplatePolicies[resolvedTemplateId] ||
+		networkMaterialTemplatePolicies["talking-head-short"];
+	return {
+		enabled: policy.defaultEnabled,
+		placement: policy.defaultPlacement,
+		providers: [...networkMaterialProviderValues],
+		resolvedTemplateId,
+		decisionSource: "template",
+	};
+}
+
+function resolveNetworkMaterialPolicyTemplateId({
+	projectName = "",
+	requirements = "",
+	templatePreference,
+} = {}) {
+	const requestedTemplate =
+		templatePreference?.mode === "specified"
+			? String(templatePreference.requestedTemplate || "").trim()
+			: "";
+	if (networkMaterialTemplatePolicies[requestedTemplate]) {
+		return requestedTemplate;
+	}
+
+	const text = `${projectName}\n${requirements}\n${requestedTemplate}`
+		.trim()
+		.toLowerCase();
+	if (
+		/口播.{0,20}(配素材|分屏)|出镜人.*素材|素材.*出镜人|talking[- ]head.*b[- ]roll|presenter.*b[- ]roll/.test(
+			text,
+		)
+	) {
+		return "talking-head-broll-split";
+	}
+	if (
+		/旁白.*素材|素材.*旁白|narrated.*b[- ]roll|voiceover.*b[- ]roll/.test(text)
+	) {
+		return "narrated-broll";
+	}
+	if (/教程|tutorial|demo/.test(text)) {
+		return "tutorial-demo";
+	}
+	if (/产品|proof|ad/.test(text)) {
+		return "product-proof-ad";
+	}
+	return "talking-head-short";
+}
+
+function normalizeNetworkMaterialMatching(value, context = {}) {
+	if (value === undefined) {
+		return defaultNetworkMaterialMatchingForContext(context);
+	}
+	if (!value || typeof value !== "object") {
+		return {
+			enabled: undefined,
+			placement: undefined,
+			providers: undefined,
+			resolvedTemplateId: undefined,
+			decisionSource: undefined,
+		};
+	}
+	return {
+		enabled: typeof value.enabled === "boolean" ? value.enabled : value.enabled,
+		placement:
+			value.placement === undefined
+				? undefined
+				: String(value.placement).trim(),
+		providers: Array.isArray(value.providers)
+			? value.providers.map((provider) => String(provider).trim())
+			: value.providers,
+		resolvedTemplateId:
+			value.resolvedTemplateId === undefined
+				? undefined
+				: String(value.resolvedTemplateId).trim(),
+		decisionSource:
+			value.decisionSource === undefined
+				? undefined
+				: String(value.decisionSource).trim(),
+	};
+}
+
+function validateNetworkMaterialMatching(value) {
+	const parsed = networkMaterialMatchingSchema.safeParse(value);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			message:
+				"Network material matching requires enabled, placement, providers, resolvedTemplateId, and decisionSource.",
+		};
+	}
+	return {
+		ok: true,
+		message: "Network material matching is valid.",
+	};
+}
+
 function validateWorkspaceVoiceChoice(output) {
 	if (!workspaceVoicePackChoiceValues.includes(output.voicePackId)) {
 		return {
 			ok: false,
-			message:
-				"Voice must be none, podcast-female, podcast-male, or custom.",
+			message: "Voice must be none, podcast-female, podcast-male, or custom.",
 		};
 	}
 	if (output.voicePackId === "custom") {
@@ -3595,6 +3762,9 @@ function normalizeWorkspaceIntent(intent) {
 				? ""
 				: String(intent.transitionPreference).trim(),
 		templatePreference: normalizeTemplatePreference(intent.templatePreference),
+		networkMaterialMatching: normalizeNetworkMaterialMatching(
+			intent.networkMaterialMatching,
+		),
 		output: {
 			format: String(intent.output?.format || ""),
 			quality: String(intent.output?.quality || ""),
@@ -3609,9 +3779,7 @@ function normalizeWorkspaceIntent(intent) {
 					normalizeWorkspaceVoicePackId(intent.output?.voicePackId) !==
 						noBuiltinVoicePackId),
 			voicePackId: normalizeWorkspaceVoicePackId(intent.output?.voicePackId),
-			customVoiceFile: normalizeCustomVoiceFile(
-				intent.output?.customVoiceFile,
-			),
+			customVoiceFile: normalizeCustomVoiceFile(intent.output?.customVoiceFile),
 		},
 		titlePreferences: normalizeWorkspaceTitlePreferences(
 			intent.titlePreferences,
@@ -4095,6 +4263,7 @@ function buildContinuePrompt({
 		`Use $browser:control-in-app-browser to make the Codex in-app browser visible, then open the editor URL "${editorUrl}" for human preview. Click this host-rendered link if manual preview is needed: [Open CodeCut editor](${editorUrl}). If the selected tab is already on that URL, do not reload it.`,
 		`Before planning edits, call get_project_info with projectId "${projectId}", then list_media_assets with projectId "${projectId}", then get_timeline_state with projectId "${projectId}".`,
 		`Before any EditingDecisionLedger, EditPlan, or NarratedRemixPlan, call resolve_template using this templatePreference: ${JSON.stringify(intent.templatePreference)}. If mode is specified, pass requestedTemplate. If mode is auto, pass userIntent, platform/material facts, and available evidence. Do not invent a workflow if template resolution fails.`,
+		`Network material matching decision: ${JSON.stringify(intent.networkMaterialMatching)}. If enabled, derive ordered English search terms only from voiceover, spokenScript, or ASR text; use providers in the confirmed order; fail clearly when text, API keys, candidates, downloads, or license fields are missing; record source, license, search term, voiceover segment, dimensions, duration, imported media id, and crop risk before material understanding.`,
 		`Write template resolution evidence before planning: 04-planning/template-resolution.json and a short markdown note with match mode, candidate templates, selected template, missing evidence, and stop reason.`,
 		...guardrails,
 		`Use the confirmed setup intent and imported media as source context. Project revision: ${revision}. Editor URL: ${editorUrl}. Imported media: ${JSON.stringify(importedMedia)}.`,
@@ -4687,6 +4856,25 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 			return [
 				"scripts/codex-bridge.mjs",
 				"apply-narrated-remix-plan",
+				"--project-id",
+				projectId,
+				"--plan-json-file",
+				String(args.planJsonFile),
+				"--replace-existing",
+				String(args.replaceExisting),
+				"--confirmation-token",
+				requireConfirmationTokenArg(args),
+			];
+		case "apply_composite_layout_plan":
+			if (!args.planJsonFile) {
+				throw new Error("planJsonFile is required");
+			}
+			if (typeof args.replaceExisting !== "boolean") {
+				throw new Error("replaceExisting is required");
+			}
+			return [
+				"scripts/codex-bridge.mjs",
+				"apply-composite-layout-plan",
 				"--project-id",
 				projectId,
 				"--plan-json-file",

@@ -30,6 +30,8 @@ import { buildPostCutCaptionEntries } from "@/lib/agent-bridge/edit-plan/caption
 import { resolveCaptionStylePreset } from "@/lib/agent-bridge/edit-plan/text-presets";
 import { applyNarratedRemixPlanToEditor } from "@/lib/agent-bridge/narrated-remix/apply";
 import { NarratedRemixPlanSchema } from "@/lib/agent-bridge/narrated-remix/schema";
+import { applyCompositeLayoutPlanToEditor } from "@/lib/agent-bridge/composite-layout/apply";
+import { CompositeLayoutPlanSchema } from "@/lib/agent-bridge/composite-layout/schema";
 import {
 	type ProbeAudio,
 	buildVideoContextWithTranscriber,
@@ -181,6 +183,7 @@ type ExecutorToolName =
 	| "preview_edit_plan"
 	| "apply_edit_plan"
 	| "apply_narrated_remix_plan"
+	| "apply_composite_layout_plan"
 	| "insert_clips"
 	| "move_clips"
 	| "remove_clips"
@@ -313,6 +316,7 @@ const commandSchema = z
 			"preview_edit_plan",
 			"apply_edit_plan",
 			"apply_narrated_remix_plan",
+			"apply_composite_layout_plan",
 			"insert_clips",
 			"move_clips",
 			"remove_clips",
@@ -426,6 +430,13 @@ const editPlanOnlyArgsSchema = z
 	.strict();
 
 const applyNarratedRemixPlanArgsSchema = z
+	.object({
+		plan: z.unknown(),
+		replaceExisting: z.boolean(),
+	})
+	.strict();
+
+const applyCompositeLayoutPlanArgsSchema = z
 	.object({
 		plan: z.unknown(),
 		replaceExisting: z.boolean(),
@@ -2416,12 +2427,13 @@ async function runUpdateProjectPreferences({
 
 	state.confirmedSetup = applied.confirmedSetup;
 	const updatedCaptionElementIds =
-		parsed.patch.captionPreferences && state.confirmedSetup.captionPreferences.enabled
-		? applyCaptionSetupToExistingCaptions({
-				state,
-				confirmedSetup: state.confirmedSetup,
-			})
-		: [];
+		parsed.patch.captionPreferences &&
+		state.confirmedSetup.captionPreferences.enabled
+			? applyCaptionSetupToExistingCaptions({
+					state,
+					confirmedSetup: state.confirmedSetup,
+				})
+			: [];
 	await saveProjectState({ state });
 	return {
 		success: true,
@@ -2480,7 +2492,10 @@ function validateCaptionPreferences({
 	captionCount: number;
 	hasCaptionStyle: boolean;
 }) {
-	if (!state.confirmedSetup || state.confirmedSetup.captionPreferences.enabled) {
+	if (
+		!state.confirmedSetup ||
+		state.confirmedSetup.captionPreferences.enabled
+	) {
 		return null;
 	}
 	if (captionCount === 0 && !hasCaptionStyle) return null;
@@ -3081,6 +3096,64 @@ async function runApplyNarratedRemixPlan({
 	return {
 		success: true,
 		message: `Applied NarratedRemixPlan with ${result.summary.visualBeatCount} visual beat(s).`,
+		data: result.summary,
+	};
+}
+
+async function runApplyCompositeLayoutPlan({
+	state,
+	args,
+}: {
+	state: ExecutorProjectState;
+	args: Record<string, unknown>;
+}) {
+	const parsed = applyCompositeLayoutPlanArgsSchema.parse(args);
+	const parsedPlan = CompositeLayoutPlanSchema.parse(parsed.plan);
+	if (parsedPlan.projectId !== state.project.id) {
+		return {
+			success: false,
+			message: `CompositeLayoutPlan projectId "${parsedPlan.projectId}" does not match executor project "${state.project.id}".`,
+			data: {
+				valid: false,
+				revision: state.revision,
+				path: ["projectId"],
+			},
+		};
+	}
+
+	const mediaAssets = await toMediaAssets(state.mediaAssets);
+	const result = applyCompositeLayoutPlanToEditor({
+		plan: parsedPlan,
+		replaceExisting: parsed.replaceExisting,
+		editor: {
+			media: {
+				getAssets: () => mediaAssets,
+			},
+			timeline: {
+				getTracks: () => state.tracks,
+				updateTracks: (tracks) => {
+					state.tracks = tracks;
+				},
+			},
+		},
+	});
+
+	if (!result.success) {
+		return {
+			success: false,
+			message: result.message,
+			data: {
+				valid: false,
+				revision: state.revision,
+				...(result.path ? { path: result.path } : {}),
+			},
+		};
+	}
+
+	await saveProjectState({ state });
+	return {
+		success: true,
+		message: `Applied CompositeLayoutPlan with ${result.summary.networkMaterialElementCount} network material beat(s).`,
 		data: result.summary,
 	};
 }
@@ -6043,6 +6116,9 @@ async function executeCommand({
 	}
 	if (command.tool === "apply_narrated_remix_plan") {
 		return runApplyNarratedRemixPlan({ state, args: command.args });
+	}
+	if (command.tool === "apply_composite_layout_plan") {
+		return runApplyCompositeLayoutPlan({ state, args: command.args });
 	}
 	if (command.tool === "insert_clips") {
 		return runInsertClips({ state, args: command.args });

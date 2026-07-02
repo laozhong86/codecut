@@ -19,7 +19,9 @@ export function serializeElementVisualProperties(element: TimelineElement) {
 				...(element.motionPreset ? { motionPreset: element.motionPreset } : {}),
 				...(element.stroke ? { stroke: element.stroke } : {}),
 				...(element.shadow ? { shadow: element.shadow } : {}),
-				...(element.boxWidth !== undefined ? { boxWidth: element.boxWidth } : {}),
+				...(element.boxWidth !== undefined
+					? { boxWidth: element.boxWidth }
+					: {}),
 				...(element.backgroundBorderRadius !== undefined
 					? { backgroundBorderRadius: element.backgroundBorderRadius }
 					: {}),
@@ -65,6 +67,9 @@ export function serializeElementVisualProperties(element: TimelineElement) {
 					: {}),
 				...(element.type === "video" && element.sourceCrop
 					? { sourceCrop: element.sourceCrop }
+					: {}),
+				...(element.type !== "sticker" && element.layoutSlot
+					? { layoutSlot: element.layoutSlot }
 					: {}),
 				...(element.type === "sticker" && element.color !== undefined
 					? { color: element.color }

@@ -30,6 +30,7 @@ export {
 	type TemplateExecution,
 	type TemplateExecutionPath,
 	type TemplateMaterialFacts,
+	type TemplateMaterialPolicy,
 	type TemplatePlan,
 	type TemplateRequiredEvidence,
 	type TemplateResolution,

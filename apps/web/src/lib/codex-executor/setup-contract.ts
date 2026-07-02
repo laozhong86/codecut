@@ -8,6 +8,7 @@ import {
 } from "@/lib/agent-bridge/edit-plan/schema";
 import type { buildTextElement } from "@/lib/timeline/element-utils";
 import { isCodecutLocalFontFamily } from "@/lib/codecut-fonts";
+import { NetworkMaterialMatchingSchema } from "@/lib/network-materials/schema";
 
 type TextElementRaw = Parameters<typeof buildTextElement>[0]["raw"];
 
@@ -184,7 +185,11 @@ const VoicePreferencesSchema = VoicePreferencesBaseSchema.superRefine(
 				path: ["voicePackId"],
 			});
 		}
-		if (value.enabled && value.voicePackId === "custom" && !value.customVoiceFile) {
+		if (
+			value.enabled &&
+			value.voicePackId === "custom" &&
+			!value.customVoiceFile
+		) {
 			ctx.addIssue({
 				code: "custom",
 				message:
@@ -203,7 +208,8 @@ const VoicePreferencesSchema = VoicePreferencesBaseSchema.superRefine(
 		if (!value.enabled && value.voicePackId !== "none") {
 			ctx.addIssue({
 				code: "custom",
-				message: "voicePreferences.voicePackId must be none when voice is disabled.",
+				message:
+					"voicePreferences.voicePackId must be none when voice is disabled.",
 				path: ["voicePackId"],
 			});
 		}
@@ -292,6 +298,7 @@ export const ConfirmedSetupSchema = z
 		captionPreferences: CaptionPreferencesSchema,
 		voicePreferences: VoicePreferencesSchema,
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
+		networkMaterialMatching: NetworkMaterialMatchingSchema,
 		exportPreferences: ExportPreferencesSchema,
 		changes: z.array(ConfirmedSetupChangeSchema),
 	})
@@ -306,6 +313,8 @@ const CaptionPreferencesPatchSchema =
 const ExportPreferencesPatchSchema = ExportPreferencesSchema.partial().strict();
 const VoicePreferencesPatchSchema =
 	VoicePreferencesBaseSchema.partial().strict();
+const NetworkMaterialMatchingPatchSchema =
+	NetworkMaterialMatchingSchema.partial().strict();
 
 export const ConfirmedSetupPatchSchema = z
 	.object({
@@ -314,6 +323,7 @@ export const ConfirmedSetupPatchSchema = z
 		captionPreferences: CaptionPreferencesPatchSchema.optional(),
 		voicePreferences: VoicePreferencesPatchSchema.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
+		networkMaterialMatching: NetworkMaterialMatchingPatchSchema.optional(),
 		exportPreferences: ExportPreferencesPatchSchema.optional(),
 	})
 	.strict()
@@ -324,6 +334,7 @@ export const ConfirmedSetupPatchSchema = z
 			value.captionPreferences === undefined &&
 			value.voicePreferences === undefined &&
 			value.templatePreference === undefined &&
+			value.networkMaterialMatching === undefined &&
 			value.exportPreferences === undefined
 		) {
 			ctx.addIssue({
@@ -350,6 +361,8 @@ export type CaptionPreferences = ConfirmedSetup["captionPreferences"];
 export type ExportPreferences = ConfirmedSetup["exportPreferences"];
 export type VoicePreferences = ConfirmedSetup["voicePreferences"];
 export type TemplatePreference = ConfirmedSetup["templatePreference"];
+export type ConfirmedNetworkMaterialMatching =
+	ConfirmedSetup["networkMaterialMatching"];
 export type DurationContract = z.infer<typeof DurationContractSchema>;
 export type DurationGoal = z.infer<typeof DurationGoalSchema>;
 
@@ -609,6 +622,10 @@ export function applyConfirmedSetupPatch({
 		voicePreferences,
 		templatePreference:
 			parsedPatch.templatePreference ?? confirmedSetup.templatePreference,
+		networkMaterialMatching: {
+			...confirmedSetup.networkMaterialMatching,
+			...(parsedPatch.networkMaterialMatching ?? {}),
+		},
 		exportPreferences: {
 			...confirmedSetup.exportPreferences,
 			...(parsedPatch.exportPreferences ?? {}),
@@ -641,6 +658,11 @@ export function applyConfirmedSetupPatch({
 				"voicePreferences.voicePackId",
 				"voicePreferences.customVoiceFile",
 				"templatePreference",
+				"networkMaterialMatching.enabled",
+				"networkMaterialMatching.placement",
+				"networkMaterialMatching.providers",
+				"networkMaterialMatching.resolvedTemplateId",
+				"networkMaterialMatching.decisionSource",
 			].some(
 				(prefix) =>
 					change.field === prefix || change.field.startsWith(`${prefix}.`),

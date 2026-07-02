@@ -37,7 +37,7 @@ failures even when the bridge process exits successfully.
 | Workspace intake | `open_codecut_workspace`, optional local `inspect_codecut_setup`, `submit_codecut_setup` | Opens setup UI with required defaults; setup submission after explicit user confirmation mints a confirmed setup token, creates a project, and imports only import-ready local media. Remote URL and directory sources are deferred to material ingest; the timeline is never mutated. | `intentDefaults`, pending confirmation ID, confirmed setup token, setup `status`, created `projectId`, imported media, `deferredMediaSources`, latest revision. | `isError: true` plus `status` such as `blocked`, `confirmation_required`, `create_failed`, `import_failed`, or `readback_failed`. | Wait for explicit user confirmation in chat or widget submission, then call `submit_codecut_setup` with `confirmedByUser: true` and carry the confirmed setup token into side-effect tools and material ingest for deferred sources. |
 | Evidence read | `get_project_info`, `list_media_assets`, `list_codecut_builtin_voice_packs`, `transcribe_media`, `build_video_context`, `build_visual_context`, `inspect_video_range`, `inspect_timeline`, `get_transcript`, `search_media`, `list_models`, `list_templates`, `get_template`, `resolve_template`, `get_timeline_state` | No timeline mutation, no project deletion, no implicit import. Template reads require an open editor bridge for one project because the Templates UI library lives in browser storage. Built-in voice pack reads only expose bundled local reference audio paths. | Project/media/transcript/visual/model/template/timeline evidence in `structuredContent`; built-in voice packs include an executable local `audioPath` for RunningHub cloning. | `isError: true` with concrete missing project, missing template, missing media, provider, runtime, bridge, command error, or missing bundled voice reference audio. | Gather missing evidence or stop with the narrow runtime/data blocker. |
 | Asset side effect | `import_media`, `import_template`, `update_template`, `delete_template` | Media import requires the confirmed setup token and mutates media only; template library tools require their explicit template confirmation. Timeline stays unchanged. | Imported media asset or confirmed template mutation. | `isError: true` with validation, path, URL, confirmation, or bridge error. | Repair the asset input or ask for explicit confirmation before retry. |
-| Plan execution | `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `apply_narrated_remix_plan`, `build_post_cut_captions`, `build_video_quality_report`, `verify_timeline` | Validation, preview, caption building, and verification are read-only; `apply_*` requires the confirmed setup token and is the strict timeline mutation path. | Field-level validation/preview/readback, caption items, applied revision, or verification mismatch report. | `isError: true` or explicit mismatch fields; failed validation or verification is not completion. | Repair the plan or verification JSON, then rerun validate/preview before mutation. |
+| Plan execution | `validate_edit_plan`, `preview_edit_plan`, `apply_edit_plan`, `apply_narrated_remix_plan`, `apply_composite_layout_plan`, `build_post_cut_captions`, `build_video_quality_report`, `verify_timeline` | Validation, preview, caption building, and verification are read-only; `apply_*` requires the confirmed setup token and is the strict timeline mutation path. | Field-level validation/preview/readback, caption items, applied revision, or verification mismatch report. | `isError: true` or explicit mismatch fields; failed validation or verification is not completion. | Repair the plan or verification JSON, then rerun validate/preview before mutation. |
 | Advanced repair | `add_texts`, `add_captions`, `import_subtitles`, `insert_clips`, `move_clips`, `remove_clips`, `split_clip`, `set_clip_properties`, `set_keyframes`, `add_transitions`, `update_transition`, `remove_transition`, `ripple_delete_ranges`, `create_text_background_effect`, `create_human_pip_effect` | Requires the confirmed setup token and mutates specific timeline objects, native transitions, controlled subtitle imports, or deterministic effects after explicit user intent or readback diagnosis. | Created/updated element IDs, created subtitle track ID, native transition IDs, affected tracks, revision, `captionQuality`, `transitionCount`, or timeline summary. | `isError: true` with unknown IDs, non-video tracks, non-adjacent transition elements, invalid ranges, unsupported subtitle format/style/override/effect, unsupported effect assets, or bridge command failure. | Read timeline state first, repair only the named object/range/transition, or import only the explicit user-supplied subtitle file, then verify with readback. |
 | External side effect | `export_project`, `export_timeline_frame`, `generate_digital_human`, `generate_runninghub_voice_design`, `generate_runninghub_voice_clone`, `generate_volcengine_cloned_voice`, `transcribe_volcengine_url`, `build_volcengine_url_captions`, `transcribe_volcengine_media`, `build_volcengine_media_captions` | Requires the confirmed setup token for generation/export tools, writes output files, or calls provider-backed generation/transcription. Voice tools accept optional `protectedTerms`. Volcengine URL tools accept only public `https://` media URLs; Volcengine media tools use an imported asset only when it already carries a public HTTPS source URL. CodeCut does not upload local files implicitly. | Output path, still-frame artifact, provider artifact, voice consistency summary, transcript/caption data, or export/generation metadata. | `isError: true` with renderer/provider/runtime/output-path/URL/media-source error. | Report the external gate separately from editing correctness; place returned Volcengine captions through `add_texts`, `add_captions`, or an EditPlan only after reviewing the returned data. Do not fall back to local Whisper when the user expected provider-backed transcription unless the user explicitly approves that change. |
 
@@ -64,6 +64,7 @@ Current callable MCP tools relevant to Codex-driven editing:
 | `preview_edit_plan` | Return EditPlan summary, clip list, caption/audio/transition counts, and replacement warning without mutating timeline state. |
 | `apply_edit_plan` | Validate and apply the implemented EditPlan v1 to the timeline. |
 | `apply_narrated_remix_plan` | Validate and apply the implemented NarratedRemixPlan v1 for existing narration audio plus muted video or image B-roll, optional independent text overlays, and captions. |
+| `apply_composite_layout_plan` | Validate and apply the implemented CompositeLayoutPlan v1 for presenter video plus already imported network material assets in background/top/bottom layouts. |
 | `build_video_quality_report` | Return read-only `schemaVersion: 2` checks for validation, readback, caption quality, optional title quality rubric, optional export probe, optional audio presence, voice consistency, text layout, transitions, and contact-sheet rendering. It does not export files, infer platforms, perform OCR, face detection, or burned-caption detection. |
 | `add_transitions` | Add native `TrackTransition` entries between adjacent visual elements on video tracks. Requires `trackId`, `fromElementId`, `toElementId`, implemented native `type`, `duration`, and a confirmation token. It must fail instead of moving clips, creating keyframes, or accepting Shader/CSS transition names. |
 | `update_transition` | Update one native transition by `trackId` and `transitionId`. Requires at least one of `type` or `duration`, and must preserve revision on invalid IDs, non-adjacent pairs, or excessive duration. |
@@ -122,6 +123,19 @@ image B-roll, optional independent text overlays, and captions. It rejects TTS
 fields, BGM, SFX, gaps, overlaps, missing `captionStyle`, and caption quality
 failures before mutating timeline state.
 
+Talking-head presenter plus network material split layouts use the separate
+deterministic path:
+
+```text
+get_project_info -> list_media_assets -> network material matching has already imported candidate media -> Codex writes CompositeLayoutPlan -> apply_composite_layout_plan -> get_timeline_state
+```
+
+`CompositeLayoutPlan v1` only accepts already imported presenter video and
+network material media. It does not search, download, or understand network
+material inside the apply tool. `top` and `bottom` placements are fixed 9:16
+split layouts with `cover-slot` crop mode and must read back through
+`visual.layoutSlot`.
+
 Masked visual effects use explicit deterministic actions outside EditPlan v1:
 
 ```text
@@ -153,6 +167,16 @@ Current `apply_narrated_remix_plan` behavior:
 - requires top-level `captionStyle` when captions are present
 - requires `narration.mediaId` to be an existing audio asset
 - requires every `visualBeats[].mediaId` to be an existing video asset for video beats or an existing image asset for image beats
+
+Current `apply_composite_layout_plan` behavior:
+
+- validates the full plan before mutating timeline state
+- rejects non-empty timelines unless `replaceExisting=true`
+- requires `projectId` to match the executor project
+- replaces the timeline with one `Network Material` visual track and one `Presenter` visual track
+- supports `background`, `top`, and `bottom`; split placements require `target.aspectRatio: "9:16"`
+- requires background presenter composition to carry existing mask evidence
+- requires every referenced visual asset to exist and expose width and height
 
 ## Product Direction
 

@@ -30,6 +30,13 @@ function setupIntent(overrides = {}) {
 		captionLanguage: "auto",
 		transitionPreference: "auto",
 		templatePreference: { mode: "auto" },
+		networkMaterialMatching: {
+			enabled: false,
+			placement: "background",
+			providers: ["pexels"],
+			resolvedTemplateId: "talking-head-short",
+			decisionSource: "template",
+		},
 		output: {
 			format: "mp4",
 			quality: "high",
@@ -159,6 +166,7 @@ describe("Codecut MCP server contract", () => {
 			"preview_edit_plan",
 			"apply_edit_plan",
 			"apply_narrated_remix_plan",
+			"apply_composite_layout_plan",
 			"add_texts",
 			"add_captions",
 			"import_subtitles",
@@ -427,6 +435,7 @@ describe("Codecut MCP server contract", () => {
 			"preview_edit_plan",
 			"apply_edit_plan",
 			"apply_narrated_remix_plan",
+			"apply_composite_layout_plan",
 			"verify_timeline",
 		]) {
 			expect(categoryByTool.get(toolName)).toBe(
@@ -507,15 +516,9 @@ describe("Codecut MCP server contract", () => {
 	});
 
 	test("marks template mutation tools as destructive in MCP annotations", () => {
-		expect(
-			DESTRUCTIVE_MCP_TOOL_NAMES.has("import_template"),
-		).toBe(true);
-		expect(
-			DESTRUCTIVE_MCP_TOOL_NAMES.has("update_template"),
-		).toBe(true);
-		expect(
-			DESTRUCTIVE_MCP_TOOL_NAMES.has("delete_template"),
-		).toBe(true);
+		expect(DESTRUCTIVE_MCP_TOOL_NAMES.has("import_template")).toBe(true);
+		expect(DESTRUCTIVE_MCP_TOOL_NAMES.has("update_template")).toBe(true);
+		expect(DESTRUCTIVE_MCP_TOOL_NAMES.has("delete_template")).toBe(true);
 	});
 
 	test("defines a stable workspace widget resource and tools", async () => {
@@ -615,7 +618,8 @@ describe("Codecut MCP server contract", () => {
 			]).success,
 		).toBe(false);
 		expect(
-			z.object(submitTool.inputSchema).strict().safeParse(setupIntent()).success,
+			z.object(submitTool.inputSchema).strict().safeParse(setupIntent())
+				.success,
 		).toBe(true);
 		expect(
 			openTool.inputSchema.transitionPreference.safeParse("auto").success,
@@ -1998,7 +2002,7 @@ describe("Codecut MCP server contract", () => {
 			ok: false,
 			detail:
 				"Transition animation must be auto, none, or a supported CodeCut transition type.",
-			});
+		});
 	});
 
 	test("carries template preference through workspace setup", async () => {
@@ -2047,6 +2051,67 @@ describe("Codecut MCP server contract", () => {
 			ok: false,
 			detail:
 				"Template preference must be auto or specified with requestedTemplate.",
+		});
+	});
+
+	test("carries network material matching through workspace setup", async () => {
+		const networkMaterialMatching = {
+			enabled: true,
+			placement: "top",
+			providers: ["pexels", "pixabay", "coverr"],
+			resolvedTemplateId: "talking-head-broll-split",
+			decisionSource: "template",
+		};
+		const opened = serverModule.openCodecutWorkspace({
+			projectName: "Creator Launch",
+			networkMaterialMatching,
+		});
+		expect(
+			opened.structuredContent.intentDefaults.networkMaterialMatching,
+		).toEqual(networkMaterialMatching);
+		expect(
+			opened._meta.widgetData.intentDefaults.networkMaterialMatching,
+		).toEqual(networkMaterialMatching);
+
+		const ready = await serverModule.inspectCodecutSetup(
+			setupIntent({ networkMaterialMatching }),
+		);
+		expect(ready.status).toBe("ready");
+		expect(ready.intent.networkMaterialMatching).toEqual(
+			networkMaterialMatching,
+		);
+
+		const blocked = await serverModule.inspectCodecutSetup(
+			setupIntent({
+				networkMaterialMatching: {
+					...networkMaterialMatching,
+					providers: [],
+				},
+			}),
+		);
+		expect(blocked.status).toBe("blocked");
+		expect(blocked.checks).toContainEqual({
+			id: "network-material-matching",
+			label: "Network material matching",
+			ok: false,
+			detail:
+				"Network material matching requires enabled, placement, providers, resolvedTemplateId, and decisionSource.",
+		});
+	});
+
+	test("uses template policy defaults for talking head split b-roll", () => {
+		const opened = serverModule.openCodecutWorkspace({
+			projectName: "口播分屏素材",
+			requirements: "出镜人在下方，网络素材在上方配合口播内容。",
+		});
+		expect(
+			opened.structuredContent.intentDefaults.networkMaterialMatching,
+		).toEqual({
+			enabled: true,
+			placement: "top",
+			providers: ["pexels", "pixabay", "coverr"],
+			resolvedTemplateId: "talking-head-broll-split",
+			decisionSource: "template",
 		});
 	});
 
@@ -4197,6 +4262,26 @@ describe("Codecut MCP server contract", () => {
 			"/tmp/remix-plan.json",
 			"--replace-existing",
 			"false",
+			"--confirmation-token",
+			confirmationToken,
+		]);
+
+		expect(
+			buildBridgeCliArgs("apply_composite_layout_plan", {
+				projectId: "project-1",
+				planJsonFile: "/tmp/composite-layout-plan.json",
+				replaceExisting: true,
+				confirmationToken,
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"apply-composite-layout-plan",
+			"--project-id",
+			"project-1",
+			"--plan-json-file",
+			"/tmp/composite-layout-plan.json",
+			"--replace-existing",
+			"true",
 			"--confirmation-token",
 			confirmationToken,
 		]);

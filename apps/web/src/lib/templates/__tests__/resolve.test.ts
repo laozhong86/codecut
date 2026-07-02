@@ -34,8 +34,14 @@ function userTemplate(overrides: Partial<Template> = {}): Template {
 			captionPreset: "product-punch",
 			stopConditions: ["Product facts are missing."],
 		},
-		now,
 		...overrides,
+		networkMaterialPolicy: {
+			defaultEnabled: false,
+			searchBasis: "voiceover_content",
+			defaultPlacement: "background",
+			allowedPlacements: ["background", "top", "bottom"],
+		},
+		now,
 	});
 }
 
@@ -100,15 +106,17 @@ describe("resolveTemplate", () => {
 			success: false,
 			code: "missing-evidence",
 			templateId: "custom-proof",
-			message:
-				"Template custom-proof requires visual-proof and product-facts.",
+			message: "Template custom-proof requires visual-proof and product-facts.",
 			missingEvidence: ["visual-proof", "product-facts"],
 		});
 	});
 
 	test("fails when more than one user template is default for the same trigger", () => {
 		const result = resolveTemplate({
-			userTemplates: [userTemplate({ id: "first" }), userTemplate({ id: "second" })],
+			userTemplates: [
+				userTemplate({ id: "first" }),
+				userTemplate({ id: "second" }),
+			],
 			userIntent: "剪一个商品带货广告",
 			materialFacts: {
 				hasTranscript: true,
