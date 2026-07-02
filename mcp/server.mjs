@@ -75,6 +75,10 @@ const workspaceVoicePackChoiceValues = [
 	...builtinVoicePackIds,
 	"custom",
 ];
+const workspaceOpenVoicePackChoiceValues = [
+	noBuiltinVoicePackId,
+	...builtinVoicePackIds,
+];
 const noBuiltinCharacterId = "none";
 const builtinCharacterIds = builtinCharacterOptions.map(
 	(character) => character.id,
@@ -443,6 +447,19 @@ const workspaceOutputSchema = workspaceOutputBaseSchema.superRefine(
 		}
 	},
 );
+const workspaceOpenOutputSchema = z
+	.object({
+		format: outputFormatSchema.optional(),
+		quality: outputQualitySchema.optional(),
+		includeAudio: z.boolean().optional(),
+		captionEnabled: z.boolean().optional(),
+		captionFont: captionFontSchema.optional(),
+		captionSize: captionSizeSchema.optional(),
+		captionStylePreset: captionStylePresetSchema.optional(),
+		voiceEnabled: z.boolean().optional(),
+		voicePackId: z.enum(workspaceOpenVoicePackChoiceValues).optional(),
+	})
+	.strict();
 
 const titlePreferencesBaseSchema = z
 	.object({
@@ -613,10 +630,12 @@ const workspaceOpenInputSchema = {
 	captionLanguage: z.string().trim().optional(),
 	transitionPreference: transitionPreferenceSchema.optional(),
 	templatePreference: templatePreferenceSchema.optional(),
+	characterPreferences: workspaceCharacterPreferencesSchema.optional(),
+	bgmPreferences: workspaceBgmPreferencesSchema.optional(),
 	networkMaterialMatching: networkMaterialMatchingSchema.optional(),
 	locale: z.string().trim().optional(),
 	uiLanguage: z.string().trim().optional(),
-	output: workspaceOutputBaseSchema.partial().optional(),
+	output: workspaceOpenOutputSchema.optional(),
 	titlePreferences: titlePreferencesBaseSchema.partial().optional(),
 	generateIntroCover: z.boolean().optional(),
 };
@@ -3285,6 +3304,11 @@ function buildWorkspaceIntentDefaults(input = {}) {
 			templatePreference,
 		},
 	);
+	if (input.output?.customVoiceFile !== undefined) {
+		throw new Error(
+			"customVoiceFile is not supported by CodeCut requirement confirmation.",
+		);
+	}
 	const defaults = {
 		projectId:
 			String(input.projectId || "").trim() ||
@@ -3805,9 +3829,9 @@ function normalizeCustomVoiceFile(value) {
 
 function resolveWorkspaceVoicePackIdDefault(value) {
 	const normalized = normalizeWorkspaceVoicePackId(value);
-	if (workspaceVoicePackChoiceValues.includes(normalized)) return normalized;
+	if (workspaceOpenVoicePackChoiceValues.includes(normalized)) return normalized;
 	throw new Error(
-		"voicePackId must be none, podcast-female, podcast-male, or custom.",
+		"voicePackId must be none, podcast-female, or podcast-male.",
 	);
 }
 

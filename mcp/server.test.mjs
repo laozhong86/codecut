@@ -621,6 +621,37 @@ describe("Codecut MCP server contract", () => {
 			z.object(submitTool.inputSchema).strict().safeParse(setupIntent())
 				.success,
 		).toBe(true);
+		const openInputSchema = z.object(openTool.inputSchema).strict();
+		const requirementOpenInputSchema = z
+			.object(requirementOpenTool.inputSchema)
+			.strict();
+		const roleAndSoundDefaults = {
+			characterPreferences: { characterId: "ugc-female-host" },
+			bgmPreferences: { mode: "smart_match" },
+			output: {
+				voiceEnabled: true,
+				voicePackId: "podcast-male",
+			},
+		};
+		expect(openInputSchema.safeParse(roleAndSoundDefaults).success).toBe(true);
+		expect(
+			requirementOpenInputSchema.safeParse(roleAndSoundDefaults).success,
+		).toBe(true);
+		const customVoiceDefaults = {
+			output: {
+				voiceEnabled: true,
+				voicePackId: "custom",
+				customVoiceFile: {
+					name: "voice.wav",
+					url: "blob:voice",
+					path: "/tmp/voice.wav",
+				},
+			},
+		};
+		expect(openInputSchema.safeParse(customVoiceDefaults).success).toBe(false);
+		expect(
+			requirementOpenInputSchema.safeParse(customVoiceDefaults).success,
+		).toBe(false);
 		expect(
 			openTool.inputSchema.transitionPreference.safeParse("auto").success,
 		).toBe(true);
@@ -2295,6 +2326,30 @@ describe("Codecut MCP server contract", () => {
 			voiceEnabled: true,
 			voicePackId: "podcast-male",
 		});
+
+		expect(() =>
+			serverModule.openCodecutWorkspace({
+				projectName: "Voice Controls",
+				output: {
+					voiceEnabled: true,
+					voicePackId: "custom",
+				},
+			}),
+		).toThrow("voicePackId must be none, podcast-female, or podcast-male.");
+		expect(() =>
+			serverModule.openCodecutWorkspace({
+				projectName: "Voice Controls",
+				output: {
+					voicePackId: "podcast-male",
+					customVoiceFile: {
+						name: "voice.wav",
+						url: "blob:voice",
+					},
+				},
+			}),
+		).toThrow(
+			"customVoiceFile is not supported by CodeCut requirement confirmation.",
+		);
 	});
 
 	test("opens the workspace with character and BGM defaults", () => {
