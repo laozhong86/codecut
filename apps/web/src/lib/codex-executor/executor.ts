@@ -1281,6 +1281,7 @@ async function toMediaAsset(asset: ExecutorMediaAsset): Promise<MediaAsset> {
 		height: asset.height,
 		fps: asset.fps,
 		sourcePath: asset.path,
+		spokenScript: asset.spokenScript,
 		file: await fileForMediaAsset(asset),
 	};
 }
@@ -1982,6 +1983,7 @@ export async function getExecutorProjectSnapshot({
 			height: asset.height,
 			size: asset.size,
 			lastModified: asset.lastModified,
+			spokenScript: asset.spokenScript,
 			url: `/api/codex-executor/media?projectId=${encodeURIComponent(projectId)}&mediaId=${encodeURIComponent(asset.id)}`,
 		})),
 		derivedAssets: state.derivedAssets,

@@ -1305,6 +1305,46 @@ describe("codex executor", () => {
 		expect(JSON.stringify(data.assets[0])).not.toContain("$2.34");
 	});
 
+	test("keeps spokenScript in the browser project snapshot", async () => {
+		await createExecutorProject({ projectId, name: "Scripted TTS snapshot" });
+		await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "narration.wav",
+					mimeType: "audio/wav",
+					base64: Buffer.from("audio").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 8,
+					spokenScript: {
+						source: "tts",
+						text: "A pizza portion costs $2.34. Venmo that ASAP.",
+						captions: ["A pizza portion costs $2.34.", "Venmo that ASAP."],
+						protectedTerms: ["$2.34", "Venmo that ASAP"],
+						provider: "runninghub-voice-clone",
+						providerTaskId: "voice-task-1",
+					},
+				},
+			}),
+		});
+
+		const snapshot = await getExecutorProjectSnapshot({ projectId });
+
+		expect(snapshot.mediaAssets[0]).toMatchObject({
+			name: "narration.wav",
+			type: "audio",
+			spokenScript: {
+				source: "tts",
+				text: "A pizza portion costs $2.34. Venmo that ASAP.",
+				captions: ["A pizza portion costs $2.34.", "Venmo that ASAP."],
+				protectedTerms: ["$2.34", "Venmo that ASAP"],
+				provider: "runninghub-voice-clone",
+				providerTaskId: "voice-task-1",
+			},
+		});
+	});
+
 	test("summarizes spokenScript metadata in referenced media readback", async () => {
 		await createExecutorProject({ projectId, name: "Scripted TTS timeline" });
 		const videoImport = await executeCodexExecutorEnvelope({
@@ -6173,6 +6213,124 @@ describe("codex executor", () => {
 				{ type: "text", content: "Opening line" },
 				{ type: "text", content: "Closing line" },
 			],
+		});
+	});
+
+	test("applies a scripted TTS narrated remix plan through the local executor", async () => {
+		await createExecutorProject({
+			projectId,
+			name: "Scripted narrated remix",
+		});
+		const videoImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "broll.mp4",
+					mimeType: "video/mp4",
+					base64: Buffer.from("video").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 8,
+					width: 1920,
+					height: 1080,
+				},
+			}),
+		});
+		const narrationImport = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "import_media_file",
+				args: {
+					fileName: "scripted-narration.wav",
+					mimeType: "audio/wav",
+					base64: Buffer.from("audio").toString("base64"),
+					size: 5,
+					lastModified: 1,
+					duration: 8,
+					spokenScript: {
+						source: "tts",
+						text: "Opening line. Closing line.",
+						captions: ["Opening line.", "Closing line."],
+						protectedTerms: ["Closing line"],
+						provider: "runninghub-voice-clone",
+						providerTaskId: "voice-task-1",
+					},
+				},
+			}),
+		});
+		const videoId = resultData<{ assets: Array<{ id: string }> }>(
+			videoImport.results[0],
+		).assets[0].id;
+		const narrationId = resultData<{ assets: Array<{ id: string }> }>(
+			narrationImport.results[0],
+		).assets[0].id;
+
+		const applyResult = await executeCodexExecutorEnvelope({
+			envelope: envelope({
+				tool: "apply_narrated_remix_plan",
+				args: {
+					replaceExisting: true,
+					plan: {
+						version: 1,
+						projectId,
+						target: { durationSec: 8, aspectRatio: "9:16" },
+						visualBeats: [
+							{
+								id: "beat-1",
+								mediaId: videoId,
+								sourceStart: 0,
+								sourceEnd: 8,
+								timelineStart: 0,
+								muted: true,
+								reason: "B-roll under generated narration.",
+							},
+						],
+						narration: { mediaId: narrationId, sourceStart: 0 },
+						captions: [
+							{ text: "Opening line", startTime: 0, duration: 3 },
+							{ text: "Closing line", startTime: 4, duration: 3 },
+						],
+						captionStyle: {
+							preset: "talking-head-pop",
+							position: "lower-safe",
+							size: "medium",
+						},
+						captionSource: {
+							type: "post-cut-audio",
+							tool: "build-post-cut-captions",
+							source: "scripted_tts_audio",
+							trace: [
+								{
+									mediaId: narrationId,
+									timelineStart: 0,
+									sourceStart: 0,
+									sourceEnd: 8,
+									captionCount: 2,
+								},
+							],
+							voiceConsistency: {
+								provider: "runninghub-voice-clone",
+								providerTaskId: "voice-task-1",
+								alignmentMethod: "scripted_captions_to_asr_segments",
+								scriptCaptionLineCount: 2,
+								protectedTermCount: 1,
+							},
+						},
+						rationale: "Uses scripted TTS narration over muted B-roll.",
+					},
+				},
+			}),
+		});
+
+		expect(applyResult.results[0]).toMatchObject({
+			commandId: "cmd-1",
+			tool: "apply_narrated_remix_plan",
+			success: true,
+			message: "Applied NarratedRemixPlan with 1 visual beat(s).",
+			data: {
+				audioElementCount: 1,
+				captionCount: 2,
+				totalDuration: 8,
+			},
 		});
 	});
 

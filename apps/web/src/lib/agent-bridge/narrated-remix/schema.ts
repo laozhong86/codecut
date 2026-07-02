@@ -148,6 +148,7 @@ export const NarratedRemixCaptionSourceSchema = z
 					"imported-tts",
 					"runninghub-voice-design",
 					"runninghub-voice-clone",
+					"volcengine-voice-clone",
 				]),
 				providerTaskId: z.string().min(1).optional(),
 				alignmentMethod: z.literal("scripted_captions_to_asr_segments"),
