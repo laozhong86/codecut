@@ -11,6 +11,7 @@ export {
 export {
 	TemplateService,
 	templateService,
+	type TemplateImportCheck,
 } from "./service";
 export {
 	migrateLegacyTemplateRecord,

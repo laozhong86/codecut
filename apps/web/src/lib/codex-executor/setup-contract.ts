@@ -10,7 +10,6 @@ import type { buildTextElement } from "@/lib/timeline/element-utils";
 import { isCodecutLocalFontFamily } from "@/lib/codecut-fonts";
 import builtinCharacterOptions from "./builtin-character-options.json";
 import { NetworkMaterialMatchingSchema } from "@/lib/network-materials/schema";
-import { BUILT_IN_TEMPLATE_IDS } from "@/lib/templates/registry";
 import { isCommercialVideoSafeLicense } from "@/lib/sounds/internet-archive-search.mjs";
 
 type TextElementRaw = Parameters<typeof buildTextElement>[0]["raw"];
@@ -518,7 +517,7 @@ export const TemplatePreferenceSchema = z.discriminatedUnion("mode", [
 	z
 		.object({
 			mode: z.literal("specified"),
-			requestedTemplate: z.enum(BUILT_IN_TEMPLATE_IDS),
+			requestedTemplate: z.string().trim().min(1),
 		})
 		.strict(),
 	z

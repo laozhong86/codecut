@@ -30,6 +30,7 @@ export const REQUIRED_MCP_TOOLS = [
 	"list_templates",
 	"get_template",
 	"resolve_template",
+	"check_template_import",
 	"import_template",
 	"update_template",
 	"delete_template",
@@ -140,6 +141,19 @@ export function assertFreshMcpToolSurface({ tools }) {
 		);
 	}
 
+	const templateCheckImportProperties = schemaProperties(
+		requireTool({ toolsByName, name: "check_template_import" }),
+	);
+	if (
+		!templateCheckImportProperties ||
+		typeof templateCheckImportProperties !== "object" ||
+		!Object.hasOwn(templateCheckImportProperties, "templateJsonFile")
+	) {
+		throw new Error(
+			"check_template_import input schema must expose templateJsonFile.",
+		);
+	}
+
 	const templateListProperties = schemaProperties(
 		requireTool({ toolsByName, name: "list_templates" }),
 	);
@@ -216,6 +230,7 @@ export function assertFreshMcpToolSurface({ tools }) {
 	return {
 		toolNames: REQUIRED_MCP_TOOLS,
 		importMediaInputs: importMediaInputs.sort(),
+		templateCheckImportInputs: ["templateJsonFile"],
 		templateDeleteInputs: ["confirmedByUser", "templateId"],
 		templateGetInputs: ["templateId"],
 		templateImportInputs: ["confirmedByUser", "templateJsonFile"],

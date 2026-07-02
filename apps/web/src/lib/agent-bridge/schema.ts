@@ -31,6 +31,7 @@ export const BridgeToolNameSchema = z.enum([
 	"list_templates",
 	"get_template",
 	"resolve_template",
+	"check_template_import",
 	"import_template",
 	"update_template",
 	"delete_template",

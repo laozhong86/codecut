@@ -16,12 +16,15 @@ import {
 	buildExportEnvelope,
 	buildExportTimelineFrameEnvelope,
 	buildFreshSessionSmokeReport,
+	buildCheckTemplateImportEnvelope,
+	buildGetTemplateEnvelope,
 	buildGetTimelineStateEnvelope,
 	buildGetTranscriptEnvelope,
 	buildImportSubtitlesEnvelope,
 	buildImportTemplateEnvelope,
 	buildImportMediaEnvelope,
 	buildInsertClipsEnvelope,
+	buildListTemplatesEnvelope,
 	buildInspectTimelineEnvelope,
 	buildInspectVideoRangeEnvelope,
 	buildListModelsEnvelope,
@@ -31,6 +34,7 @@ import {
 	buildRemoveClipsEnvelope,
 	buildRemoveTransitionEnvelope,
 	buildRippleDeleteRangesEnvelope,
+	buildResolveTemplateEnvelope,
 	buildSearchMediaEnvelope,
 	buildSetClipPropertiesEnvelope,
 	buildSetKeyframesEnvelope,
@@ -1715,6 +1719,86 @@ try {
 		}
 	});
 
+	test("builds template read and preflight envelopes for the browser bridge", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
+		const templatePath = join(directory, "template.json");
+		const template = {
+			id: "proof-demo-cut",
+			name: "Proof demo cut",
+			trigger: {
+				types: ["product-proof-ad"],
+				defaultForTypes: [],
+				aliases: [],
+			},
+			plan: {
+				objective: "Verify import.",
+				steps: [
+					{
+						id: "open",
+						label: "Open",
+						instruction: "Open with proof.",
+					},
+				],
+				verification: ["Visible in Templates UI."],
+			},
+			createdAt: "2026-06-23T00:00:00.000Z",
+			updatedAt: "2026-06-23T00:00:00.000Z",
+		};
+		await writeFile(templatePath, JSON.stringify(template), "utf8");
+
+		try {
+			expect(buildListTemplatesEnvelope({ projectId: "project-123" })).toEqual(
+				buildCommandEnvelope({
+					projectId: "project-123",
+					tool: "list_templates",
+					args: {},
+				}),
+			);
+			expect(
+				buildGetTemplateEnvelope({
+					projectId: "project-123",
+					templateId: "proof-demo-cut",
+				}),
+			).toEqual(
+				buildCommandEnvelope({
+					projectId: "project-123",
+					tool: "get_template",
+					args: { templateId: "proof-demo-cut" },
+				}),
+			);
+			expect(
+				buildResolveTemplateEnvelope({
+					projectId: "project-123",
+					requestedTemplate: "proof demo",
+					hasTranscript: true,
+				}),
+			).toEqual(
+				buildCommandEnvelope({
+					projectId: "project-123",
+					tool: "resolve_template",
+					args: {
+						requestedTemplate: "proof demo",
+						hasTranscript: true,
+					},
+				}),
+			);
+			expect(
+				await buildCheckTemplateImportEnvelope({
+					projectId: "project-123",
+					templateJsonFile: templatePath,
+				}),
+			).toEqual(
+				buildCommandEnvelope({
+					projectId: "project-123",
+					tool: "check_template_import",
+					args: { template },
+				}),
+			);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test("builds a confirmed template update envelope from a JSON draft", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
 		const templatePath = join(directory, "template.json");
@@ -2262,6 +2346,144 @@ try {
 			},
 		});
 		expect(JSON.parse(output[0]).status).toBe("completed");
+	});
+
+	test("reads and checks templates through the browser agent bridge", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
+		const templatePath = join(directory, "template.json");
+		const template = {
+			id: "proof-demo-cut",
+			name: "Proof demo cut",
+			trigger: {
+				types: ["product-proof-ad"],
+				defaultForTypes: [],
+				aliases: [],
+			},
+			plan: {
+				objective: "Verify import.",
+				steps: [
+					{
+						id: "open",
+						label: "Open",
+						instruction: "Open with proof.",
+					},
+				],
+				verification: ["Visible in Templates UI."],
+			},
+			createdAt: "2026-06-23T00:00:00.000Z",
+			updatedAt: "2026-06-23T00:00:00.000Z",
+		};
+		await writeFile(templatePath, JSON.stringify(template), "utf8");
+
+		const cases = [
+			{
+				argv: ["list-templates", "--project-id", "project-123"],
+				tool: "list_templates",
+				args: {},
+			},
+			{
+				argv: [
+					"get-template",
+					"--project-id",
+					"project-123",
+					"--template-id",
+					"proof-demo-cut",
+				],
+				tool: "get_template",
+				args: { templateId: "proof-demo-cut" },
+			},
+			{
+				argv: [
+					"resolve-template",
+					"--project-id",
+					"project-123",
+					"--args-json",
+					'{"requestedTemplate":"proof demo","hasTranscript":true}',
+				],
+				tool: "resolve_template",
+				args: { requestedTemplate: "proof demo", hasTranscript: true },
+			},
+			{
+				argv: [
+					"check-template-import",
+					"--project-id",
+					"project-123",
+					"--template-json-file",
+					templatePath,
+				],
+				tool: "check_template_import",
+				args: { template },
+			},
+		];
+
+		try {
+			for (const entry of cases) {
+				const requests = [];
+				const fetchImpl = async (url, init = {}) => {
+					requests.push({ url, init });
+					if (String(url).includes("/api/agent-bridge/heartbeat")) {
+						return new Response(
+							JSON.stringify({ projectId: "project-123", mounted: true }),
+						);
+					}
+					if (String(url).endsWith("/api/agent-bridge/commands")) {
+						return new Response(
+							JSON.stringify({
+								id: "bridge-1",
+								status: "pending",
+								projectId: "project-123",
+							}),
+						);
+					}
+					if (String(url).includes("/api/agent-bridge/results?id=bridge-1")) {
+						return new Response(
+							JSON.stringify({
+								id: "bridge-1",
+								status: "completed",
+								projectId: "project-123",
+								results: [
+									{
+										commandId: "cmd-1",
+										tool: entry.tool,
+										success: true,
+										message: "OK",
+									},
+								],
+							}),
+						);
+					}
+					throw new Error(`Unexpected request: ${url}`);
+				};
+				const output = [];
+
+				const exitCode = await runCli({
+					argv: entry.argv,
+					env: {
+						CODECUT_AGENT_BRIDGE_URL: "http://localhost:4100",
+						CODECUT_AGENT_BRIDGE_TOKEN: "local-token",
+						CODECUT_AGENT_BRIDGE_TIMEOUT_MS: "1000",
+						CODECUT_AGENT_BRIDGE_INTERVAL_MS: "1",
+					},
+					fetchImpl,
+					stdout: (value) => output.push(value),
+				});
+
+				expect(exitCode).toBe(0);
+				expect(requests.map((request) => request.url)).toEqual([
+					"http://localhost:4100/api/agent-bridge/heartbeat?projectId=project-123",
+					"http://localhost:4100/api/agent-bridge/commands",
+					"http://localhost:4100/api/agent-bridge/results?id=bridge-1",
+				]);
+				expect(JSON.parse(requests[1].init.body).envelope.commands[0]).toEqual({
+					id: "cmd-1",
+					tool: entry.tool,
+					args: entry.args,
+				});
+				expect(JSON.parse(output[0]).status).toBe("completed");
+			}
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	test("project management commands call executor project endpoints directly", async () => {

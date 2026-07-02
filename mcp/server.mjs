@@ -337,19 +337,12 @@ const workspaceTaskTypeSchema = z.enum(workspaceTaskTypeValues);
 const workspaceCharacterIdSchema = z.enum(workspaceCharacterChoiceValues);
 const bgmPreferenceModeSchema = z.enum(bgmPreferenceModeValues);
 const durationGoalModeSchema = z.enum(["auto", "custom"]);
-const builtInTemplateIdValues = [
-	"talking-head-short",
-	"talking-head-broll-split",
-	"tutorial-demo",
-	"product-proof-ad",
-	"narrated-broll",
-];
 const templatePreferenceSchema = z.discriminatedUnion("mode", [
 	z.object({ mode: z.literal("auto") }).strict(),
 	z
 		.object({
 			mode: z.literal("specified"),
-			requestedTemplate: z.enum(builtInTemplateIdValues),
+			requestedTemplate: z.string().trim().min(1),
 		})
 		.strict(),
 	z
@@ -1266,6 +1259,7 @@ const codecutToolGovernanceCategoryByName = new Map([
 	["list_templates", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["get_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["resolve_template", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
+	["check_template_import", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["get_timeline_state", CODECUT_TOOL_GOVERNANCE_CATEGORIES.EVIDENCE_READ],
 	["validate_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
 	["preview_edit_plan", CODECUT_TOOL_GOVERNANCE_CATEGORIES.PLAN_EXECUTION],
@@ -1562,7 +1556,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "list_templates",
 		title: "List Codecut Templates",
 		description:
-			"List Codecut built-in templates from the local executor registry for one explicit project.",
+			"List Codecut templates from the browser local template library for one explicit project.",
 		inputSchema: projectOnlyInputSchema,
 		readOnly: true,
 	},
@@ -1581,7 +1575,7 @@ export const CODECUT_MCP_TOOLS = [
 		name: "resolve_template",
 		title: "Resolve Codecut Template",
 		description:
-			"Resolve one Codecut built-in template by ID, name, alias, or default trigger type through the local executor registry.",
+			"Resolve one Codecut template by ID, name, alias, or default trigger type through the browser local template library.",
 		inputSchema: {
 			projectId: projectIdSchema,
 			requestedTemplate: z
@@ -1598,6 +1592,17 @@ export const CODECUT_MCP_TOOLS = [
 			hasProductFacts: z.boolean().optional(),
 			hasExistingNarrationAudio: z.boolean().optional(),
 			hasVisualBroll: z.boolean().optional(),
+		},
+		readOnly: true,
+	},
+	{
+		name: "check_template_import",
+		title: "Check Codecut Template Import",
+		description:
+			"Check one Template JSON file against the browser local template library before importing. Read-only: reports ID conflicts, built-in reservations, and trigger conflicts without writing.",
+		inputSchema: {
+			projectId: projectIdSchema,
+			templateJsonFile: templateJsonFileSchema,
 		},
 		readOnly: true,
 	},
@@ -2202,7 +2207,7 @@ export const CODECUT_WORKSPACE_TOOLS = [
 		name: "open_codecut_workspace",
 		title: "Open CodeCut Workspace Setup",
 			description:
-				"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. templatePreference.mode must be auto, specified with an existing built-in requestedTemplate, or create with draftTemplateName for a later user-confirmed template draft. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. When the user asks to keep the original duration, avoid trimming the total length, preserve the complete source, or avoid deleting source ranges, pass durationContract with totalDurationMode preserve_source and/or sourceCoverageMode full_source plus sourceDurationSeconds from ffprobe for local files. Do not set generateIntroCover true with preserve_source plus full_source; a timeline intro cover changes duration, so use a fixed title or project cover instead. Use durationGoalMode custom only for explicit duration ranges, and keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
+				"Render a CodeCut setup confirmation widget with editable intent fields. Requires local CodeCut web service readiness before rendering the widget. Use taskType to separate template_draft, template_import, template_apply_sample, and edit_execution before continuing work. templatePreference.mode must be auto, specified with a non-empty requestedTemplate from the template library, or create with draftTemplateName for a later user-confirmed template draft. Use exactly one source input style: either mediaSources for mixed file, folder, or URL sources; mediaPaths and/or directoryPaths for resolved local paths; or one of filePath, mediaPath, directoryPath, or url for a single source. Do not combine mediaSources with mediaPaths or directoryPaths. Put all editing requirements into requirements, create focused requirementOptions for the user's scenario, and put the options that should be selected by default into recommendedRequirementOptions. When the user asks to keep the original duration, avoid trimming the total length, preserve the complete source, or avoid deleting source ranges, pass durationContract with totalDurationMode preserve_source and/or sourceCoverageMode full_source plus sourceDurationSeconds from ffprobe for local files. Do not set generateIntroCover true with preserve_source plus full_source; a timeline intro cover changes duration, so use a fixed title or project cover instead. Use durationGoalMode custom only for explicit duration ranges, and keep transitionPreference auto unless the user manually chooses a transition animation. Pass uiLanguage or locale to match the user's conversation language; keep captionLanguage for video captions only.",
 		inputSchema: workspaceOpenInputSchema,
 		readOnly: true,
 		modelVisible: true,
@@ -4131,9 +4136,9 @@ function validateTemplatePreference(value) {
 	if (
 		value?.mode === "specified" &&
 		typeof value.requestedTemplate === "string" &&
-		builtInTemplateIdValues.includes(value.requestedTemplate.trim())
+		value.requestedTemplate.trim().length > 0
 	) {
-		return { ok: true, message: "Template preference names a built-in template." };
+		return { ok: true, message: "Template preference names a template." };
 	}
 	if (
 		value?.mode === "create" &&
@@ -4145,7 +4150,7 @@ function validateTemplatePreference(value) {
 	return {
 		ok: false,
 		message:
-			"Template preference must be auto, specified with a built-in requestedTemplate, or create with draftTemplateName.",
+			"Template preference must be auto, specified with a non-empty requestedTemplate, or create with draftTemplateName.",
 	};
 }
 
@@ -5595,24 +5600,24 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 				},
 			});
 		case "list_templates":
-			return buildSendArgs({
-				projectId,
-				toolName,
-				args: {},
-			});
+			return ["scripts/codex-bridge.mjs", "list-templates", "--project-id", projectId];
 		case "get_template":
-			return buildSendArgs({
+			return [
+				"scripts/codex-bridge.mjs",
+				"get-template",
+				"--project-id",
 				projectId,
-				toolName,
-				args: {
-					templateId: requireStringArg(args, "templateId"),
-				},
-			});
+				"--template-id",
+				requireStringArg(args, "templateId"),
+			];
 		case "resolve_template":
-			return buildSendArgs({
+			return [
+				"scripts/codex-bridge.mjs",
+				"resolve-template",
+				"--project-id",
 				projectId,
-				toolName,
-				args: {
+				"--args-json",
+				JSON.stringify({
 					...(args.requestedTemplate === undefined
 						? {}
 						: {
@@ -5647,8 +5652,17 @@ export function buildBridgeCliArgs(toolName, args = {}) {
 					...(optionalBooleanArg(args, "hasVisualBroll") === undefined
 						? {}
 						: { hasVisualBroll: optionalBooleanArg(args, "hasVisualBroll") }),
-				},
-			});
+				}),
+			];
+		case "check_template_import":
+			return [
+				"scripts/codex-bridge.mjs",
+				"check-template-import",
+				"--project-id",
+				projectId,
+				"--template-json-file",
+				requireStringArg(args, "templateJsonFile"),
+			];
 		case "import_template":
 			requireConfirmedByUser(args);
 			return [

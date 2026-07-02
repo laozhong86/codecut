@@ -82,7 +82,7 @@ describe("requirement confirmation page UI", () => {
 		expect(client).toContain("创建模板");
 		expect(client).toContain("模板名称");
 		expect(client).toContain("模板草稿名称");
-		expect(client).toContain("BUILT_IN_TEMPLATE_OPTIONS");
+		expect(client).toContain("templateOptions");
 		expect(client).toContain("form.titleEnabled &&");
 		expect(client).toContain("titleMode");
 		expect(client).toContain("自动生成");
@@ -102,13 +102,19 @@ describe("requirement confirmation page UI", () => {
 		expect(client).not.toContain("等待确认");
 	});
 
-	test("specified template uses the built-in template list instead of free text", async () => {
+	test("specified template uses the template library instead of a built-in-only list", async () => {
 		const client = await readFile(
 			"apps/web/src/app/[locale]/requirements/[draft_id]/requirement-confirmation-client.tsx",
 			"utf8",
 		);
 
-		expect(client).toContain("builtInTemplates.map");
+		expect(client).toContain("templateService.listTemplates");
+		expect(client).toContain("templateOptionMatchesRequest");
+		expect(client).toContain("name: template.name");
+		expect(client).toContain("aliases: template.trigger.aliases");
+		expect(client).toContain("template.name.toLowerCase() === normalized");
+		expect(client).toContain("alias.toLowerCase() === normalized");
+		expect(client).not.toContain("builtInTemplates.map");
 		expect(client).toContain("requestedTemplate:");
 		expect(client).toContain("value={form.requestedTemplate}");
 		expect(client).toContain(

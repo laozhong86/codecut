@@ -441,7 +441,7 @@ describe("requirement confirmation patch builder", () => {
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({});
 	});
 
-	test("submits template preference changes when the user selects a built-in template", () => {
+	test("submits template preference changes when the user selects a template library item", () => {
 		const draft: RequirementDraft = {
 			...requirementDraftFixture(),
 			templatePreference: { mode: "auto" },
@@ -449,13 +449,13 @@ describe("requirement confirmation patch builder", () => {
 		const form = {
 			...formStateFromRequirementDraft(draft),
 			templatePreferenceMode: "specified" as const,
-			requestedTemplate: "narrated-broll" as const,
+			requestedTemplate: "tiktok-viral-breakdown-voiceover",
 		};
 
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
 			templatePreference: {
 				mode: "specified",
-				requestedTemplate: "narrated-broll",
+				requestedTemplate: "tiktok-viral-breakdown-voiceover",
 			},
 		});
 	});

@@ -66,6 +66,51 @@ describe("TemplateService", () => {
 		]);
 	});
 
+	test("checks that a new user template can be imported", async () => {
+		const service = new TemplateService({
+			adapter: new MemoryAdapter<Template>(),
+		});
+
+		await expect(
+			service.checkTemplateImport({ template: createUserTemplate() }),
+		).resolves.toMatchObject({
+			canImport: true,
+			code: "ready",
+			template: { id: "user-proof" },
+		});
+	});
+
+	test("checks template ID conflicts before import", async () => {
+		const service = new TemplateService({
+			adapter: new MemoryAdapter<Template>([createUserTemplate()]),
+		});
+
+		await expect(
+			service.checkTemplateImport({ template: createUserTemplate() }),
+		).resolves.toMatchObject({
+			canImport: false,
+			code: "template-id-conflict",
+			template: { id: "user-proof" },
+			existingTemplate: { id: "user-proof" },
+		});
+	});
+
+	test("checks built-in template ID reservation before import", async () => {
+		const service = new TemplateService({
+			adapter: new MemoryAdapter<Template>(),
+		});
+
+		await expect(
+			service.checkTemplateImport({
+				template: createUserTemplate({ id: "talking-head-short" }),
+			}),
+		).resolves.toMatchObject({
+			canImport: false,
+			code: "reserved-built-in-id",
+			template: { id: "talking-head-short" },
+		});
+	});
+
 	test("blocks listing when a legacy template cannot be migrated", async () => {
 		const service = new TemplateService({
 			adapter: new MemoryAdapter<Template>(),

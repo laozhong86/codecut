@@ -3,6 +3,7 @@ import {
 	TemplateTriggerTypeSchema,
 	templateService,
 	type Template,
+	type TemplateImportCheck,
 	type TemplateMaterialFacts,
 	type TemplateResolution,
 } from "@/lib/templates";
@@ -10,6 +11,7 @@ import type { AgentToolResult } from "../types";
 import type { AgentTool } from "./types";
 
 interface TemplateLibraryService {
+	checkTemplateImport({ template }: { template: Template }): Promise<TemplateImportCheck>;
 	registerTemplate({ template }: { template: Template }): Promise<Template>;
 	updateTemplate({
 		id,
@@ -46,6 +48,50 @@ function templateSummary(template: Template) {
 		verificationCount: template.plan.verification.length,
 		executionPath: template.execution.path,
 		requiredEvidence: template.execution.requiredEvidence,
+		sourceOfTruth: "codecut-template-library",
+	};
+}
+
+function nextActionsForImportCheck(check: TemplateImportCheck): string[] {
+	if (check.canImport) {
+		return ["Call import_template after explicit user confirmation."];
+	}
+	if (check.code === "template-id-conflict") {
+		return [
+			"Call update_template after explicit user confirmation to replace the existing user template.",
+			"Change template.id and call import_template to save it as a new template.",
+		];
+	}
+	if (check.code === "reserved-built-in-id") {
+		return ["Change template.id before importing the user template."];
+	}
+	if (check.code === "default-trigger-conflict") {
+		return [
+			"Remove the conflicting defaultForTypes entry before import.",
+			"Update or delete the conflicting user template after explicit user confirmation.",
+		];
+	}
+	return ["Set source to user and readOnly to false before importing."];
+}
+
+function templateImportCheckData(check: TemplateImportCheck) {
+	return {
+		canImport: check.canImport,
+		code: check.code,
+		message: check.message,
+		draft: templateSummary(check.template),
+		...(check.canImport
+			? {}
+			: {
+					...(check.existingTemplate
+						? { existingTemplate: templateSummary(check.existingTemplate) }
+						: {}),
+					...(check.conflictTemplate
+						? { conflictTemplate: templateSummary(check.conflictTemplate) }
+						: {}),
+					...(check.triggerType ? { triggerType: check.triggerType } : {}),
+				}),
+		nextActions: nextActionsForImportCheck(check),
 		sourceOfTruth: "codecut-template-library",
 	};
 }
@@ -176,6 +222,25 @@ export async function executeResolveTemplateTool({
 	};
 }
 
+export async function executeCheckTemplateImportTool({
+	args,
+	service = templateService,
+}: {
+	args: Record<string, unknown>;
+	service?: TemplateLibraryService;
+}): Promise<AgentToolResult> {
+	const parsed = TemplateSchema.parse(args.template);
+	const importCheck = await service.checkTemplateImport({ template: parsed });
+
+	return {
+		success: true,
+		message: importCheck.canImport
+			? `Template "${importCheck.template.name}" (${importCheck.template.id}) can be imported.`
+			: importCheck.message,
+		data: templateImportCheckData(importCheck),
+	};
+}
+
 export async function executeImportTemplateTool({
 	args,
 	service = templateService,
@@ -192,6 +257,14 @@ export async function executeImportTemplateTool({
 	}
 
 	const parsed = TemplateSchema.parse(args.template);
+	const importCheck = await service.checkTemplateImport({ template: parsed });
+	if (!importCheck.canImport) {
+		return {
+			success: false,
+			message: `Template import blocked: ${importCheck.message}`,
+			data: templateImportCheckData(importCheck),
+		};
+	}
 	const template = await service.registerTemplate({ template: parsed });
 	const templates = await service.listTemplates();
 
@@ -247,6 +320,7 @@ export async function executeUpdateTemplateTool({
 			trigger: parsed.trigger,
 			plan: parsed.plan,
 			execution: parsed.execution,
+			networkMaterialPolicy: parsed.networkMaterialPolicy,
 		},
 	});
 	const templates = await service.listTemplates();
@@ -392,6 +466,26 @@ export const resolveTemplateTool: AgentTool = {
 	},
 };
 
+export const checkTemplateImportTool: AgentTool = {
+	name: "check_template_import",
+	description:
+		"Check whether a strict Template JSON object can be imported into the Codecut template library without writing it.",
+	requiresConfirmation: false,
+	parameters: {
+		type: "object",
+		properties: {
+			template: {
+				type: "object",
+				description: "The strict Template JSON object to check before import.",
+			},
+		},
+		required: ["template"],
+	},
+	async execute(args) {
+		return executeCheckTemplateImportTool({ args });
+	},
+};
+
 export const importTemplateTool: AgentTool = {
 	name: "import_template",
 	description:
@@ -472,6 +566,7 @@ export const templateTools: AgentTool[] = [
 	listTemplatesTool,
 	getTemplateTool,
 	resolveTemplateTool,
+	checkTemplateImportTool,
 	importTemplateTool,
 	updateTemplateTool,
 	deleteTemplateTool,

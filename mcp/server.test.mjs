@@ -191,6 +191,7 @@ describe("Codecut MCP server contract", () => {
 			"list_templates",
 			"get_template",
 			"resolve_template",
+			"check_template_import",
 			"import_template",
 			"update_template",
 			"delete_template",
@@ -397,6 +398,7 @@ describe("Codecut MCP server contract", () => {
 		expect(readOnlyByTool.get("list_templates")).toBe(true);
 		expect(readOnlyByTool.get("get_template")).toBe(true);
 		expect(readOnlyByTool.get("resolve_template")).toBe(true);
+		expect(readOnlyByTool.get("check_template_import")).toBe(true);
 		expect(readOnlyByTool.get("import_template")).toBe(false);
 		expect(readOnlyByTool.get("update_template")).toBe(false);
 		expect(readOnlyByTool.get("delete_template")).toBe(false);
@@ -906,7 +908,7 @@ describe("Codecut MCP server contract", () => {
 					mode: "specified",
 					requestedTemplate: "TikTok 解说视频模板",
 				}).success,
-			).toBe(false);
+			).toBe(true);
 			expect(openTool.description).toContain("uiLanguage");
 			expect(openTool.description).toContain("mediaPaths");
 			expect(openTool.description).toContain("directoryPaths");
@@ -1106,6 +1108,12 @@ describe("Codecut MCP server contract", () => {
 			expect(html).toContain(marker);
 		}
 		expect(html).not.toContain('value="serif"');
+		expect(html).toContain(
+			"setSelectValue(fields.requestedTemplate, requestedTemplate);",
+		);
+		expect(html).not.toContain("BUILT_IN_TEMPLATE_IDS.includes");
+		expect(html).not.toContain("Select a built-in template");
+		expect(html).not.toContain("选择内置模板");
 		expect(html).not.toContain('value="handwriting"');
 		expect(html).not.toContain('id="brief-options"');
 		expect(html).not.toContain('id="success-criteria-options"');
@@ -1908,6 +1916,9 @@ describe("Codecut MCP server contract", () => {
 		const resolveTool = CODECUT_MCP_TOOLS.find(
 			(candidate) => candidate.name === "resolve_template",
 		);
+		const checkImportTool = CODECUT_MCP_TOOLS.find(
+			(candidate) => candidate.name === "check_template_import",
+		);
 
 		expect(listTool?.description).toContain("List");
 		expect(listTool?.readOnly).toBe(true);
@@ -1944,6 +1955,11 @@ describe("Codecut MCP server contract", () => {
 		expect(resolveTool?.inputSchema.hasVisualBroll.safeParse(false).success).toBe(
 			true,
 		);
+		expect(
+			checkImportTool?.inputSchema.templateJsonFile.safeParse(
+				"/tmp/template.json",
+			).success,
+		).toBe(true);
 	});
 
 	test("serves the workspace widget for stale hashed resource URIs", async () => {
@@ -2552,6 +2568,20 @@ describe("Codecut MCP server contract", () => {
 				requestedTemplate: "product-proof-ad",
 			});
 
+		const userTemplateReady = await serverModule.inspectCodecutSetup(
+			setupIntent({
+				templatePreference: {
+					mode: "specified",
+					requestedTemplate: "tiktok-viral-breakdown-voiceover",
+				},
+			}),
+		);
+		expect(userTemplateReady.status).toBe("ready");
+		expect(userTemplateReady.intent.templatePreference).toEqual({
+			mode: "specified",
+			requestedTemplate: "tiktok-viral-breakdown-voiceover",
+		});
+
 		const blocked = await serverModule.inspectCodecutSetup(
 			setupIntent({
 				templatePreference: {
@@ -2566,7 +2596,7 @@ describe("Codecut MCP server contract", () => {
 				label: "Template preference",
 				ok: false,
 				detail:
-					"Template preference must be auto, specified with a built-in requestedTemplate, or create with draftTemplateName.",
+					"Template preference must be auto, specified with a non-empty requestedTemplate, or create with draftTemplateName.",
 			});
 
 			const createReady = await serverModule.inspectCodecutSetup(
@@ -5635,13 +5665,9 @@ describe("Codecut MCP server contract", () => {
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
-			"send",
+			"list-templates",
 			"--project-id",
 			"project-1",
-			"--tool",
-			"list_templates",
-			"--args-json",
-			"{}",
 		]);
 
 		expect(
@@ -5651,13 +5677,11 @@ describe("Codecut MCP server contract", () => {
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
-			"send",
+			"get-template",
 			"--project-id",
 			"project-1",
-			"--tool",
-			"get_template",
-			"--args-json",
-			'{"templateId":"proof-demo-cut"}',
+			"--template-id",
+			"proof-demo-cut",
 		]);
 
 		expect(
@@ -5675,13 +5699,25 @@ describe("Codecut MCP server contract", () => {
 			}),
 		).toEqual([
 			"scripts/codex-bridge.mjs",
-			"send",
+			"resolve-template",
 			"--project-id",
 			"project-1",
-			"--tool",
-			"resolve_template",
 			"--args-json",
 			'{"requestedTemplate":"proof demo","triggerType":"product-proof-ad","userIntent":"tiktok explainer","platformHint":"TikTok","hasTranscript":true,"hasVisualProof":true,"hasProductFacts":false,"hasExistingNarrationAudio":false,"hasVisualBroll":false}',
+		]);
+
+		expect(
+			buildBridgeCliArgs("check_template_import", {
+				projectId: "project-1",
+				templateJsonFile: "/tmp/template.json",
+			}),
+		).toEqual([
+			"scripts/codex-bridge.mjs",
+			"check-template-import",
+			"--project-id",
+			"project-1",
+			"--template-json-file",
+			"/tmp/template.json",
 		]);
 
 		expect(
@@ -6649,6 +6685,40 @@ describe("Codecut MCP server contract", () => {
 		});
 		expect(result.content[0].text).toContain(
 			"Codecut generate_volcengine_cloned_voice failed",
+		);
+	});
+
+	test("keeps template import conflicts as successful MCP preflight readback", () => {
+		const result = normalizeCliResult({
+			toolName: "check_template_import",
+			stdout: JSON.stringify({
+				status: "completed",
+				results: [
+					{
+						tool: "check_template_import",
+						success: true,
+						message: "Template already exists: proof-demo-cut",
+						data: {
+							canImport: false,
+							code: "template-id-conflict",
+						},
+					},
+				],
+			}),
+			stderr: "",
+		});
+
+		expect(result.isError).toBeUndefined();
+		expect(result.structuredContent.results[0]).toMatchObject({
+			tool: "check_template_import",
+			success: true,
+			data: {
+				canImport: false,
+				code: "template-id-conflict",
+			},
+		});
+		expect(result.content[0].text).toContain(
+			"Codecut check_template_import completed",
 		);
 	});
 

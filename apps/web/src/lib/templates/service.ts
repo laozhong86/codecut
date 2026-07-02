@@ -16,6 +16,27 @@ import {
 	resolveTemplate,
 } from "./registry";
 
+export type TemplateImportCheck =
+	| {
+			canImport: true;
+			code: "ready";
+			message: string;
+			template: Template;
+	  }
+	| {
+			canImport: false;
+			code:
+				| "not-user-template"
+				| "reserved-built-in-id"
+				| "template-id-conflict"
+				| "default-trigger-conflict";
+			message: string;
+			template: Template;
+			existingTemplate?: Template;
+			conflictTemplate?: Template;
+			triggerType?: TemplateTriggerType;
+	  };
+
 export class TemplateService {
 	constructor(
 		private readonly options: {
@@ -56,14 +77,14 @@ export class TemplateService {
 		}
 	}
 
-	private async assertUserDefaultTriggersAvailable({
+	private async findUserDefaultTriggerConflict({
 		template,
 		excludeId,
 	}: {
 		template: Template;
 		excludeId?: string;
-	}): Promise<void> {
-		if (template.trigger.defaultForTypes.length === 0) return;
+	}): Promise<{ triggerType: TemplateTriggerType; template: Template } | null> {
+		if (template.trigger.defaultForTypes.length === 0) return null;
 		const userTemplates = await this.listUserTemplates();
 		for (const type of template.trigger.defaultForTypes) {
 			const existing = userTemplates.find(
@@ -72,11 +93,81 @@ export class TemplateService {
 					candidate.trigger.defaultForTypes.includes(type),
 			);
 			if (existing) {
-				throw new Error(
-					`Default trigger type ${type} is already used by ${existing.id}.`,
-				);
+				return { triggerType: type, template: existing };
 			}
 		}
+		return null;
+	}
+
+	private async assertUserDefaultTriggersAvailable({
+		template,
+		excludeId,
+	}: {
+		template: Template;
+		excludeId?: string;
+	}): Promise<void> {
+		const conflict = await this.findUserDefaultTriggerConflict({
+			template,
+			excludeId,
+		});
+		if (conflict) {
+			throw new Error(
+				`Default trigger type ${conflict.triggerType} is already used by ${conflict.template.id}.`,
+			);
+		}
+	}
+
+	async checkTemplateImport({
+		template,
+	}: {
+		template: Template;
+	}): Promise<TemplateImportCheck> {
+		await this.migrateLegacyTemplates();
+		const parsed = TemplateSchema.parse(template);
+		if (parsed.source !== "user" || parsed.readOnly) {
+			return {
+				canImport: false,
+				code: "not-user-template",
+				message: "Only user templates can be imported.",
+				template: parsed,
+			};
+		}
+		if (getBuiltInTemplate(parsed.id)) {
+			return {
+				canImport: false,
+				code: "reserved-built-in-id",
+				message: `Template ID is reserved for a built-in template: ${parsed.id}`,
+				template: parsed,
+			};
+		}
+		const existingTemplate = await this.options.adapter.get(parsed.id);
+		if (existingTemplate) {
+			return {
+				canImport: false,
+				code: "template-id-conflict",
+				message: `Template already exists: ${parsed.id}`,
+				template: parsed,
+				existingTemplate: TemplateSchema.parse(existingTemplate),
+			};
+		}
+		const defaultTriggerConflict =
+			await this.findUserDefaultTriggerConflict({ template: parsed });
+		if (defaultTriggerConflict) {
+			return {
+				canImport: false,
+				code: "default-trigger-conflict",
+				message: `Default trigger type ${defaultTriggerConflict.triggerType} is already used by ${defaultTriggerConflict.template.id}.`,
+				template: parsed,
+				conflictTemplate: defaultTriggerConflict.template,
+				triggerType: defaultTriggerConflict.triggerType,
+			};
+		}
+		return {
+			canImport: true,
+			code: "ready",
+			message: `Template can be imported: ${parsed.id}`,
+			template: parsed,
+		};
 	}
 
 	async registerTemplate({
@@ -84,21 +175,12 @@ export class TemplateService {
 	}: {
 		template: Template;
 	}): Promise<Template> {
-		await this.migrateLegacyTemplates();
-		const parsed = TemplateSchema.parse(template);
-		if (parsed.source !== "user" || parsed.readOnly) {
-			throw new Error("Only user templates can be registered.");
+		const importCheck = await this.checkTemplateImport({ template });
+		if (!importCheck.canImport) {
+			throw new Error(importCheck.message);
 		}
-		if (getBuiltInTemplate(parsed.id)) {
-			throw new Error(`Template ID is reserved for a built-in template: ${parsed.id}`);
-		}
-		const existing = await this.options.adapter.get(parsed.id);
-		if (existing) {
-			throw new Error(`Template already exists: ${parsed.id}`);
-		}
-		await this.assertUserDefaultTriggersAvailable({ template: parsed });
-		await this.options.adapter.set(parsed.id, parsed);
-		return parsed;
+		await this.options.adapter.set(importCheck.template.id, importCheck.template);
+		return importCheck.template;
 	}
 
 	async updateTemplate({

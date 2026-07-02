@@ -90,6 +90,11 @@ describe("agent bridge schema", () => {
 		expect(result.success).toBe(true);
 	});
 
+	test("accepts the template import preflight tool", () => {
+		const result = BridgeToolNameSchema.safeParse("check_template_import");
+		expect(result.success).toBe(true);
+	});
+
 	test("accepts the template update tool", () => {
 		const result = BridgeToolNameSchema.safeParse(
 			"update_template",

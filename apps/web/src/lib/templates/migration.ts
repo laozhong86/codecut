@@ -6,8 +6,6 @@ import {
 	TemplateTriggerSchema,
 	TemplateTriggerTypeSchema,
 	type Template,
-	type TemplateExecution,
-	type TemplateMaterialPolicy,
 	type TemplateTriggerType,
 } from "./schema";
 
@@ -37,8 +35,7 @@ export function migrateLegacyTemplateRecord(
 	legacyTemplate: LegacyTemplateRecord,
 ): Template {
 	const parsed = LegacyTemplateRecordSchema.parse(legacyTemplate);
-	const execution = resolveLegacyExecutionProfile(parsed);
-	const networkMaterialPolicy = resolveLegacyNetworkMaterialPolicy(parsed);
+	const legacyProfile = resolveLegacyBuiltInTemplate(parsed);
 	return TemplateSchema.parse({
 		id: parsed.id,
 		name: parsed.name,
@@ -49,49 +46,43 @@ export function migrateLegacyTemplateRecord(
 		updatedAt: parsed.updatedAt,
 		source: "user",
 		readOnly: false,
-		execution,
-		networkMaterialPolicy,
+		execution: legacyProfile.execution,
+		networkMaterialPolicy: legacyProfile.networkMaterialPolicy,
 	});
 }
 
-function resolveLegacyExecutionProfile(
-	legacyTemplate: LegacyTemplateRecord,
-): TemplateExecution {
+function resolveLegacyBuiltInTemplate(legacyTemplate: LegacyTemplateRecord) {
 	const matches = legacyTemplate.trigger.types.filter((type) =>
 		mappableTriggerTypes.has(TemplateTriggerTypeSchema.parse(type)),
 	);
 	const uniqueMatches = [...new Set(matches)];
-	if (uniqueMatches.length !== 1) {
+	if (uniqueMatches.length === 0) {
 		throw new Error(
 			`Legacy template ${legacyTemplate.id} cannot be migrated because no unique execution profile matches trigger types: ${legacyTemplate.trigger.types.join(", ")}.`,
 		);
 	}
-	const builtIn = getBuiltInTemplate(uniqueMatches[0]);
-	if (!builtIn) {
-		throw new Error(
-			`Legacy template ${legacyTemplate.id} cannot be migrated because execution profile ${uniqueMatches[0]} is not registered.`,
-		);
-	}
-	return builtIn.execution;
-}
 
-function resolveLegacyNetworkMaterialPolicy(
-	legacyTemplate: LegacyTemplateRecord,
-): TemplateMaterialPolicy {
-	const matches = legacyTemplate.trigger.types.filter((type) =>
-		mappableTriggerTypes.has(TemplateTriggerTypeSchema.parse(type)),
+	const candidates = uniqueMatches.map((type) => {
+		const template = getBuiltInTemplate(type);
+		if (!template) {
+			throw new Error(
+				`Legacy template ${legacyTemplate.id} cannot be migrated because execution profile ${type} is not registered.`,
+			);
+		}
+		return template;
+	});
+
+	const executionPaths = new Set(
+		candidates.map((template) => template.execution.path),
 	);
-	const uniqueMatches = [...new Set(matches)];
-	if (uniqueMatches.length !== 1) {
+	if (executionPaths.size !== 1) {
 		throw new Error(
-			`Legacy template ${legacyTemplate.id} cannot be migrated because no unique network material policy matches trigger types: ${legacyTemplate.trigger.types.join(", ")}.`,
+			`Legacy template ${legacyTemplate.id} cannot be migrated because no unique execution profile matches trigger types: ${legacyTemplate.trigger.types.join(", ")}.`,
 		);
 	}
-	const builtIn = getBuiltInTemplate(uniqueMatches[0]);
-	if (!builtIn) {
-		throw new Error(
-			`Legacy template ${legacyTemplate.id} cannot be migrated because network material policy ${uniqueMatches[0]} is not registered.`,
-		);
-	}
-	return builtIn.networkMaterialPolicy;
+
+	return [...candidates].sort(
+		(a, b) =>
+			b.execution.requiredEvidence.length - a.execution.requiredEvidence.length,
+	)[0];
 }

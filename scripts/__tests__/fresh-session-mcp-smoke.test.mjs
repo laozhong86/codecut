@@ -87,11 +87,21 @@ const templateResolveTool = {
 		},
 	},
 };
+		const templateCheckImportTool = {
+			name: "check_template_import",
+			inputSchema: {
+				properties: {
+					projectId: {},
+					templateJsonFile: {},
+				},
+			},
+		};
 		const tools = [
 			importTool,
 			templateListTool,
 			templateGetTool,
 			templateResolveTool,
+			templateCheckImportTool,
 			templateImportTool,
 			templateUpdateTool,
 			templateDeleteTool,
@@ -101,6 +111,7 @@ const templateResolveTool = {
 						name !== "list_templates" &&
 						name !== "get_template" &&
 						name !== "resolve_template" &&
+						name !== "check_template_import" &&
 						name !== "import_template" &&
 						name !== "update_template" &&
 						name !== "delete_template",
@@ -112,6 +123,7 @@ const templateResolveTool = {
 			importMediaInputs: ["bytes", "filePath", "url"],
 				templateDeleteInputs: ["confirmedByUser", "templateId"],
 				templateGetInputs: ["templateId"],
+				templateCheckImportInputs: ["templateJsonFile"],
 				templateImportInputs: ["confirmedByUser", "templateJsonFile"],
 				templateListInputs: [],
 				templateResolveInputs: [
@@ -191,6 +203,15 @@ const templateResolveTool = {
 									},
 								},
 								{
+									name: "check_template_import",
+									inputSchema: {
+										properties: {
+											projectId: {},
+											templateJsonFile: {},
+										},
+									},
+								},
+								{
 									name: "import_template",
 									inputSchema: {
 										properties: {
@@ -226,6 +247,7 @@ const templateResolveTool = {
 										name !== "list_templates" &&
 										name !== "get_template" &&
 										name !== "resolve_template" &&
+										name !== "check_template_import" &&
 										name !== "import_template" &&
 										name !== "update_template" &&
 										name !== "delete_template",
@@ -244,6 +266,7 @@ const templateResolveTool = {
 				importMediaInputs: ["bytes", "filePath", "url"],
 					templateDeleteInputs: ["confirmedByUser", "templateId"],
 					templateGetInputs: ["templateId"],
+					templateCheckImportInputs: ["templateJsonFile"],
 					templateImportInputs: ["confirmedByUser", "templateJsonFile"],
 					templateListInputs: [],
 						templateResolveInputs: [
