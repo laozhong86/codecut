@@ -201,6 +201,42 @@ describe("validateNarratedRemixPlan", () => {
 		});
 	});
 
+	test("accepts scripted TTS captionSource from Volcengine cloned voice", () => {
+		const result = validateNarratedRemixPlan({
+			plan: {
+				...validPlan(),
+				captionSource: {
+					...validPlan().captionSource,
+					source: "scripted_tts_audio",
+					voiceConsistency: {
+						provider: "volcengine-voice-clone",
+						providerTaskId: "voice-task-1",
+						alignmentMethod: "scripted_captions_to_asr_segments",
+						scriptCaptionLineCount: 2,
+						protectedTermCount: 1,
+					},
+				},
+			},
+			projectId: "project-1",
+			mediaAssets: [
+				mediaAsset(),
+				mediaAsset({ id: "video-2", name: "B-roll 2.mp4" }),
+				audioAsset({
+					spokenScript: {
+						source: "tts",
+						text: "第一句。第二句。",
+						captions: ["第一句。", "第二句。"],
+						protectedTerms: ["第一句"],
+						provider: "volcengine-voice-clone",
+						providerTaskId: "voice-task-1",
+					},
+				}),
+			],
+		});
+
+		expect(result).toMatchObject({ success: true });
+	});
+
 	test("rejects a plan that shortens a preserve-source duration contract", () => {
 		const result = validateNarratedRemixPlan({
 			plan: {

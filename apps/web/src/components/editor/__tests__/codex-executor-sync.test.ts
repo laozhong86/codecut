@@ -256,6 +256,46 @@ describe("applyCodexExecutorSnapshot", () => {
 		expect(capturedTracks[0]).toEqual(snapshot.tracks);
 	});
 
+	test("preserves scripted TTS metadata while syncing executor media", async () => {
+		globalThis.fetch = (async () =>
+			new Response(
+				new Blob(["audio-bytes"], { type: "audio/wav" }),
+			)) as unknown as typeof fetch;
+		const capturedAssets: MediaAsset[][] = [];
+		const snapshot = {
+			...executorSnapshot(),
+			mediaAssets: [
+				{
+					id: "voice-1",
+					name: "scripted-narration.wav",
+					type: "audio" as const,
+					mimeType: "audio/wav",
+					duration: 8,
+					size: 11,
+					lastModified: 123,
+					url: "/api/codex-executor/media?projectId=project-1&mediaId=voice-1",
+					spokenScript: {
+						source: "tts" as const,
+						text: "Opening line. Closing line.",
+						captions: ["Opening line.", "Closing line."],
+						protectedTerms: ["Closing line"],
+						provider: "runninghub-voice-clone" as const,
+						providerTaskId: "voice-task-1",
+					},
+				},
+			],
+		};
+
+		await applyCodexExecutorSnapshot({
+			editor: editorStub({ capturedAssets }),
+			snapshot,
+		});
+
+		expect(capturedAssets[0][0].spokenScript).toEqual(
+			snapshot.mediaAssets[0].spokenScript,
+		);
+	});
+
 	test("syncs executor project cover into the active project without timeline mutation", async () => {
 		globalThis.fetch = (async () =>
 			new Response(

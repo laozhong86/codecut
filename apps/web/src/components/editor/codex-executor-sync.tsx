@@ -45,6 +45,7 @@ type ExecutorSnapshot = {
 		size: number;
 		lastModified: number;
 		url: string;
+		spokenScript?: MediaAsset["spokenScript"];
 	}>;
 };
 
@@ -344,6 +345,7 @@ async function applyCodexExecutorSnapshotAsync({
 				file: mediaFile.file,
 				url: mediaFile.url,
 				thumbnailUrl: mediaFile.thumbnailUrl,
+				spokenScript: asset.spokenScript,
 			};
 		}),
 	);

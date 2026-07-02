@@ -363,7 +363,9 @@ only this shape when calling `apply_narrated_remix_plan`:
       | "product-punch"
       | "lifestyle-warm"
       | "cinematic-serif",
-    position: "lower-safe" | "center"
+    position: "lower-safe" | "center",
+    size: "small" | "medium" | "large",
+    motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce"
   },
   rationale: string
 }
@@ -382,12 +384,17 @@ Current validation fail-fast checks include:
 - visual beat total duration must equal `target.durationSec`.
 - top-level `textOverlays`, when present, must fit inside
   `target.durationSec` and use controlled local `TextElement` style fields.
+- `textOverlays[].fontSize` is a local renderer scale in the `1..38` range,
+  not CSS pixels. Typical 9:16 overlays should use `4..8`.
+- `textOverlays[].boxWidth` is a percent-like width in the `1..100` range.
+  Typical 9:16 overlays should use `48..72`, not pixel widths.
 - `textOverlays[].richSpans`, when present, must use integer `[start, end)`
   code point indexes from `Array.from(text)`, must be sorted and
   non-overlapping, and must stay inside the overlay text.
 - captions must fit inside `target.durationSec`.
-- captions require top-level `captionStyle` and must pass the same duration,
-  overlap, two-line, and orphan-line quality contract as EditPlan captions.
+- captions require top-level `captionStyle` with `preset`, `position`, and
+  `size`, and must pass the same duration, overlap, two-line, and orphan-line
+  quality contract as EditPlan captions.
 - narration must cover `target.durationSec` from `narration.sourceStart`.
 
 Do not include TTS, generated speech, BGM, SFX, external media URLs, effect

@@ -800,7 +800,9 @@ data lines inside one editable `TextElement`.
       | "product-punch"
       | "lifestyle-warm"
       | "cinematic-serif",
-    position: "lower-safe" | "center"
+    position: "lower-safe" | "center",
+    size: "small" | "medium" | "large",
+    motionPreset?: "slam-in" | "soft-reveal" | "pop-bounce"
   },
   rationale: string
 }
@@ -820,13 +822,18 @@ Validation is all-or-nothing:
 - top-level `textOverlays`, when present, must fit inside
   `target.durationSec` and use controlled local `TextElement` style fields;
   arbitrary CSS is not accepted.
+- `textOverlays[].fontSize` is a local renderer scale, not CSS pixels. Use
+  values in the `1..38` range; typical 9:16 overlays should use `4..8`.
+- `textOverlays[].boxWidth` is a percent-like width in the `1..100` range;
+  typical 9:16 overlays should use `48..72`, not pixel widths.
 - `textOverlays[].richSpans`, when present, must use integer `[start, end)`
   code point indexes from `Array.from(text)`, must be sorted and
   non-overlapping, and must stay inside the overlay text.
 - visual beats must be continuous from `0` with no gaps or overlaps.
 - total visual beat duration must equal `target.durationSec`.
 - captions must fit inside `target.durationSec`.
-- captions require top-level `captionStyle`.
+- captions require top-level `captionStyle` with `preset`, `position`, and
+  `size`.
 - unknown fields such as `generateSpeech`, `text`, or `voiceId` fail schema
   validation.
 
