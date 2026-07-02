@@ -68,6 +68,8 @@ export const RequirementDraftInputSchema = z
 				customVoiceFile: CustomVoiceFileSchema.optional(),
 			})
 			.strict(),
+		characterPreferences: ConfirmedSetupSchema.shape.characterPreferences,
+		bgmPreferences: ConfirmedSetupSchema.shape.bgmPreferences,
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
 		networkMaterialMatching: ConfirmedSetupSchema.shape.networkMaterialMatching,
 		exportPreferences: ConfirmedSetupSchema.shape.exportPreferences,
@@ -121,6 +123,9 @@ export const RequirementConfirmationPatchSchema = z
 			})
 			.strict()
 			.optional(),
+		characterPreferences:
+			ConfirmedSetupSchema.shape.characterPreferences.optional(),
+		bgmPreferences: ConfirmedSetupSchema.shape.bgmPreferences.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
 		networkMaterialMatching:
 			ConfirmedSetupSchema.shape.networkMaterialMatching.optional(),
@@ -279,6 +284,9 @@ export async function confirmRequirementDraft({
 			captionPreferences:
 				parsedPatch.captionPreferences ?? draft.captionPreferences,
 			voicePreferences: parsedPatch.voicePreferences ?? draft.voicePreferences,
+			characterPreferences:
+				parsedPatch.characterPreferences ?? draft.characterPreferences,
+			bgmPreferences: parsedPatch.bgmPreferences ?? draft.bgmPreferences,
 			templatePreference:
 				parsedPatch.templatePreference ?? draft.templatePreference,
 			networkMaterialMatching:

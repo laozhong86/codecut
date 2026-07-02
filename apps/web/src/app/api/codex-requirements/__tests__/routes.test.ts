@@ -68,6 +68,8 @@ function validDraftInput(): RequirementDraftInput {
 			stylePreset: "short-form-bold",
 		},
 		voicePreferences: { enabled: false, voicePackId: "none" },
+		characterPreferences: { characterId: "none" },
+		bgmPreferences: { mode: "none" },
 		templatePreference: {
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
@@ -156,6 +158,12 @@ describe("codex requirement confirmation API routes", () => {
 							enabled: true,
 							voicePackId: "podcast-female",
 						},
+						characterPreferences: {
+							characterId: "ugc-female-host",
+						},
+						bgmPreferences: {
+							mode: "smart_match",
+						},
 						templatePreference: { mode: "auto" },
 					},
 				},
@@ -177,6 +185,12 @@ describe("codex requirement confirmation API routes", () => {
 					voicePreferences: {
 						enabled: true,
 						voicePackId: "podcast-female",
+					},
+					characterPreferences: {
+						characterId: "ugc-female-host",
+					},
+					bgmPreferences: {
+						mode: "smart_match",
 					},
 					templatePreference: { mode: "auto" },
 				},

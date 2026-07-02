@@ -42,6 +42,7 @@ import { initWorkspace } from "../scripts/codecut-workspace.mjs";
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const builtinCharacterOptions = require("../apps/web/src/lib/codex-executor/builtin-character-options.json");
 const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
 const bridgeAllowedEnvKeys = new Set([
@@ -74,6 +75,19 @@ const workspaceVoicePackChoiceValues = [
 	...builtinVoicePackIds,
 	"custom",
 ];
+const workspaceOpenVoicePackChoiceValues = [
+	noBuiltinVoicePackId,
+	...builtinVoicePackIds,
+];
+const noBuiltinCharacterId = "none";
+const builtinCharacterIds = builtinCharacterOptions.map(
+	(character) => character.id,
+);
+const workspaceCharacterChoiceValues = [
+	noBuiltinCharacterId,
+	...builtinCharacterIds,
+];
+const bgmPreferenceModeValues = ["none", "smart_match"];
 const workspaceResourceMimeType = "text/html;profile=mcp-app";
 const codecutWebRedirectDomains = [
 	"http://127.0.0.1:4100",
@@ -301,6 +315,8 @@ const titleStylePresetSchema = z.enum(titleStylePresetValues);
 const captionMotionPresetSchema = z.enum(captionMotionPresetValues);
 const transitionPreferenceSchema = z.enum(transitionPreferenceValues);
 const workspaceTaskTypeSchema = z.enum(workspaceTaskTypeValues);
+const workspaceCharacterIdSchema = z.enum(workspaceCharacterChoiceValues);
+const bgmPreferenceModeSchema = z.enum(bgmPreferenceModeValues);
 const durationGoalModeSchema = z.enum(["auto", "custom"]);
 const templatePreferenceSchema = z.discriminatedUnion("mode", [
 	z.object({ mode: z.literal("auto") }).strict(),
@@ -311,6 +327,16 @@ const templatePreferenceSchema = z.discriminatedUnion("mode", [
 		})
 		.strict(),
 ]);
+const workspaceCharacterPreferencesSchema = z
+	.object({
+		characterId: workspaceCharacterIdSchema,
+	})
+	.strict();
+const workspaceBgmPreferencesSchema = z
+	.object({
+		mode: bgmPreferenceModeSchema,
+	})
+	.strict();
 const networkMaterialPlacementValues = ["background", "top", "bottom"];
 const networkMaterialProviderValues = ["pexels", "pixabay", "coverr"];
 const networkMaterialDecisionSourceValues = ["template", "user"];
@@ -421,6 +447,19 @@ const workspaceOutputSchema = workspaceOutputBaseSchema.superRefine(
 		}
 	},
 );
+const workspaceOpenOutputSchema = z
+	.object({
+		format: outputFormatSchema.optional(),
+		quality: outputQualitySchema.optional(),
+		includeAudio: z.boolean().optional(),
+		captionEnabled: z.boolean().optional(),
+		captionFont: captionFontSchema.optional(),
+		captionSize: captionSizeSchema.optional(),
+		captionStylePreset: captionStylePresetSchema.optional(),
+		voiceEnabled: z.boolean().optional(),
+		voicePackId: z.enum(workspaceOpenVoicePackChoiceValues).optional(),
+	})
+	.strict();
 
 const titlePreferencesBaseSchema = z
 	.object({
@@ -506,6 +545,14 @@ const confirmedSetupPatchSchema = z
 			})
 			.strict()
 			.optional(),
+		characterPreferences: workspaceCharacterPreferencesSchema
+			.partial()
+			.strict()
+			.optional(),
+		bgmPreferences: workspaceBgmPreferencesSchema
+			.partial()
+			.strict()
+			.optional(),
 		templatePreference: templatePreferenceSchema.optional(),
 		networkMaterialMatching: networkMaterialMatchingSchema
 			.partial()
@@ -534,6 +581,8 @@ const workspaceIntentInputSchema = {
 	captionLanguage: z.string().trim(),
 	transitionPreference: transitionPreferenceSchema,
 	templatePreference: templatePreferenceSchema.optional(),
+	characterPreferences: workspaceCharacterPreferencesSchema.optional(),
+	bgmPreferences: workspaceBgmPreferencesSchema.optional(),
 	networkMaterialMatching: networkMaterialMatchingSchema.optional(),
 	output: workspaceOutputSchema,
 	titlePreferences: titlePreferencesSchema,
@@ -581,10 +630,12 @@ const workspaceOpenInputSchema = {
 	captionLanguage: z.string().trim().optional(),
 	transitionPreference: transitionPreferenceSchema.optional(),
 	templatePreference: templatePreferenceSchema.optional(),
+	characterPreferences: workspaceCharacterPreferencesSchema.optional(),
+	bgmPreferences: workspaceBgmPreferencesSchema.optional(),
 	networkMaterialMatching: networkMaterialMatchingSchema.optional(),
 	locale: z.string().trim().optional(),
 	uiLanguage: z.string().trim().optional(),
-	output: workspaceOutputBaseSchema.partial().optional(),
+	output: workspaceOpenOutputSchema.optional(),
 	titlePreferences: titlePreferencesBaseSchema.partial().optional(),
 	generateIntroCover: z.boolean().optional(),
 };
@@ -2284,6 +2335,8 @@ function buildRequirementDraftFromInput(input = {}) {
 		titlePreferences: confirmedSetup.titlePreferences,
 		captionPreferences: confirmedSetup.captionPreferences,
 		voicePreferences: confirmedSetup.voicePreferences,
+		characterPreferences: confirmedSetup.characterPreferences,
+		bgmPreferences: confirmedSetup.bgmPreferences,
 		templatePreference: confirmedSetup.templatePreference,
 		networkMaterialMatching: confirmedSetup.networkMaterialMatching,
 		exportPreferences: confirmedSetup.exportPreferences,
@@ -2480,11 +2533,13 @@ function buildWorkspaceIntentFromConfirmedRequirement({
 			: {}),
 		durationContract: confirmedSetup.timelinePreferences.durationContract,
 		captionLanguage: confirmedSetup.captionPreferences.language,
-		transitionPreference:
-			confirmedSetup.timelinePreferences.transitionPreference,
-		templatePreference: confirmedSetup.templatePreference,
-		networkMaterialMatching: confirmedSetup.networkMaterialMatching,
-		output: {
+	transitionPreference:
+		confirmedSetup.timelinePreferences.transitionPreference,
+	templatePreference: confirmedSetup.templatePreference,
+	characterPreferences: confirmedSetup.characterPreferences,
+	bgmPreferences: confirmedSetup.bgmPreferences,
+	networkMaterialMatching: confirmedSetup.networkMaterialMatching,
+	output: {
 			format: confirmedSetup.exportPreferences.format,
 			quality: confirmedSetup.exportPreferences.quality,
 			includeAudio: confirmedSetup.exportPreferences.includeAudio,
@@ -2780,6 +2835,26 @@ async function validateCodecutSetupIntent(intent) {
 		"Template preference",
 		templatePreferenceCheck.ok,
 		templatePreferenceCheck.message,
+	);
+	const characterPreferencesCheck = validateWorkspaceCharacterPreferences(
+		normalized.characterPreferences,
+	);
+	pushCheck(
+		checks,
+		"character-preferences",
+		"Character",
+		characterPreferencesCheck.ok,
+		characterPreferencesCheck.message,
+	);
+	const bgmPreferencesCheck = validateWorkspaceBgmPreferences(
+		normalized.bgmPreferences,
+	);
+	pushCheck(
+		checks,
+		"bgm-preferences",
+		"BGM",
+		bgmPreferencesCheck.ok,
+		bgmPreferencesCheck.message,
 	);
 	const networkMaterialMatchingCheck = validateNetworkMaterialMatching(
 		normalized.networkMaterialMatching,
@@ -3136,6 +3211,8 @@ function buildConfirmedSetupFromWorkspaceIntent(normalized) {
 				? { customVoiceFile: normalized.output.customVoiceFile }
 				: {}),
 		},
+		characterPreferences: normalized.characterPreferences,
+		bgmPreferences: normalized.bgmPreferences,
 		templatePreference: normalized.templatePreference,
 		networkMaterialMatching: normalized.networkMaterialMatching,
 		exportPreferences: {
@@ -3227,6 +3304,11 @@ function buildWorkspaceIntentDefaults(input = {}) {
 			templatePreference,
 		},
 	);
+	if (input.output?.customVoiceFile !== undefined) {
+		throw new Error(
+			"customVoiceFile is not supported by CodeCut requirement confirmation.",
+		);
+	}
 	const defaults = {
 		projectId:
 			String(input.projectId || "").trim() ||
@@ -3286,6 +3368,12 @@ function buildWorkspaceIntentDefaults(input = {}) {
 			input.transitionPreference,
 		),
 		templatePreference,
+		characterPreferences: resolveWorkspaceCharacterPreferencesDefault(
+			input.characterPreferences,
+		),
+		bgmPreferences: resolveWorkspaceBgmPreferencesDefault(
+			input.bgmPreferences,
+		),
 		networkMaterialMatching,
 		requirements,
 		requirementOptions,
@@ -3539,6 +3627,26 @@ function validateTemplatePreference(value) {
 	};
 }
 
+function validateWorkspaceCharacterPreferences(value) {
+	if (workspaceCharacterChoiceValues.includes(value?.characterId)) {
+		return { ok: true, message: "Character choice is valid." };
+	}
+	return {
+		ok: false,
+		message: "Character must be none or a supported built-in role.",
+	};
+}
+
+function validateWorkspaceBgmPreferences(value) {
+	if (bgmPreferenceModeValues.includes(value?.mode)) {
+		return { ok: true, message: "BGM choice is valid." };
+	}
+	return {
+		ok: false,
+		message: "BGM must be none or smart_match.",
+	};
+}
+
 const networkMaterialTemplatePolicies = {
 	"narrated-broll": {
 		defaultEnabled: true,
@@ -3690,6 +3798,18 @@ function validateWorkspaceVoiceChoice(output) {
 	return { ok: true, message: "Voice choice is valid." };
 }
 
+function normalizeWorkspaceCharacterPreferences(value) {
+	const characterId = String(value?.characterId ?? noBuiltinCharacterId).trim();
+	return {
+		characterId: characterId || noBuiltinCharacterId,
+	};
+}
+
+function normalizeWorkspaceBgmPreferences(value) {
+	const mode = String(value?.mode ?? "none").trim();
+	return { mode: mode || "none" };
+}
+
 function normalizeWorkspaceVoicePackId(value) {
 	const normalized = String(value ?? "").trim();
 	return normalized || noBuiltinVoicePackId;
@@ -3709,10 +3829,24 @@ function normalizeCustomVoiceFile(value) {
 
 function resolveWorkspaceVoicePackIdDefault(value) {
 	const normalized = normalizeWorkspaceVoicePackId(value);
-	if (workspaceVoicePackChoiceValues.includes(normalized)) return normalized;
+	if (workspaceOpenVoicePackChoiceValues.includes(normalized)) return normalized;
 	throw new Error(
-		"voicePackId must be none, podcast-female, podcast-male, or custom.",
+		"voicePackId must be none, podcast-female, or podcast-male.",
 	);
+}
+
+function resolveWorkspaceCharacterPreferencesDefault(value) {
+	const normalized = normalizeWorkspaceCharacterPreferences(value);
+	if (workspaceCharacterChoiceValues.includes(normalized.characterId)) {
+		return normalized;
+	}
+	throw new Error("characterId must be none or a supported built-in role.");
+}
+
+function resolveWorkspaceBgmPreferencesDefault(value) {
+	const normalized = normalizeWorkspaceBgmPreferences(value);
+	if (bgmPreferenceModeValues.includes(normalized.mode)) return normalized;
+	throw new Error("bgm mode must be none or smart_match.");
 }
 
 function buildWorkspaceProjectSlug(projectName) {
@@ -3762,6 +3896,10 @@ function normalizeWorkspaceIntent(intent) {
 				? ""
 				: String(intent.transitionPreference).trim(),
 		templatePreference: normalizeTemplatePreference(intent.templatePreference),
+		characterPreferences: normalizeWorkspaceCharacterPreferences(
+			intent.characterPreferences,
+		),
+		bgmPreferences: normalizeWorkspaceBgmPreferences(intent.bgmPreferences),
 		networkMaterialMatching: normalizeNetworkMaterialMatching(
 			intent.networkMaterialMatching,
 		),

@@ -8,6 +8,7 @@ import {
 } from "@/lib/agent-bridge/edit-plan/schema";
 import type { buildTextElement } from "@/lib/timeline/element-utils";
 import { isCodecutLocalFontFamily } from "@/lib/codecut-fonts";
+import builtinCharacterOptions from "./builtin-character-options.json";
 import { NetworkMaterialMatchingSchema } from "@/lib/network-materials/schema";
 
 type TextElementRaw = Parameters<typeof buildTextElement>[0]["raw"];
@@ -159,6 +160,32 @@ export const BuiltInVoicePackIdSchema = z.enum([
 	"custom",
 ]);
 
+const builtInCharacterIds = new Set([
+	"none",
+	...builtinCharacterOptions.map((character) => character.id),
+]);
+
+export const BuiltInCharacterIdSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.refine((value) => builtInCharacterIds.has(value), {
+		message:
+			"characterPreferences.characterId must be none or a built-in role.",
+	});
+
+const CharacterPreferencesSchema = z
+	.object({
+		characterId: BuiltInCharacterIdSchema,
+	})
+	.strict();
+
+const BgmPreferencesSchema = z
+	.object({
+		mode: z.enum(["none", "smart_match"]),
+	})
+	.strict();
+
 const CustomVoiceFileSchema = z
 	.object({
 		name: z.string().trim().min(1),
@@ -297,6 +324,10 @@ export const ConfirmedSetupSchema = z
 		titlePreferences: TitlePreferencesSchema,
 		captionPreferences: CaptionPreferencesSchema,
 		voicePreferences: VoicePreferencesSchema,
+		characterPreferences: CharacterPreferencesSchema.default({
+			characterId: "none",
+		}),
+		bgmPreferences: BgmPreferencesSchema.default({ mode: "none" }),
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
 		networkMaterialMatching: NetworkMaterialMatchingSchema,
 		exportPreferences: ExportPreferencesSchema,
@@ -313,6 +344,9 @@ const CaptionPreferencesPatchSchema =
 const ExportPreferencesPatchSchema = ExportPreferencesSchema.partial().strict();
 const VoicePreferencesPatchSchema =
 	VoicePreferencesBaseSchema.partial().strict();
+const CharacterPreferencesPatchSchema =
+	CharacterPreferencesSchema.partial().strict();
+const BgmPreferencesPatchSchema = BgmPreferencesSchema.partial().strict();
 const NetworkMaterialMatchingPatchSchema =
 	NetworkMaterialMatchingSchema.partial().strict();
 
@@ -322,6 +356,8 @@ export const ConfirmedSetupPatchSchema = z
 		titlePreferences: TitlePreferencesPatchSchema.optional(),
 		captionPreferences: CaptionPreferencesPatchSchema.optional(),
 		voicePreferences: VoicePreferencesPatchSchema.optional(),
+		characterPreferences: CharacterPreferencesPatchSchema.optional(),
+		bgmPreferences: BgmPreferencesPatchSchema.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
 		networkMaterialMatching: NetworkMaterialMatchingPatchSchema.optional(),
 		exportPreferences: ExportPreferencesPatchSchema.optional(),
@@ -333,6 +369,8 @@ export const ConfirmedSetupPatchSchema = z
 			value.titlePreferences === undefined &&
 			value.captionPreferences === undefined &&
 			value.voicePreferences === undefined &&
+			value.characterPreferences === undefined &&
+			value.bgmPreferences === undefined &&
 			value.templatePreference === undefined &&
 			value.networkMaterialMatching === undefined &&
 			value.exportPreferences === undefined
@@ -360,6 +398,8 @@ export type TitlePreferences = ConfirmedSetup["titlePreferences"];
 export type CaptionPreferences = ConfirmedSetup["captionPreferences"];
 export type ExportPreferences = ConfirmedSetup["exportPreferences"];
 export type VoicePreferences = ConfirmedSetup["voicePreferences"];
+export type CharacterPreferences = ConfirmedSetup["characterPreferences"];
+export type BgmPreferences = ConfirmedSetup["bgmPreferences"];
 export type TemplatePreference = ConfirmedSetup["templatePreference"];
 export type ConfirmedNetworkMaterialMatching =
 	ConfirmedSetup["networkMaterialMatching"];
@@ -591,12 +631,13 @@ export function applyConfirmedSetupPatch({
 	changedFields: string[];
 	requiresReplan: boolean;
 } {
+	const current = ConfirmedSetupSchema.parse(confirmedSetup);
 	const parsedPatchInput = ConfirmedSetupPatchSchema.parse(patch);
 	const voicePreferences =
 		parsedPatchInput.voicePreferences === undefined
-			? confirmedSetup.voicePreferences
+			? current.voicePreferences
 			: normalizePatchedVoicePreferences({
-					...confirmedSetup.voicePreferences,
+					...current.voicePreferences,
 					...parsedPatchInput.voicePreferences,
 				});
 	const parsedPatch = {
@@ -606,34 +647,42 @@ export function applyConfirmedSetupPatch({
 			: { voicePreferences }),
 	};
 	const next = ConfirmedSetupSchema.parse({
-		...confirmedSetup,
+		...current,
 		timelinePreferences: {
-			...confirmedSetup.timelinePreferences,
+			...current.timelinePreferences,
 			...(parsedPatch.timelinePreferences ?? {}),
 		},
 		titlePreferences: {
-			...confirmedSetup.titlePreferences,
+			...current.titlePreferences,
 			...(parsedPatch.titlePreferences ?? {}),
 		},
 		captionPreferences: {
-			...confirmedSetup.captionPreferences,
+			...current.captionPreferences,
 			...(parsedPatch.captionPreferences ?? {}),
 		},
 		voicePreferences,
+		characterPreferences: {
+			...current.characterPreferences,
+			...(parsedPatch.characterPreferences ?? {}),
+		},
+		bgmPreferences: {
+			...current.bgmPreferences,
+			...(parsedPatch.bgmPreferences ?? {}),
+		},
 		templatePreference:
-			parsedPatch.templatePreference ?? confirmedSetup.templatePreference,
+			parsedPatch.templatePreference ?? current.templatePreference,
 		networkMaterialMatching: {
-			...confirmedSetup.networkMaterialMatching,
+			...current.networkMaterialMatching,
 			...(parsedPatch.networkMaterialMatching ?? {}),
 		},
 		exportPreferences: {
-			...confirmedSetup.exportPreferences,
+			...current.exportPreferences,
 			...(parsedPatch.exportPreferences ?? {}),
 		},
-		changes: [...confirmedSetup.changes],
+		changes: [...current.changes],
 	});
 	const changes = collectPatchChanges({
-		before: confirmedSetup,
+		before: current,
 		after: next,
 		patch: parsedPatch,
 		reason,
@@ -657,6 +706,8 @@ export function applyConfirmedSetupPatch({
 				"voicePreferences.enabled",
 				"voicePreferences.voicePackId",
 				"voicePreferences.customVoiceFile",
+				"characterPreferences.characterId",
+				"bgmPreferences.mode",
 				"templatePreference",
 				"networkMaterialMatching.enabled",
 				"networkMaterialMatching.placement",

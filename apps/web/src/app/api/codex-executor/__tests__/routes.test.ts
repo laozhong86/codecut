@@ -63,19 +63,21 @@ function confirmedSetupBody(
 			transitionPreference: "auto",
 			generateIntroCover: true,
 			requirements: "Create a clear short video.",
-		},
-		titlePreferences: { enabled: false },
+			},
+			titlePreferences: { enabled: false },
 			captionPreferences: {
 				enabled: true,
 				language: "auto",
-				font: "auto",
-				size: captionSize,
-				stylePreset: "product-punch",
+			font: "auto",
+			size: captionSize,
+			stylePreset: "product-punch",
+		},
+		voicePreferences: {
+			enabled: false,
+			voicePackId: "none",
 			},
-			voicePreferences: {
-				enabled: false,
-				voicePackId: "none",
-			},
+			characterPreferences: { characterId: "none" },
+			bgmPreferences: { mode: "none" },
 			templatePreference: { mode: "auto" },
 			networkMaterialMatching: {
 				enabled: false,
@@ -88,9 +90,9 @@ function confirmedSetupBody(
 				format: "mp4",
 				quality: "high",
 				includeAudio: true,
-		},
-		changes: [],
-	};
+			},
+			changes: [],
+		};
 }
 
 describe("codex executor API routes", () => {

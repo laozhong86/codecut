@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import builtinCharacterOptions from "@/lib/codex-executor/builtin-character-options.json";
 import type { RequirementDraft } from "@/lib/codex-executor/requirement-confirmation";
 import {
 	buildRequirementConfirmationPatch,
@@ -70,7 +71,6 @@ export function RequirementConfirmationClient({
 	);
 	const [error, setError] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const customVoiceInputRef = useRef<HTMLInputElement | null>(null);
 
 	useEffect(() => {
 		let active = true;
@@ -101,10 +101,6 @@ export function RequirementConfirmationClient({
 	const draft = readback?.draft;
 	const projectName = draft?.requestedProjectName || "";
 	const mediaSources = draft?.mediaSources || [];
-	const customVoiceMissing =
-		form?.voiceEnabled === true &&
-		form.voicePackId === "custom" &&
-		!form.customVoiceFileUrl;
 	const networkMaterialProvidersMissing =
 		form?.networkMaterialEnabled === true &&
 		form.networkMaterialProviders.length === 0;
@@ -122,48 +118,8 @@ export function RequirementConfirmationClient({
 						? checked
 						: form.networkMaterialProviders.includes(option),
 			),
-		});
-	}
-
-	function updateVoiceEnabled(checked: boolean) {
-		if (!form) return;
-		setForm({
-			...form,
-			voiceEnabled: checked,
-			voicePackId:
-				checked && form.voicePackId === "none"
-					? "podcast-female"
-					: form.voicePackId,
-		});
-	}
-
-	function updateVoicePackId(
-		voicePackId: RequirementConfirmationFormState["voicePackId"],
-	) {
-		if (!form) return;
-		setForm({
-			...form,
-			voicePackId,
-			...(voicePackId === "custom"
-				? {}
-				: {
-						customVoiceFileName: "",
-						customVoiceFileUrl: "",
-						customVoiceFilePath: "",
-					}),
-		});
-	}
-
-	function chooseCustomVoiceFile(file: File | undefined) {
-		if (!form || !file) return;
-		setForm({
-			...form,
-			voicePackId: "custom",
-			customVoiceFileName: file.name,
-			customVoiceFileUrl: URL.createObjectURL(file),
-			customVoiceFilePath: file.webkitRelativePath || file.name,
-		});
-	}
+			});
+		}
 
 	async function submitConfirmation() {
 		if (!draft || !form) return;
@@ -579,77 +535,65 @@ export function RequirementConfirmationClient({
 				</section>
 
 				<section className="grid gap-4 rounded-md border p-4">
-					<div className="flex items-center justify-between gap-4">
-						<h2 className="text-base font-semibold">{t("配音")}</h2>
-						<Switch
-							checked={form.voiceEnabled}
-							onCheckedChange={updateVoiceEnabled}
-						/>
-					</div>
-					{form.voiceEnabled && (
-						<div className="grid gap-4 md:grid-cols-2">
+					<h2 className="text-base font-semibold">{t("角色与声音")}</h2>
+					<div className="grid gap-4 md:grid-cols-3">
+						<label className="grid gap-2 text-sm font-medium">
+							{t("角色")}
 							<select
-								aria-label={t("配音")}
-								className="h-10 rounded-md border bg-background px-3 text-sm font-medium"
-								value={form.voicePackId}
+								className="h-10 rounded-md border bg-background px-3"
+								value={form.characterId}
 								onChange={(event) =>
-									updateVoicePackId(
-										event.target
-											.value as RequirementConfirmationFormState["voicePackId"],
-									)
+									setForm({
+										...form,
+										characterId: event.target
+											.value as RequirementConfirmationFormState["characterId"],
+									})
 								}
 							>
+								<option value="none">{t("无")}</option>
+								{builtinCharacterOptions.map((character) => (
+									<option key={character.id} value={character.id}>
+										{t(character.name)}
+									</option>
+								))}
+							</select>
+						</label>
+						<label className="grid gap-2 text-sm font-medium">
+							{t("配音")}
+							<select
+								className="h-10 rounded-md border bg-background px-3"
+								value={form.voicePackId}
+								onChange={(event) =>
+									setForm({
+										...form,
+										voicePackId: event.target
+											.value as RequirementConfirmationFormState["voicePackId"],
+									})
+								}
+							>
+								<option value="none">{t("关闭")}</option>
 								<option value="podcast-female">{t("女声")}</option>
 								<option value="podcast-male">{t("男声")}</option>
-								<option value="custom">{t("自定义")}</option>
 							</select>
-							{form.voicePackId === "custom" && (
-								<div className="grid gap-2">
-									<input
-										ref={customVoiceInputRef}
-										type="file"
-										accept="audio/*"
-										className="hidden"
-										onChange={(event) =>
-											chooseCustomVoiceFile(event.target.files?.[0])
-										}
-									/>
-									<Button
-										type="button"
-										variant="outline"
-										onClick={() => customVoiceInputRef.current?.click()}
-									>
-										{t("选择文件")}
-									</Button>
-									{customVoiceMissing && (
-										<p className="text-sm text-destructive">
-											{t("请选择配音文件")}
-										</p>
-									)}
-									{form.customVoiceFileUrl && (
-										<div className="grid gap-1 rounded-md border bg-muted px-3 py-2 text-xs">
-											<div className="grid grid-cols-[4rem_1fr] gap-2">
-												<span className="text-muted-foreground">
-													{t("文件URL")}
-												</span>
-												<span className="break-all">
-													{form.customVoiceFileUrl}
-												</span>
-											</div>
-											<div className="grid grid-cols-[4rem_1fr] gap-2">
-												<span className="text-muted-foreground">
-													{t("文件路径")}
-												</span>
-												<span className="break-all">
-													{form.customVoiceFilePath}
-												</span>
-											</div>
-										</div>
-									)}
-								</div>
-							)}
-						</div>
-					)}
+						</label>
+						<label className="grid gap-2 text-sm font-medium">
+							{t("BGM")}
+							<select
+								className="h-10 rounded-md border bg-background px-3"
+								value={form.bgmMode}
+								onChange={(event) =>
+									setForm({
+										...form,
+										bgmMode: event.target
+											.value as RequirementConfirmationFormState["bgmMode"],
+									})
+								}
+							>
+								<option value="none">{t("无")}</option>
+								<option value="smart_match">{t("智能匹配")}</option>
+							</select>
+						</label>
+					</div>
 				</section>
 
 				<div className="grid gap-2 rounded-md border p-4 text-sm font-medium">
@@ -681,7 +625,6 @@ export function RequirementConfirmationClient({
 					disabled={
 						isSubmitting ||
 						readback.status !== "awaiting_user_confirmation" ||
-						customVoiceMissing ||
 						networkMaterialProvidersMissing
 					}
 				>

@@ -1,0 +1,22 @@
+[
+	{
+		"id": "ugc-female-host",
+		"name": "女主持",
+		"description": "适合口播、解说和生活方式类短视频。"
+	},
+	{
+		"id": "ugc-male-host",
+		"name": "男主持",
+		"description": "适合产品介绍、教程讲解和观点类短视频。"
+	},
+	{
+		"id": "product-demo-host",
+		"name": "产品讲解员",
+		"description": "适合产品卖点、功能演示和对比讲解。"
+	},
+	{
+		"id": "tutorial-guide",
+		"name": "教程引导员",
+		"description": "适合步骤说明、知识拆解和操作教学。"
+	}
+]

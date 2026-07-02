@@ -226,6 +226,8 @@ function confirmedSetupFixture({
 			enabled: voiceEnabled,
 			voicePackId,
 		},
+		characterPreferences: { characterId: "none" },
+		bgmPreferences: { mode: "none" },
 		templatePreference,
 		networkMaterialMatching: {
 			enabled: false,

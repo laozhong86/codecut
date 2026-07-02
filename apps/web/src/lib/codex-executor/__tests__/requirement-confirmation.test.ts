@@ -47,6 +47,8 @@ function validDraftInput(): RequirementDraftInput {
 			stylePreset: "short-form-bold",
 		},
 		voicePreferences: { enabled: false, voicePackId: "none" },
+		characterPreferences: { characterId: "none" },
+		bgmPreferences: { mode: "none" },
 		templatePreference: {
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
@@ -162,6 +164,8 @@ describe("requirement confirmation store", () => {
 					stylePreset: "hook_title",
 				},
 				voicePreferences: { enabled: true, voicePackId: "podcast-female" },
+				characterPreferences: { characterId: "ugc-female-host" },
+				bgmPreferences: { mode: "smart_match" },
 			},
 		});
 
@@ -175,6 +179,12 @@ describe("requirement confirmation store", () => {
 		expect(confirmed.confirmedSetup.voicePreferences?.voicePackId).toBe(
 			"podcast-female",
 		);
+		expect(confirmed.confirmedSetup.characterPreferences).toEqual({
+			characterId: "ugc-female-host",
+		});
+		expect(confirmed.confirmedSetup.bgmPreferences).toEqual({
+			mode: "smart_match",
+		});
 		expect(confirmed.confirmedSetup.templatePreference).toEqual({
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
@@ -217,6 +227,24 @@ describe("requirement confirmation store", () => {
 		expect(confirmed.confirmedSetup.templatePreference).toEqual({
 			mode: "auto",
 		});
+	});
+
+	test("defaults missing character and BGM preferences on existing drafts", () => {
+		const legacyDraft = {
+			...validDraftInput(),
+			version: 1,
+			draftId: "ccreq_legacy",
+			status: "awaiting_user_confirmation",
+			createdAt: new Date().toISOString(),
+			source: "codecut_requirement_confirmation",
+		};
+		delete (legacyDraft as Record<string, unknown>).characterPreferences;
+		delete (legacyDraft as Record<string, unknown>).bgmPreferences;
+
+		const parsed = RequirementDraftSchema.parse(legacyDraft);
+
+		expect(parsed.characterPreferences).toEqual({ characterId: "none" });
+		expect(parsed.bgmPreferences).toEqual({ mode: "none" });
 	});
 
 	test("writes cancelled status", async () => {

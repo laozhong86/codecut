@@ -621,6 +621,37 @@ describe("Codecut MCP server contract", () => {
 			z.object(submitTool.inputSchema).strict().safeParse(setupIntent())
 				.success,
 		).toBe(true);
+		const openInputSchema = z.object(openTool.inputSchema).strict();
+		const requirementOpenInputSchema = z
+			.object(requirementOpenTool.inputSchema)
+			.strict();
+		const roleAndSoundDefaults = {
+			characterPreferences: { characterId: "ugc-female-host" },
+			bgmPreferences: { mode: "smart_match" },
+			output: {
+				voiceEnabled: true,
+				voicePackId: "podcast-male",
+			},
+		};
+		expect(openInputSchema.safeParse(roleAndSoundDefaults).success).toBe(true);
+		expect(
+			requirementOpenInputSchema.safeParse(roleAndSoundDefaults).success,
+		).toBe(true);
+		const customVoiceDefaults = {
+			output: {
+				voiceEnabled: true,
+				voicePackId: "custom",
+				customVoiceFile: {
+					name: "voice.wav",
+					url: "blob:voice",
+					path: "/tmp/voice.wav",
+				},
+			},
+		};
+		expect(openInputSchema.safeParse(customVoiceDefaults).success).toBe(false);
+		expect(
+			requirementOpenInputSchema.safeParse(customVoiceDefaults).success,
+		).toBe(false);
 		expect(
 			openTool.inputSchema.transitionPreference.safeParse("auto").success,
 		).toBe(true);
@@ -1299,6 +1330,8 @@ describe("Codecut MCP server contract", () => {
 							timelinePreferences: draft.timelinePreferences,
 							captionPreferences: draft.captionPreferences,
 							voicePreferences: draft.voicePreferences,
+							characterPreferences: draft.characterPreferences,
+							bgmPreferences: draft.bgmPreferences,
 							templatePreference: draft.templatePreference,
 							exportPreferences: draft.exportPreferences,
 							changes: [],
@@ -2293,6 +2326,58 @@ describe("Codecut MCP server contract", () => {
 			voiceEnabled: true,
 			voicePackId: "podcast-male",
 		});
+
+		expect(() =>
+			serverModule.openCodecutWorkspace({
+				projectName: "Voice Controls",
+				output: {
+					voiceEnabled: true,
+					voicePackId: "custom",
+				},
+			}),
+		).toThrow("voicePackId must be none, podcast-female, or podcast-male.");
+		expect(() =>
+			serverModule.openCodecutWorkspace({
+				projectName: "Voice Controls",
+				output: {
+					voicePackId: "podcast-male",
+					customVoiceFile: {
+						name: "voice.wav",
+						url: "blob:voice",
+					},
+				},
+			}),
+		).toThrow(
+			"customVoiceFile is not supported by CodeCut requirement confirmation.",
+		);
+	});
+
+	test("opens the workspace with character and BGM defaults", () => {
+		const defaults = serverModule.openCodecutWorkspace({
+			projectName: "Role And Sound Controls",
+		});
+		expect(defaults.structuredContent.intentDefaults).toMatchObject({
+			characterPreferences: { characterId: "none" },
+			bgmPreferences: { mode: "none" },
+		});
+		expect(defaults._meta.widgetData.intentDefaults).toMatchObject({
+			characterPreferences: { characterId: "none" },
+			bgmPreferences: { mode: "none" },
+		});
+
+		const selected = serverModule.openCodecutWorkspace({
+			projectName: "Role And Sound Controls",
+			characterPreferences: { characterId: "ugc-female-host" },
+			bgmPreferences: { mode: "smart_match" },
+		});
+		expect(selected.structuredContent.intentDefaults).toMatchObject({
+			characterPreferences: { characterId: "ugc-female-host" },
+			bgmPreferences: { mode: "smart_match" },
+		});
+		expect(selected._meta.widgetData.intentDefaults).toMatchObject({
+			characterPreferences: { characterId: "ugc-female-host" },
+			bgmPreferences: { mode: "smart_match" },
+		});
 	});
 
 	test("opens the workspace with title and caption enablement defaults", () => {
@@ -3007,6 +3092,8 @@ describe("Codecut MCP server contract", () => {
 						enabled: true,
 						voicePackId: "podcast-male",
 					},
+					characterPreferences: { characterId: "none" },
+					bgmPreferences: { mode: "none" },
 					templatePreference: { mode: "auto" },
 					exportPreferences: {
 						format: "mp4",
