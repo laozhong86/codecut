@@ -6682,6 +6682,40 @@ describe("Codecut MCP server contract", () => {
 		);
 	});
 
+	test("keeps template import conflicts as successful MCP preflight readback", () => {
+		const result = normalizeCliResult({
+			toolName: "check_template_import",
+			stdout: JSON.stringify({
+				status: "completed",
+				results: [
+					{
+						tool: "check_template_import",
+						success: true,
+						message: "Template already exists: proof-demo-cut",
+						data: {
+							canImport: false,
+							code: "template-id-conflict",
+						},
+					},
+				],
+			}),
+			stderr: "",
+		});
+
+		expect(result.isError).toBeUndefined();
+		expect(result.structuredContent.results[0]).toMatchObject({
+			tool: "check_template_import",
+			success: true,
+			data: {
+				canImport: false,
+				code: "template-id-conflict",
+			},
+		});
+		expect(result.content[0].text).toContain(
+			"Codecut check_template_import completed",
+		);
+	});
+
 	test("keeps non-JSON CLI stdout visible to the model", () => {
 		const result = normalizeCliResult({
 			toolName: "get_timeline_state",

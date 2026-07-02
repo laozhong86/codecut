@@ -233,7 +233,7 @@ export async function executeCheckTemplateImportTool({
 	const importCheck = await service.checkTemplateImport({ template: parsed });
 
 	return {
-		success: importCheck.canImport,
+		success: true,
 		message: importCheck.canImport
 			? `Template "${importCheck.template.name}" (${importCheck.template.id}) can be imported.`
 			: importCheck.message,
@@ -320,6 +320,7 @@ export async function executeUpdateTemplateTool({
 			trigger: parsed.trigger,
 			plan: parsed.plan,
 			execution: parsed.execution,
+			networkMaterialPolicy: parsed.networkMaterialPolicy,
 		},
 	});
 	const templates = await service.listTemplates();

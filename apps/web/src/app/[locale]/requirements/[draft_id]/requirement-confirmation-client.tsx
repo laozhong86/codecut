@@ -27,6 +27,8 @@ const NETWORK_MATERIAL_PLACEMENT_OPTIONS = [
 
 type TemplateOption = {
 	id: string;
+	name: string;
+	aliases: string[];
 	label: string;
 };
 
@@ -37,6 +39,17 @@ function templateOptionLabel(template: Template) {
 	return chineseAlias
 		? `${chineseAlias}（${template.id}）`
 		: `${template.name}（${template.id}）`;
+}
+
+function templateOptionMatchesRequest(
+	template: TemplateOption,
+	requestedTemplate: string,
+) {
+	const normalized = requestedTemplate.trim().toLowerCase();
+	if (!normalized) return false;
+	if (template.id.toLowerCase() === normalized) return true;
+	if (template.name.toLowerCase() === normalized) return true;
+	return template.aliases.some((alias) => alias.toLowerCase() === normalized);
 }
 
 type RequirementReadback =
@@ -128,6 +141,8 @@ export function RequirementConfirmationClient({
 				setTemplateOptions(
 					templates.map((template) => ({
 						id: template.id,
+						name: template.name,
+						aliases: template.trigger.aliases,
 						label: templateOptionLabel(template),
 					})),
 				);
@@ -162,7 +177,7 @@ export function RequirementConfirmationClient({
 		Boolean(form.requestedTemplate.trim()) &&
 		templateOptionsLoaded &&
 		!templateOptions.some(
-			(template) => template.id === form.requestedTemplate.trim(),
+			(template) => templateOptionMatchesRequest(template, form.requestedTemplate),
 		);
 	const specifiedTemplateLibraryBlocked =
 		form?.templatePreferenceMode === "specified" &&
@@ -184,7 +199,7 @@ export function RequirementConfirmationClient({
 		form?.templatePreferenceMode === "specified" &&
 		Boolean(form.requestedTemplate.trim()) &&
 		!templateOptions.some(
-			(template) => template.id === form.requestedTemplate.trim(),
+			(template) => templateOptionMatchesRequest(template, form.requestedTemplate),
 		);
 
 	function updateNetworkMaterialProvider(

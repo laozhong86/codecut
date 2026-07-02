@@ -109,6 +109,11 @@ describe("requirement confirmation page UI", () => {
 		);
 
 		expect(client).toContain("templateService.listTemplates");
+		expect(client).toContain("templateOptionMatchesRequest");
+		expect(client).toContain("name: template.name");
+		expect(client).toContain("aliases: template.trigger.aliases");
+		expect(client).toContain("template.name.toLowerCase() === normalized");
+		expect(client).toContain("alias.toLowerCase() === normalized");
 		expect(client).not.toContain("builtInTemplates.map");
 		expect(client).toContain("requestedTemplate:");
 		expect(client).toContain("value={form.requestedTemplate}");

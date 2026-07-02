@@ -190,6 +190,32 @@ describe("template tools", () => {
 		});
 	});
 
+	test("returns check-template conflicts as successful preflight results", async () => {
+		const service = buildService();
+		await service.registerTemplate({ template: buildTemplate() });
+
+		const result = await executeCheckTemplateImportTool({
+			args: { template: buildTemplate() },
+			service,
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			message: "Template already exists: proof-demo-cut",
+			data: {
+				canImport: false,
+				code: "template-id-conflict",
+				draft: { templateId: "proof-demo-cut" },
+				existingTemplate: { templateId: "proof-demo-cut" },
+				nextActions: [
+					"Call update_template after explicit user confirmation to replace the existing user template.",
+					"Change template.id and call import_template to save it as a new template.",
+				],
+				sourceOfTruth: "codecut-template-library",
+			},
+		});
+	});
+
 	test("returns an import conflict instead of throwing when template ID exists", async () => {
 		const service = buildService();
 		await service.registerTemplate({ template: buildTemplate() });
@@ -317,17 +343,36 @@ describe("template tools", () => {
 	test("updates and deletes confirmed user templates", async () => {
 		const service = buildService();
 		await service.registerTemplate({ template: buildTemplate() });
+		const replacement = buildTemplate();
 
 		const updated = await executeUpdateTemplateTool({
 			args: {
 				confirmedByUser: true,
-				template: { ...buildTemplate(), name: "Proof demo cut v2" },
+				template: {
+					...replacement,
+					name: "Proof demo cut v2",
+					networkMaterialPolicy: {
+						...replacement.networkMaterialPolicy,
+						defaultEnabled: true,
+						defaultPlacement: "top",
+						allowedPlacements: ["top", "bottom"],
+					},
+				},
 			},
 			service,
 		});
 		expect(updated).toMatchObject({
 			success: true,
 			message: 'Updated template "Proof demo cut v2" (proof-demo-cut).',
+		});
+		await expect(
+			service.getTemplate({ id: "proof-demo-cut" }),
+		).resolves.toMatchObject({
+			networkMaterialPolicy: {
+				defaultEnabled: true,
+				defaultPlacement: "top",
+				allowedPlacements: ["top", "bottom"],
+			},
 		});
 
 		const deleted = await executeDeleteTemplateTool({
