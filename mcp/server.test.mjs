@@ -1108,6 +1108,12 @@ describe("Codecut MCP server contract", () => {
 			expect(html).toContain(marker);
 		}
 		expect(html).not.toContain('value="serif"');
+		expect(html).toContain(
+			"setSelectValue(fields.requestedTemplate, requestedTemplate);",
+		);
+		expect(html).not.toContain("BUILT_IN_TEMPLATE_IDS.includes");
+		expect(html).not.toContain("Select a built-in template");
+		expect(html).not.toContain("选择内置模板");
 		expect(html).not.toContain('value="handwriting"');
 		expect(html).not.toContain('id="brief-options"');
 		expect(html).not.toContain('id="success-criteria-options"');

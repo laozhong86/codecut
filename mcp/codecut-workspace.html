@@ -505,7 +505,7 @@
             <label id="requested-template-field">
               <span data-i18n="requestedTemplate">Requested template</span>
               <select id="requested-template" name="requestedTemplate">
-                <option value="" data-i18n="requestedTemplatePlaceholder">Select a built-in template</option>
+                <option value="" data-i18n="requestedTemplatePlaceholder">Select a template</option>
                 <option value="talking-head-short">Talking-head short</option>
                 <option value="talking-head-broll-split">Talking-head B-roll split</option>
                 <option value="tutorial-demo">Tutorial / demo</option>
@@ -657,7 +657,7 @@
             templatePreferenceSpecified: "Specified template",
             templatePreferenceCreate: "Create template",
             requestedTemplate: "Requested template",
-            requestedTemplatePlaceholder: "Select a built-in template",
+            requestedTemplatePlaceholder: "Select a template",
             draftTemplateName: "Template draft name",
             draftTemplateNamePlaceholder: "Name the template draft",
             format: "Format",
@@ -780,7 +780,7 @@
             templatePreferenceSpecified: "指定模板",
             templatePreferenceCreate: "创建模板",
             requestedTemplate: "指定模板",
-            requestedTemplatePlaceholder: "选择内置模板",
+            requestedTemplatePlaceholder: "选择模板",
             draftTemplateName: "模板草稿名称",
             draftTemplateNamePlaceholder: "输入模板草稿名称",
             format: "格式",
@@ -869,13 +869,6 @@
         let currentTitlePreferences = { enabled: false };
         let setupSubmitted = false;
         let activeLanguage = "en";
-        const BUILT_IN_TEMPLATE_IDS = [
-          "talking-head-short",
-          "talking-head-broll-split",
-          "tutorial-demo",
-          "product-proof-ad",
-          "narrated-broll",
-        ];
 
         function normalizeUiLanguage(value) {
           const language = String(value || "").trim().toLowerCase();
@@ -976,9 +969,11 @@
           const requestedTemplate = defaults.templatePreference?.mode === "specified"
             ? String(defaults.templatePreference.requestedTemplate || "").trim()
             : "";
-          fields.requestedTemplate.value = BUILT_IN_TEMPLATE_IDS.includes(requestedTemplate)
-            ? requestedTemplate
-            : "";
+          if (requestedTemplate) {
+            setSelectValue(fields.requestedTemplate, requestedTemplate);
+          } else {
+            fields.requestedTemplate.value = "";
+          }
           fields.draftTemplateName.value = defaults.templatePreference?.mode === "create"
             ? String(defaults.templatePreference.draftTemplateName || "").trim()
             : "";
