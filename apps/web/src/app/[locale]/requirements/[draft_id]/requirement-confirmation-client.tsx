@@ -18,9 +18,9 @@ const NETWORK_MATERIAL_PROVIDER_OPTIONS = [
 	"coverr",
 ] as const;
 const NETWORK_MATERIAL_PLACEMENT_OPTIONS = [
-	{ value: "background", label: "背景" },
-	{ value: "top", label: "靠上" },
-	{ value: "bottom", label: "靠下" },
+	"background",
+	"top",
+	"bottom",
 ] as const;
 
 type RequirementReadback =
@@ -43,6 +43,15 @@ function mediaSourceLabel(source: RequirementDraft["mediaSources"][number]) {
 	if (source.kind === "filePath") return source.filePath;
 	if (source.kind === "directoryPath") return source.directoryPath;
 	return source.url;
+}
+
+function networkMaterialPlacementLabel(
+	placement: RequirementConfirmationFormState["networkMaterialPlacement"],
+	t: (key: string) => string,
+) {
+	if (placement === "background") return t("背景");
+	if (placement === "top") return t("靠上");
+	return t("靠下");
 }
 
 function mediaSourceKey(source: RequirementDraft["mediaSources"][number]) {
@@ -397,13 +406,13 @@ export function RequirementConfirmationClient({
 											.value as RequirementConfirmationFormState["networkMaterialPlacement"],
 									})
 								}
-							>
-								{NETWORK_MATERIAL_PLACEMENT_OPTIONS.map((option) => (
-									<option key={option.value} value={option.value}>
-										{t(option.label)}
-									</option>
-								))}
-							</select>
+								>
+									{NETWORK_MATERIAL_PLACEMENT_OPTIONS.map((placement) => (
+										<option key={placement} value={placement}>
+											{networkMaterialPlacementLabel(placement, t)}
+										</option>
+									))}
+								</select>
 						</label>
 						<div className="grid gap-2 text-sm font-medium">
 							<span>{t("素材渠道")}</span>

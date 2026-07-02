@@ -65,22 +65,29 @@ function confirmedSetupBody(
 			requirements: "Create a clear short video.",
 		},
 		titlePreferences: { enabled: false },
-		captionPreferences: {
-			enabled: true,
-			language: "auto",
-			font: "auto",
-			size: captionSize,
-			stylePreset: "product-punch",
-		},
-		voicePreferences: {
-			enabled: false,
-			voicePackId: "none",
-		},
-		templatePreference: { mode: "auto" },
-		exportPreferences: {
-			format: "mp4",
-			quality: "high",
-			includeAudio: true,
+			captionPreferences: {
+				enabled: true,
+				language: "auto",
+				font: "auto",
+				size: captionSize,
+				stylePreset: "product-punch",
+			},
+			voicePreferences: {
+				enabled: false,
+				voicePackId: "none",
+			},
+			templatePreference: { mode: "auto" },
+			networkMaterialMatching: {
+				enabled: false,
+				placement: "background",
+				providers: ["pexels", "pixabay", "coverr"],
+				resolvedTemplateId: "talking-head-short",
+				decisionSource: "template",
+			},
+			exportPreferences: {
+				format: "mp4",
+				quality: "high",
+				includeAudio: true,
 		},
 		changes: [],
 	};

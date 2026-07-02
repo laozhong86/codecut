@@ -412,7 +412,9 @@ describe("CodeCut plugin startup guidance", () => {
 		expect(frameworkSkill).toContain("## Governance Layers");
 		expect(frameworkSkill).toContain("## Required Stage Routing");
 		expect(frameworkSkill).toContain("advanced repair tools");
-		expect(frameworkSkill).toContain("strict EditPlan or");
+		expect(frameworkSkill).toContain("strict EditPlan");
+		expect(frameworkSkill).toContain("NarratedRemixPlan");
+		expect(frameworkSkill).toContain("CompositeLayoutPlan paths");
 		expect(requirementIntake).toContain("## Stage Ownership");
 		expect(requirementIntake).toContain("owns only the permission decision");
 		expect(materialIngest).toContain("owns source material facts only");
