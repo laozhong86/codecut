@@ -432,6 +432,26 @@ describe("ConfirmedSetup durationContract", () => {
 					bgmPreferences: smartBgmPreferences({
 						candidates: [
 							bgmCandidate({
+								licenseUrl:
+									"https://creativecommons.org/licenses/by-nc/4.0/",
+								commercialUseAllowed: true,
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							licenseUrl:
+								"https://creativecommons.org/licenses/by-nc/4.0/",
+							commercialUseAllowed: true,
+						}),
+					}),
+				}),
+			),
+		).toThrow("BGM licenseUrl must allow commercial video use.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
 								downloadUrl: "https://example.com/safe-lofi.mp3",
 							}),
 						],

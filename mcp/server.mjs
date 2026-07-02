@@ -40,8 +40,9 @@ import {
 import { initWorkspace } from "../scripts/codecut-workspace.mjs";
 import {
 	DEFAULT_BGM_CANDIDATE_LIMIT,
-	MAX_BGM_DOWNLOAD_BYTES,
 	MAX_BGM_CANDIDATE_LIMIT,
+	MAX_BGM_DOWNLOAD_BYTES,
+	isCommercialVideoSafeLicense,
 	searchInternetArchiveBgm,
 } from "../apps/web/src/lib/sounds/internet-archive-search.mjs";
 
@@ -490,6 +491,21 @@ function validateInternetArchiveBgmCandidate(value, ctx) {
 			path: ["downloadUrl"],
 		});
 	}
+	if (!isCommercialVideoSafeLicense(value.licenseUrl)) {
+		ctx.addIssue({
+			code: "custom",
+			message: "BGM licenseUrl must allow commercial video use.",
+			path: ["licenseUrl"],
+		});
+	}
+	if (isCommercialVideoSafeLicense(value.licenseUrl) !== value.commercialUseAllowed) {
+		ctx.addIssue({
+			code: "custom",
+			message:
+				"BGM commercialUseAllowed must match the selected licenseUrl policy.",
+			path: ["commercialUseAllowed"],
+		});
+	}
 }
 
 function isSameBgmCandidateIdentity(candidate, selectedCandidate) {
@@ -612,13 +628,6 @@ const requirementOpenBgmPreferencesSchema = z.discriminatedUnion("mode", [
 			mode: z.literal("smart_match"),
 			searchQuery: z.string().trim().min(1),
 			selectedCandidateId: z.string().trim().min(1),
-			limit: z
-				.number()
-				.int()
-				.min(1)
-				.max(MAX_BGM_CANDIDATE_LIMIT)
-				.optional(),
-			commercialOnly: z.boolean().optional(),
 		})
 		.strict(),
 ]);
@@ -2717,8 +2726,8 @@ async function resolveRequirementOpenInputBgmPreferences(
 	}
 	const result = await searchInternetArchiveBgm({
 		query: bgmPreferences.searchQuery,
-		limit: bgmPreferences.limit ?? DEFAULT_BGM_CANDIDATE_LIMIT,
-		commercialOnly: bgmPreferences.commercialOnly ?? true,
+		limit: DEFAULT_BGM_CANDIDATE_LIMIT,
+		commercialOnly: true,
 		fetchImpl,
 	});
 	const selectedCandidate = result.candidates.find(

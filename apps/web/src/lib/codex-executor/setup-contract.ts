@@ -11,6 +11,7 @@ import { isCodecutLocalFontFamily } from "@/lib/codecut-fonts";
 import builtinCharacterOptions from "./builtin-character-options.json";
 import { NetworkMaterialMatchingSchema } from "@/lib/network-materials/schema";
 import { BUILT_IN_TEMPLATE_IDS } from "@/lib/templates/registry";
+import { isCommercialVideoSafeLicense } from "@/lib/sounds/internet-archive-search.mjs";
 
 type TextElementRaw = Parameters<typeof buildTextElement>[0]["raw"];
 
@@ -264,6 +265,8 @@ function validateInternetArchiveBgmCandidate(
 		sourceId: string;
 		sourceUrl: string;
 		downloadUrl: string;
+		licenseUrl: string;
+		commercialUseAllowed: boolean;
 	},
 	ctx: z.RefinementCtx,
 ) {
@@ -277,6 +280,21 @@ function validateInternetArchiveBgmCandidate(
 					? error.message
 					: "BGM candidate must point to Internet Archive audio.",
 			path: ["downloadUrl"],
+		});
+	}
+	if (!isCommercialVideoSafeLicense(value.licenseUrl)) {
+		ctx.addIssue({
+			code: "custom",
+			message: "BGM licenseUrl must allow commercial video use.",
+			path: ["licenseUrl"],
+		});
+	}
+	if (isCommercialVideoSafeLicense(value.licenseUrl) !== value.commercialUseAllowed) {
+		ctx.addIssue({
+			code: "custom",
+			message:
+				"BGM commercialUseAllowed must match the selected licenseUrl policy.",
+			path: ["commercialUseAllowed"],
 		});
 	}
 }

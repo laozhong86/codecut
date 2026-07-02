@@ -788,6 +788,18 @@ describe("Codecut MCP server contract", () => {
 				},
 			}).success,
 		).toBe(true);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				...roleAndSoundDefaults,
+				bgmPreferences: {
+					mode: "smart_match",
+					searchQuery: "bright lofi product demo",
+					selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+					limit: 10,
+					commercialOnly: false,
+				},
+			}).success,
+		).toBe(false);
 		const customVoiceDefaults = {
 			output: {
 				voiceEnabled: true,
@@ -1382,6 +1394,48 @@ describe("Codecut MCP server contract", () => {
 			expect(result.isError).toBe(true);
 			expect(result.structuredContent.status).toBe("invalid_setup_request");
 			expect(result.structuredContent.error).toContain("Unrecognized");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test("rejects BGM candidates with forged commercial license claims", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-req-bgm-license-"));
+		try {
+			const result = await serverModule.callCodecutWorkspaceTool(
+				"submit_codecut_setup",
+				setupIntent({
+					confirmedByUser: true,
+					pendingConfirmationId: "ccsetup_license",
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								licenseUrl:
+									"https://creativecommons.org/licenses/by-nc/4.0/",
+								commercialUseAllowed: true,
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							licenseUrl:
+								"https://creativecommons.org/licenses/by-nc/4.0/",
+							commercialUseAllowed: true,
+						}),
+					}),
+				}),
+				{
+					cwd: directory,
+					env: {
+						...process.env,
+						CODECUT_AGENT_BRIDGE_URL: "http://127.0.0.1:4100",
+					},
+					fetchImpl: async () => ({ ok: true, status: 200 }),
+				},
+			);
+
+			expect(result.isError).toBe(true);
+			expect(JSON.stringify(result)).toContain(
+				"BGM licenseUrl must allow commercial video use.",
+			);
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
