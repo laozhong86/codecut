@@ -791,6 +791,21 @@ describe("Codecut MCP server contract", () => {
 		expect(
 			requirementOpenInputSchema.safeParse(customVoiceDefaults).success,
 		).toBe(true);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				output: {
+					voiceEnabled: true,
+					voicePackId: "custom",
+				},
+			}).success,
+		).toBe(false);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				output: {
+					voicePackId: "custom",
+				},
+			}).success,
+		).toBe(false);
 		const voiceCloneDefaults = {
 			output: {
 				voiceEnabled: true,
@@ -804,6 +819,21 @@ describe("Codecut MCP server contract", () => {
 		expect(
 			requirementOpenInputSchema.safeParse(voiceCloneDefaults).success,
 		).toBe(true);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				output: {
+					voiceEnabled: true,
+					voicePackId: "voice_clone",
+				},
+			}).success,
+		).toBe(false);
+		expect(
+			requirementOpenInputSchema.safeParse({
+				output: {
+					voicePackId: "voice_clone",
+				},
+			}).success,
+		).toBe(false);
 		expect(
 			openTool.inputSchema.transitionPreference.safeParse("auto").success,
 		).toBe(true);

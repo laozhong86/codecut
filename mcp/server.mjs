@@ -625,7 +625,30 @@ const workspaceRequirementOpenOutputSchema = z
 		customVoiceFile: voiceAudioFileSchema.optional(),
 		voiceCloneSourceFile: voiceAudioFileSchema.optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, ctx) => {
+		const voiceEnabled = value.voiceEnabled !== false;
+		if (voiceEnabled && value.voicePackId === "custom" && !value.customVoiceFile) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"output.customVoiceFile is required when custom voice is enabled.",
+				path: ["customVoiceFile"],
+			});
+		}
+		if (
+			voiceEnabled &&
+			value.voicePackId === "voice_clone" &&
+			!value.voiceCloneSourceFile
+		) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"output.voiceCloneSourceFile is required when voice clone is enabled.",
+				path: ["voiceCloneSourceFile"],
+			});
+		}
+	});
 
 const titlePreferencesBaseSchema = z
 	.object({
