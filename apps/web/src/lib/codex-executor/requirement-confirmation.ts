@@ -69,6 +69,7 @@ export const RequirementDraftInputSchema = z
 			})
 			.strict(),
 		templatePreference: TemplatePreferenceSchema.default({ mode: "auto" }),
+		networkMaterialMatching: ConfirmedSetupSchema.shape.networkMaterialMatching,
 		exportPreferences: ConfirmedSetupSchema.shape.exportPreferences,
 		checks: z.array(CheckSchema),
 	})
@@ -121,6 +122,8 @@ export const RequirementConfirmationPatchSchema = z
 			.strict()
 			.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
+		networkMaterialMatching:
+			ConfirmedSetupSchema.shape.networkMaterialMatching.optional(),
 		exportPreferences: ConfirmedSetupSchema.shape.exportPreferences.optional(),
 	})
 	.strict();
@@ -278,6 +281,8 @@ export async function confirmRequirementDraft({
 			voicePreferences: parsedPatch.voicePreferences ?? draft.voicePreferences,
 			templatePreference:
 				parsedPatch.templatePreference ?? draft.templatePreference,
+			networkMaterialMatching:
+				parsedPatch.networkMaterialMatching ?? draft.networkMaterialMatching,
 			exportPreferences:
 				parsedPatch.exportPreferences ?? draft.exportPreferences,
 			changes: [],

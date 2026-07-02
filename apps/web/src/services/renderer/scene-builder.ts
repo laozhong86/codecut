@@ -172,6 +172,7 @@ function buildVisualElementNode({
 				opacity: element.opacity,
 				keyframes: element.keyframes,
 				sourceCrop: videoElement.sourceCrop,
+				layoutSlot: videoElement.layoutSlot,
 				playbackRate: videoElement.playbackRate,
 				reversed: videoElement.reversed,
 			};
@@ -194,6 +195,7 @@ function buildVisualElementNode({
 			opacity: element.opacity,
 			keyframes: element.keyframes,
 			sourceCrop: videoElement.sourceCrop,
+			layoutSlot: videoElement.layoutSlot,
 			playbackRate: videoElement.playbackRate,
 			reversed: videoElement.reversed,
 		});
@@ -210,6 +212,7 @@ function buildVisualElementNode({
 			transform: element.transform,
 			opacity: element.opacity,
 			keyframes: element.keyframes,
+			layoutSlot: element.layoutSlot,
 		});
 	}
 
@@ -237,7 +240,9 @@ export function buildScene(params: BuildSceneParams) {
 
 	const rootNode = new RootNode({ duration });
 	const mediaMap = new Map(mediaAssets.map((m) => [m.id, m]));
-	const derivedAssetMap = new Map(derivedAssets.map((asset) => [asset.id, asset]));
+	const derivedAssetMap = new Map(
+		derivedAssets.map((asset) => [asset.id, asset]),
+	);
 
 	const visibleTracks = tracks.filter(
 		(track) => !("hidden" in track && track.hidden),
@@ -267,7 +272,10 @@ export function buildScene(params: BuildSceneParams) {
 			const processedIds = new Set<string>();
 
 			const trackTransitions = videoTrack.transitions ?? [];
-			const transitionLookup = new Map<string, typeof trackTransitions[number]>();
+			const transitionLookup = new Map<
+				string,
+				(typeof trackTransitions)[number]
+			>();
 			for (const transition of trackTransitions) {
 				const key = `${transition.fromElementId}:${transition.toElementId}`;
 				transitionLookup.set(key, transition);
@@ -284,18 +292,18 @@ export function buildScene(params: BuildSceneParams) {
 					const transition = transitionLookup.get(pairKey);
 
 					if (transition) {
-							const outgoingNode = buildVisualElementNode({
-								element,
-								mediaMap,
-								derivedAssetMap,
-								frameRate,
-							});
-							const incomingNode = buildVisualElementNode({
-								element: nextElement,
-								mediaMap,
-								derivedAssetMap,
-								frameRate,
-							});
+						const outgoingNode = buildVisualElementNode({
+							element,
+							mediaMap,
+							derivedAssetMap,
+							frameRate,
+						});
+						const incomingNode = buildVisualElementNode({
+							element: nextElement,
+							mediaMap,
+							derivedAssetMap,
+							frameRate,
+						});
 
 						if (outgoingNode && incomingNode) {
 							processedIds.add(element.id);
@@ -306,8 +314,7 @@ export function buildScene(params: BuildSceneParams) {
 								new TransitionNode({
 									type: transition.type,
 									duration: transition.duration,
-									transitionStart:
-										junctionTime - transition.duration / 2,
+									transitionStart: junctionTime - transition.duration / 2,
 									outgoingNode,
 									incomingNode,
 									outgoingEndTime: getElementEndTime({
@@ -321,12 +328,12 @@ export function buildScene(params: BuildSceneParams) {
 					}
 				}
 
-					const node = buildVisualElementNode({
-						element,
-						mediaMap,
-						derivedAssetMap,
-						frameRate,
-					});
+				const node = buildVisualElementNode({
+					element,
+					mediaMap,
+					derivedAssetMap,
+					frameRate,
+				});
 				if (node) {
 					processedIds.add(element.id);
 					contentNodes.push(node);

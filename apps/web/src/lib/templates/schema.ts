@@ -1,8 +1,10 @@
 import { EditPlanCaptionStylePresetSchema } from "@/lib/agent-bridge/edit-plan/schema";
+import { NetworkMaterialPolicySchema } from "@/lib/network-materials/schema";
 import { z } from "zod";
 
 export const TemplateTriggerTypeSchema = z.enum([
 	"talking-head-short",
+	"talking-head-broll-split",
 	"tutorial-demo",
 	"product-proof-ad",
 	"narrated-broll",
@@ -15,6 +17,7 @@ export const TemplateExecutionPathSchema = z.enum([
 	"edit-plan-v1",
 	"speech-cleanup-to-edit-plan-v1",
 	"narrated-remix-v1",
+	"composite-layout-v1",
 ]);
 
 export const TemplateRequiredEvidenceSchema = z.enum([
@@ -92,6 +95,7 @@ export const TemplateSchema = z
 		trigger: TemplateTriggerSchema,
 		plan: TemplatePlanSchema,
 		execution: TemplateExecutionSchema,
+		networkMaterialPolicy: NetworkMaterialPolicySchema,
 		createdAt: z.string().datetime(),
 		updatedAt: z.string().datetime(),
 	})
@@ -131,6 +135,9 @@ export type TemplateStep = z.infer<typeof TemplateStepSchema>;
 export type TemplatePlan = z.infer<typeof TemplatePlanSchema>;
 export type TemplateTrigger = z.infer<typeof TemplateTriggerSchema>;
 export type TemplateExecution = z.infer<typeof TemplateExecutionSchema>;
+export type TemplateMaterialPolicy = z.infer<
+	typeof NetworkMaterialPolicySchema
+>;
 export type Template = z.infer<typeof TemplateSchema>;
 
 export type TemplateResolution =

@@ -63,6 +63,14 @@ export interface SourceCrop {
 	fit?: "cover-to-canvas";
 }
 
+export interface LayoutSlot {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	cropMode: "cover-slot";
+}
+
 export type KeyframeInterpolation =
 	| "linear"
 	| "hold"
@@ -167,6 +175,7 @@ export interface VideoElement extends BaseTimelineElement {
 	transform: Transform;
 	opacity: number;
 	sourceCrop?: SourceCrop;
+	layoutSlot?: LayoutSlot;
 	playbackRate?: number;
 	reversed?: boolean;
 }
@@ -177,6 +186,7 @@ export interface ImageElement extends BaseTimelineElement {
 	hidden?: boolean;
 	transform: Transform;
 	opacity: number;
+	layoutSlot?: LayoutSlot;
 }
 
 export interface TextStroke {

@@ -17,6 +17,7 @@ export const BridgeToolNameSchema = z.enum([
 	"build_post_cut_captions",
 	"apply_edit_plan",
 	"apply_narrated_remix_plan",
+	"apply_composite_layout_plan",
 	"create_text_background_effect",
 	"create_human_pip_effect",
 	"generate_digital_human",

@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { StorageAdapter } from "@/services/storage/types";
-import { createTemplate, TemplateService, type Template } from "@/lib/templates";
+import {
+	createTemplate,
+	TemplateService,
+	type Template,
+} from "@/lib/templates";
 import { getToolByName } from "../index";
 import {
 	executeDeleteTemplateTool,
@@ -65,6 +69,12 @@ function buildTemplate(id = "proof-demo-cut"): Template {
 			captionPreset: "product-punch",
 			stopConditions: ["Product facts are missing."],
 		},
+		networkMaterialPolicy: {
+			defaultEnabled: false,
+			searchBasis: "voiceover_content",
+			defaultPlacement: "background",
+			allowedPlacements: ["background", "top", "bottom"],
+		},
 		now: new Date("2026-07-01T00:00:00.000Z"),
 	});
 }
@@ -126,7 +136,7 @@ describe("template tools", () => {
 				aliases: ["proof demo"],
 				stepCount: 1,
 				verificationCount: 1,
-				templateCount: 5,
+					templateCount: 6,
 				sourceOfTruth: "codecut-template-library",
 				visibleInTemplatesUi: true,
 			},
@@ -142,19 +152,19 @@ describe("template tools", () => {
 		expect(result).toMatchObject({
 			success: true,
 			data: {
-				templateCount: 5,
+					templateCount: 6,
 				sourceOfTruth: "codecut-template-library",
 			},
 		});
 		expect(
-			(result.data as { templates: Array<{ templateId: string }> }).templates.map(
-				(template) => template.templateId,
-			),
+			(
+				result.data as { templates: Array<{ templateId: string }> }
+			).templates.map((template) => template.templateId),
 		).toContain("talking-head-short");
 		expect(
-			(result.data as { templates: Array<{ templateId: string }> }).templates.map(
-				(template) => template.templateId,
-			),
+			(
+				result.data as { templates: Array<{ templateId: string }> }
+			).templates.map((template) => template.templateId),
 		).toContain("proof-demo-cut");
 	});
 

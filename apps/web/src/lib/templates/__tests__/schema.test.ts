@@ -31,6 +31,12 @@ function validTemplate() {
 			captionPreset: "product-punch",
 			stopConditions: ["Product facts are missing."],
 		},
+		networkMaterialPolicy: {
+			defaultEnabled: false,
+			searchBasis: "voiceover_content",
+			defaultPlacement: "background",
+			allowedPlacements: ["background", "top", "bottom"],
+		},
 		createdAt: "2026-07-01T00:00:00.000Z",
 		updatedAt: "2026-07-01T00:00:00.000Z",
 	};
@@ -45,6 +51,13 @@ describe("TemplateSchema", () => {
 
 	test("rejects templates without an execution profile", () => {
 		const { execution: _execution, ...template } = validTemplate();
+		const result = TemplateSchema.safeParse(template);
+
+		expect(result.success).toBe(false);
+	});
+
+	test("rejects templates without an explicit network material policy", () => {
+		const { networkMaterialPolicy: _policy, ...template } = validTemplate();
 		const result = TemplateSchema.safeParse(template);
 
 		expect(result.success).toBe(false);

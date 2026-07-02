@@ -58,7 +58,9 @@ describe("buildSystemPrompt", () => {
 		expect(prompt).toContain("SFX");
 		expect(prompt).toContain("video or image B-roll");
 		expect(prompt).toContain("independent timed text elements");
-		expect(prompt).not.toContain("does not support TTS, BGM, SFX, image B-roll");
+		expect(prompt).not.toContain(
+			"does not support TTS, BGM, SFX, image B-roll",
+		);
 		expect(prompt).not.toContain(["P0", "Video", "Template"].join(" "));
 		expect(prompt).not.toContain(["system", "template", "script"].join(" "));
 	});
@@ -91,14 +93,16 @@ describe("buildSystemPrompt", () => {
 					},
 					execution: {
 						path: "edit-plan-v1",
-						requiredEvidence: [
-							"transcript",
-							"visual-proof",
-							"product-facts",
-						],
+						requiredEvidence: ["transcript", "visual-proof", "product-facts"],
 						defaultStructure: ["hook", "proof", "CTA"],
 						captionPreset: "creator-clean",
 						stopConditions: ["Product facts are missing."],
+					},
+					networkMaterialPolicy: {
+						defaultEnabled: false,
+						searchBasis: "voiceover_content",
+						defaultPlacement: "background",
+						allowedPlacements: ["background", "top", "bottom"],
 					},
 					now: new Date("2026-06-22T00:00:00.000Z"),
 				}),

@@ -12,6 +12,17 @@ import {
 	type RequirementConfirmationFormState,
 } from "@/lib/codex-executor/requirement-confirmation-patch";
 
+const NETWORK_MATERIAL_PROVIDER_OPTIONS = [
+	"pexels",
+	"pixabay",
+	"coverr",
+] as const;
+const NETWORK_MATERIAL_PLACEMENT_OPTIONS = [
+	{ value: "background", label: "背景" },
+	{ value: "top", label: "靠上" },
+	{ value: "bottom", label: "靠下" },
+] as const;
+
 type RequirementReadback =
 	| {
 			status: "awaiting_user_confirmation";
@@ -85,15 +96,35 @@ export function RequirementConfirmationClient({
 		form?.voiceEnabled === true &&
 		form.voicePackId === "custom" &&
 		!form.customVoiceFileUrl;
+	const networkMaterialProvidersMissing =
+		form?.networkMaterialEnabled === true &&
+		form.networkMaterialProviders.length === 0;
+
+	function updateNetworkMaterialProvider(
+		provider: RequirementConfirmationFormState["networkMaterialProviders"][number],
+		checked: boolean,
+	) {
+		if (!form) return;
+		setForm({
+			...form,
+			networkMaterialProviders: NETWORK_MATERIAL_PROVIDER_OPTIONS.filter(
+				(option) =>
+					option === provider
+						? checked
+						: form.networkMaterialProviders.includes(option),
+			),
+		});
+	}
 
 	function updateVoiceEnabled(checked: boolean) {
 		if (!form) return;
 		setForm({
 			...form,
 			voiceEnabled: checked,
-			voicePackId: checked && form.voicePackId === "none"
-				? "podcast-female"
-				: form.voicePackId,
+			voicePackId:
+				checked && form.voicePackId === "none"
+					? "podcast-female"
+					: form.voicePackId,
 		});
 	}
 
@@ -337,6 +368,77 @@ export function RequirementConfirmationClient({
 
 				<section className="grid gap-4 rounded-md border p-4">
 					<div className="flex items-center justify-between gap-4">
+						<div>
+							<h2 className="text-base font-semibold">{t("网络素材匹配")}</h2>
+							<p className="mt-1 text-sm text-muted-foreground">
+								{draft.networkMaterialMatching.enabled
+									? t("模板建议：开启网络素材匹配")
+									: t("模板建议：关闭网络素材匹配")}
+							</p>
+						</div>
+						<Switch
+							checked={form.networkMaterialEnabled}
+							onCheckedChange={(checked) =>
+								setForm({ ...form, networkMaterialEnabled: checked })
+							}
+						/>
+					</div>
+					<div className="grid gap-4 md:grid-cols-2">
+						<label className="grid gap-2 text-sm font-medium">
+							{t("显示位置")}
+							<select
+								className="h-10 rounded-md border bg-background px-3"
+								value={form.networkMaterialPlacement}
+								disabled={!form.networkMaterialEnabled}
+								onChange={(event) =>
+									setForm({
+										...form,
+										networkMaterialPlacement: event.target
+											.value as RequirementConfirmationFormState["networkMaterialPlacement"],
+									})
+								}
+							>
+								{NETWORK_MATERIAL_PLACEMENT_OPTIONS.map((option) => (
+									<option key={option.value} value={option.value}>
+										{t(option.label)}
+									</option>
+								))}
+							</select>
+						</label>
+						<div className="grid gap-2 text-sm font-medium">
+							<span>{t("素材渠道")}</span>
+							<div className="flex min-h-10 flex-wrap items-center gap-4 rounded-md border bg-background px-3 py-2">
+								{NETWORK_MATERIAL_PROVIDER_OPTIONS.map((provider) => (
+									<label
+										key={provider}
+										className="flex items-center gap-2 text-sm capitalize"
+									>
+										<input
+											type="checkbox"
+											checked={form.networkMaterialProviders.includes(provider)}
+											disabled={!form.networkMaterialEnabled}
+											onChange={(event) =>
+												updateNetworkMaterialProvider(
+													provider,
+													event.target.checked,
+												)
+											}
+										/>
+										{provider}
+									</label>
+								))}
+							</div>
+							{networkMaterialProvidersMissing && (
+								<p className="text-sm text-destructive">
+									{t("开启网络素材匹配时至少选择一个渠道")}
+								</p>
+							)}
+						</div>
+					</div>
+				</section>
+
+				<section className="grid gap-4 rounded-md border p-4">
+					<div className="flex items-center justify-between gap-4">
 						<h2 className="text-base font-semibold">{t("标题")}</h2>
 						<Switch
 							checked={form.titleEnabled}
@@ -570,7 +672,8 @@ export function RequirementConfirmationClient({
 					disabled={
 						isSubmitting ||
 						readback.status !== "awaiting_user_confirmation" ||
-						customVoiceMissing
+						customVoiceMissing ||
+						networkMaterialProvidersMissing
 					}
 				>
 					{t("确认需求")}

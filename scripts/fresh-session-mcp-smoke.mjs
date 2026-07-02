@@ -34,6 +34,7 @@ export const REQUIRED_MCP_TOOLS = [
 	"update_template",
 	"delete_template",
 	"apply_edit_plan",
+	"apply_composite_layout_plan",
 	"get_timeline_state",
 ];
 
@@ -151,9 +152,7 @@ export function assertFreshMcpToolSurface({ tools }) {
 		typeof templateGetProperties !== "object" ||
 		!Object.hasOwn(templateGetProperties, "templateId")
 	) {
-		throw new Error(
-			"get_template input schema must expose templateId.",
-		);
+		throw new Error("get_template input schema must expose templateId.");
 	}
 
 	const templateResolveProperties = schemaProperties(
@@ -468,9 +467,9 @@ export async function runFreshSessionMcpSmoke({
 			}),
 		);
 		const timeline = firstBridgeResult(
-				await callCodecutTool(client, {
-					name: "get_timeline_state",
-					arguments: {
+			await callCodecutTool(client, {
+				name: "get_timeline_state",
+				arguments: {
 					projectId,
 					includeReferencedMedia: true,
 					includeFrames: false,
@@ -510,7 +509,7 @@ export async function runFreshSessionMcpSmoke({
 			mediaId,
 			captionCount: captions.data.captionCount,
 			createdElementIds: captions.data.createdElementIds,
-				timeline: summarizeTimelineReadback(timeline.data),
+			timeline: summarizeTimelineReadback(timeline.data),
 			search: {
 				searchable: searchable.data,
 				transcript: transcript.data,

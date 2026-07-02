@@ -39,6 +39,13 @@ function confirmedSetup(overrides: Record<string, unknown> = {}) {
 			includeAudio: true,
 		},
 		templatePreference: { mode: "auto" },
+		networkMaterialMatching: {
+			enabled: false,
+			placement: "background",
+			providers: ["pexels", "pixabay", "coverr"],
+			resolvedTemplateId: "talking-head-short",
+			decisionSource: "template",
+		},
 		changes: [],
 		...overrides,
 	};
@@ -54,6 +61,35 @@ describe("ConfirmedSetup durationContract", () => {
 			toleranceSeconds: 0.2,
 		});
 		expect(parsed.templatePreference).toEqual({ mode: "auto" });
+		expect(parsed.networkMaterialMatching).toEqual({
+			enabled: false,
+			placement: "background",
+			providers: ["pexels", "pixabay", "coverr"],
+			resolvedTemplateId: "talking-head-short",
+			decisionSource: "template",
+		});
+	});
+
+	test("accepts confirmed network material matching from template defaults", () => {
+		const parsed = ConfirmedSetupSchema.parse(
+			confirmedSetup({
+				networkMaterialMatching: {
+					enabled: true,
+					placement: "top",
+					providers: ["pexels", "coverr"],
+					resolvedTemplateId: "talking-head-broll-split",
+					decisionSource: "template",
+				},
+			}),
+		);
+
+		expect(parsed.networkMaterialMatching).toEqual({
+			enabled: true,
+			placement: "top",
+			providers: ["pexels", "coverr"],
+			resolvedTemplateId: "talking-head-broll-split",
+			decisionSource: "template",
+		});
 	});
 
 	test("accepts specified template preference with requested template", () => {
@@ -100,6 +136,39 @@ describe("ConfirmedSetup durationContract", () => {
 		expect(applied.confirmedSetup.templatePreference).toEqual({
 			mode: "specified",
 			requestedTemplate: "talking-head-short",
+		});
+	});
+
+	test("network material matching changes require replan", () => {
+		const applied = applyConfirmedSetupPatch({
+			confirmedSetup: ConfirmedSetupSchema.parse(confirmedSetup()),
+			patch: {
+				networkMaterialMatching: {
+					enabled: true,
+					placement: "bottom",
+					providers: ["pexels"],
+					resolvedTemplateId: "talking-head-broll-split",
+					decisionSource: "user",
+				},
+			},
+			reason: "user_selected_network_material_layout",
+			changedAt: "2026-07-01T00:00:00.000Z",
+		});
+
+		expect(applied.requiresReplan).toBe(true);
+		expect(applied.changedFields).toEqual([
+			"networkMaterialMatching.enabled",
+			"networkMaterialMatching.placement",
+			"networkMaterialMatching.providers",
+			"networkMaterialMatching.resolvedTemplateId",
+			"networkMaterialMatching.decisionSource",
+		]);
+		expect(applied.confirmedSetup.networkMaterialMatching).toEqual({
+			enabled: true,
+			placement: "bottom",
+			providers: ["pexels"],
+			resolvedTemplateId: "talking-head-broll-split",
+			decisionSource: "user",
 		});
 	});
 

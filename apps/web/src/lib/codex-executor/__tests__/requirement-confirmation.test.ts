@@ -51,6 +51,13 @@ function validDraftInput(): RequirementDraftInput {
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
 		},
+		networkMaterialMatching: {
+			enabled: true,
+			placement: "top",
+			providers: ["pexels", "pixabay", "coverr"],
+			resolvedTemplateId: "talking-head-broll-split",
+			decisionSource: "template",
+		},
 		exportPreferences: {
 			format: "mp4",
 			quality: "high",
@@ -127,6 +134,13 @@ describe("requirement confirmation store", () => {
 		expect(readback.draft.templatePreference).toEqual({
 			mode: "specified",
 			requestedTemplate: "TikTok 解说视频模板",
+		});
+		expect(readback.draft.networkMaterialMatching).toEqual({
+			enabled: true,
+			placement: "top",
+			providers: ["pexels", "pixabay", "coverr"],
+			resolvedTemplateId: "talking-head-broll-split",
+			decisionSource: "template",
 		});
 	});
 

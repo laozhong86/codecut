@@ -7,6 +7,7 @@ import {
 	buildAddTextsEnvelope,
 	buildAddTransitionsEnvelope,
 	buildApplyPlanEnvelope,
+	buildCompositeLayoutPlanEnvelope,
 	buildCommandEnvelope,
 	buildDeleteTemplateEnvelope,
 	buildDigitalHumanEnvelope,
@@ -126,15 +127,18 @@ try {
 		`;
 
 		try {
-			const child = Bun.spawn(["node", "--input-type=module", "--eval", helper], {
-				env: {
-					...process.env,
-					CODECUT_TEST_CONFIRMATION_ROOT: root,
-					CODECUT_TEST_PENDING_CONFIRMATION_ID: pendingConfirmationId,
+			const child = Bun.spawn(
+				["node", "--input-type=module", "--eval", helper],
+				{
+					env: {
+						...process.env,
+						CODECUT_TEST_CONFIRMATION_ROOT: root,
+						CODECUT_TEST_PENDING_CONFIRMATION_ID: pendingConfirmationId,
+					},
+					stdout: "pipe",
+					stderr: "pipe",
 				},
-				stdout: "pipe",
-				stderr: "pipe",
-			});
+			);
 			const [stdout, stderr, exitCode] = await Promise.all([
 				new Response(child.stdout).text(),
 				new Response(child.stderr).text(),
@@ -180,9 +184,7 @@ try {
 		const result = await checkSharpRuntime({
 			cwd: "/tmp/codecut",
 			requireImpl: () => {
-				throw new Error(
-					"Cannot find module '@img/sharp-libvips-darwin-arm64'",
-				);
+				throw new Error("Cannot find module '@img/sharp-libvips-darwin-arm64'");
 			},
 		});
 
@@ -191,14 +193,15 @@ try {
 			ok: false,
 		});
 		expect(result.message).toContain("Sharp/libvips check failed");
-		expect(result.message).toContain(
-			"@img/sharp-libvips-darwin-arm64",
-		);
+		expect(result.message).toContain("@img/sharp-libvips-darwin-arm64");
 	});
 
 	test("web app declares sharp as a direct runtime dependency", async () => {
 		const webPackageJson = JSON.parse(
-			await readFile(new URL("../../apps/web/package.json", import.meta.url), "utf8"),
+			await readFile(
+				new URL("../../apps/web/package.json", import.meta.url),
+				"utf8",
+			),
 		);
 
 		expect(webPackageJson.dependencies.sharp).toBeTruthy();
@@ -534,7 +537,7 @@ try {
 				includeAudio: true,
 				outputFile: "/tmp/codecut-export.mp4",
 			}),
-			).toThrow("--overwrite is required");
+		).toThrow("--overwrite is required");
 	});
 
 	test("builds a timeline frame export command only from explicit options", () => {
@@ -1540,6 +1543,60 @@ try {
 		}
 	});
 
+	test("builds an apply-composite-layout-plan command envelope from a local JSON file", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
+		const planPath = join(directory, "composite-layout-plan.json");
+		const plan = {
+			version: 1,
+			projectId: "project-123",
+			target: { aspectRatio: "9:16", durationSec: 10 },
+			placement: "top",
+			presenter: {
+				mediaId: "presenter-video",
+				sourceStart: 0,
+				sourceEnd: 10,
+			},
+			networkMaterialBeats: [
+				{
+					id: "network-1",
+					mediaId: "network-video",
+					provider: "pexels",
+					searchTerm: "startup office",
+					sourceUrl: "https://www.pexels.com/video/123/",
+					license: {
+						label: "Pexels License",
+						url: "https://www.pexels.com/license/",
+					},
+					sourceStart: 0,
+					sourceEnd: 5,
+					timelineStart: 0,
+					cropMode: "cover-slot",
+				},
+			],
+			rationale: "Place supporting B-roll above the presenter.",
+		};
+		await writeFile(planPath, JSON.stringify(plan), "utf8");
+
+		try {
+			const envelope = await buildCompositeLayoutPlanEnvelope({
+				projectId: "project-123",
+				planJsonFile: planPath,
+				replaceExisting: true,
+			});
+
+			expect(envelope.commands[0]).toEqual({
+				id: "cmd-1",
+				tool: "apply_composite_layout_plan",
+				args: {
+					plan,
+					replaceExisting: true,
+				},
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test("builds validate and preview EditPlan command envelopes without mutation flags", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-codex-bridge-"));
 		const planPath = join(directory, "edit-plan.json");
@@ -2432,13 +2489,13 @@ try {
 			scriptedMediaId: "audio-1",
 			scriptedMediaName: "blind-narration.wav",
 		});
-			expect(report.checks.map((check) => [check.id, check.ok])).toEqual([
-				["doctor_install", true],
-				["doctor", true],
-				["scripted_media_asset", true],
-				["timeline_readback", true],
-				["referenced_scripted_media", true],
-				["expected_caption_text", true],
+		expect(report.checks.map((check) => [check.id, check.ok])).toEqual([
+			["doctor_install", true],
+			["doctor", true],
+			["scripted_media_asset", true],
+			["timeline_readback", true],
+			["referenced_scripted_media", true],
+			["expected_caption_text", true],
 		]);
 		expect(JSON.stringify(report)).not.toContain("local-token");
 	});
@@ -2651,13 +2708,13 @@ try {
 			requests
 				.slice(1)
 				.map((request) => JSON.parse(request.init.body).envelope.commands[0]),
-			).toMatchObject([
-				{ tool: "list_media_assets", args: {} },
-				{
-					tool: "get_timeline_state",
-					args: { includeReferencedMedia: true },
-				},
-			]);
+		).toMatchObject([
+			{ tool: "list_media_assets", args: {} },
+			{
+				tool: "get_timeline_state",
+				args: { includeReferencedMedia: true },
+			},
+		]);
 		const report = JSON.parse(output[0]);
 		expect(report.ok).toBe(true);
 		expect(report.summary).toMatchObject({
@@ -3588,10 +3645,7 @@ try {
 			join(tmpdir(), "codecut-marketplace-"),
 		);
 		const sourceRoot = join(marketplaceRoot, "plugins/cutia");
-		const worktreeRoot = join(
-			sourceRoot,
-			".worktrees/template-read-tools",
-		);
+		const worktreeRoot = join(sourceRoot, ".worktrees/template-read-tools");
 		const homeRoot = await mkdtemp(join(tmpdir(), "codecut-home-"));
 		const cacheRoot = join(
 			homeRoot,
@@ -3677,8 +3731,7 @@ try {
 				status: "ok",
 				data: {
 					sourcePath: "./plugins/cutia",
-					expectedSourcePath:
-						"./plugins/cutia/.worktrees/template-read-tools",
+					expectedSourcePath: "./plugins/cutia/.worktrees/template-read-tools",
 					expectedSourcePaths: [
 						"./plugins/cutia/.worktrees/template-read-tools",
 						"./plugins/cutia",

@@ -2,6 +2,10 @@ import type {
 	RequirementConfirmationPatch,
 	RequirementDraft,
 } from "./requirement-confirmation";
+import type {
+	NetworkMaterialPlacement,
+	NetworkMaterialProvider,
+} from "@/lib/network-materials/schema";
 
 export type RequirementConfirmationFormState = {
 	aspectRatio: "9:16" | "16:9" | "1:1";
@@ -9,6 +13,9 @@ export type RequirementConfirmationFormState = {
 	generateIntroCover: boolean;
 	templatePreferenceMode: RequirementDraft["templatePreference"]["mode"];
 	requestedTemplate: string;
+	networkMaterialEnabled: boolean;
+	networkMaterialPlacement: NetworkMaterialPlacement;
+	networkMaterialProviders: NetworkMaterialProvider[];
 	titleEnabled: boolean;
 	titleMode: NonNullable<RequirementDraft["titlePreferences"]["mode"]>;
 	titleText: string;
@@ -40,6 +47,9 @@ export function formStateFromRequirementDraft(
 			draft.templatePreference.mode === "specified"
 				? draft.templatePreference.requestedTemplate
 				: "",
+		networkMaterialEnabled: draft.networkMaterialMatching.enabled,
+		networkMaterialPlacement: draft.networkMaterialMatching.placement,
+		networkMaterialProviders: [...draft.networkMaterialMatching.providers],
 		titleEnabled: draft.titlePreferences.enabled,
 		titleMode:
 			draft.titlePreferences.mode ??
@@ -105,6 +115,24 @@ export function buildRequirementConfirmationPatch({
 				nextTemplatePreference.requestedTemplate)
 	) {
 		patch.templatePreference = nextTemplatePreference;
+	}
+
+	const nextNetworkMaterialMatching = {
+		enabled: form.networkMaterialEnabled,
+		placement: form.networkMaterialPlacement,
+		providers: [...form.networkMaterialProviders],
+		resolvedTemplateId: draft.networkMaterialMatching.resolvedTemplateId,
+		decisionSource: "user" as const,
+	};
+	if (
+		draft.networkMaterialMatching.enabled !==
+			nextNetworkMaterialMatching.enabled ||
+		draft.networkMaterialMatching.placement !==
+			nextNetworkMaterialMatching.placement ||
+		draft.networkMaterialMatching.providers.join("\0") !==
+			nextNetworkMaterialMatching.providers.join("\0")
+	) {
+		patch.networkMaterialMatching = nextNetworkMaterialMatching;
 	}
 
 	const nextTitlePreferences = form.titleEnabled
@@ -182,10 +210,8 @@ export function buildRequirementConfirmationPatch({
 		draft.voicePreferences.voicePackId !== nextVoicePreferences.voicePackId ||
 		draft.voicePreferences.customVoiceFile?.name !==
 			nextCustomVoiceFile?.name ||
-		draft.voicePreferences.customVoiceFile?.url !==
-			nextCustomVoiceFile?.url ||
-		draft.voicePreferences.customVoiceFile?.path !==
-			nextCustomVoiceFile?.path
+		draft.voicePreferences.customVoiceFile?.url !== nextCustomVoiceFile?.url ||
+		draft.voicePreferences.customVoiceFile?.path !== nextCustomVoiceFile?.path
 	) {
 		patch.voicePreferences = nextVoicePreferences;
 	}
