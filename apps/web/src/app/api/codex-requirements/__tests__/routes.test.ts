@@ -39,7 +39,7 @@ function bgmCandidate(overrides: Record<string, unknown> = {}) {
 		sourceId: "internet-archive:safe-lofi:safe-lofi.mp3",
 		title: "Safe Lofi Beat",
 		creator: "Open Artist",
-		source: "internet_archive",
+		source: "internet_archive" as const,
 		sourceUrl: "https://archive.org/details/safe-lofi",
 		licenseLabel: "CC BY 4.0",
 		licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
@@ -56,7 +56,7 @@ function bgmCandidate(overrides: Record<string, unknown> = {}) {
 function smartBgmPreferences(overrides: Record<string, unknown> = {}) {
 	const selectedCandidate = bgmCandidate();
 	return {
-		mode: "smart_match",
+		mode: "smart_match" as const,
 		searchQuery: "bright lofi product demo",
 		candidates: [selectedCandidate],
 		selectedCandidate,
@@ -170,7 +170,10 @@ describe("codex requirement confirmation API routes", () => {
 	test("confirms requirement and writes confirmed.json", async () => {
 		const draft = await createRequirementDraft({
 			root,
-			input: validDraftInput(),
+			input: {
+				...validDraftInput(),
+				bgmPreferences: smartBgmPreferences(),
+			},
 		});
 
 		const response = await confirmRequirement(
@@ -192,7 +195,10 @@ describe("codex requirement confirmation API routes", () => {
 						characterPreferences: {
 							characterId: "ugc-female-host",
 						},
-						bgmPreferences: smartBgmPreferences(),
+						bgmPreferences: {
+							mode: "smart_match",
+							selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+						},
 						templatePreference: { mode: "auto" },
 					},
 				},
@@ -239,6 +245,53 @@ describe("codex requirement confirmation API routes", () => {
 		expect(confirmedFile.status).toBe("confirmed");
 		expect(confirmedFile.confirmedSetup.templatePreference).toEqual({
 			mode: "auto",
+		});
+	});
+
+	test("rejects BGM candidate metadata tampering in confirmation patches", async () => {
+		const draft = await createRequirementDraft({
+			root,
+			input: {
+				...validDraftInput(),
+				bgmPreferences: smartBgmPreferences(),
+			},
+		});
+
+		const response = await confirmRequirement(
+			request({
+				url: `${origin}/api/codex-requirements/${draft.draftId}/confirm`,
+				method: "POST",
+				body: {
+					patch: {
+						bgmPreferences: smartBgmPreferences({
+							candidates: [
+								bgmCandidate({
+									title: "Tampered Commercial",
+									licenseLabel: "CC0",
+									licenseUrl:
+										"https://creativecommons.org/publicdomain/zero/1.0/",
+									attributionRequired: false,
+									fileSizeBytes: 1,
+								}),
+							],
+							selectedCandidate: bgmCandidate({
+								title: "Tampered Commercial",
+								licenseLabel: "CC0",
+								licenseUrl:
+									"https://creativecommons.org/publicdomain/zero/1.0/",
+								attributionRequired: false,
+								fileSizeBytes: 1,
+							}),
+						}),
+					},
+				},
+			}),
+			routeContext(draft.draftId),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: expect.stringContaining("Unrecognized"),
 		});
 	});
 

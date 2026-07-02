@@ -93,6 +93,16 @@ export const CancelledRequirementSchema = z
 	})
 	.strict();
 
+const BgmConfirmationPatchSchema = z.discriminatedUnion("mode", [
+	z.object({ mode: z.literal("none") }).strict(),
+	z
+		.object({
+			mode: z.literal("smart_match"),
+			selectedCandidateId: z.string().trim().min(1),
+		})
+		.strict(),
+]);
+
 export const RequirementConfirmationPatchSchema = z
 	.object({
 		timelinePreferences:
@@ -103,7 +113,7 @@ export const RequirementConfirmationPatchSchema = z
 		voicePreferences: ConfirmedSetupSchema.shape.voicePreferences.optional(),
 		characterPreferences:
 			ConfirmedSetupSchema.shape.characterPreferences.optional(),
-		bgmPreferences: ConfirmedSetupSchema.shape.bgmPreferences.optional(),
+		bgmPreferences: BgmConfirmationPatchSchema.optional(),
 		templatePreference: TemplatePreferenceSchema.optional(),
 		networkMaterialMatching:
 			ConfirmedSetupSchema.shape.networkMaterialMatching.optional(),
@@ -232,6 +242,31 @@ export async function readRequirementDraft({
 	return RequirementDraftSchema.parse(JSON.parse(raw));
 }
 
+function resolveBgmPreferencesPatch({
+	draft,
+	patch,
+}: {
+	draft: RequirementDraft;
+	patch?: RequirementConfirmationPatch["bgmPreferences"];
+}): RequirementDraft["bgmPreferences"] {
+	if (!patch) return draft.bgmPreferences;
+	if (patch.mode === "none") return { mode: "none" };
+	if (draft.bgmPreferences.mode !== "smart_match") {
+		throw new Error("BGM smart_match selection requires draft candidates.");
+	}
+	const candidates = draft.bgmPreferences.candidates ?? [];
+	const selectedCandidate = candidates.find(
+		(candidate) => candidate.id === patch.selectedCandidateId,
+	);
+	if (!selectedCandidate) {
+		throw new Error("Selected BGM candidate is not available in this draft.");
+	}
+	return {
+		...draft.bgmPreferences,
+		selectedCandidate,
+	};
+}
+
 export async function confirmRequirementDraft({
 	root,
 	draftId,
@@ -264,7 +299,10 @@ export async function confirmRequirementDraft({
 			voicePreferences: parsedPatch.voicePreferences ?? draft.voicePreferences,
 			characterPreferences:
 				parsedPatch.characterPreferences ?? draft.characterPreferences,
-			bgmPreferences: parsedPatch.bgmPreferences ?? draft.bgmPreferences,
+			bgmPreferences: resolveBgmPreferencesPatch({
+				draft,
+				patch: parsedPatch.bgmPreferences,
+			}),
 			templatePreference:
 				parsedPatch.templatePreference ?? draft.templatePreference,
 			networkMaterialMatching:

@@ -377,7 +377,10 @@ describe("requirement confirmation patch builder", () => {
 
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
 			characterPreferences: { characterId: "ugc-female-host" },
-			bgmPreferences: smartBgmPreferences(),
+			bgmPreferences: {
+				mode: "smart_match",
+				selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+			},
 		});
 	});
 
@@ -411,11 +414,31 @@ describe("requirement confirmation patch builder", () => {
 		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({
 			bgmPreferences: {
 				mode: "smart_match",
-				searchQuery: "bright lofi product demo",
-				candidates: [firstCandidate, secondCandidate],
-				selectedCandidate: secondCandidate,
+				selectedCandidateId: "internet-archive:uplift:uplift.mp3",
 			},
 		});
+	});
+
+	test("submits only the selected BGM candidate id even if form candidates are changed", () => {
+		const draft: RequirementDraft = {
+			...requirementDraftFixture(),
+			bgmPreferences: smartBgmPreferences(),
+		};
+		const form = {
+			...formStateFromRequirementDraft(draft),
+			bgmCandidates: [
+				bgmCandidate({
+					title: "Tampered Commercial",
+					licenseLabel: "CC0",
+					licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
+					attributionRequired: false,
+					fileSizeBytes: 1,
+				}),
+			],
+			selectedBgmCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+		};
+
+		expect(buildRequirementConfirmationPatch({ draft, form })).toEqual({});
 	});
 
 	test("submits template preference changes when the user selects a built-in template", () => {

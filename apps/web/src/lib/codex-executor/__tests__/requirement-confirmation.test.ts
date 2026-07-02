@@ -184,7 +184,10 @@ describe("requirement confirmation store", () => {
 		const root = await mkdtemp(join(tmpdir(), "codecut-req-"));
 		const draft = await createRequirementDraft({
 			root,
-			input: validDraftInput(),
+			input: {
+				...validDraftInput(),
+				bgmPreferences: smartBgmPreferences(),
+			},
 		});
 
 		const confirmed = await confirmRequirementDraft({
@@ -199,7 +202,10 @@ describe("requirement confirmation store", () => {
 				},
 				voicePreferences: { enabled: true, voicePackId: "podcast-female" },
 				characterPreferences: { characterId: "ugc-female-host" },
-				bgmPreferences: smartBgmPreferences(),
+				bgmPreferences: {
+					mode: "smart_match",
+					selectedCandidateId: "internet-archive:safe-lofi:safe-lofi.mp3",
+				},
 			},
 		});
 
@@ -242,6 +248,48 @@ describe("requirement confirmation store", () => {
 			requestedTemplate: "talking-head-broll-split",
 		});
 		expect(file.confirmedSetup.bgmPreferences).toEqual(smartBgmPreferences());
+	});
+
+	test("rejects confirmation patches that submit forged BGM candidate metadata", async () => {
+		const root = await mkdtemp(join(tmpdir(), "codecut-req-"));
+		const draft = await createRequirementDraft({
+			root,
+			input: {
+				...validDraftInput(),
+				bgmPreferences: smartBgmPreferences(),
+			},
+		});
+
+		await expect(
+			confirmRequirementDraft({
+				root,
+				draftId: draft.draftId,
+				patch: {
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								title: "Tampered Commercial",
+								licenseLabel: "CC0",
+								licenseUrl:
+									"https://creativecommons.org/publicdomain/zero/1.0/",
+								attributionRequired: false,
+								fileSizeBytes: 1,
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							title: "Tampered Commercial",
+							licenseLabel: "CC0",
+							licenseUrl:
+								"https://creativecommons.org/publicdomain/zero/1.0/",
+							attributionRequired: false,
+							fileSizeBytes: 1,
+						}),
+					}) as unknown as NonNullable<
+						Parameters<typeof confirmRequirementDraft>[0]["patch"]
+					>["bgmPreferences"],
+				},
+			}),
+		).rejects.toThrow();
 	});
 
 	test("confirmation patch can update template preference", async () => {

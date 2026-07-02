@@ -242,11 +242,12 @@ export function buildRequirementConfirmationPatch({
 		patch.characterPreferences = { characterId: form.characterId };
 	}
 
-	const nextBgmPreferences = buildBgmPreferencesFromForm(form);
-	if (
-		JSON.stringify(draft.bgmPreferences) !== JSON.stringify(nextBgmPreferences)
-	) {
-		patch.bgmPreferences = nextBgmPreferences;
+	const bgmPreferencesPatch = buildBgmPreferencesPatchFromForm({
+		draft,
+		form,
+	});
+	if (bgmPreferencesPatch) {
+		patch.bgmPreferences = bgmPreferencesPatch;
 	}
 
 	return patch;
@@ -266,21 +267,25 @@ function templatePreferenceChanged(
 	return false;
 }
 
-function buildBgmPreferencesFromForm(
-	form: RequirementConfirmationFormState,
-): RequirementDraft["bgmPreferences"] {
+function buildBgmPreferencesPatchFromForm({
+	draft,
+	form,
+}: {
+	draft: RequirementDraft;
+	form: RequirementConfirmationFormState;
+}): RequirementConfirmationPatch["bgmPreferences"] | undefined {
 	if (form.bgmMode === "none") {
-		return { mode: "none" };
+		return draft.bgmPreferences.mode === "none" ? undefined : { mode: "none" };
 	}
-	const candidates = form.bgmCandidates.slice(0, 10);
-	const selectedCandidate = candidates.find(
-		(candidate) => candidate.id === form.selectedBgmCandidateId,
-	);
+	if (
+		draft.bgmPreferences.mode === "smart_match" &&
+		draft.bgmPreferences.selectedCandidate?.id === form.selectedBgmCandidateId
+	) {
+		return undefined;
+	}
 	return {
 		mode: "smart_match",
-		searchQuery: form.bgmSearchQuery,
-		candidates,
-		...(selectedCandidate ? { selectedCandidate } : {}),
+		selectedCandidateId: form.selectedBgmCandidateId,
 	};
 }
 
