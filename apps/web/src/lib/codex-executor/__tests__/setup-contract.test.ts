@@ -408,6 +408,18 @@ describe("ConfirmedSetup durationContract", () => {
 			ConfirmedSetupSchema.parse(
 				confirmedSetup({
 					bgmPreferences: smartBgmPreferences({
+						selectedCandidate: bgmCandidate({
+							licenseLabel: "CC0",
+							attributionRequired: false,
+						}),
+					}),
+				}),
+			),
+		).toThrow("bgmPreferences.selectedCandidate must be one of candidates.");
+		expect(() =>
+			ConfirmedSetupSchema.parse(
+				confirmedSetup({
+					bgmPreferences: smartBgmPreferences({
 						candidates: [bgmCandidate({ commercialUseAllowed: false })],
 						selectedCandidate: bgmCandidate({ commercialUseAllowed: false }),
 					}),

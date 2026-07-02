@@ -51,7 +51,7 @@ const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const builtinCharacterOptions = require("../apps/web/src/lib/codex-executor/builtin-character-options.json");
 const bridgeEnvFileRelativePath = "apps/web/.env.local";
 const bridgeEnvPrefix = "CODECUT_AGENT_BRIDGE_";
-const bgmDownloadTimeoutMs = 30_000;
+const defaultBgmDownloadTimeoutMs = 30_000;
 const internetArchiveBgmHost = "archive.org";
 const internetArchiveBgmSourcePrefix = "internet-archive:";
 const bgmAudioFileExtensions = new Set([
@@ -441,10 +441,18 @@ function isSameBgmCandidateIdentity(candidate, selectedCandidate) {
 	return (
 		candidate.id === selectedCandidate.id &&
 		candidate.sourceId === selectedCandidate.sourceId &&
+		candidate.title === selectedCandidate.title &&
+		candidate.creator === selectedCandidate.creator &&
 		candidate.source === selectedCandidate.source &&
 		candidate.sourceUrl === selectedCandidate.sourceUrl &&
+		candidate.licenseLabel === selectedCandidate.licenseLabel &&
 		candidate.licenseUrl === selectedCandidate.licenseUrl &&
-		candidate.downloadUrl === selectedCandidate.downloadUrl
+		candidate.commercialUseAllowed === selectedCandidate.commercialUseAllowed &&
+		candidate.attributionRequired === selectedCandidate.attributionRequired &&
+		candidate.previewUrl === selectedCandidate.previewUrl &&
+		candidate.downloadUrl === selectedCandidate.downloadUrl &&
+		candidate.durationSeconds === selectedCandidate.durationSeconds &&
+		candidate.fileSizeBytes === selectedCandidate.fileSizeBytes
 	);
 }
 
@@ -3235,6 +3243,7 @@ export async function submitCodecutSetup(
 		bridgeToolImpl = callBridgeCliTool,
 		statImpl = stat,
 		fetchImpl = fetch,
+		bgmDownloadTimeoutMs = defaultBgmDownloadTimeoutMs,
 		confirmationRoot,
 		workspaceSourceRoot = pluginRoot,
 		workspaceInitImpl = initWorkspace,
@@ -3419,6 +3428,7 @@ export async function submitCodecutSetup(
 			confirmationToken,
 			bridgeToolImpl,
 			fetchImpl,
+			bgmDownloadTimeoutMs,
 		});
 	} catch (error) {
 		return buildSetupErrorResult({
@@ -4774,6 +4784,7 @@ async function importSelectedBgmAsset({
 	confirmationToken,
 	bridgeToolImpl,
 	fetchImpl,
+	bgmDownloadTimeoutMs,
 }) {
 	const candidate = normalized.bgmPreferences?.selectedCandidate;
 	if (normalized.bgmPreferences?.mode !== "smart_match" || !candidate) {
@@ -4784,6 +4795,7 @@ async function importSelectedBgmAsset({
 		candidate,
 		workspace,
 		fetchImpl,
+		bgmDownloadTimeoutMs,
 	});
 	const importResult = await bridgeToolImpl("import_media", {
 		projectId,
@@ -4814,7 +4826,12 @@ async function importSelectedBgmAsset({
 	};
 }
 
-async function downloadBgmCandidate({ candidate, workspace, fetchImpl }) {
+async function downloadBgmCandidate({
+	candidate,
+	workspace,
+	fetchImpl,
+	bgmDownloadTimeoutMs,
+}) {
 	if (!workspace?.projectDirectory) {
 		throw new Error("Workspace directory is required before importing BGM.");
 	}
@@ -4829,6 +4846,18 @@ async function downloadBgmCandidate({ candidate, workspace, fetchImpl }) {
 		response = await fetchImpl(candidate.downloadUrl, {
 			signal: controller.signal,
 		});
+		if (!response?.ok) {
+			throw new Error(
+				`BGM download failed with status ${response?.status ?? 0}.`,
+			);
+		}
+		validateBgmDownloadResponse(response, candidate);
+		const bytes = await readBgmDownloadBytes(response, candidate);
+		const bgmDirectory = join(workspace.projectDirectory, "01-input", "bgm");
+		await mkdir(bgmDirectory, { recursive: true });
+		const filePath = join(bgmDirectory, safeBgmFileName(candidate));
+		await writeFile(filePath, bytes);
+		return filePath;
 	} catch (error) {
 		if (error?.name === "AbortError") {
 			throw new Error("BGM download timed out.");
@@ -4837,18 +4866,6 @@ async function downloadBgmCandidate({ candidate, workspace, fetchImpl }) {
 	} finally {
 		clearTimeout(timeout);
 	}
-	if (!response?.ok) {
-		throw new Error(
-			`BGM download failed with status ${response?.status ?? 0}.`,
-		);
-	}
-	validateBgmDownloadResponse(response);
-	const bytes = await readBgmDownloadBytes(response, candidate);
-	const bgmDirectory = join(workspace.projectDirectory, "01-input", "bgm");
-	await mkdir(bgmDirectory, { recursive: true });
-	const filePath = join(bgmDirectory, safeBgmFileName(candidate));
-	await writeFile(filePath, bytes);
-	return filePath;
 }
 
 function getResponseHeader(response, name) {
@@ -4866,14 +4883,18 @@ function parseByteSize(value) {
 	return Number.isFinite(size) && size > 0 ? size : 0;
 }
 
-function validateBgmDownloadResponse(response) {
+function validateBgmDownloadResponse(response, candidate) {
 	const contentType = String(getResponseHeader(response, "content-type") || "")
 		.split(";")[0]
 		.trim()
 		.toLowerCase();
+	const extension = extname(
+		readInternetArchiveBgmCandidateParts(candidate).fileName,
+	).toLowerCase();
 	if (
 		contentType &&
 		!contentType.startsWith("audio/") &&
+		!(extension === ".ogg" && contentType === "application/ogg") &&
 		contentType !== "application/octet-stream"
 	) {
 		throw new Error("BGM download must return audio content.");

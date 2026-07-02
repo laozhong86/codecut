@@ -3967,6 +3967,196 @@ describe("Codecut MCP server contract", () => {
 			}
 		});
 
+		test("imports OGG BGM when Internet Archive returns application ogg", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-bgm-ogg-"));
+			const opened = serverModule.openCodecutWorkspace(
+				setupIntent({
+					mediaSources: [],
+					bgmPreferences: smartBgmPreferences({
+						candidates: [
+							bgmCandidate({
+								id: "internet-archive:safe-lofi:safe-lofi.ogg",
+								sourceId: "internet-archive:safe-lofi:safe-lofi.ogg",
+								previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.ogg",
+								downloadUrl:
+									"https://archive.org/download/safe-lofi/safe-lofi.ogg",
+							}),
+						],
+						selectedCandidate: bgmCandidate({
+							id: "internet-archive:safe-lofi:safe-lofi.ogg",
+							sourceId: "internet-archive:safe-lofi:safe-lofi.ogg",
+							previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.ogg",
+							downloadUrl:
+								"https://archive.org/download/safe-lofi/safe-lofi.ogg",
+						}),
+					}),
+				}),
+				{ confirmationRoot: directory },
+			);
+			const pendingConfirmationId =
+				opened.structuredContent.pendingConfirmationId;
+			const calls = [];
+			const bridgeToolImpl = async (toolName, args) => {
+				calls.push({ toolName, args });
+				if (toolName === "create_project") {
+					return {
+						structuredContent: {
+							projectId: "launch-cut-canonical",
+							name: "Launch Cut",
+							revision: 1,
+							editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+						},
+					};
+				}
+				if (toolName === "import_media") {
+					return {
+						structuredContent: {
+							status: "completed",
+							results: [
+								{
+									success: true,
+									data: { assets: [{ id: "bgm-ogg", name: "safe-lofi.ogg" }] },
+								},
+							],
+						},
+					};
+				}
+				if (toolName === "get_project_info") {
+					return { structuredContent: { results: [{ data: { revision: 2 } }] } };
+				}
+				throw new Error(`Unexpected tool ${toolName}`);
+			};
+
+			try {
+				const result = await serverModule.submitCodecutSetup(
+					setupIntent({
+						pendingConfirmationId,
+						mediaSources: [],
+						bgmPreferences: smartBgmPreferences({
+							candidates: [
+								bgmCandidate({
+									id: "internet-archive:safe-lofi:safe-lofi.ogg",
+									sourceId: "internet-archive:safe-lofi:safe-lofi.ogg",
+									previewUrl:
+										"https://archive.org/download/safe-lofi/safe-lofi.ogg",
+									downloadUrl:
+										"https://archive.org/download/safe-lofi/safe-lofi.ogg",
+								}),
+							],
+							selectedCandidate: bgmCandidate({
+								id: "internet-archive:safe-lofi:safe-lofi.ogg",
+								sourceId: "internet-archive:safe-lofi:safe-lofi.ogg",
+								previewUrl: "https://archive.org/download/safe-lofi/safe-lofi.ogg",
+								downloadUrl:
+									"https://archive.org/download/safe-lofi/safe-lofi.ogg",
+							}),
+						}),
+					}),
+					{
+						bridgeToolImpl,
+						confirmationRoot: directory,
+						workspaceSourceRoot: directory,
+						fetchImpl: async () => {
+							const bytes = Buffer.from("ogg-bytes");
+							return {
+								ok: true,
+								status: 200,
+								headers: new Headers({
+									"content-type": "application/ogg",
+									"content-length": String(bytes.byteLength),
+								}),
+								arrayBuffer: async () =>
+									bytes.buffer.slice(
+										bytes.byteOffset,
+										bytes.byteOffset + bytes.byteLength,
+									),
+							};
+						},
+					},
+				);
+
+				expect(result.structuredContent.bgmAsset.assetId).toBe("bgm-ogg");
+				const bgmImportArgs = calls
+					.filter((call) => call.toolName === "import_media")
+					.map((call) => call.args)
+					.find((args) => args.filePath?.endsWith(".ogg"));
+				expect(bgmImportArgs.filePath).toContain("safe-lofi.ogg");
+			} finally {
+				await rm(directory, {
+					recursive: true,
+					force: true,
+				});
+			}
+		});
+
+		test("fails BGM import when the body download times out", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "codecut-bgm-timeout-"));
+			const opened = serverModule.openCodecutWorkspace(
+				setupIntent({ mediaSources: [], bgmPreferences: smartBgmPreferences() }),
+				{ confirmationRoot: directory },
+			);
+			const pendingConfirmationId =
+				opened.structuredContent.pendingConfirmationId;
+			const bridgeToolImpl = async (toolName) => {
+				if (toolName === "create_project") {
+					return {
+						structuredContent: {
+							projectId: "launch-cut-canonical",
+							name: "Launch Cut",
+							revision: 1,
+							editorUrl: "http://127.0.0.1:4100/en/editor/launch-cut-canonical",
+						},
+					};
+				}
+				throw new Error(`Unexpected tool ${toolName}`);
+			};
+
+			try {
+				const result = await serverModule.submitCodecutSetup(
+					setupIntent({
+						pendingConfirmationId,
+						mediaSources: [],
+						bgmPreferences: smartBgmPreferences(),
+					}),
+					{
+						bridgeToolImpl,
+						bgmDownloadTimeoutMs: 1,
+						confirmationRoot: directory,
+						workspaceSourceRoot: directory,
+						fetchImpl: async (_url, init) => ({
+							ok: true,
+							status: 200,
+							headers: new Headers({
+								"content-type": "audio/mpeg",
+								"content-length": "32",
+							}),
+							arrayBuffer: async () =>
+								new Promise((_resolve, reject) => {
+									init.signal.addEventListener(
+										"abort",
+										() => {
+											const error = new Error("aborted");
+											error.name = "AbortError";
+											reject(error);
+										},
+										{ once: true },
+									);
+								}),
+						}),
+					},
+				);
+
+				expect(result.isError).toBe(true);
+				expect(result.structuredContent.status).toBe("bgm_import_failed");
+				expect(result.structuredContent.error).toBe("BGM download timed out.");
+			} finally {
+				await rm(directory, {
+					recursive: true,
+					force: true,
+				});
+			}
+		});
+
 		test("reuses a confirmed setup result on repeated submission without creating again", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "codecut-widget-"));
 		const filePath = join(directory, "source.mp4");

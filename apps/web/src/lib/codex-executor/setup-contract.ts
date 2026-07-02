@@ -312,10 +312,18 @@ function isSameBgmCandidateIdentity(
 	return (
 		candidate.id === selectedCandidate.id &&
 		candidate.sourceId === selectedCandidate.sourceId &&
+		candidate.title === selectedCandidate.title &&
+		candidate.creator === selectedCandidate.creator &&
 		candidate.source === selectedCandidate.source &&
 		candidate.sourceUrl === selectedCandidate.sourceUrl &&
+		candidate.licenseLabel === selectedCandidate.licenseLabel &&
 		candidate.licenseUrl === selectedCandidate.licenseUrl &&
-		candidate.downloadUrl === selectedCandidate.downloadUrl
+		candidate.commercialUseAllowed === selectedCandidate.commercialUseAllowed &&
+		candidate.attributionRequired === selectedCandidate.attributionRequired &&
+		candidate.previewUrl === selectedCandidate.previewUrl &&
+		candidate.downloadUrl === selectedCandidate.downloadUrl &&
+		candidate.durationSeconds === selectedCandidate.durationSeconds &&
+		candidate.fileSizeBytes === selectedCandidate.fileSizeBytes
 	);
 }
 
